@@ -1,0 +1,23 @@
+# Amazon 结算费用分类初版。不是平台全集。
+# 只收录合成样本 scripts/sample_vocab.py 的 KNOWN_FEE_PAIRS。
+# 未知组合不要加进这里猜。导入时记 other，并写 UNKNOWN_FEE_TYPE。
+version: 1
+entries:
+  - amount_type: ItemPrice
+    amount_description: Principal
+    fee_category: principal
+    source: synthetic
+    source_ref: scripts/sample_vocab.py
+    note: 待真实数据验证
+  - amount_type: ItemFees
+    amount_description: Commission
+    fee_category: commission
+    source: synthetic
+    source_ref: scripts/sample_vocab.py
+    note: 待真实数据验证
+  - amount_type: ItemFees
+    amount_description: FBAPerUnitFulfillmentFee
+    fee_category: fba
+    source: synthetic
+    source_ref: scripts/sample_vocab.py
+    note: 待真实数据验证

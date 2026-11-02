@@ -1,0 +1,42 @@
+{
+  "derived_from": [
+    "samples/synthetic/expected/summary.json 的 settlements[amazon_de]",
+    "anomalies.json 的 fx_missing 指出第 39 行原文含 95,00。FX_MISSING 是利润阶段的码，导入阶段不产生。",
+    "费用合计来自该 TSV 的交易行 amount，用 parse_amount(locale=eu) 按已知组合分组。没有重复行。汇总行不进合计。"
+  ],
+  "file": "amazon_de_2026-10-01_2026-10-14.tsv",
+  "summary_row_no": 2,
+  "settlement": {
+    "external_id": "SYN-SETTLE-DE-20261014",
+    "currency": "EUR",
+    "marketplace": "Amazon.de",
+    "total": "571.18",
+    "period_start": "2026-10-01T00:00:00+00:00",
+    "period_end": "2026-10-14T00:00:00+00:00",
+    "deposit_date": "2026-10-16T00:00:00+00:00"
+  },
+  "store": {
+    "platform": "amazon",
+    "marketplace": "Amazon.de",
+    "currency": "EUR"
+  },
+  "raw_row_count": 40,
+  "settlement_line_count": 39,
+  "fee_totals": {
+    "commission": "-110.16",
+    "fba": "-53.10",
+    "principal": "734.44"
+  },
+  "issues": [],
+  "not_inserted_row_nos": [],
+  "stored_rows": [
+    {
+      "row_no": 39,
+      "order_id": "SYN-DE-FX",
+      "amount_type": "ItemPrice",
+      "amount_description": "Principal",
+      "amount": "95.00",
+      "fee_category": "principal"
+    }
+  ]
+}

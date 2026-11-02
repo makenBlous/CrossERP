@@ -1,0 +1,54 @@
+{
+  "derived_from": [
+    "samples/synthetic/expected/summary.json 的 settlements[amazon_us]",
+    "samples/synthetic/expected/anomalies.json 的 duplicate_row 与 unknown_fee_type",
+    "费用合计来自该 TSV 的交易行 amount，用 parse_amount 按已知组合分组。第 6 行是第 5 行的重复，不入库，不进合计。未知组合记 other。汇总行不进合计。"
+  ],
+  "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+  "summary_row_no": 2,
+  "settlement": {
+    "external_id": "SYN-SETTLE-US-20261014",
+    "currency": "USD",
+    "marketplace": "Amazon.com",
+    "total": "3088.16",
+    "period_start": "2026-10-01T00:00:00+00:00",
+    "period_end": "2026-10-14T00:00:00+00:00",
+    "deposit_date": "2026-10-16T00:00:00+00:00"
+  },
+  "store": {
+    "platform": "amazon",
+    "marketplace": "Amazon.com",
+    "currency": "USD"
+  },
+  "raw_row_count": 295,
+  "settlement_line_count": 293,
+  "fee_totals": {
+    "commission": "-662.00",
+    "fba": "-613.50",
+    "other": "-1.23",
+    "principal": "4368.39"
+  },
+  "issues": [
+    {
+      "kind": "DUPLICATE_ROW",
+      "row_no": 6,
+      "severity": "warn"
+    },
+    {
+      "kind": "UNKNOWN_FEE_TYPE",
+      "row_no": 296,
+      "severity": "warn"
+    }
+  ],
+  "not_inserted_row_nos": [6],
+  "stored_rows": [
+    {
+      "row_no": 296,
+      "order_id": null,
+      "amount_type": "ItemFees",
+      "amount_description": "SyntheticUnknownFee",
+      "amount": "-1.23",
+      "fee_category": "other"
+    }
+  ]
+}

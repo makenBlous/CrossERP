@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W2 | 2 天 | T08, T09 | `task/T10-amazon-v2` |
+| review | W2 | 2 天 | T08, T09 | `task/T10-amazon-v2` |
 
 ## 目标
 把 Amazon Seller Central 下载的 Flat File V2 结算报告（tab 分隔）正确导入为 `settlement` + `settlement_line` + `fee`，US/EU 金额格式都对，账不平和不认识的费用都进异常清单。
@@ -59,4 +59,35 @@
 
 ## 问题
 
+- 没有必须停下问的矛盾。店名没有单独列，导入时用 `marketplace-name`。这是推断，写在 `docs/data-formats/amazon-settlement-v2.md`。待真实数据验证。
+- 未知列按任务用 `PARSE_ERROR`，severity=`info`。不另设原因码。
+- 有交易行金额解析失败时，不另报 `SETTLEMENT_UNBALANCED`。差额算不准。这是推断。
+
 ## 完成记录
+
+本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。没有改 `docs/tasks/README.md`。没有推送。状态是 `review`，不是 `done`。
+
+`detect()` 读的是已安装的 entry point。共享虚拟环境仍指向主仓库 `D:\make\write\work\CrossERP`。验收时临时把本连接器写进该环境的 `entry_points.txt`，跑完已恢复。提交里的注册在 `pyproject.toml`。
+
+```text
+pytest tests/golden/test_amazon_v2.py tests/property/test_amazon_balance.py -q
+23 passed in 5.69s
+
+pytest -m db -k amazon -q
+8 passed, 118 deselected, 1 warning in 7.24s
+
+python -c "from crosserp.connectors.registry import detect; print(detect(Path('samples/synthetic/amazon_de_2026-10-01_2026-10-14.tsv')).id)"
+amazon.settlement_v2
+
+mypy
+Success: no issues found in 38 source files
+
+pytest -q
+125 passed, 1 skipped, 1 warning in 10.47s
+
+pytest --cov=crosserp --cov-fail-under=60 -q
+125 passed, 1 skipped, 1 warning in 10.16s
+Required test coverage of 60% reached. Total coverage: 88.47%
+```
+
+全仓库 `ruff check .` 仍有 2 个既有问题，不在本次改动里：`src/crosserp/core/enums.py` 与 `tests/guard/test_schema_portable.py` 的全角逗号。`ruff format --check` 还指出未改动的 `src/crosserp/db/migrations/env.py`。本次新增文件的 ruff 检查通过。

@@ -18,8 +18,9 @@ dependencies = [
 [project.scripts]
 crosserp = "crosserp.cli:app"
 
-# 内置连接器也走这一组。T10、T11 尚未注册。
+# 内置连接器也走这一组。
 [project.entry-points."crosserp.connectors"]
+amazon_settlement_v2 = "crosserp.connectors.amazon_settlement_v2:AmazonSettlementV2Connector"
 mapped = "crosserp.connectors.generic_mapped.connector:GenericMappedConnector"
 "shopify.payouts" = "crosserp.connectors.shopify_payouts:ShopifyPayoutsConnector"
 

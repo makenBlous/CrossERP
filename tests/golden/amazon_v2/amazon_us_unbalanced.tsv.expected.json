@@ -1,0 +1,41 @@
+{
+  "derived_from": [
+    "samples/synthetic/expected/summary.json 的 settlements[amazon_us_unbalanced]",
+    "samples/synthetic/expected/anomalies.json 的 settlement_unbalanced：第 2 行是汇总，总额 6.00，明细合计 5.00"
+  ],
+  "file": "amazon_us_unbalanced.tsv",
+  "summary_row_no": 2,
+  "settlement": {
+    "external_id": "SYN-SETTLE-US-UNBALANCED",
+    "currency": "USD",
+    "marketplace": "Amazon.com",
+    "total": "6.00",
+    "period_start": "2026-10-01T00:00:00+00:00",
+    "period_end": "2026-10-14T00:00:00+00:00",
+    "deposit_date": "2026-10-16T00:00:00+00:00"
+  },
+  "store": {
+    "platform": "amazon",
+    "marketplace": "Amazon.com",
+    "currency": "USD"
+  },
+  "raw_row_count": 4,
+  "settlement_line_count": 3,
+  "fee_totals": {
+    "commission": "-1.50",
+    "fba": "-3.50",
+    "principal": "10.00"
+  },
+  "issues": [
+    {
+      "kind": "SETTLEMENT_UNBALANCED",
+      "row_no": 2,
+      "severity": "error",
+      "total_amount": "6.00",
+      "line_sum": "5.00",
+      "diff": "-1.00"
+    }
+  ],
+  "not_inserted_row_nos": [],
+  "stored_rows": []
+}
