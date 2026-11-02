@@ -1,0 +1,232 @@
+# 触发：push 到 main，以及任意 pull_request。
+# 数据库密码 dev 只给测试容器用，不是真实密钥。与 AGENTS.md 本地示例相同。
+# MySQL utf8mb4 不经 options 传给 mysqld。service options 是 docker create 旗标。
+# mysql 矩阵项在测试前 ALTER DATABASE。说明见 docs/tasks/T07-ci-matrix.md 完成记录。
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # Windows 也用 bash。避免 PowerShell 把 Python 单引号脚本拆开。
+    shell: bash
+
+env:
+  # 只用 uv 管理的稳定解释器。不要预发布版。
+  UV_PYTHON_PREFERENCE: only-managed
+  PYTHONUTF8: "1"
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 安装 uv 与 Python
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.13.x"
+          python-version: "3.12"
+          enable-cache: true
+          cache-python: true
+
+      - name: 确认 uv 是 0.13.x
+        run: uv --version | grep -E '^uv 0\.13\.'
+
+      - name: 安装依赖
+        run: uv sync --locked --all-extras
+
+      - name: 确认解释器是稳定版
+        env:
+          PYTHON_VERSION: "3.12"
+        run: uv run python -c 'import os, sys; wanted=tuple(int(part) for part in os.environ["PYTHON_VERSION"].split(".")); assert sys.version_info[:2] == wanted, sys.version; assert sys.version_info.releaselevel == "final", sys.version; print(sys.version)'
+
+      - name: ruff format
+        run: uv run ruff format --check .
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: mypy
+        run: uv run mypy
+
+  test:
+    name: test
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.12", "3.14"]
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 安装 uv 与 Python
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.13.x"
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+          cache-python: true
+
+      - name: 确认 uv 是 0.13.x
+        run: uv --version | grep -E '^uv 0\.13\.'
+
+      - name: 安装依赖
+        run: uv sync --locked --all-extras
+
+      - name: 确认解释器是稳定版
+        env:
+          PYTHON_VERSION: ${{ matrix.python }}
+        run: uv run python -c 'import os, sys; wanted=tuple(int(part) for part in os.environ["PYTHON_VERSION"].split(".")); assert sys.version_info[:2] == wanted, sys.version; assert sys.version_info.releaselevel == "final", sys.version; print(sys.version)'
+
+      - name: pytest
+        run: uv run pytest --cov=crosserp --cov-fail-under=60
+
+  db-matrix:
+    name: db-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [sqlite, mysql, postgres]
+    env:
+      CROSSERP_CI_DB_PASSWORD: dev
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: dev
+          MYSQL_DATABASE: crosserp
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --protocol=TCP -uroot -pdev --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=30
+          --health-start-period=40s
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: dev
+          POSTGRES_DB: crosserp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d crosserp"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+          --health-start-period=10s
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 安装 uv 与 Python
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.13.x"
+          python-version: "3.12"
+          enable-cache: true
+          cache-python: true
+
+      - name: 确认 uv 是 0.13.x
+        run: uv --version | grep -E '^uv 0\.13\.'
+
+      - name: 安装依赖
+        run: uv sync --locked --all-extras
+
+      - name: 确认解释器是稳定版
+        env:
+          PYTHON_VERSION: "3.12"
+        run: uv run python -c 'import os, sys; wanted=tuple(int(part) for part in os.environ["PYTHON_VERSION"].split(".")); assert sys.version_info[:2] == wanted, sys.version; assert sys.version_info.releaselevel == "final", sys.version; print(sys.version)'
+
+      - name: 设置数据库连接串
+        env:
+          DB: ${{ matrix.db }}
+        run: |
+          set -euo pipefail
+          case "$DB" in
+            sqlite)
+              mkdir -p .ci
+              url="sqlite:///${PWD}/.ci/crosserp.db"
+              ;;
+            mysql)
+              url="mysql+pymysql://root:${CROSSERP_CI_DB_PASSWORD}@127.0.0.1:3306/crosserp?charset=utf8mb4"
+              ;;
+            postgres)
+              url="postgresql+psycopg://postgres:${CROSSERP_CI_DB_PASSWORD}@127.0.0.1:5432/crosserp"
+              ;;
+            *)
+              echo "未知数据库: $DB"
+              exit 1
+              ;;
+          esac
+          {
+            echo "CROSSERP_TEST_DATABASE_URL=${url}"
+            echo "CROSSERP_DATABASE_URL=${url}"
+          } >> "$GITHUB_ENV"
+
+      - name: 将 MySQL 库设为 utf8mb4
+        if: matrix.db == 'mysql'
+        run: |
+          uv run python -c '
+          import os
+          import pymysql
+
+          password = os.environ["CROSSERP_CI_DB_PASSWORD"]
+          conn = pymysql.connect(
+              host="127.0.0.1",
+              port=3306,
+              user="root",
+              password=password,
+              database="crosserp",
+              charset="utf8mb4",
+          )
+          try:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      "ALTER DATABASE crosserp CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci"
+                  )
+                  cur.execute("SELECT @@GLOBAL.sql_mode")
+                  row = cur.fetchone()
+                  mode = row[0] if row and row[0] else ""
+                  parts = {part.strip().upper() for part in mode.split(",") if part.strip()}
+                  if "STRICT_TRANS_TABLES" not in parts:
+                      updated = f"{mode},STRICT_TRANS_TABLES" if mode else "STRICT_TRANS_TABLES"
+                      cur.execute("SET GLOBAL sql_mode = %s", (updated,))
+                  cur.execute("SELECT VERSION()")
+                  version = cur.fetchone()
+                  print("MySQL", version[0])
+              conn.commit()
+          finally:
+              conn.close()
+          '
+
+      - name: 数据库自检
+        run: uv run crosserp db check
+
+      - name: 迁移往返
+        run: |
+          uv run python -c 'import os; from crosserp.db.migrate import downgrade_base, upgrade_head; url=os.environ["CROSSERP_TEST_DATABASE_URL"]; upgrade_head(url); downgrade_base(url); upgrade_head(url); print("迁移往返完成 upgrade head -> downgrade base -> upgrade head")'
+
+      - name: pytest -m db
+        run: uv run pytest -m db
