@@ -1,0 +1,53 @@
+"""首页与健康检查。"""
+
+from __future__ import annotations
+
+from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
+from typer.testing import CliRunner
+
+from crosserp import __version__
+from crosserp.cli import app
+from crosserp.web.app import create_app
+
+
+def test_health_ok() -> None:
+    response = TestClient(create_app()).get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "version": __version__}
+    assert "db" not in response.json()
+
+
+def test_index_shows_running() -> None:
+    response = TestClient(create_app()).get("/")
+    assert response.status_code == 200
+    assert "CrossERP 运行中" in response.text
+    assert __version__ in response.text
+    assert "/static/htmx.min.js" in response.text
+
+
+def test_htmx_static_served() -> None:
+    response = TestClient(create_app()).get("/static/htmx.min.js")
+    assert response.status_code == 200
+    assert "htmx" in response.text
+
+
+def test_serve_defaults_and_public_warning(monkeypatch: MonkeyPatch) -> None:
+    calls: list[tuple[str, int]] = []
+
+    def fake_run(application: object, *, host: str, port: int) -> None:
+        assert application is not None
+        calls.append((host, port))
+
+    monkeypatch.setattr("crosserp.cli.uvicorn.run", fake_run)
+    runner = CliRunner()
+
+    local = runner.invoke(app, ["serve"])
+    assert local.exit_code == 0
+    assert "对外开放前请配置 HTTPS 和登录（v0.5）" not in local.stdout  # noqa: RUF001
+    assert calls == [("127.0.0.1", 8000)]
+
+    public = runner.invoke(app, ["serve", "--host", "0.0.0.0", "--port", "8000"])
+    assert public.exit_code == 0
+    assert "对外开放前请配置 HTTPS 和登录（v0.5）" in public.stdout  # noqa: RUF001
+    assert calls == [("127.0.0.1", 8000), ("0.0.0.0", 8000)]
