@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W1 | 0.5 天 | T01 | `task/T02-fastapi-health` |
+| review | W1 | 0.5 天 | T01 | `main` |
 
 ## 目标
 `crosserp serve` 能启动 B/S 服务，浏览器打开 `http://127.0.0.1:8000/` 看到「CrossERP 运行中」，`/health` 返回 JSON，供以后 Docker/安装脚本做健康检查。
@@ -47,5 +47,24 @@
 - [ ] 按 Ctrl+C 能正常停止。
 
 ## 问题
+- 按 maken 要求，后续开发在 `main` 上做，不再开 `task/T02-fastapi-health`。T01 已快进合入 `main`（`09f0686`）。
+- 先前「Python 3.14.0b4 无法 `import fastapi`」的阻塞已解除。指定解释器 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe` 现为 Python 3.14.10，`import fastapi` 成功。没有新建、删除或重建虚拟环境。
+- 无需要 maken 决定的未决问题。
 
 ## 完成记录
+分支：`main`。未推送。状态改为 `review`，不是 `done`。
+
+解释器：Python 3.14.10。测试和检查都设置 `PYTHONPATH` 为本 worktree 的 `src`，没有用 `uv run`。
+
+| 命令 | 结果 |
+|---|---|
+| `uv.exe add uvicorn --bounds lower --no-sync` | 退出码 0。`Resolved 61 packages in 1m 28s`。`pyproject.toml` 写入 `uvicorn>=0.54.0`（无上限）。worktree 内没有新建 `.venv`。 |
+| `python -m pytest tests/web -q` | 退出码 0。`4 passed, 1 warning in 0.82s`。警告是 Starlette 提示 TestClient 将来要用 `httpx2`，本次未加该依赖。 |
+| `python -m pytest -q` | 退出码 0。`5 passed, 1 warning in 0.65s`。 |
+| 启动 `crosserp serve --host 127.0.0.1 --port 8000` 后请求 `http://127.0.0.1:8000/health` | 服务打印 `CrossERP 服务启动 http://127.0.0.1:8000` 和 `Uvicorn running on http://127.0.0.1:8000`。`/health` 状态 200，正文 `{"status":"ok","version":"0.0.1"}`。`/` 状态 200，含「CrossERP 运行中 0.0.1」。随后已停止该进程，8000 不再监听。 |
+| `uv.exe build` | 退出码 0。生成 `dist/crosserp-0.0.1.tar.gz` 和 `dist/crosserp-0.0.1-py3-none-any.whl`。 |
+| `python -m zipfile -l dist/crosserp-0.0.1-py3-none-any.whl` | 含 `crosserp/web/templates/index.html` 和 `crosserp/web/static/htmx.min.js`。 |
+| `ruff check .` | 退出码 0。`All checks passed!` |
+| `mypy` | 退出码 0。`Success: no issues found in 13 source files` |
+
+htmx.org 2.0.11 的 `dist/htmx.min.js` 取自 `https://registry.npmjs.org/htmx.org/-/htmx.org-2.0.11.tgz`，sha256 为 `d6fdc75f204e6bdefa99b69bf1e6d4ac69b8a364f77929f45c13476b4000f717`，写在 `src/crosserp/web/static/README.md`。未用 Node 构建。
