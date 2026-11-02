@@ -1,0 +1,141 @@
+{
+  "seed": 20261109,
+  "grace_days": 14,
+  "match_rate": "0.95",
+  "order_type_group_count": 120,
+  "matched_order_type_group_count": 114,
+  "unmatched_order_type_group_count": 6,
+  "unmatched_ratio": "0.05",
+  "unmatched_order_ids": [
+    "SYN-SH-NET",
+    "SYN-US-AMT",
+    "SYN-US-NOT-IN-ERP",
+    "SYN-US-QTY",
+    "SYN-US-REFUND-NO-ORDER",
+    "SYN-US-UNMAPPED"
+  ],
+  "match_rate_definition": "已匹配的订单类结算行组数 / 全部订单类结算行组数。Amazon 按 (order-id, sku) 分组。transaction-type 属于 Order/Refund/Chargeback（待真实数据验证）。Shopify 按 Order 分组，Type 属于 charge/refund/dispute（待真实数据验证）。未匹配原因码：NOT_IN_ERP、REFUND_WITHOUT_ORDER、QTY_MISMATCH、AMOUNT_MISMATCH、SKU_UNMAPPED。Shopify Net ≠ Amount − Fee 使用 AMOUNT_MISMATCH，计入未匹配组。amazon_us_unbalanced.tsv 不进入分母。非订单类行不进入分母。重复行不另计一组。",
+  "files": {
+    "orders.csv": {
+      "data_rows": 120
+    },
+    "mappings/synthetic_orders.yaml": {
+      "data_rows": 0,
+      "note": "YAML 列映射，不是表格"
+    },
+    "costs.csv": {
+      "data_rows": 8
+    },
+    "costs.xlsx": {
+      "data_rows": 8
+    },
+    "fx_rates.csv": {
+      "data_rows": 2
+    },
+    "fx_rates.xlsx": {
+      "data_rows": 2
+    },
+    "fx_rates_missing_eur.csv": {
+      "data_rows": 1
+    },
+    "sku_map.csv": {
+      "data_rows": 7
+    },
+    "fee_reference.csv": {
+      "data_rows": 7
+    },
+    "amazon_us_2026-10-01_2026-10-14.tsv": {
+      "data_rows": 295,
+      "total_amount": "3088.16"
+    },
+    "amazon_de_2026-10-01_2026-10-14.tsv": {
+      "data_rows": 40,
+      "total_amount": "571,18"
+    },
+    "amazon_us_unbalanced.tsv": {
+      "data_rows": 4,
+      "total_amount": "6.00",
+      "line_amount_sum": "5.00",
+      "balanced": false
+    },
+    "shopify_payout_2026-10-07.csv": {
+      "data_rows": 5,
+      "total_amount": "238.81"
+    },
+    "shopify_payout_2026-10-21.csv": {
+      "data_rows": 7,
+      "total_amount": "158.49"
+    },
+    "EXPECTED.md": {
+      "data_rows": 0,
+      "note": "说明文件"
+    },
+    "README.md": {
+      "data_rows": 0,
+      "note": "说明文件"
+    },
+    "expected/anomalies.json": {
+      "data_rows": 20
+    },
+    "expected/summary.json": {
+      "data_rows": 1,
+      "note": "本文件"
+    }
+  },
+  "settlements": [
+    {
+      "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+      "settlement_id": "SYN-SETTLE-US-20261014",
+      "currency": "USD",
+      "locale": "us",
+      "total_amount": "3088.16",
+      "total_amount_display": "3088.16",
+      "line_amount_sum": "3088.16",
+      "balanced": true,
+      "data_rows": 295,
+      "transaction_rows": 294
+    },
+    {
+      "file": "amazon_de_2026-10-01_2026-10-14.tsv",
+      "settlement_id": "SYN-SETTLE-DE-20261014",
+      "currency": "EUR",
+      "locale": "eu",
+      "total_amount": "571.18",
+      "total_amount_display": "571,18",
+      "line_amount_sum": "571.18",
+      "balanced": true,
+      "data_rows": 40,
+      "transaction_rows": 39
+    },
+    {
+      "file": "amazon_us_unbalanced.tsv",
+      "settlement_id": "SYN-SETTLE-US-UNBALANCED",
+      "currency": "USD",
+      "locale": "us",
+      "total_amount": "6.00",
+      "total_amount_display": "6.00",
+      "line_amount_sum": "5.00",
+      "balanced": false,
+      "data_rows": 4,
+      "transaction_rows": 3
+    },
+    {
+      "file": "shopify_payout_2026-10-07.csv",
+      "currency": "USD",
+      "locale": "us",
+      "total_amount": "238.81",
+      "total_basis": "sum_of_net",
+      "data_rows": 5,
+      "note": "文件没有汇总行。total 为 ΣNet。推断，待真实数据验证。"
+    },
+    {
+      "file": "shopify_payout_2026-10-21.csv",
+      "currency": "USD",
+      "locale": "us",
+      "total_amount": "158.49",
+      "total_basis": "sum_of_net",
+      "data_rows": 7,
+      "note": "文件没有汇总行。total 为 ΣNet，含故意写错的 Net。推断，待真实数据验证。"
+    }
+  ]
+}

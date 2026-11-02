@@ -1,0 +1,8 @@
+Transaction Date,Type,Order,Card Brand,Card Source,Payout Status,Payout Date,Available On,Amount,Fee,Net
+2026-10-05 10:15:00 -0400,charge,SYN-SH-0005,Visa,online,paid,2026-10-21,2026-10-21,32.18,0.64,31.54
+2026-10-06 10:15:00 -0400,charge,SYN-SH-0006,Visa,online,paid,2026-10-21,2026-10-21,25.41,0.51,24.90
+2026-10-07 10:15:00 -0400,charge,SYN-SH-0007,Visa,online,paid,2026-10-21,2026-10-21,56.78,1.14,55.64
+2026-10-08 10:15:00 -0400,charge,SYN-SH-0008,Visa,online,paid,2026-10-21,2026-10-21,47.68,0.95,46.73
+2026-10-18 10:15:00 -0400,charge,SYN-SH-PENDING,Visa,online,pending,,2026-10-28,16.00,0.32,15.68
+2026-10-12 10:15:00 -0400,charge,SYN-SH-NET,Visa,online,paid,2026-10-21,2026-10-21,20.00,0.40,19.00
+2026-10-18 10:15:00 -0400,dispute,SYN-SH-CB,Visa,online,paid,2026-10-21,2026-10-21,-35.00,0.00,-35.00

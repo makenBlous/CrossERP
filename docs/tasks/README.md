@@ -22,7 +22,7 @@
 | T05 | [数据模型 + Alembic 迁移 + upsert](T05-schema-migrations.md) | W1 | 2 天 | T04 | todo |
 | T06 | [审计哈希链](T06-audit-chain.md) | W1 | 1 天 | T05 | todo |
 | T07 | [CI：三系统 × 三数据库](T07-ci-matrix.md) | W1 | 1 天 | T05 | todo |
-| T08 | [合成样本生成器（含边界情况）](T08-sample-generator.md) | W2 | 1.5 天 | T03 | todo |
+| T08 | [合成样本生成器（含边界情况）](T08-sample-generator.md) | W2 | 1.5 天 | T03 | review |
 | T09 | [连接器协议 + 导入批次](T09-connector-base-import-batch.md) | W2 | 1.5 天 | T05 | todo |
 | T10 | [Amazon 结算 Flat File V2 导入器](T10-amazon-settlement-v2.md) | W2 | 2 天 | T08, T09 | todo |
 | T11 | [Shopify 打款 CSV 导入器](T11-shopify-payouts.md) | W2 | 1 天 | T08, T09 | todo |

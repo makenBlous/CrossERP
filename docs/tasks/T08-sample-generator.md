@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W2 | 1.5 天 | T03（只用 Money/Decimal，不需要数据库） | `task/T08-sample-generator` |
+| review | W2 | 1.5 天 | T03（只用 Money/Decimal，不需要数据库） | `task/T08-sample-generator` |
 
 ## 目标
 `scripts/gen_samples.py` 用固定种子生成一套「已知正确答案」的假数据，后面所有导入、对账、利润测试都拿它做标准答案。真实数据到位前，这是唯一的测试基准。
@@ -90,4 +90,30 @@
 
 ## 问题
 
+没有停工项。平台取值没有真实文件，已放进 `scripts/sample_vocab.py` 并注明「待真实数据验证」。
+
+推断，供 W3 确认，不阻塞本任务：
+
+- 全额退款 / 部分退款 / 拒付要匹配成功。比较金额时只用 Order 的 Principal，不要把 Refund / Chargeback 轧差后再和 `item_price` 比。否则与场景表冲突。
+- 同一订单多行的 `quantity-purchased` 重复填写同一数量。对账应按订单项取一次。
+- Shopify `Net ≠ Amount − Fee` 使用 `AMOUNT_MISMATCH`，并计入未匹配组。因此未匹配恰好 6 组，匹配率恰好 0.95。再加未匹配组就会跌破 95%，除非同时增加已匹配组。
+- `amazon_us_unbalanced.tsv` 不进入匹配率分母。它只用于 `SETTLEMENT_UNBALANCED`。
+- 没有生成仓储费、移除费、FBA 赔偿、促销。不是费用全集。
+
 ## 完成记录
+
+当前分支 `main`（按本次指令提交到当前分支，未另开 `task/T08-sample-generator`）。未推送。未把状态改成 done。未改 `docs/tasks/README.md`。
+
+2026-11-02 在本 worktree 实际运行。解释器 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`，Python 3.14.10。未使用 `uv run`。`PYTHONPATH` 指向本 worktree 的 `src`。
+
+| 命令 | 结果 |
+|---|---|
+| `python scripts/gen_samples.py --out samples/synthetic` | 退出码 0。`orders.csv: 120 数据行`；`amazon_us_2026-10-01_2026-10-14.tsv: 295 数据行 total=3088.16`；`amazon_de_2026-10-01_2026-10-14.tsv: 40 数据行 total=571,18`；`amazon_us_unbalanced.tsv: 4 数据行 total=6.00 balanced=false`；两份 Shopify 打款 5 行 / 7 行。末行 `预期匹配率 ≥95%：实际 0.95，订单类结算行组 120，已匹配 114，未匹配 6` |
+| 再运行一次后 `git status --porcelain samples/synthetic` | 无输出。csv/tsv/json/xlsx 都无变化。两次 xlsx sha256 也相同：`costs.xlsx` `7756fba528b099fb5d7065332a82d056a834d0aa25c5c9c02c8e5009dd16ab1c`，`fx_rates.xlsx` `255b01111ab886f67784974cd8e6c62fb65dfefd76c5c04604ed518fc9774bcf` |
+| `python -m pytest tests/unit/test_gen_samples.py -q` | 退出码 0。`9 passed in 0.75s` |
+| `python -m pytest -q` | 退出码 0。`33 passed in 1.21s` |
+| `python -m ruff format --check .` | 退出码 0。`25 files already formatted` |
+| `python -m ruff check .` | 退出码 0。`All checks passed!` |
+| `python -m mypy` | 退出码 0。`Success: no issues found in 13 source files` |
+
+预期匹配率 `0.95`。未匹配占比 `0.05`。金额只用 `Decimal`。`scripts/` 中没有 `float()` 调用。

@@ -1,0 +1,245 @@
+[
+  {
+    "scenario": "normal",
+    "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      3,
+      4,
+      5
+    ],
+    "order_id": "SYN-US-0001",
+    "sku": "CUP-US-001",
+    "expected_issue_kind": "",
+    "note": "Order 的 Principal、佣金、FBA 与订单表一致，应匹配成功。代表行，不是全部正常单。"
+  },
+  {
+    "scenario": "fee_overcharge",
+    "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      262,
+      263,
+      264
+    ],
+    "order_id": "SYN-US-FEE",
+    "sku": "CUP-US-001",
+    "expected_issue_kind": "FEE_OVERCHARGE?",
+    "note": "FBA 配送费 5.50 高于 fee_reference.csv 的 3.50/件。匹配仍成功。候选原因码，maken 确认前写 FEE_OVERCHARGE?。订单表第 108 行。"
+  },
+  {
+    "scenario": "in_transit",
+    "file": "orders.csv",
+    "row_nos": [
+      120
+    ],
+    "order_id": "SYN-US-INTRANSIT",
+    "sku": "CUP-US-001",
+    "expected_issue_kind": "NOT_IN_SETTLEMENT",
+    "note": "订单日期 2026-10-25，不在任何结算/打款文件。不算错：仅超过 GRACE_DAYS=14 后才报，否则标待下期。"
+  },
+  {
+    "scenario": "in_transit",
+    "file": "orders.csv",
+    "row_nos": [
+      121
+    ],
+    "order_id": "SYN-DE-INTRANSIT",
+    "sku": "PAD-DE-002",
+    "expected_issue_kind": "NOT_IN_SETTLEMENT",
+    "note": "订单日期 2026-10-31，不在任何结算/打款文件。不算错：仅超过 GRACE_DAYS=14 后才报，否则标待下期。"
+  },
+  {
+    "scenario": "in_transit",
+    "file": "shopify_payout_2026-10-21.csv",
+    "row_nos": [
+      6
+    ],
+    "order_id": "SYN-SH-PENDING",
+    "sku": "SH-TEE-001",
+    "expected_issue_kind": "NOT_IN_SETTLEMENT",
+    "note": "Payout Status=pending（待真实数据验证），当作未打款。行在打款导出里，但不算已结算。GRACE_DAYS 内标待下期，不报错。订单表第 115 行。"
+  },
+  {
+    "scenario": "refund",
+    "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      265,
+      266,
+      267,
+      268,
+      269
+    ],
+    "order_id": "SYN-US-REFUND",
+    "sku": "MUG-US-002",
+    "expected_issue_kind": "",
+    "note": "同一订单有 Order 和 Refund，Refund 含退回的佣金。按订单号合并后匹配成功，利润里退款为负。不得因退款行把 Principal 轧差后报 AMOUNT_MISMATCH。订单表第 109 行。"
+  },
+  {
+    "scenario": "partial_refund",
+    "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      270,
+      271,
+      272,
+      273,
+      274
+    ],
+    "order_id": "SYN-US-PARTIAL",
+    "sku": "BAG-US-003",
+    "expected_issue_kind": "",
+    "note": "Refund Principal 10.00 < Order Principal 60.00。Order 行 quantity-purchased 仍为 2，与订单 qty 相同。匹配成功，不得报 QTY_MISMATCH。订单表第 110 行。"
+  },
+  {
+    "scenario": "chargeback",
+    "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      278
+    ],
+    "order_id": "SYN-US-CB",
+    "sku": "CUP-US-001",
+    "expected_issue_kind": "",
+    "note": "Amazon Chargeback 类交易（transaction-type 待真实数据验证）。匹配到原订单，按退款类计入利润。scenario=chargeback，便于以后单独分类。订单表第 111 行。"
+  },
+  {
+    "scenario": "chargeback",
+    "file": "shopify_payout_2026-10-21.csv",
+    "row_nos": [
+      8
+    ],
+    "order_id": "SYN-SH-CB",
+    "sku": "SH-TEE-001",
+    "expected_issue_kind": "",
+    "note": "Shopify dispute 类交易（Type 待真实数据验证）。原 charge 在 shopify_payout_2026-10-07.csv 第 6 行。匹配到原订单，按退款类计入利润。scenario=chargeback。"
+  },
+  {
+    "scenario": "refund_without_order",
+    "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      294,
+      295
+    ],
+    "order_id": "SYN-US-REFUND-NO-ORDER",
+    "sku": "CUP-US-001",
+    "expected_issue_kind": "REFUND_WITHOUT_ORDER",
+    "note": "Refund 行的订单号不在 orders.csv。sku 在 sku_map.csv，所以不是 SKU_UNMAPPED。"
+  },
+  {
+    "scenario": "not_in_erp",
+    "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      291,
+      292,
+      293
+    ],
+    "order_id": "SYN-US-NOT-IN-ERP",
+    "sku": "CUP-US-001",
+    "expected_issue_kind": "NOT_IN_ERP",
+    "note": "Order 行的订单号不在 orders.csv。sku 在 sku_map.csv，所以不是 SKU_UNMAPPED。"
+  },
+  {
+    "scenario": "qty_mismatch",
+    "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      282,
+      283,
+      284
+    ],
+    "order_id": "SYN-US-QTY",
+    "sku": "MUG-US-002",
+    "expected_issue_kind": "QTY_MISMATCH",
+    "note": "结算 quantity-purchased=1，订单 qty=3。Principal 与 item_price 一致，只报数量不符。订单表第 116 行。"
+  },
+  {
+    "scenario": "amount_mismatch",
+    "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      285
+    ],
+    "order_id": "SYN-US-AMT",
+    "sku": "BAG-US-003",
+    "expected_issue_kind": "AMOUNT_MISMATCH",
+    "note": "Order Principal 22.00 ≠ 订单 item_price 25.00。数量一致。订单表第 117 行。"
+  },
+  {
+    "scenario": "sku_unmapped",
+    "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      288,
+      289,
+      290
+    ],
+    "order_id": "SYN-US-UNMAPPED",
+    "sku": "SYN-UNMAPPED",
+    "expected_issue_kind": "SKU_UNMAPPED",
+    "note": "结算 sku 不在 sku_map.csv。订单在 orders.csv 第 118 行。按实施方案 6.2 先查映射。期望 SKU_UNMAPPED。"
+  },
+  {
+    "scenario": "cost_missing",
+    "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      279,
+      280,
+      281
+    ],
+    "order_id": "SYN-US-COST",
+    "sku": "COST-GAP-US",
+    "expected_issue_kind": "COST_MISSING",
+    "note": "内部 SKU INT-COST-GAP 在 costs.csv 只有生效日期 2026-11-01。不覆盖订单日期 2026-10-06。对账匹配成功，利润计算时报缺成本。订单表第 112 行。"
+  },
+  {
+    "scenario": "fx_missing",
+    "file": "amazon_de_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      39,
+      40,
+      41
+    ],
+    "order_id": "SYN-DE-FX",
+    "sku": "BOT-DE-001",
+    "expected_issue_kind": "FX_MISSING",
+    "note": "用 fx_rates_missing_eur.csv 代替 fx_rates.csv 时，DE 店铺 2026-10 没有 EUR→CNY。正常汇率表有该汇率。匹配成功，W3 利润计算才产生。金额原文含 95,00。订单表第 113 行。"
+  },
+  {
+    "scenario": "unknown_fee_type",
+    "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      296
+    ],
+    "order_id": "",
+    "sku": "",
+    "expected_issue_kind": "UNKNOWN_FEE_TYPE",
+    "note": "amount-description=SyntheticUnknownFee，不在 sample_vocab.KNOWN_FEE_PAIRS。transaction-type=other-transaction，非订单类，不进匹配率分母。不丢行。"
+  },
+  {
+    "scenario": "settlement_unbalanced",
+    "file": "amazon_us_unbalanced.tsv",
+    "row_nos": [
+      2
+    ],
+    "order_id": "",
+    "sku": "",
+    "expected_issue_kind": "SETTLEMENT_UNBALANCED",
+    "note": "汇总行 total-amount 6.00 ≠ 明细 amount 之和 5.00。该文件不进入匹配率分母。"
+  },
+  {
+    "scenario": "shopify_net_mismatch",
+    "file": "shopify_payout_2026-10-21.csv",
+    "row_nos": [
+      7
+    ],
+    "order_id": "SYN-SH-NET",
+    "sku": "SH-TEE-001",
+    "expected_issue_kind": "AMOUNT_MISMATCH",
+    "note": "Net 19.00 ≠ Amount 20.00 − Fee 0.40 = 19.60。订单仍在 orders.csv，但这条 AMOUNT_MISMATCH 计入未匹配组。订单表第 119 行。"
+  },
+  {
+    "scenario": "duplicate_row",
+    "file": "amazon_us_2026-10-01_2026-10-14.tsv",
+    "row_nos": [
+      6
+    ],
+    "order_id": "SYN-US-0001",
+    "sku": "CUP-US-001",
+    "expected_issue_kind": "DUPLICATE_ROW",
+    "note": "第 6 行与第 5 行完全相同。第二行是重复行。文件总额含这两行。匹配率不把重复行另计一组。"
+  }
+]
