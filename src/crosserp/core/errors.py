@@ -26,3 +26,7 @@ class AmountParseError(CrossErpError):
 
 class PrecisionError(CrossErpError):
     """小数位数或数值范围超出允许精度。T04 的 Money4 / FxRate 使用。"""
+
+
+class DatabaseConfigError(CrossErpError):
+    """数据库配置不满足启动要求。消息用中文说明怎么改。"""

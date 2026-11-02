@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W1 | 1.5 天 | T03 | `task/T04-db-types-session` |
+| review | W1 | 1.5 天 | T03 | `task/T04-db-types-session` |
 
 ## 目标
 同一份代码连 SQLite / MySQL 8.4 / PostgreSQL 18，金额写进去读出来逐位相等，中文和 emoji 不乱码；MySQL 配置不对时拒绝启动并告诉用户怎么改。
@@ -61,6 +61,27 @@
 - [ ] 用 MySQL 客户端（如 Navicat / DBeaver）看测试留下的数据（如果代理提供了演示脚本）：中文和 emoji 显示正常。
 
 ## 问题
-- maken 于 2026-11-02 决定：当前本地验收只跑 SQLite。切换 MySQL / PostgreSQL 只改配置文件里的 `CROSSERP_DATABASE_URL`，不改业务代码。本机没有 Docker，不在这次验收里实跑 MySQL / PostgreSQL。代码仍保持三库兼容。
+
+maken 于 2026-11-02 决定：当前本地验收只跑 SQLite。切换 MySQL / PostgreSQL 只改配置文件里的 `CROSSERP_DATABASE_URL`，不改业务代码。
+
+MySQL 8.4 和 PostgreSQL 18 的 `pytest -m db` 没有跑。`crosserp db check` 也没有对 MySQL 跑过。原因：本机没有 Docker CLI。PowerShell 里 `docker` 不能识别，PATH 中没有 docker，`C:\Program Files\Docker\Docker\resources\bin\docker.exe` 不存在。没有另找本机数据库冒充三库结果。SQLite 测试已通过。这不是产品决定。
+
+写入路径上，SQLAlchemy 会把 `Money4` / `FxRate` / `UtcDateTime` 处理器抛出的 `PrecisionError`、`TypeError`、`ValueError` 包成 `StatementError`，原始异常在 `__cause__`。直接调用 `process_bind_param` 时异常类型不变。
 
 ## 完成记录
+
+当前分支 `main`（按本次指令提交到当前分支，未另开 `task/T04-db-types-session`）。未推送。未把状态改成 done。未改 `docs/tasks/README.md`。
+
+2026-11-02 在本 worktree 实际运行。解释器 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。未使用 `uv run`。未创建或删除虚拟环境。`PYTHONPATH` 指向本 worktree 的 `src`。
+
+| 命令 | 结果 |
+|---|---|
+| `python -m pytest -m db -q`（未设置 `CROSSERP_TEST_DATABASE_URL`，SQLite） | 退出码 0。`33 passed, 1 skipped, 24 deselected in 0.93s`。跳过的是 `test_mysql_latin1_database_is_rejected`：没有 MySQL |
+| `python -m pytest -q` | 退出码 0。`57 passed, 1 skipped in 1.33s` |
+| `mypy` | 退出码 0。`Success: no issues found in 16 source files` |
+| `ruff check .` | 退出码 0。`All checks passed!` |
+| `ruff format --check .` | 退出码 0。`27 files already formatted` |
+| 临时 SQLite 上 `db check` | 退出码 0。输出：`数据库类型: SQLite` / `版本: 3.53.1` / `自检: OK` |
+
+MySQL 8.4 / PostgreSQL 18：未运行。见「问题」。
+
