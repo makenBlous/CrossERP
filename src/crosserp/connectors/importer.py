@@ -163,7 +163,14 @@ def _consume(
                         row_no=exc.row_no,
                         payload=exc.raw,
                     )
-                error_count += _write_row_error(session, exc.row_no, str(exc), exc.raw)
+                error_count += _write_row_error(
+                    session,
+                    exc.row_no,
+                    str(exc),
+                    exc.raw,
+                    batch_id=batch.id,
+                    source_file=str(path),
+                )
                 continue
             except Exception as exc:
                 raise _BatchAbort(f"无法读取文件 {path.name}。{exc}") from exc
@@ -182,6 +189,8 @@ def _consume(
                     raw.row_no,
                     f"第 {raw.row_no} 行解析失败。{exc}",
                     raw.payload,
+                    batch_id=batch.id,
+                    source_file=str(path),
                 )
                 continue
             for record in records:
@@ -196,6 +205,8 @@ def _consume(
                         exc.row_no,
                         str(exc),
                         exc.raw if isinstance(exc.raw, dict) else raw.payload,
+                        batch_id=batch.id,
+                        source_file=str(path),
                     )
                     continue
                 if isinstance(filled, IssueRec) and filled.issue_kind is IssueKind.PARSE_ERROR:
@@ -212,12 +223,21 @@ def _write_row_error(
     row_no: int,
     message: str,
     raw: dict[str, str] | str | None,
+    *,
+    batch_id: UUID,
+    source_file: str,
 ) -> int:
     insert_issue(
         session,
         kind=IssueKind.PARSE_ERROR.value,
         severity="error",
-        detail_json={"row_no": row_no, "error": message, "raw": raw},
+        detail_json={
+            "row_no": row_no,
+            "error": message,
+            "raw": raw,
+            "import_batch_id": str(batch_id),
+            "source_file": source_file,
+        },
         status=IssueStatus.OPEN.value,
         created_at=datetime.now(UTC),
     )
@@ -245,6 +265,7 @@ def _persist(session: Session, record: CanonicalRecord, batch_id: UUID, raw_row_
         return
     if isinstance(record, IssueRec):
         detail = dict(record.detail_json)
+        detail.setdefault("import_batch_id", str(batch_id))
         if record.provenance is not None:
             detail.setdefault("row_no", record.provenance.row_no)
             detail.setdefault("source_file", record.provenance.source_file)

@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W2 | 1 天 | T10, T11, T12 | `task/T13-import-cli` |
+| review | W2 | 1 天 | T10, T11, T12 | `task/T13-import-cli` |
 
 ## 目标
 用户一条命令导入任何支持的文件；合成样本整套导入结果与标准答案一致；maken 的真实文件导入不崩溃，看不懂的东西全进异常清单。
@@ -49,4 +49,34 @@
 
 ## 问题
 
+- `demo-import` 不导入 `costs.xlsx`、`fx_rates.xlsx`。它们和对应 csv 是同一份数据。两份成本都导入会因生效期重叠写出预期外的 `PARSE_ERROR`。
+- 不导入 `fx_rates_missing_eur.csv`。它是缺汇率场景的替代文件，不是正常汇率表。
+- 不导入 `fee_reference.csv`。没有对应导入器。留给以后的费用核对。
+- 合成 Shopify 打款文件没有 `Currency` 列。`demo-import` 传入 `USD`，店铺名用 `shopify-main`，与订单表一致。这是推断。
+- 本 worktree 里 Amazon 连接器仍是未跟踪文件。本次提交不包含它们，也不改 `docs/tasks/README.md`。干净检出后如果没有这些文件，Amazon 导入会失败。
+- 指定解释器的 `crosserp.connectors` 入口点是空的。命令行在注册表为空时直接加载内置连接器。
+- 本地只跑了 SQLite。没有跑 MySQL / PostgreSQL。没有删除用户目录里的 `data.db`。验收用的是临时 SQLite 文件。
+
 ## 完成记录
+
+本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。任务验收命令里的 `uv run` 按上面的解释器替换。
+
+```text
+pytest -m db -k e2e -q
+3 passed, 173 deselected, 1 warning in 2.52s
+
+pytest tests/integration/test_real_files.py -q
+1 skipped in 0.61s
+samples/real_anonymized/ 不存在
+
+pytest --cov=crosserp --cov-fail-under=60 -q
+174 passed, 2 skipped, 1 warning in 18.30s
+Total coverage: 86.01%
+
+mypy
+Success: no issues found in 48 source files
+```
+
+临时 SQLite 上 `init`、`demo-import`、再跑一次 `demo-import`、`issues list --kind SETTLEMENT_UNBALANCED` 都退出码 0。第一次每个文件一行。第二次每个文件显示「已导入过（时间），跳过」。`SETTLEMENT_UNBALANCED` 恰好 1 条。导入阶段异常共 4 条：`DUPLICATE_ROW`、`UNKNOWN_FEE_TYPE`、`SETTLEMENT_UNBALANCED`、Shopify `AMOUNT_MISMATCH`。没有额外异常。
+
+`ruff check .` 仍有 2 个既有问题，在 `enums.py` 和 `tests/guard/test_schema_portable.py`。本次文件已通过 ruff。未改 `docs/tasks/README.md`。未改审计哈希规则。未推送。
