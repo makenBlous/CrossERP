@@ -1,0 +1,52 @@
+# T13 导入命令 `crosserp import` + 全样本端到端测试 + 真实文件试导入
+
+| 状态 | 周 | 估时 | 依赖 | 分支 |
+|---|---|---|---|---|
+| todo | W2 | 1 天 | T10, T11, T12 | `task/T13-import-cli` |
+
+## 目标
+用户一条命令导入任何支持的文件；合成样本整套导入结果与标准答案一致；maken 的真实文件导入不崩溃，看不懂的东西全进异常清单。
+
+## 背景
+- 实施方案 8 W2 第 5 条和验收标准；9 节 W2 maken 任务（用真实文件试导入）。
+
+## 范围
+- CLI：`crosserp import <file>... [--type auto|amazon|shopify|mapped] [--mapping x.yaml] [--currency USD] [--store <名字>]`
+  - `auto` 用 `registry.detect()`；识别不了 → 中文提示可用的 `--type`。
+  - 支持一次多个文件；每个文件单独一个批次，一个失败不影响其他。
+  - 输出表格：文件名、连接器、数据行数、成功行数、异常数（按原因码）、批次 id；重复文件显示「已导入过（时间），跳过」，退出码仍为 0 但打印警告；其他失败退出码 1。
+- `crosserp issues list [--kind X] [--batch <id>]`：只读列出异常（W3 网页之前的最小查看方式）。
+- `crosserp demo-import`：导入 `samples/synthetic/` 全部文件（按 sku_map → costs → fx → orders → 结算/打款 的顺序），供测试和 maken 使用。
+- 端到端测试 `tests/integration/test_import_e2e.py`（三库）：对空库运行 demo-import → 每个文件 raw_row 数 = 文件数据行数（来自 `expected/summary.json`）；异常集合 ⊇ `anomalies.json` 中属于「导入阶段」的条目（`SETTLEMENT_UNBALANCED`、`UNKNOWN_FEE_TYPE`、`DUPLICATE_ROW`、Shopify `AMOUNT_MISMATCH`、`PARSE_ERROR`），且没有意外的额外异常；再跑一次 → 全部被判重复。
+- `tests/integration/test_real_files.py`：若 `samples/real_anonymized/` 存在文件则逐个导入，断言「无未捕获异常」；目录不存在则 skip。**此目录不提交**，CI 中自动 skip。
+
+## 不做
+- 不做对账/利润/网页（W3）。
+
+## 步骤
+1. 写 CLI 命令（Typer），输出用纯文本表格（不新增依赖；若想用 rich，先问）。
+2. 写 e2e 测试和真实文件测试。
+3. 本地跑三库。
+4. 更新 README「快速开始」一节：`crosserp init` → `crosserp demo-import` → `crosserp issues list`。
+
+## 涉及文件
+`src/crosserp/cli.py` `src/crosserp/connectors/importer.py` `src/crosserp/db/repo/issues.py` `tests/integration/test_import_e2e.py` `tests/integration/test_real_files.py` `README.md` `CHANGELOG.md`
+
+## 验收标准
+| 命令 | 期望 |
+|---|---|
+| `uv run crosserp init && uv run crosserp demo-import` | 每个文件一行汇总，无报错退出 |
+| 再执行 `uv run crosserp demo-import` | 每个文件显示「已导入过，跳过」 |
+| `uv run crosserp issues list --kind SETTLEMENT_UNBALANCED` | 恰好 1 条 |
+| 三库分别 `uv run pytest -m db -k e2e -q` | passed |
+| `uv run pytest --cov=crosserp --cov-fail-under=60` | passed |
+
+## maken 人工验收清单
+- [ ] 删除 `%USERPROFILE%\.crosserp\data.db`（如果有），运行 `uv run crosserp init`，再运行 `uv run crosserp demo-import`，截图输出。
+- [ ] 运行 `uv run crosserp issues list`，对照 `samples/synthetic/EXPECTED.md`，看导入阶段的异常是不是都在。
+- [ ] 把脱敏后的真实文件放进 `samples/real_anonymized/`，逐个运行 `uv run crosserp import <文件>`（领星/赛狐加 `--type mapped --mapping <你改好的yaml>`），**每个报错都截图**发给代理。
+- [ ] 运行 `uv run pytest tests/integration/test_real_files.py -q`，应全部通过（不崩溃）。
+
+## 问题
+
+## 完成记录
