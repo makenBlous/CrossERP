@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W1 | 2 天 | T04 | `task/T05-schema-migrations` |
+| review | W1 | 2 天 | T04 | `task/T05-schema-migrations` |
 
 ## 目标
 把 v0.1 需要的表用方言中立的方式建好，三库都能 `alembic upgrade head` / `downgrade base` 往返；提供 upsert 封装。
@@ -58,4 +58,44 @@
 
 ## 问题
 
+当前本地验收只跑 SQLite。MySQL 8.4 和 PostgreSQL 18 的 `pytest -m db`、`crosserp init` 没有实跑。本机没有可用的 MySQL / PostgreSQL。没有编造三库输出。代码仍按三库兼容写。配置文件里的 `CROSSERP_DATABASE_URL` 指向它们之后再补验收。
+
+以下是推断。没有停下来问。若不同意请改：
+
+- `ImportStatus` 取值是 `running` / `done` / `failed`。任务文件没有列值。按 T09 导入流程推断。
+- `match.settlement_line_id` 可空。实施方案写「settlement_line_id(或组)」。没有另建组表。
+- `sku_cost.source_batch_id`、`deposit_date`、`order_line.item_price`、`profit_snapshot.ads` 等可空。实施方案没有写空值规则。
+- `raw_row.id` 在 SQLite 上用 `Integer`。只有 INTEGER PRIMARY KEY 会自增。MySQL / PostgreSQL 仍是 BIGINT。迁移写的是 `BigInteger().with_variant(Integer(), "sqlite")`。不是方言专属类型类。
+- 守卫测试里 `amount_type`、`amount_description`、`fee_category` 名字含 amount/fee。但它们不是金额列。测试把这三列排除。其余含这些词的列必须是 Money4。
+
 ## 完成记录
+
+当前分支 `task/T05-schema-migrations`。未推送。未把状态改成 done。未改 `docs/tasks/README.md`。
+
+2026-11-02 在本 worktree 实际运行。解释器 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。未使用 `uv run`。未创建或删除虚拟环境。`PYTHONPATH` 指向本 worktree 的 `src`。
+
+| 命令 | 结果 |
+|---|---|
+| `python -m pytest -q`（未设置 `CROSSERP_TEST_DATABASE_URL`。SQLite） | 退出码 0。`77 passed, 1 skipped, 1 warning in 3.31s`。跳过的是没有 MySQL 的自检测试 |
+| `python -m pytest -m db -q` | 退出码 0。`40 passed, 1 skipped, 34 deselected, 1 warning in 2.49s` |
+| `python -m pytest tests/guard -q` | 退出码 0。`9 passed in 0.18s` |
+| `python -m pytest --cov=crosserp --cov-fail-under=60 -q` | 退出码 0。覆盖率 89.53%。`77 passed, 1 skipped, 1 warning in 3.31s` |
+| `python -m crosserp.cli init`（未设置 `CROSSERP_DATABASE_URL`。默认 `~/.crosserp/data.db`） | 退出码 0。打印「数据库已就绪」 |
+| 再运行一次 `python -m crosserp.cli init` | 退出码 0。仍打印「数据库已就绪」 |
+| `alembic -c src/crosserp/db/alembic.ini check` | 退出码 0。`No new upgrade operations detected.` |
+| `ruff check .` | 退出码 0。All checks passed |
+| `mypy` | 退出码 0。Success: no issues found in 29 source files |
+
+`crosserp init` 第一次输出：
+
+```text
+数据库类型: SQLite
+版本: 3.53.1
+自检: OK
+数据库已就绪
+```
+
+第二次输出相同。
+
+另外改了 `docs/database.md` 一行。原文写「本文件不建业务表」。现在改为指向 `docs/architecture.md` 的表清单。
+

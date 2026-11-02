@@ -7,6 +7,7 @@
 ### 新增
 
 - 对账异常分类草案 `docs/rules/recon-categories.md`，以及原因码人话模板草稿。5 个原因码已由 maken 于 2026-11-02 确认。
+- v0.1 业务表、初始迁移和 `crosserp init`。已确认的 5 个原因码写入 `IssueKind`。
 - 金额类型 `Money` 与 `parse_amount()`。全程 `Decimal`，禁止 float。
 - 数据库类型 `Money4`、`FxRate`、`UtcDateTime`，以及 `crosserp db check`。当前默认 SQLite，切换库只改配置文件。
 - 固定种子合成样本生成器，以及 `samples/synthetic/` 标准答案。

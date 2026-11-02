@@ -11,6 +11,7 @@ from sqlalchemy.engine import make_url
 from crosserp import __version__
 from crosserp.core.errors import DatabaseConfigError
 from crosserp.db.dialects import ServerStatus, check_server
+from crosserp.db.migrate import ensure_database_directory, upgrade_head
 from crosserp.db.session import get_database_url, make_engine
 from crosserp.web.app import create_app
 
@@ -42,6 +43,35 @@ def main(
     ),
 ) -> None:
     """跨境电商对账工具。"""
+
+
+@app.command()
+def init() -> None:
+    """建库目录、执行迁移并做启动自检。重复执行无副作用。"""
+    url_text = get_database_url()
+    engine = None
+    try:
+        ensure_database_directory(url_text)
+        upgrade_head(url_text)
+        engine = make_engine(url_text)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", UserWarning)
+            status = check_server(engine)
+        typer.echo(_report(status))
+        for item in caught:
+            message = str(item.message)
+            if "PostgreSQL" in message:
+                typer.echo(f"警告: {message}")
+        typer.echo("数据库已就绪")
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    except Exception as exc:
+        typer.echo(f"数据库初始化失败: {_hide_password(str(exc), url_text)}", err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        if engine is not None:
+            engine.dispose()
 
 
 @app.command()

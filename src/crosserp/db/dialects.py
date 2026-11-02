@@ -1,13 +1,20 @@
-"""三库差异。当前只做启动自检。不做 upsert。"""
+"""三库差异。启动自检和 upsert 只放在这里。"""
 
 from __future__ import annotations
 
 import re
 import warnings
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import cast
 
+from sqlalchemy import Table as SaTable
 from sqlalchemy import text
+from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.orm import Session
 
 from crosserp.core.errors import DatabaseConfigError
 
@@ -115,4 +122,60 @@ def check_server(engine: Engine) -> ServerStatus:
         if dialect_name == "sqlite":
             version = _required_text(conn, "SELECT sqlite_version()")
             return ServerStatus(dialect="sqlite", version=version)
+    raise DatabaseConfigError(f"不支持的数据库类型: {dialect_name}")
+
+
+def upsert(
+    session: Session,
+    table: object,
+    values: Mapping[str, object],
+    conflict_cols: Sequence[str],
+    update_cols: Sequence[str],
+) -> None:
+    """按唯一键插入或更新。
+
+    MySQL 用 ON DUPLICATE KEY UPDATE。PostgreSQL 和 SQLite 用 ON CONFLICT DO UPDATE。
+    冲突列必须已经有唯一约束。调用方负责提交。
+    """
+    if not isinstance(table, SaTable):
+        raise TypeError("upsert 需要 SQLAlchemy Table")
+    target = cast(SaTable, table)
+    if not conflict_cols:
+        raise ValueError("冲突列不能为空")
+    if not update_cols:
+        raise ValueError("更新列不能为空")
+    unknown = [name for name in (*conflict_cols, *update_cols) if name not in target.c]
+    if unknown:
+        raise ValueError(f"列不存在: {', '.join(unknown)}")
+    missing = [name for name in conflict_cols if name not in values]
+    if missing:
+        raise ValueError(f"写入值缺少冲突列: {', '.join(missing)}")
+
+    dialect_name = session.get_bind().dialect.name
+    if dialect_name == "mysql":
+        mysql_statement = mysql_insert(target).values(**values)
+        session.execute(
+            mysql_statement.on_duplicate_key_update(
+                {name: mysql_statement.inserted[name] for name in update_cols}
+            )
+        )
+        return
+    if dialect_name == "postgresql":
+        pg_statement = pg_insert(target).values(**values)
+        session.execute(
+            pg_statement.on_conflict_do_update(
+                index_elements=list(conflict_cols),
+                set_={name: pg_statement.excluded[name] for name in update_cols},
+            )
+        )
+        return
+    if dialect_name == "sqlite":
+        sqlite_statement = sqlite_insert(target).values(**values)
+        session.execute(
+            sqlite_statement.on_conflict_do_update(
+                index_elements=list(conflict_cols),
+                set_={name: sqlite_statement.excluded[name] for name in update_cols},
+            )
+        )
+        return
     raise DatabaseConfigError(f"不支持的数据库类型: {dialect_name}")
