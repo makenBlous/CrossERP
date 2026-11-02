@@ -39,7 +39,7 @@ CANDIDATE_ISSUE_KINDS = frozenset(
         "DUPLICATE_SETTLEMENT",
     }
 )
-CANDIDATE_MARK = "候选\uff0c待 maken 确认"
+CONFIRMED_MARK = "maken 已于 2026-11-02 确认"
 SEVERITIES = frozenset({"info", "warn", "error"})
 MATCH_RATE_EFFECTS = frozenset({"unmatched", "matched", "excluded", "order_side"})
 SAMPLE_COVERAGE = frozenset({"covered", "conditional", "uncovered"})
@@ -79,32 +79,29 @@ def _placeholders(template: str) -> list[str]:
 
 
 def test_official_codes_exist_in_issue_kind() -> None:
-    """正式码必须都在 IssueKind 里。候选码不得进入枚举。
-
-    T05 尚未提交 core/enums.py。本任务不创建、不修改枚举。
-    枚举文件不存在时用实施方案 6.1 的 13 个码作为应有成员。
-    """
+    """正式码必须都在 IssueKind 里。已确认的 5 个码在枚举落地后也必须写入。"""
     official = {item["code"] for item in _codes() if item["status"] == "official"}
+    confirmed = {item["code"] for item in _codes() if item["status"] == "confirmed"}
     assert official == set(OFFICIAL_ISSUE_KINDS)
+    assert confirmed == set(CANDIDATE_ISSUE_KINDS)
     kind_values = _issue_kind_values()
     assert official <= kind_values
     if ENUMS_PATH.is_file():
-        candidates = {item["code"] for item in _codes() if item["status"] == "candidate"}
-        assert candidates.isdisjoint(kind_values)
+        assert confirmed <= kind_values
 
 
-def test_candidates_stay_out_of_official_set() -> None:
-    by_status: dict[str, set[str]] = {"official": set(), "candidate": set()}
+def test_confirmed_codes_stay_out_of_official_set() -> None:
+    by_status: dict[str, set[str]] = {"official": set(), "confirmed": set()}
     for item in _codes():
         status = item["status"]
         assert status in by_status
         assert isinstance(item["code"], str)
         by_status[status].add(item["code"])
-    assert by_status["candidate"] == set(CANDIDATE_ISSUE_KINDS)
-    assert by_status["official"].isdisjoint(by_status["candidate"])
+    assert by_status["confirmed"] == set(CANDIDATE_ISSUE_KINDS)
+    assert by_status["official"].isdisjoint(by_status["confirmed"])
     for item in _codes():
-        if item["status"] == "candidate":
-            assert item["confirmation"] == CANDIDATE_MARK
+        if item["status"] == "confirmed":
+            assert item["confirmation"] == CONFIRMED_MARK
         else:
             assert "confirmation" not in item
 
@@ -135,6 +132,6 @@ def test_doc_lists_codes_sources_and_uncovered_samples() -> None:
     for code in OFFICIAL_ISSUE_KINDS | CANDIDATE_ISSUE_KINDS:
         assert code in text
     assert text.count("github.com/") >= 2
-    assert CANDIDATE_MARK in text
+    assert CONFIRMED_MARK in text
     assert "样本未覆盖" in text
     assert "未核实" in text

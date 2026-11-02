@@ -1,5 +1,5 @@
 # 异常原因码人话模板草稿。W3 的 issues 模块再读。
-# T14 不创建、不修改 IssueKind。候选码确认前不得写入枚举。
+# maken 已于 2026-11-02 确认 5 个原因码。IssueKind 落地时写入，不再标待确认。
 version: 1
 issue_kind_enum: crosserp.core.enums.IssueKind
 source: docs/plan/实施方案.md 第 6.1 节
@@ -172,8 +172,8 @@ codes:
     sample_note: "样本未覆盖。未知列已保留时严重度是 info，不另设原因码。"
 
   - code: FEE_OVERCHARGE
-    status: candidate
-    confirmation: "候选，待 maken 确认"
+    status: confirmed
+    confirmation: "maken 已于 2026-11-02 确认"
     name_zh: 配送费高于参考
     severity: warn
     match_rate_effect: matched
@@ -185,8 +185,8 @@ codes:
     sample_coverage: covered
 
   - code: SETTLEMENT_DELAYED
-    status: candidate
-    confirmation: "候选，待 maken 确认"
+    status: confirmed
+    confirmation: "maken 已于 2026-11-02 确认"
     name_zh: 待下期
     severity: info
     match_rate_effect: order_side
@@ -200,8 +200,8 @@ codes:
     sample_coverage: covered
 
   - code: CHARGEBACK
-    status: candidate
-    confirmation: "候选，待 maken 确认"
+    status: confirmed
+    confirmation: "maken 已于 2026-11-02 确认"
     name_zh: 拒付单独提示
     severity: info
     match_rate_effect: matched
@@ -213,8 +213,8 @@ codes:
     sample_coverage: covered
 
   - code: PARTIAL_REFUND
-    status: candidate
-    confirmation: "候选，待 maken 确认"
+    status: confirmed
+    confirmation: "maken 已于 2026-11-02 确认"
     name_zh: 部分退款提示
     severity: info
     match_rate_effect: matched
@@ -226,8 +226,8 @@ codes:
     sample_coverage: covered
 
   - code: DUPLICATE_SETTLEMENT
-    status: candidate
-    confirmation: "候选，待 maken 确认"
+    status: confirmed
+    confirmation: "maken 已于 2026-11-02 确认"
     name_zh: 两个结算里都有收款
     severity: error
     match_rate_effect: matched

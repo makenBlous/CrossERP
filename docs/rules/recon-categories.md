@@ -155,7 +155,7 @@ cutoff = period_end - GRACE_DAYS
 
 ## 7. 分类总表
 
-正式码 13 个，来自实施方案 6.1。候选码 5 个，都标「候选，待 maken 确认」。
+正式码 13 个，来自实施方案 6.1。另外 5 个码 maken 已于 2026-11-02 确认，写入 `IssueKind`。
 
 | 码 | 中文名 | 状态 | 严重度 | 匹配率 | 样本 |
 |---|---|---|---|---|---|
@@ -172,11 +172,11 @@ cutoff = period_end - GRACE_DAYS
 | `UNKNOWN_FEE_TYPE` | 不认识的费用或交易类型 | 正式 | warn | 排除 | `unknown_fee_type` |
 | `SETTLEMENT_UNBALANCED` | 结算单自身不平 | 正式 | error | 排除 | `settlement_unbalanced` |
 | `PARSE_ERROR` | 这一行没读成 | 正式 | error | 排除 | 样本未覆盖 |
-| `FEE_OVERCHARGE` | 配送费高于参考 | 候选，待 maken 确认 | warn | 已匹配组 | `fee_overcharge` |
-| `SETTLEMENT_DELAYED` | 待下期 | 候选，待 maken 确认 | info | 订单侧 | `in_transit` 三笔 |
-| `CHARGEBACK` | 拒付单独提示 | 候选，待 maken 确认 | info | 已匹配组 | `chargeback` 两笔 |
-| `PARTIAL_REFUND` | 部分退款提示 | 候选，待 maken 确认 | info | 已匹配组 | `partial_refund` |
-| `DUPLICATE_SETTLEMENT` | 两个结算里都有收款 | 候选，待 maken 确认 | error | 已匹配组（计法待确认） | 样本未覆盖 |
+| `FEE_OVERCHARGE` | 配送费高于参考 | maken 已于 2026-11-02 确认 | warn | 已匹配组 | `fee_overcharge` |
+| `SETTLEMENT_DELAYED` | 待下期 | maken 已于 2026-11-02 确认 | info | 订单侧 | `in_transit` 三笔 |
+| `CHARGEBACK` | 拒付单独提示 | maken 已于 2026-11-02 确认 | info | 已匹配组 | `chargeback` 两笔 |
+| `PARTIAL_REFUND` | 部分退款提示 | maken 已于 2026-11-02 确认 | info | 已匹配组 | `partial_refund` |
+| `DUPLICATE_SETTLEMENT` | 两个结算里都有收款 | maken 已于 2026-11-02 确认 | error | 已匹配组（计法待确认） | 样本未覆盖 |
 
 人话模板里的 `{名字}` 是占位符。展示时替换，不把花括号留给用户。
 
@@ -347,14 +347,14 @@ cutoff = period_end - GRACE_DAYS
 - 建议处理：按提示改源文件或映射后重导这一行。不要猜一个金额填上。
 - 合成样本：样本未覆盖。现有合成文件都能按生成器自己的格式读。不要为了凑这条去改样本。
 
-## 8. 候选新原因码
+## 8. 已确认的新增原因码
 
-下面五个都是「候选，待 maken 确认」。确认前不进 `IssueKind`，对账代码也不得输出它们。
+下面五个码 maken 已于 2026-11-02 全部确认。它们写入 `IssueKind`。对账代码可以输出它们。利润算法仍按各码自己的说明，不因确认而改计算。
 
 ### FEE_OVERCHARGE
 
 - 中文名：配送费高于参考。
-- 状态：候选，待 maken 确认。
+- 状态：maken 已于 2026-11-02 确认。
 - 借鉴：第一个公开仓库把「费用和预期不一致」单独看。我们只对用户自己提供的参考表做这件事，不复制它的判定或文字。
 - 触发条件：匹配已经成功。Amazon 收款行里，`amount-type=ItemFees` 且 `amount-description=FBAPerUnitFulfillmentFee`。这两个取值待真实数据验证。费用绝对值，大于 `fee_reference.csv` 的 `expected_fba_fee_per_unit` 乘以数量。数量同样只取一次，不把三行费用的数量加总。参考表列是本项目的 `platform_sku`、`currency`、`expected_fba_fee_per_unit`，不是亚马逊费率字段，也不是真实费率。结算 `currency` 必须等于参考表 `currency`。币种不同时不报本码。
 - 草案阈值：严格大于参考合计就提示。不设百分比，不设绝对差额门槛。待确认。
@@ -368,7 +368,7 @@ cutoff = period_end - GRACE_DAYS
 ### SETTLEMENT_DELAYED
 
 - 中文名：待下期。
-- 状态：候选，待 maken 确认。
+- 状态：maken 已于 2026-11-02 确认。
 - 借鉴：第一个公开仓库把「结算明显晚于预期」单独看。我们的边界是自己的 `GRACE_DAYS`，不是它的延迟定义。
 - 触发条件：与 `NOT_IN_SETTLEMENT` 同一组事实，但 `order_date` 还没有早于 `period_end - GRACE_DAYS`。包括 Shopify `Payout Status=pending` 且仍在宽限期内。
 - 和正式码的边界：宽限期内只提示、不报错；过了宽限期才用 `NOT_IN_SETTLEMENT`，并且不再用本候选码。不要两个一起报。
@@ -383,7 +383,7 @@ cutoff = period_end - GRACE_DAYS
 ### CHARGEBACK
 
 - 中文名：拒付单独提示。
-- 状态：候选，待 maken 确认。
+- 状态：maken 已于 2026-11-02 确认。
 - 来源：本项目 T08 场景，不是外部仓库的原因码。
 - 触发条件：能匹配到原订单，并且存在拒付行。Amazon 用 `transaction-type=Chargeback`。Shopify 用 `Type=dispute`。两个取值都待真实数据验证。确认前，利润仍按退款类计入，不单列。
 - 严重度：info。推断。
@@ -398,7 +398,7 @@ cutoff = period_end - GRACE_DAYS
 ### PARTIAL_REFUND
 
 - 中文名：部分退款提示。
-- 状态：候选，待 maken 确认。
+- 状态：maken 已于 2026-11-02 确认。
 - 来源：本项目 T08 场景。
 - 触发条件：同一订单和 SKU 上，退款 Principal 的绝对值大于 0，且小于收款 Principal。收款行数量与订单 `qty` 相同。这不是数量不符，也不是货款不符。
 - 严重度：info。推断。
@@ -411,7 +411,7 @@ cutoff = period_end - GRACE_DAYS
 ### DUPLICATE_SETTLEMENT
 
 - 中文名：两个结算里都有收款。
-- 状态：候选，待 maken 确认。
+- 状态：maken 已于 2026-11-02 确认。
 - 借鉴：第一个公开仓库把「同一笔有多条结算」单独看。我们的判定用自己的结算标识，不复制它的实现。
 - 触发条件：同一个 `order-id` + `sku`（Shopify 用同一个 `Order`）的收款，出现在两个不同结算里。Amazon 的结算标识用 `settlement-id`。Shopify 没有官方打款总额标识；`Payout ID` 待真实数据验证。没有该列时，只能暂用 `Payout Date` 区分打款批次。这是推断，待确认。两笔都必须是收款：Amazon `transaction-type=Order` 且 Principal 为正；Shopify `Type=charge` 且 `Amount` 为正。一笔收款加一笔退款不是本码。
 - 严重度：error。推断。不自动删任何一行。
