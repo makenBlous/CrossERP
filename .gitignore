@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 密钥与本地环境
+.env
+
+# 真实卖家数据
+samples/real_anonymized/
+
+# 数据库文件
+*.db
+/.idea/inspectionProfiles/profiles_settings.xml
+/.idea/inspectionProfiles/Project_Default.xml
+/.idea/.gitignore
+/.idea/crosserp.iml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/pyProjectModel.xml
+/.idea/vcs.xml

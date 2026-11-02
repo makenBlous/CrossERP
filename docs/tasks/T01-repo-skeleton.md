@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W1 | 0.5 天 | 无 | `task/T01-repo-skeleton` |
+| review | W1 | 0.5 天 | 无 | `task/T01-repo-skeleton` |
 
 ## 目标
 得到一个能 `uv sync`、`uv run pytest`、`uv run ruff check`、`uv run mypy` 全部通过的空 Python 包 `crosserp`，以后所有任务都在它上面加东西。
@@ -59,7 +59,25 @@
 - [ ] 确认是否同意加 `pyyaml` 依赖（代理会在 PR 里问）。
 
 ## 问题
-（代理遇到疑问写在这里）
+- maken 已同意加 `pyyaml`。已写入 `pyyaml>=6.0.3`（PyPI 当前稳定版 6.0.3，2026-10-03 仍是最新；只写下限）。理由：T12 列映射要用 YAML。
+- 版权人按 maken 指定写 `cimi`（`NOTICE` 与 `LICENSE` 附录）。
+- 本机 `uv` 仍是 0.8.2，没有升级，也没有改 PATH。项目虚拟环境 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe` 已核对为 Python 3.14.0b4。验收命令都在这个环境上跑过。
+- `uv init` 写的构建后端是 `uv_build>=0.8.2,<0.9.0`。当前环境能构建。以后若换成 uv 0.13，这个上限可能要放宽。本次没有改它。
+- `ruff format --check .` 会改写 `docs/plan/实施方案.md` 里的代码块。已在 `[tool.ruff]` 加 `extend-exclude = ["docs"]`，没有改实施方案。
 
 ## 完成记录
-（代理填写：实际运行的命令和输出摘要、PR 链接）
+分支：`task/T01-repo-skeleton`。没有 remote，未推送，未开 PR。
+
+2026-11-02 在 `D:\make\write\work\CrossERP` 实际运行（解释器 Python 3.14.0b4）：
+
+| 命令 | 结果 |
+|---|---|
+| `uv sync --all-extras` | 退出码 0。`Audited 59 packages` |
+| `uv run crosserp --version` | 退出码 0。输出 `0.0.1` |
+| `uv run pytest` | 退出码 0。`1 passed` |
+| `uv run ruff format --check .` | 退出码 0。`15 files already formatted` |
+| `uv run ruff check .` | 退出码 0。`All checks passed!` |
+| `uv run mypy` | 退出码 0。`Success: no issues found in 10 source files` |
+| `git check-ignore samples/real_anonymized/x.csv` | 退出码 0。输出 `samples/real_anonymized/x.csv` |
+| `uv run pytest --cov=crosserp --cov-fail-under=60` | 退出码 0。`Required test coverage of 60% reached. Total coverage: 100.00%`，`1 passed` |
+| `uv run pre-commit run --all-files` | 退出码 0。`ruff-format`、`ruff`、`mypy` 均为 Passed |
