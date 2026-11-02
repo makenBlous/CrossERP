@@ -61,5 +61,6 @@
 - [ ] 用 MySQL 客户端（如 Navicat / DBeaver）看测试留下的数据（如果代理提供了演示脚本）：中文和 emoji 显示正常。
 
 ## 问题
+- maken 于 2026-11-02 决定：当前本地验收只跑 SQLite。切换 MySQL / PostgreSQL 只改配置文件里的 `CROSSERP_DATABASE_URL`，不改业务代码。本机没有 Docker，不在这次验收里实跑 MySQL / PostgreSQL。代码仍保持三库兼容。
 
 ## 完成记录

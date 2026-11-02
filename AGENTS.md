@@ -74,6 +74,7 @@ v0.5 才有的目录（vouchers/ approval/ ledger/ auth/ observability/ agent/ m
 - 新功能同一个 PR 里提交：代码 + 测试 + 文档 + `CHANGELOG.md`（Unreleased 下一行）。
 
 ### 三库兼容规则（SQLite / MySQL 8.4 / PostgreSQL 18）
+- maken 于 2026-11-02 决定：当前本地验收只跑 SQLite。代码仍保持三库兼容。切换 SQLite / MySQL / PostgreSQL 只改配置文件里的 `CROSSERP_DATABASE_URL`，不改业务代码。MySQL、PostgreSQL 的实跑留到配置指向它们、并且本机服务可用之后。
 - 只用 SQLAlchemy 通用类型：`String(n)`（必须写长度）、`JSON`、`Uuid`、`Boolean`、`Money4`、`FxRate`、`UtcDateTime`。禁止 PG 专属 ARRAY / JSONB / 部分索引 / 自定义函数。
 - 金额列一律 `Money4` = DECIMAL(19,4)（MySQL/PG）；SQLite 上自动存 INTEGER 万分位。超过 4 位小数直接报错。汇率 `FxRate` = DECIMAL(18,8)。
 - 要建索引的字符串列 ≤255 字符（InnoDB 索引前缀 3072 字节，utf8mb4 每字符 4 字节）。
@@ -124,18 +125,19 @@ Windows PowerShell 设环境变量：`$env:CROSSERP_TEST_DATABASE_URL="..."`。
 ## 8. 完成定义（Definition of Done）
 - [ ] 任务文件里每条验收标准都满足，验收命令实际跑过，输出摘要写进「完成记录」。
 - [ ] `ruff`、`mypy`、`pytest` 全过；覆盖率不低于门槛（v0.1 = 60%）。
-- [ ] 涉及数据库的改动：SQLite + MySQL 8.4 + PostgreSQL 18 都跑过（本地或 CI db-matrix）。
+- [ ] 涉及数据库的改动：代码保持三库兼容。当前本地验收跑 SQLite。配置文件改指向 MySQL 或 PostgreSQL 后，再补对应验收。
 - [ ] 新代码有测试；金额相关有 hypothesis 性质测试或逐分 golden 测试。
 - [ ] 没有 float 算钱、没有密钥、没有真实数据、没有越过红线。
 - [ ] CHANGELOG、docs、任务状态已更新；PR 已开且 CI 绿。
 - [ ] maken 的人工验收清单可以照着做（命令能直接复制运行）。
 
-## 9. 提交信息（Conventional Commits）
-格式：`<type>(<scope>): <简短说明> (T<编号>)`
-- type：`feat` `fix` `docs` `test` `refactor` `chore` `ci` `build`
-- scope：`core` `db` `connectors` `recon` `profit` `audit` `web` `cli` `ci` `samples`
-- 例：`feat(db): add Money4 type with SQLite integer storage (T04)`、`test(connectors): golden tests for amazon v2 (T10)`
-- 一个提交一件事；PR 标题同格式；PR 描述包含：做了什么、如何验收（命令）、没做什么、未决问题。
+## 9. 提交信息（Conventional Commits，中文说明）
+格式：`<type>(<中文范围>): <中文说明> (T<编号>)`
+- type 用英文：`feat` `fix` `docs` `test` `refactor` `chore` `ci` `build`
+- 范围和说明用中文。说明用动宾短语，不加句号。中文与英文、数字之间加一个空格。
+- 例：`feat(数据库): 添加 Money4 类型与 SQLite 万分位存储 (T04)`、`test(连接器): 为 Amazon V2 添加逐分对照测试 (T10)`
+- 一个提交一件事。需要补充原因时，标题下空一行写中文正文。
+- PR 标题同格式。PR 描述用中文写：做了什么、如何验收、没做什么、未决问题。
 
 ## 10. 标注约定
 文档和代码注释里，没核实的事实写「未核实」，推测写「推断」，格式没拿真实文件对过写「待真实数据验证」。不要编造平台字段、费用类型或数字。
