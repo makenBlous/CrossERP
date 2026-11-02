@@ -1,0 +1,240 @@
+# 异常原因码人话模板草稿。W3 的 issues 模块再读。
+# T14 不创建、不修改 IssueKind。候选码确认前不得写入枚举。
+version: 1
+issue_kind_enum: crosserp.core.enums.IssueKind
+source: docs/plan/实施方案.md 第 6.1 节
+
+codes:
+  - code: NOT_IN_ERP
+    status: official
+    name_zh: 结算有，订单表没有
+    severity: error
+    match_rate_effect: unmatched
+    templates:
+      - text: "订单 {order_id}（SKU {sku}）在结算里有记录，订单表里没有。请核对是不是漏导入了订单，或订单号、SKU 写错了。"
+        placeholders: [order_id, sku]
+    action: "补导入订单，或确认这是平台有、自家没有的单。不要凭结算行新建一笔订单金额。"
+    sample_scenarios: [not_in_erp]
+    sample_coverage: covered
+
+  - code: NOT_IN_SETTLEMENT
+    status: official
+    name_zh: 订单过了宽限期仍未结算
+    severity: error
+    match_rate_effect: order_side
+    templates:
+      - text: "订单 {order_id}（SKU {sku}）的下单日期是 {order_date}，到对账期末 {period_end} 已经超过 {grace_days} 天，仍然没有已结算记录。"
+        placeholders: [order_id, sku, order_date, period_end, grace_days]
+    action: "先查下一期结算是不是没导入。确认确实没有结算后，再由人处理。系统不自动关掉。"
+    sample_scenarios: []
+    sample_coverage: uncovered
+    sample_note: "超期正例样本未覆盖。in_transit 只覆盖宽限期内，当前不得输出本码。"
+
+  - code: QTY_MISMATCH
+    status: official
+    name_zh: 数量不符
+    severity: error
+    match_rate_effect: unmatched
+    templates:
+      - text: "订单 {order_id}（SKU {sku}）结算数量是 {qty_settlement}，订单表数量是 {qty_order}。"
+        placeholders: [order_id, sku, qty_settlement, qty_order]
+    action: "对照原始行。数量没核清之前，不要先去改货款判断。"
+    sample_scenarios: [qty_mismatch]
+    sample_coverage: covered
+
+  - code: AMOUNT_MISMATCH
+    status: official
+    name_zh: 金额不符
+    severity: error
+    match_rate_effect: unmatched
+    templates:
+      - text: "订单 {order_id}（SKU {sku}）的结算货款是 {principal}，订单金额是 {item_price}，差额 {diff}。退款和拒付没有轧进这笔货款。"
+        placeholders: [order_id, sku, principal, item_price, diff]
+      - text: "订单 {order_id} 的净额 {net} 不等于金额 {amount} 减费用 {fee}。按表计算应为 {expected_net}，差额 {diff}。"
+        placeholders: [order_id, net, amount, fee, expected_net, diff]
+    action: "打开原始行核对。不要用退款把货款轧平后再判断。差额不会自动修正。"
+    sample_scenarios: [amount_mismatch, shopify_net_mismatch]
+    sample_coverage: covered
+
+  - code: SKU_UNMAPPED
+    status: official
+    name_zh: SKU 没映射
+    severity: error
+    match_rate_effect: unmatched
+    templates:
+      - text: "结算 SKU {sku}（订单 {order_id}）不在 SKU 映射表里，对不上内部 SKU。"
+        placeholders: [sku, order_id]
+    action: "补上这家店的平台 SKU。补上之前，这组不算匹配成功。不要猜一个内部 SKU。"
+    sample_scenarios: [sku_unmapped]
+    sample_coverage: covered
+
+  - code: COST_MISSING
+    status: official
+    name_zh: 缺成本
+    severity: error
+    match_rate_effect: matched
+    templates:
+      - text: "订单 {order_id} 已对上，但内部 SKU {internal_sku} 在 {order_date} 没有生效的采购成本。利润先不算。"
+        placeholders: [order_id, internal_sku, order_date]
+    action: "补这条 SKU 在该日期能用的采购单价和头程单价。不要估一个成本。"
+    sample_scenarios: [cost_missing]
+    sample_coverage: covered
+
+  - code: FX_MISSING
+    status: official
+    name_zh: 缺汇率
+    severity: error
+    match_rate_effect: matched
+    templates:
+      - text: "订单 {order_id} 已对上，但 {period} 没有 {from_ccy} 兑 {to_ccy} 的汇率。人民币利润先不算。"
+        placeholders: [order_id, period, from_ccy, to_ccy]
+    action: "在汇率表补该月该币对。不要用网上汇率或上月汇率填上。"
+    sample_scenarios: [fx_missing]
+    sample_coverage: conditional
+    sample_note: "只有换用 fx_rates_missing_eur.csv 时才产生。默认汇率表不产生本码。"
+
+  - code: CURRENCY_MISMATCH
+    status: official
+    name_zh: 币种不一致
+    severity: error
+    match_rate_effect: unmatched
+    templates:
+      - text: "订单 {order_id}（SKU {sku}）的订单币种是 {currency_order}，结算币种是 {currency_settlement}，不能直接比金额。"
+        placeholders: [order_id, sku, currency_order, currency_settlement]
+    action: "核对是不是导错店铺或币种。不要把两种币种的数字相减。"
+    sample_scenarios: []
+    sample_coverage: uncovered
+    sample_note: "样本未覆盖。计入未匹配是推断，待 maken 确认。"
+
+  - code: DUPLICATE_ROW
+    status: official
+    name_zh: 文件内完全重复的行
+    severity: warn
+    match_rate_effect: excluded
+    templates:
+      - text: "文件 {source_file} 第 {row_no} 行与前面某一行完全相同，已标为重复行。原始行仍保留，不再计成另一组。"
+        placeholders: [source_file, row_no]
+    action: "确认是不是导出时复制了一行。不要把这一行再加进订单金额。"
+    sample_scenarios: [duplicate_row]
+    sample_coverage: covered
+
+  - code: REFUND_WITHOUT_ORDER
+    status: official
+    name_zh: 有退款，没有原订单
+    severity: error
+    match_rate_effect: unmatched
+    templates:
+      - text: "订单 {order_id}（SKU {sku}）只有退款，订单表里没有原订单。"
+        placeholders: [order_id, sku]
+    action: "查是不是上一期的订单没导入。不要把它当成一笔新的销售。"
+    sample_scenarios: [refund_without_order]
+    sample_coverage: covered
+
+  - code: UNKNOWN_FEE_TYPE
+    status: official
+    name_zh: 不认识的费用或交易类型
+    severity: warn
+    match_rate_effect: excluded
+    templates:
+      - text: "文件 {source_file} 第 {row_no} 行的费用类型不认识：{amount_type} / {amount_description}。这一行已保留，没有猜分类。"
+        placeholders: [source_file, row_no, amount_type, amount_description]
+      - text: "文件 {source_file} 第 {row_no} 行的交易类型 {transaction_type} 不在已知取值里。已原样保留。"
+        placeholders: [source_file, row_no, transaction_type]
+    action: "人工确认它属于哪一类。确认前不要把它算进已知佣金或配送费。"
+    sample_scenarios: [unknown_fee_type]
+    sample_coverage: covered
+
+  - code: SETTLEMENT_UNBALANCED
+    status: official
+    name_zh: 结算单自身不平
+    severity: error
+    match_rate_effect: excluded
+    templates:
+      - text: "结算单 {settlement_id} 的总额是 {total_amount}，明细合计是 {line_sum}，差额 {diff}。这张单不进入匹配率。"
+        placeholders: [settlement_id, total_amount, line_sum, diff]
+    action: "不要用这张单做对账结论。重新下载或核对汇总行。差额不会自动抹平。"
+    sample_scenarios: [settlement_unbalanced]
+    sample_coverage: covered
+
+  - code: PARSE_ERROR
+    status: official
+    name_zh: 这一行没读成
+    severity: error
+    match_rate_effect: excluded
+    templates:
+      - text: "文件 {source_file} 第 {row_no} 行没能按规则读入：{error}。这一行已留下，整批没有因此中断。"
+        placeholders: [source_file, row_no, error]
+      - text: "文件 {source_file} 有未识别的列 {column_name}。列内容已保留，不参与算钱。"
+        placeholders: [source_file, column_name]
+    action: "按提示改源文件或映射后重导这一行。不要猜一个金额填上。"
+    sample_scenarios: []
+    sample_coverage: uncovered
+    sample_note: "样本未覆盖。未知列已保留时严重度是 info，不另设原因码。"
+
+  - code: FEE_OVERCHARGE
+    status: candidate
+    confirmation: "候选，待 maken 确认"
+    name_zh: 配送费高于参考
+    severity: warn
+    match_rate_effect: matched
+    templates:
+      - text: "订单 {order_id}（SKU {sku}）的配送费是 {fee_amount}，参考是每件 {fee_reference}。按数量 {qty} 计算，参考合计是 {fee_expected}。这单仍然算对上了。"
+        placeholders: [order_id, sku, fee_amount, fee_reference, qty, fee_expected]
+    action: "对照平台费用说明。这只是提示，不改利润，也不把这单算成没对上。"
+    sample_scenarios: [fee_overcharge]
+    sample_coverage: covered
+
+  - code: SETTLEMENT_DELAYED
+    status: candidate
+    confirmation: "候选，待 maken 确认"
+    name_zh: 待下期
+    severity: info
+    match_rate_effect: order_side
+    templates:
+      - text: "订单 {order_id}（SKU {sku}）下单日期 {order_date}，还在 {grace_days} 天内，先标待下期，不算错。"
+        placeholders: [order_id, sku, order_date, grace_days]
+      - text: "订单 {order_id} 在打款导出里，但打款状态是 {payout_status}，还不能当成已结算。下单日期 {order_date}，仍在宽限期内，标待下期。"
+        placeholders: [order_id, payout_status, order_date]
+    action: "等下一期结算。未超过宽限期时，不要当成漏单。"
+    sample_scenarios: [in_transit]
+    sample_coverage: covered
+
+  - code: CHARGEBACK
+    status: candidate
+    confirmation: "候选，待 maken 确认"
+    name_zh: 拒付单独提示
+    severity: info
+    match_rate_effect: matched
+    templates:
+      - text: "订单 {order_id}（SKU {sku}）有一笔拒付，金额 {amount}。目前按退款计入利润。这只是单独提示，匹配仍然成功。"
+        placeholders: [order_id, sku, amount]
+    action: "若要在利润表把拒付和普通退款分开，先确认。确认前不改利润算法。"
+    sample_scenarios: [chargeback]
+    sample_coverage: covered
+
+  - code: PARTIAL_REFUND
+    status: candidate
+    confirmation: "候选，待 maken 确认"
+    name_zh: 部分退款提示
+    severity: info
+    match_rate_effect: matched
+    templates:
+      - text: "订单 {order_id}（SKU {sku}）只退了一部分。退款货款 {refund_principal}，原货款 {principal}。数量没有变，这单仍然算对上了。"
+        placeholders: [order_id, sku, refund_principal, principal]
+    action: "只提示有部分退款。不要因为退款行数量为 0 就报数量不符。利润仍按实际退款额计。"
+    sample_scenarios: [partial_refund]
+    sample_coverage: covered
+
+  - code: DUPLICATE_SETTLEMENT
+    status: candidate
+    confirmation: "候选，待 maken 确认"
+    name_zh: 两个结算里都有收款
+    severity: error
+    match_rate_effect: matched
+    templates:
+      - text: "订单 {order_id}（SKU {sku}）在结算 {settlement_id_a} 和 {settlement_id_b} 里都有收款。请核对是不是同一笔钱记了两次。"
+        placeholders: [order_id, sku, settlement_id_a, settlement_id_b]
+    action: "人工核对两张结算。不要自动删掉其中一笔，也不要自动改利润。"
+    sample_scenarios: []
+    sample_coverage: uncovered
+    sample_note: "样本未覆盖。匹配率计法待 maken 确认。"

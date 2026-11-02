@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W2 | 0.5 天 | T08 | `task/T14-recon-categories` |
+| review | W2 | 0.5 天 | T08 | `task/T14-recon-categories` |
 
 ## 目标
 在 W3 写对账代码之前，把「对不上的单子分哪几类、每类怎么判断、给用户什么人话说明、建议什么处理」定成一份文档，让 maken 确认。
@@ -57,4 +57,27 @@
 
 ## 问题
 
+无阻塞矛盾。候选原因码和开放问题已写入 `docs/rules/recon-categories.md`，标了待 maken 确认。未停工。
+
+`IssueKind` 尚不存在（T05 仍是 todo）。本任务按「不改枚举」处理，没有新建 `core/enums.py`，也没有把候选码写进去。单测在枚举文件落地前，用实施方案 6.1 的 13 个正式码作为应有成员；枚举文件出现后改为导入校验，并断言候选码不在其中。
+
 ## 完成记录
+
+2026-11-02 在本 worktree 实际运行。`uv run` 使用 CPython 3.14.10，并在本目录创建了 `.venv`（已在 `.gitignore`，未提交）。提交在分支 `task/T14-recon-categories`。未推送。未把状态改成 done。未改 `docs/tasks/README.md`。
+
+做了：
+
+- 写 `docs/rules/recon-categories.md`：13 个正式原因码、5 个候选码、匹配三态、规则与 AI 分工、v0.1 不自动关单、开放问题。
+- 写 `src/crosserp/issues/catalog_draft.yaml`：每人话模板一稿。候选码带「候选，待 maken 确认」。
+- 写 `tests/unit/test_issue_catalog.py`。
+- 2026-11-02 打开两个 LedgerPilot README，并查了 GitHub API。Varun 仓库 `license` 仍为空。Aoun 仓库 API 返回 MIT。两仓实现都未读，文档标「未核实」。没有复制代码或原文。
+- 没有写对账代码，没有改 `IssueKind`。
+
+| 命令 | 结果 |
+|---|---|
+| `uv run pytest tests/unit/test_issue_catalog.py -q` | 退出码 0。`4 passed in 0.22s` |
+| `uv run python -c` 统计 `docs/rules/recon-categories.md` 中 `github.com/` | `github.com count 2`。本机 PowerShell 没有 `grep`，用等价计数 |
+| `uv run ruff format --check .` | 退出码 0。`36 files already formatted` |
+| `uv run ruff check .` | 退出码 0。`All checks passed!` |
+| `uv run mypy` | 退出码 0。`Success: no issues found in 18 source files` |
+| `uv run pytest -q` | 退出码 0。`74 passed, 1 skipped, 1 warning in 4.31s`。跳过的是未配置 MySQL 的自检 |
