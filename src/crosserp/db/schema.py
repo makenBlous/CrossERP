@@ -301,11 +301,16 @@ class ProfitSnapshot(Base):
 
 
 class AuditLog(Base):
-    """业务审计。只追加。approval 与 app_user 是 v0.5 表。这里不做外键。"""
+    """业务审计。只追加。approval 与 app_user 是 v0.5 表。这里不做外键。
+
+    seq 从 1 递增。应用分配。不用数据库自增。三库行为一致。
+    """
 
     __tablename__ = "audit_log"
+    __table_args__ = (UniqueConstraint("seq", name="uq_audit_log_seq"),)
 
     id: Mapped[uuid.UUID] = _uuid_pk()
+    seq: Mapped[int] = mapped_column(Integer)
     ts: Mapped[datetime] = mapped_column(UtcDateTime())
     actor_type: Mapped[str] = mapped_column(_KIND)
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())

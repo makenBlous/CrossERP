@@ -9,15 +9,18 @@ import uvicorn
 from sqlalchemy.engine import make_url
 
 from crosserp import __version__
+from crosserp.audit.log import VerifyResult, verify_chain
 from crosserp.core.errors import DatabaseConfigError
 from crosserp.db.dialects import ServerStatus, check_server
 from crosserp.db.migrate import ensure_database_directory, upgrade_head
-from crosserp.db.session import get_database_url, make_engine
+from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.web.app import create_app
 
 app = typer.Typer(add_completion=False)
 db_app = typer.Typer(add_completion=False, help="数据库连接与启动自检。")
+audit_app = typer.Typer(add_completion=False, help="审计哈希链。")
 app.add_typer(db_app, name="db")
+app.add_typer(audit_app, name="audit")
 
 _DIALECT_LABELS = {
     "mysql": "MySQL",
@@ -109,6 +112,38 @@ def _hide_password(message: str, url_text: str) -> str:
     if password:
         return message.replace(password, "***")
     return message
+
+
+@audit_app.command("verify")
+def audit_verify() -> None:
+    """校验审计哈希链。完整时退出码 0。发现改动或删除时退出码 1。"""
+    url_text = get_database_url()
+    engine = None
+    result: VerifyResult | None = None
+    try:
+        ensure_database_directory(url_text)
+        upgrade_head(url_text)
+        engine = make_engine(url_text)
+        with session_scope(engine) as session:
+            result = verify_chain(session)
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    except Exception as exc:
+        typer.echo(f"审计链校验失败: {_hide_password(str(exc), url_text)}", err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        if engine is not None:
+            engine.dispose()
+    if result is None:
+        raise typer.Exit(code=1)
+    if result.ok:
+        typer.echo(f"审计链完整：{result.checked} 条")  # noqa: RUF001
+        return
+    bad = result.first_bad_id or "未知"
+    reason = result.reason or "哈希链校验失败"
+    typer.echo(f"审计链损坏：第一条坏记录 {bad}。{reason}", err=True)  # noqa: RUF001
+    raise typer.Exit(code=1)
 
 
 @db_app.command("check")

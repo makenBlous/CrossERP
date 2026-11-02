@@ -1,4 +1,4 @@
-"""三库差异。启动自检和 upsert 只放在这里。"""
+"""三库差异。启动自检、行锁和 upsert 只放在这里。"""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.selectable import Select
 
 from crosserp.core.errors import DatabaseConfigError
 
@@ -122,6 +123,16 @@ def check_server(engine: Engine) -> ServerStatus:
         if dialect_name == "sqlite":
             version = _required_text(conn, "SELECT sqlite_version()")
             return ServerStatus(dialect="sqlite", version=version)
+    raise DatabaseConfigError(f"不支持的数据库类型: {dialect_name}")
+
+
+def lock_for_update[SelectT](session: Session, statement: Select[SelectT]) -> Select[SelectT]:
+    """MySQL / PostgreSQL 加行锁。SQLite 同一时刻只有一个写者。直接读。"""
+    dialect_name = session.get_bind().dialect.name
+    if dialect_name in {"mysql", "postgresql"}:
+        return statement.with_for_update()
+    if dialect_name == "sqlite":
+        return statement
     raise DatabaseConfigError(f"不支持的数据库类型: {dialect_name}")
 
 

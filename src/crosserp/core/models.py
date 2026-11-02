@@ -213,6 +213,7 @@ class AuditLogRecord(ImportRecord):
     """业务审计记录。只追加。本模型不提供更新。"""
 
     id: UUID
+    seq: int
     ts: datetime
     actor_type: str = Field(max_length=32)
     actor_user_id: UUID | None = None
