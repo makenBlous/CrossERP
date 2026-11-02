@@ -1,0 +1,19 @@
+# Shopify Type → transaction_type。
+# 取值待真实数据验证。不是全集。
+# charge / refund / dispute 来自合成样本 scripts/sample_vocab.py。
+# adjustment 只出现在 T11 任务说明的例子里，合成样本没有。
+# dispute 映射为 chargeback，对应 T11「入库为 chargeback 类」。
+version: 1
+known:
+  charge:
+    transaction_type: charge
+    source: synthetic
+  refund:
+    transaction_type: refund
+    source: synthetic
+  dispute:
+    transaction_type: chargeback
+    source: synthetic
+  adjustment:
+    transaction_type: adjustment
+    source: task-example

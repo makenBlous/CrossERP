@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W2 | 1 天 | T08, T09 | `task/T11-shopify-payouts` |
+| review | W2 | 1 天 | T08, T09 | `task/T11-shopify-payouts` |
 
 ## 目标
 导入 Shopify 后台 Finance > Payouts 导出的交易 CSV，生成 `settlement`（一次打款）+ `settlement_line`（一笔交易），校验 `Net = Amount − Fee`。
@@ -48,4 +48,28 @@
 
 ## 问题
 
+- `settlement_line` 没有状态列。`Payout Status` 写在 `amount_description`，格式 `payout_status=<原文>`。这是推断。若要单独列，需要改表。
+- 没有 `Payout ID` 时，`external_id` 用 `payout-date:<原文>`。空日期用 `payout-date:missing`。同一平台外部单号全局唯一。两份文件打款日相同会整批失败。要不要把店铺或文件名放进外部单号，需要 maken 决定。
+- 文件没有店铺列。未传入时店铺名是 `Shopify`，站点是 `shopify`。推断。T13 用 `mapping.defaults` 的 `currency`、`marketplace`、`store_name` 传入。连接器不查库。
+- `Type`、`Payout Status`、日期格式、金额是否永远是 US 格式，都待真实数据验证。见 `docs/data-formats/shopify-payouts.md`。
+- 本地只跑了 SQLite。MySQL / PostgreSQL 没有本机服务，未跑。
+
 ## 完成记录
+
+本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。
+
+```text
+pytest tests/golden/test_shopify.py -q
+15 passed in 1.38s
+
+pytest -m db -k shopify -q
+5 passed, 113 deselected, 1 warning in 2.27s
+
+mypy
+Success: no issues found in 37 source files
+
+pytest -q
+117 passed, 1 skipped, 1 warning in 4.98s
+```
+
+没有 Payout ID 时按 `Payout Date` 分组。这是推断。`dispute` 入库为 `transaction_type=chargeback`。`Net` 不符仍按原文入库，并写 1 条 `AMOUNT_MISMATCH`。未改 `docs/tasks/README.md`。未改 `audit/chain.py`。

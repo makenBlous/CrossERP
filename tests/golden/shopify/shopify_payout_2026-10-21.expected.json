@@ -1,0 +1,115 @@
+{
+  "file": "shopify_payout_2026-10-21.csv",
+  "note": "文件总额 158.49 来自 summary.json。空 Payout Date 的 pending 行单独成组，总额 15.68。其余 ΣNet = 142.81，含故意写错的 Net 19.00。推断。",
+  "currency": "USD",
+  "data_rows": 7,
+  "file_total": "158.49",
+  "store": {
+    "platform": "shopify",
+    "marketplace": "shopify",
+    "name": "Shopify"
+  },
+  "settlements": [
+    {
+      "external_id": "payout-date:2026-10-21",
+      "total": "142.81",
+      "currency": "USD",
+      "deposit_date": "2026-10-21T00:00:00+00:00",
+      "period_start": "2026-10-05T14:15:00+00:00",
+      "period_end": "2026-10-18T14:15:00+00:00"
+    },
+    {
+      "external_id": "payout-date:missing",
+      "total": "15.68",
+      "currency": "USD",
+      "deposit_date": null,
+      "period_start": "2026-10-18T14:15:00+00:00",
+      "period_end": "2026-10-18T14:15:00+00:00"
+    }
+  ],
+  "lines": [
+    {
+      "row_no": 2,
+      "order_id": "SYN-SH-0005",
+      "amount_type": "charge",
+      "transaction_type": "charge",
+      "amount": "31.54",
+      "payout_status": "paid",
+      "posted_at": "2026-10-05T14:15:00+00:00",
+      "settlement_external_id": "payout-date:2026-10-21"
+    },
+    {
+      "row_no": 3,
+      "order_id": "SYN-SH-0006",
+      "amount_type": "charge",
+      "transaction_type": "charge",
+      "amount": "24.90",
+      "payout_status": "paid",
+      "posted_at": "2026-10-06T14:15:00+00:00",
+      "settlement_external_id": "payout-date:2026-10-21"
+    },
+    {
+      "row_no": 4,
+      "order_id": "SYN-SH-0007",
+      "amount_type": "charge",
+      "transaction_type": "charge",
+      "amount": "55.64",
+      "payout_status": "paid",
+      "posted_at": "2026-10-07T14:15:00+00:00",
+      "settlement_external_id": "payout-date:2026-10-21"
+    },
+    {
+      "row_no": 5,
+      "order_id": "SYN-SH-0008",
+      "amount_type": "charge",
+      "transaction_type": "charge",
+      "amount": "46.73",
+      "payout_status": "paid",
+      "posted_at": "2026-10-08T14:15:00+00:00",
+      "settlement_external_id": "payout-date:2026-10-21"
+    },
+    {
+      "row_no": 6,
+      "order_id": "SYN-SH-PENDING",
+      "amount_type": "charge",
+      "transaction_type": "charge",
+      "amount": "15.68",
+      "payout_status": "pending",
+      "posted_at": "2026-10-18T14:15:00+00:00",
+      "settlement_external_id": "payout-date:missing"
+    },
+    {
+      "row_no": 7,
+      "order_id": "SYN-SH-NET",
+      "amount_type": "charge",
+      "transaction_type": "charge",
+      "amount": "19.00",
+      "payout_status": "paid",
+      "posted_at": "2026-10-12T14:15:00+00:00",
+      "settlement_external_id": "payout-date:2026-10-21"
+    },
+    {
+      "row_no": 8,
+      "order_id": "SYN-SH-CB",
+      "amount_type": "dispute",
+      "transaction_type": "chargeback",
+      "amount": "-35.00",
+      "payout_status": "paid",
+      "posted_at": "2026-10-18T14:15:00+00:00",
+      "settlement_external_id": "payout-date:2026-10-21"
+    }
+  ],
+  "issues": [
+    {
+      "kind": "AMOUNT_MISMATCH",
+      "severity": "error",
+      "row_no": 7,
+      "order_id": "SYN-SH-NET",
+      "amount": "20.00",
+      "fee": "0.40",
+      "net": "19.00",
+      "expected_net": "19.60",
+      "diff": "-0.60"
+    }
+  ]
+}

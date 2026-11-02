@@ -21,6 +21,7 @@ crosserp = "crosserp.cli:app"
 # 内置连接器也走这一组。T10、T11 尚未注册。
 [project.entry-points."crosserp.connectors"]
 mapped = "crosserp.connectors.generic_mapped.connector:GenericMappedConnector"
+"shopify.payouts" = "crosserp.connectors.shopify_payouts:ShopifyPayoutsConnector"
 
 [project.optional-dependencies]
 mysql = [

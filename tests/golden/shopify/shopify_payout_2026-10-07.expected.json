@@ -1,0 +1,75 @@
+{
+  "file": "shopify_payout_2026-10-07.csv",
+  "note": "总额来自 samples/synthetic/expected/summary.json 的 238.81。各行 Net 来自该 CSV，不是导入器输出。没有 Payout ID，按 Payout Date 分组。推断。",
+  "currency": "USD",
+  "data_rows": 5,
+  "file_total": "238.81",
+  "store": {
+    "platform": "shopify",
+    "marketplace": "shopify",
+    "name": "Shopify"
+  },
+  "settlements": [
+    {
+      "external_id": "payout-date:2026-10-07",
+      "total": "238.81",
+      "currency": "USD",
+      "deposit_date": "2026-10-07T00:00:00+00:00",
+      "period_start": "2026-10-01T14:15:00+00:00",
+      "period_end": "2026-10-04T14:15:00+00:00"
+    }
+  ],
+  "lines": [
+    {
+      "row_no": 2,
+      "order_id": "SYN-SH-0001",
+      "amount_type": "charge",
+      "transaction_type": "charge",
+      "amount": "58.68",
+      "payout_status": "paid",
+      "posted_at": "2026-10-01T14:15:00+00:00",
+      "settlement_external_id": "payout-date:2026-10-07"
+    },
+    {
+      "row_no": 3,
+      "order_id": "SYN-SH-0002",
+      "amount_type": "charge",
+      "transaction_type": "charge",
+      "amount": "54.49",
+      "payout_status": "paid",
+      "posted_at": "2026-10-02T14:15:00+00:00",
+      "settlement_external_id": "payout-date:2026-10-07"
+    },
+    {
+      "row_no": 4,
+      "order_id": "SYN-SH-0003",
+      "amount_type": "charge",
+      "transaction_type": "charge",
+      "amount": "37.98",
+      "payout_status": "paid",
+      "posted_at": "2026-10-03T14:15:00+00:00",
+      "settlement_external_id": "payout-date:2026-10-07"
+    },
+    {
+      "row_no": 5,
+      "order_id": "SYN-SH-0004",
+      "amount_type": "charge",
+      "transaction_type": "charge",
+      "amount": "53.36",
+      "payout_status": "paid",
+      "posted_at": "2026-10-04T14:15:00+00:00",
+      "settlement_external_id": "payout-date:2026-10-07"
+    },
+    {
+      "row_no": 6,
+      "order_id": "SYN-SH-CB",
+      "amount_type": "charge",
+      "transaction_type": "charge",
+      "amount": "34.30",
+      "payout_status": "paid",
+      "posted_at": "2026-10-04T14:15:00+00:00",
+      "settlement_external_id": "payout-date:2026-10-07"
+    }
+  ],
+  "issues": []
+}

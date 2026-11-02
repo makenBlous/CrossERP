@@ -12,6 +12,7 @@
 - 导入协议、连接器注册表和按 sha256 去重的导入批次。坏行记 `PARSE_ERROR` 后继续。
 - 只追加审计哈希链，以及 `crosserp audit verify`。
 - 通用映射导入器，可读 YAML 列映射的订单、成本、汇率和 SKU。领星、赛狐表头仍待真实数据验证。
+- Shopify Payments 打款 CSV 导入器。
 - 金额类型 `Money` 与 `parse_amount()`。全程 `Decimal`，禁止 float。
 - 数据库类型 `Money4`、`FxRate`、`UtcDateTime`，以及 `crosserp db check`。当前默认 SQLite，切换库只改配置文件。
 - 固定种子合成样本生成器，以及 `samples/synthetic/` 标准答案。
