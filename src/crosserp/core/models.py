@@ -259,6 +259,8 @@ class Provenance(ImportRecord):
     import_batch_id: UUID
     source_file: str = Field(min_length=1)
     row_no: int = Field(ge=1)
+    # YAML source_name。没有映射时为空。T12 写入。
+    source_name: str | None = Field(default=None, max_length=128)
 
 
 class ColumnMapping(ImportRecord):
@@ -274,6 +276,8 @@ class ColumnMapping(ImportRecord):
     timezone: str | None = Field(default=None, max_length=64)
     columns: dict[str, str] = Field(default_factory=dict)
     defaults: dict[str, str] = Field(default_factory=dict)
+    # 表头之后、数据之前再跳过的行数。表头之前的行由 header_row 跳过。
+    skip_rows: int = Field(default=0, ge=0)
 
 
 class SyncWindow(ImportRecord):
@@ -370,6 +374,21 @@ class FxRateRec(_Canonical):
     source: str = Field(min_length=1, max_length=128)
 
 
+class SkuRec(_Canonical):
+    """一条平台 SKU 映射。没有 store_id 时按店铺身份查找或创建。"""
+
+    record_type: Literal["sku"] = "sku"
+    platform: Platform
+    marketplace: str = Field(min_length=1, max_length=64)
+    store_name: str = Field(min_length=1, max_length=255)
+    store_currency: str = Field(min_length=3, max_length=3)
+    store_id: UUID | None = None
+    platform_sku: str = Field(min_length=1, max_length=128)
+    internal_sku: str = Field(min_length=1, max_length=128)
+    title: str | None = Field(default=None, max_length=512)
+    active: bool = True
+
+
 class IssueRec(_Canonical):
     """连接器给出的异常。解析失败也可以由导入器直接写 issue。"""
 
@@ -381,6 +400,12 @@ class IssueRec(_Canonical):
 
 
 CanonicalRecord = Annotated[
-    SettlementHeader | SettlementLineRec | OrderLineRec | SkuCostRec | FxRateRec | IssueRec,
+    SettlementHeader
+    | SettlementLineRec
+    | OrderLineRec
+    | SkuCostRec
+    | FxRateRec
+    | SkuRec
+    | IssueRec,
     Field(discriminator="record_type"),
 ]

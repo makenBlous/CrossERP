@@ -7,13 +7,19 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, assert_never
-from uuid import UUID
+from uuid import UUID, uuid4
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from crosserp.audit.log import append
 from crosserp.connectors.base import FileConnector
+from crosserp.connectors.generic_mapped.periods import (
+    overlap_message,
+    periods_overlap,
+    segment_text,
+)
 from crosserp.core.enums import ImportStatus, IssueKind, IssueStatus
 from crosserp.core.errors import DuplicateImportError, FileUnreadableError, RowParseError
 from crosserp.core.models import (
@@ -27,23 +33,25 @@ from crosserp.core.models import (
     SettlementHeader,
     SettlementLineRec,
     SkuCostRec,
+    SkuRec,
 )
+from crosserp.db.repo.fx import get_fx_rate, upsert_fx_rate
 from crosserp.db.repo.imports import (
     ensure_store,
     get_import_batch_by_sha256,
     get_settlement,
     insert_fee,
-    insert_fx_rate,
     insert_import_batch,
     insert_issue,
     insert_order_line,
     insert_raw_row,
     insert_settlement,
     insert_settlement_line,
+    insert_sku,
     insert_sku_cost,
     mark_import_batch,
 )
-from crosserp.db.schema import ImportBatch
+from crosserp.db.schema import ImportBatch, SkuCost
 
 _CHUNK = 1024 * 1024
 
@@ -100,7 +108,7 @@ def import_file(
             row_count=0,
             error_count=0,
         )
-        _write_audit(session, batch, message=message)
+        _write_audit(session, batch, message=message, mapping=mapping)
         return ImportResult(
             batch_id=batch.id,
             file_sha256=digest,
@@ -117,7 +125,7 @@ def import_file(
         row_count=row_count,
         error_count=error_count,
     )
-    _write_audit(session, batch, message=None)
+    _write_audit(session, batch, message=None, mapping=mapping)
     return ImportResult(
         batch_id=batch.id,
         file_sha256=digest,
@@ -178,9 +186,18 @@ def _consume(
                 continue
             for record in records:
                 filled = record.model_copy(
-                    update={"provenance": _provenance(connector, batch.id, raw, path)}
+                    update={"provenance": _provenance(connector, batch.id, raw, path, mapping)}
                 )
-                _persist(session, filled, batch.id, stored.id)
+                try:
+                    _persist(session, filled, batch.id, stored.id)
+                except RowParseError as exc:
+                    error_count += _write_row_error(
+                        session,
+                        exc.row_no,
+                        str(exc),
+                        exc.raw if isinstance(exc.raw, dict) else raw.payload,
+                    )
+                    continue
                 if isinstance(filled, IssueRec) and filled.issue_kind is IssueKind.PARSE_ERROR:
                     error_count += 1
     finally:
@@ -218,26 +235,13 @@ def _persist(session: Session, record: CanonicalRecord, batch_id: UUID, raw_row_
         _write_order(session, record, batch_id, raw_row_id)
         return
     if isinstance(record, SkuCostRec):
-        insert_sku_cost(
-            session,
-            internal_sku=record.internal_sku,
-            valid_from=record.valid_from,
-            valid_to=record.valid_to,
-            unit_cost=record.unit_cost,
-            currency=record.currency,
-            freight_per_unit=record.freight_per_unit,
-            source_batch_id=batch_id,
-        )
+        _write_cost(session, record, batch_id)
         return
     if isinstance(record, FxRateRec):
-        insert_fx_rate(
-            session,
-            period=record.period,
-            from_ccy=record.from_ccy,
-            to_ccy=record.to_ccy,
-            rate=record.rate,
-            source=record.source,
-        )
+        _write_fx(session, record)
+        return
+    if isinstance(record, SkuRec):
+        _write_sku(session, record)
         return
     if isinstance(record, IssueRec):
         detail = dict(record.detail_json)
@@ -310,6 +314,99 @@ def _write_line(session: Session, record: SettlementLineRec, raw_row_id: int) ->
         )
 
 
+def _write_cost(session: Session, record: SkuCostRec, batch_id: UUID) -> None:
+    """写入成本。与已有生效期相交则整行 PARSE_ERROR。不插入。"""
+    statement = select(SkuCost).where(SkuCost.internal_sku == record.internal_sku)
+    for existing in session.scalars(statement):
+        if not periods_overlap(
+            record.valid_from, record.valid_to, existing.valid_from, existing.valid_to
+        ):
+            continue
+        row_no = 1 if record.provenance is None else record.provenance.row_no
+        message = overlap_message(
+            record.internal_sku,
+            f"本行 {segment_text(record.valid_from, record.valid_to)}",
+            f"已有记录 {segment_text(existing.valid_from, existing.valid_to)}",
+        )
+        raise RowParseError(row_no, message)
+    insert_sku_cost(
+        session,
+        internal_sku=record.internal_sku,
+        valid_from=record.valid_from,
+        valid_to=record.valid_to,
+        unit_cost=record.unit_cost,
+        currency=record.currency,
+        freight_per_unit=record.freight_per_unit,
+        source_batch_id=batch_id,
+    )
+
+
+def _write_fx(session: Session, record: FxRateRec) -> None:
+    """同月同币对覆盖。覆盖时另写一条审计。"""
+    existing = get_fx_rate(session, record.period, record.from_ccy, record.to_ccy)
+    rate_id = uuid4() if existing is None else existing.id
+    before = None
+    if existing is not None:
+        before = {
+            "period": existing.period,
+            "from_ccy": existing.from_ccy,
+            "to_ccy": existing.to_ccy,
+            "rate": existing.rate,
+            "source": existing.source,
+        }
+    upsert_fx_rate(
+        session,
+        rate_id=rate_id,
+        period=record.period,
+        from_ccy=record.from_ccy,
+        to_ccy=record.to_ccy,
+        rate=record.rate,
+        source=record.source,
+    )
+    if before is None:
+        return
+    after: dict[str, Any] = {
+        "period": record.period,
+        "from_ccy": record.from_ccy,
+        "to_ccy": record.to_ccy,
+        "rate": record.rate,
+        "source": record.source,
+    }
+    if record.provenance is not None:
+        after["row_no"] = record.provenance.row_no
+        after["source_file"] = record.provenance.source_file
+    append(
+        session,
+        actor_type="system",
+        action="fx_rate_upsert",
+        target_type="fx_rate",
+        target_id=str(rate_id),
+        before=before,
+        after=after,
+        reason="同月同币对覆盖",
+        self_approved=False,
+    )
+
+
+def _write_sku(session: Session, record: SkuRec) -> None:
+    store_id = ensure_store(
+        session,
+        store_id=record.store_id,
+        platform=record.platform.value,
+        marketplace=record.marketplace,
+        name=record.store_name,
+        currency=record.store_currency,
+    )
+    insert_sku(
+        session,
+        store_id=store_id,
+        platform_sku=record.platform_sku,
+        internal_sku=record.internal_sku,
+        title=record.title,
+        active=record.active,
+    )
+
+
 def _write_order(session: Session, record: OrderLineRec, batch_id: UUID, raw_row_id: int) -> None:
     store_id = ensure_store(
         session,
@@ -334,17 +431,31 @@ def _write_order(session: Session, record: OrderLineRec, batch_id: UUID, raw_row
     )
 
 
-def _provenance(connector: FileConnector, batch_id: UUID, raw: RawRow, path: Path) -> Provenance:
+def _provenance(
+    connector: FileConnector,
+    batch_id: UUID,
+    raw: RawRow,
+    path: Path,
+    mapping: ColumnMapping | None,
+) -> Provenance:
+    source_name = None if mapping is None else mapping.source_name
     return Provenance(
         connector_id=connector.id,
         connector_version=connector.version,
         import_batch_id=batch_id,
         source_file=str(path),
         row_no=raw.row_no,
+        source_name=source_name,
     )
 
 
-def _write_audit(session: Session, batch: ImportBatch, *, message: str | None) -> None:
+def _write_audit(
+    session: Session,
+    batch: ImportBatch,
+    *,
+    message: str | None,
+    mapping: ColumnMapping | None,
+) -> None:
     after: dict[str, Any] = {
         "connector_id": batch.connector_id,
         "connector_version": batch.connector_version,
@@ -354,6 +465,8 @@ def _write_audit(session: Session, batch: ImportBatch, *, message: str | None) -
         "error_count": batch.error_count,
         "status": batch.status,
     }
+    if mapping is not None and mapping.source_name:
+        after["source_name"] = mapping.source_name
     if message is not None:
         after["message"] = message
     append(

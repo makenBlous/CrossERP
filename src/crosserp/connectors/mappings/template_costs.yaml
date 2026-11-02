@@ -1,0 +1,16 @@
+# 成本模板列。对应实施方案 5.5。日期没有时分，按 UTC 零点理解。推断。
+target: sku_cost
+source_name: template_costs
+sheet: 0
+header_row: 1
+encoding: utf-8-sig
+amount_locale: us
+date_formats:
+  - "%Y-%m-%d"
+timezone: UTC
+columns:
+  internal_sku: "内部SKU"
+  unit_cost: "采购单价"
+  freight_per_unit: "头程单价"
+  currency: "币种"
+  valid_from: "生效日期"

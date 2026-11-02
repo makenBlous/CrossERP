@@ -26,7 +26,7 @@
 | T09 | [连接器协议 + 导入批次](T09-connector-base-import-batch.md) | W2 | 1.5 天 | T05 | review |
 | T10 | [Amazon 结算 Flat File V2 导入器](T10-amazon-settlement-v2.md) | W2 | 2 天 | T08, T09 | todo |
 | T11 | [Shopify 打款 CSV 导入器](T11-shopify-payouts.md) | W2 | 1 天 | T08, T09 | todo |
-| T12 | [通用映射导入器（领星/赛狐/成本/汇率）](T12-generic-mapped.md) | W2 | 1.5 天 | T09 | todo |
+| T12 | [通用映射导入器（领星/赛狐/成本/汇率）](T12-generic-mapped.md) | W2 | 1.5 天 | T09 | review |
 | T13 | [导入命令 + 端到端测试 + 真实文件试导入](T13-import-cli-golden.md) | W2 | 1 天 | T10, T11, T12 | todo |
 | T14 | [对账异常分类设计（文档）](T14-recon-categories-design.md) | W2 | 0.5 天 | T08 | review |
 

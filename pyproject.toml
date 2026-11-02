@@ -18,8 +18,9 @@ dependencies = [
 [project.scripts]
 crosserp = "crosserp.cli:app"
 
-# 内置连接器也走这一组。T10–T12 再注册具体入口。
+# 内置连接器也走这一组。T10、T11 尚未注册。
 [project.entry-points."crosserp.connectors"]
+mapped = "crosserp.connectors.generic_mapped.connector:GenericMappedConnector"
 
 [project.optional-dependencies]
 mysql = [

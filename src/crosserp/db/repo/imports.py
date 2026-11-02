@@ -20,6 +20,7 @@ from crosserp.db.schema import (
     RawRow,
     Settlement,
     SettlementLine,
+    Sku,
     SkuCost,
     Store,
 )
@@ -262,6 +263,28 @@ def insert_order_line(
         currency=currency,
         source_batch_id=source_batch_id,
         raw_row_id=raw_row_id,
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def insert_sku(
+    session: Session,
+    *,
+    store_id: UUID,
+    platform_sku: str,
+    internal_sku: str,
+    title: str | None,
+    active: bool,
+) -> Sku:
+    """写入平台 SKU 映射。"""
+    row = Sku(
+        store_id=store_id,
+        platform_sku=platform_sku,
+        internal_sku=internal_sku,
+        title=title,
+        active=active,
     )
     session.add(row)
     session.flush()

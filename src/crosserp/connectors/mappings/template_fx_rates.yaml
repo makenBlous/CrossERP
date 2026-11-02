@@ -1,0 +1,12 @@
+# 汇率模板列。对应实施方案 5.5。月份必须是 YYYY-MM。
+target: fx_rate
+source_name: template_fx_rates
+sheet: 0
+header_row: 1
+encoding: utf-8-sig
+amount_locale: us
+columns:
+  period: "月份"
+  from_ccy: "原币"
+  to_ccy: "目标币"
+  rate: "汇率"

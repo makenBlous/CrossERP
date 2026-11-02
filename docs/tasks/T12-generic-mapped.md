@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W2 | 1.5 天 | T09（样本来自 T08） | `task/T12-generic-mapped` |
+| review | W2 | 1.5 天 | T09（样本来自 T08） | `task/T12-generic-mapped` |
 
 ## 目标
 不写死任何 ERP 的列名，靠 YAML 把任意 xlsx/csv 映射成订单、成本、汇率、SKU 映射，真实表头到手后只改 YAML 不改代码。
@@ -62,4 +62,39 @@ defaults:
 
 ## 问题
 
+- 领星/赛狐列名仍是 `TODO_`。待真实导出后再改 YAML。没有编造字段全集。
+- 成本生效期按 `[开始, 结束)`。未填结束日时接到同一 SKU 的下一条。不含下一条当天。这是推断。与 `scripts/gen_samples.py` 的注释一致。若结束日要含当天，需要 maken 决定。
+- T09 的标准记录没有 SKU。本次补了 `SkuRec` 和落库。没有改表。没有改 `audit/chain.py`。
+- 同月同币对覆盖会另写 `fx_rate_upsert` 审计。同一 sha256 仍不能重导。覆盖要用另一份文件。
+
 ## 完成记录
+
+本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。
+
+任务验收命令里的 `uv run` 按上面的解释器替换。
+
+```text
+pytest tests/golden/test_generic_mapped.py -q
+15 passed in 2.68s
+
+pytest -m db -k mapped -q
+15 passed, 103 deselected, 1 warning in 3.43s
+
+mypy
+Success: no issues found in 41 source files
+
+pytest -q
+117 passed, 1 skipped, 1 warning in 6.64s
+```
+
+改动文件的 `ruff format --check` 与 `ruff check` 通过。仓库里原有的 `src/crosserp/db/migrations/env.py` 格式差异，以及 `enums.py` / `test_schema_portable.py` 的全角逗号，不是这次引入的。没有改。
+
+额外改了这些文件。原因：不改就写不进 `sku` 表，汇率也不能覆盖。
+
+- `src/crosserp/core/models.py`：增加 `SkuRec`。`Provenance` 增加可空 `source_name`。`ColumnMapping` 增加 `skip_rows`。
+- `src/crosserp/connectors/importer.py`：SKU 落库。汇率 upsert 并写审计。成本与已有生效期冲突时记 `PARSE_ERROR`。
+- `src/crosserp/db/repo/imports.py`：增加 `insert_sku`。
+- `pyproject.toml`：只在 `crosserp.connectors` 注册 `mapped`。
+- `docs/architecture.md`：标准记录补上 SKU 映射。
+
+未改 `docs/tasks/README.md`。未加 `crosserp import`。那是 T13。

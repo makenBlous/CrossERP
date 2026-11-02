@@ -1,0 +1,13 @@
+# SKU 映射模板。表头对应合成样本 sku_map.csv。不是领星/赛狐字段。
+# 店铺币种：合成店名 amazon-us / amazon-de / shopify-main 有推断。
+# 其他店名请在 defaults 里写 store_currency。待真实数据验证。
+target: sku
+source_name: template_sku
+sheet: 0
+header_row: 1
+encoding: utf-8-sig
+columns:
+  store: "店铺"
+  platform_sku: "平台SKU"
+  internal_sku: "内部SKU"
+  title: "标题"

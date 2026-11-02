@@ -1,0 +1,23 @@
+# 赛狐订单导出列映射。待真实数据验证。不是赛狐字段全集。
+# 右边全部是 TODO_ 占位。使用前改成真实表头，否则加载会被拒绝。
+# 导出编码未核实。默认 utf-8-sig。若是 GB18030，把 encoding 改成 gb18030。
+# timezone 与 amount_locale 来自任务示例。推断。待真实数据验证。
+target: order_line
+source_name: sellfox_orders
+sheet: 0
+header_row: 1
+encoding: utf-8-sig
+amount_locale: us
+date_formats:
+  - "%Y-%m-%d %H:%M:%S"
+  - "%Y-%m-%d"
+timezone: Asia/Shanghai
+columns:
+  platform_order_id: "TODO_订单号"
+  platform_sku: "TODO_MSKU"
+  qty: "TODO_数量"
+  order_date: "TODO_订购时间"
+  item_price: "TODO_商品金额"
+  currency: "TODO_币种"
+defaults:
+  store: "TODO_店铺"
