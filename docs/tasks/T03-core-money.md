@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W1 | 1 天 | T01 | `task/T03-core-money` |
+| review | W1 | 1 天 | T01 | `task/T03-core-money` |
 
 ## 目标
 全项目唯一的金额类型和金额解析函数，保证「钱永远是 Decimal，不会丢精度」。
@@ -53,5 +53,20 @@
 - [ ] 随便打开 `money.py`，搜索 `float`，除了「禁止 float」的报错说明外不应出现。
 
 ## 问题
+无阻塞问题。EU 站点映射只收录任务列出的 Amazon.de / .fr / .it / .es / .nl，未猜测 Amazon.pl / .se / .com.be。待真实数据验证。币种为 EUR 时仍返回 `eu`。
 
 ## 完成记录
+当前分支 `main`（按本次指令提交到当前分支，未另开 `task/T03-core-money`）。未推送。未把状态改成 done。
+
+2026-11-02 在本 worktree 实际运行。解释器 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`，Python 3.14.10。未使用 `uv run`。`PYTHONPATH` 指向本 worktree 的 `src`。导入文件为 `src\crosserp\core\money.py`。
+
+| 命令 | 结果 |
+|---|---|
+| `python -c "from decimal import Decimal; from crosserp.core.money import parse_amount; assert parse_amount('95,00','eu')==Decimal('95.00'); assert parse_amount('1.234,56','eu')==Decimal('1234.56'); assert parse_amount('1,234.56','us')==Decimal('1234.56'); print('ok')"` | 退出码 0。输出 `ok` |
+| `python -m pytest tests/unit/test_money.py tests/property tests/guard -q` | 退出码 0。`23 passed in 1.05s` |
+| `mypy` | 退出码 0。`Success: no issues found in 13 source files` |
+| `python -m pytest -q` | 退出码 0。`24 passed in 0.78s` |
+| `ruff format --check .` | 退出码 0。`20 files already formatted` |
+| `ruff check .` | 退出码 0。`All checks passed!` |
+
+`money.py` 中的 `float` 只出现在「禁止 float」说明和 `isinstance(..., float)` 拒绝路径，没有 `float()` 调用。guard 扫描 `src/crosserp/`，`# noqa: money-float` 为 0 处。
