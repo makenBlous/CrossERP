@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W2 | 1.5 天 | T05 | `task/T09-connector-base` |
+| review | W2 | 1.5 天 | T05 | `task/T09-connector-base` |
 
 ## 目标
 定义所有导入器共用的接口和「导入一批文件」的通用流程，后面的 Amazon/Shopify/映射导入器只需实现解析部分。
@@ -51,4 +51,26 @@
 
 ## 问题
 
+- 已按「库里已有 `import_batch` 就拒绝」实现。`status=failed` 的批次也会占住 sha256，同一文件不能直接重导。若失败后应允许重试，需要 maken 决定。
+- 文件在算出 sha256 之前就打不开时，表要求 `file_sha256` 非空，因此不写 failed 批次，直接报错。若这种失败也必须落一行，需要 maken 决定用什么哈希。
+- T06 尚未完成。本任务按 T06 已写明的签名实现了最小 `append` / `verify_chain`，没有加 `crosserp audit verify`。T06 若改哈希规范化，需要和这次写入对齐。
+
 ## 完成记录
+
+本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。
+
+```text
+pytest -m db -k importer -q
+4 passed, 99 deselected, 1 warning in 1.91s
+
+pytest tests/unit/test_registry.py -q
+8 passed in 0.24s
+
+mypy
+Success: no issues found in 35 source files
+
+pytest -q
+102 passed, 1 skipped, 1 warning in 4.19s
+```
+
+未改 `docs/tasks/README.md`。未加 `crosserp import`（那是 T13）。`init` / `serve` / `db` 仍在。

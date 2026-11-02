@@ -18,6 +18,9 @@ dependencies = [
 [project.scripts]
 crosserp = "crosserp.cli:app"
 
+# 内置连接器也走这一组。T10–T12 再注册具体入口。
+[project.entry-points."crosserp.connectors"]
+
 [project.optional-dependencies]
 mysql = [
     "pymysql>=1.2",

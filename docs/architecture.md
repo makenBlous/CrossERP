@@ -25,3 +25,20 @@ v0.1 业务表在 `src/crosserp/db/schema.py`。字段以实施方案第 4 节�
 | `audit_head` | id, chain, last_id, last_hash | `chain` 唯一。空链时 last_id 与 last_hash 为空 |
 
 切换 SQLite / MySQL / PostgreSQL 只改 `CROSSERP_DATABASE_URL`。`crosserp init` 会创建 SQLite 目录、执行 `alembic upgrade head` 并做启动自检。
+
+## 连接器与导入
+
+文件导入器实现 `FileConnector`。`sniff` 给 0 到 1 的识别分，`read` 按原始行号读出字符串，`normalize` 把一行变成标准记录。标准记录是结算头、结算明细、订单、成本、汇率、异常之一。每条带 provenance：连接器 id、版本、批次 id、源文件、行号。数据库里用 `source_batch_id` 和 `raw_row_id` 把标准行指回原始行。
+
+`ApiConnector` 只定义只读拉取，v0.1 不实现。`LedgerTarget` 只放类型定义。v0.5 由 ledger.write_service 使用。
+
+注册表读 entry point 组 `crosserp.connectors`。内置连接器也在 `pyproject.toml` 注册。`detect` 取最高分。最高分低于 0.5，或最高分并列，就报错，并提示用 `--type` 指定。命令行导入本身在 T13。
+
+导入一个文件时：
+
+1. 先算 sha256。库里已经有同一哈希的批次，就拒绝，并提示首次导入时间。不会多写一行。
+2. 新建批次，状态是 running。每一行先原样写入 `raw_row`，再标准化，再写入标准表。未知列留在原始 payload，不丢、不猜。文件里的文字只当数据。
+3. 某一行解析失败：写一条 `issue`，原因码 `PARSE_ERROR`，detail 里有行号、错误和原文。然后继续下一行。整批状态仍是 done，错误数另计。
+4. 整批读失败：回滚这一批的数据行，批次状态改为 failed。这条失败批次仍占着 sha256，不能把同一文件再导一次。
+5. 文件在算出哈希之前就打不开：不写批次，直接报错。
+6. 同一事务写一条审计，动作是 `import`。写审计失败，则这一批一起回滚。
