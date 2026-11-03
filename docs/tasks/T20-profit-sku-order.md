@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W3 | 2 天 | T18 | `task/T20-profit` |
+| review | W3 | 2 天 | T18 | `task/T20-profit` |
 
 ## 目标
 对一个店铺一个月，算出每个订单行和每个内部 SKU 的利润（原币 + 人民币），每一分钱可追溯到结算行和成本/汇率记录；缺成本、缺汇率时开异常，**绝不猜**。
@@ -58,3 +58,9 @@
 ## 问题
 
 ## 完成记录
+
+- 完成内容：实现纯 Decimal 订单行/SKU 利润计算、成本生效期选择、CNY 月汇率换算、最终两位 ROUND_HALF_UP、缺成本/缺汇率异常；新增 `profit_snapshot` 字段和迁移、输入哈希、快照复用、`crosserp profit` 命令；Shopify 按订单金额比例分摊；非订单费用保留为店铺未分摊费用；退款不冲回成本，拒付按退款计入。
+- 修改文件：`src/crosserp/profit/{calc,inputs,service}.py`、`src/crosserp/db/repo/profit.py`、`src/crosserp/db/schema.py`、`src/crosserp/db/migrations/versions/0007_profit_snapshot_cols.py`、`src/crosserp/core/models.py`、`src/crosserp/cli.py`、利润单测/性质/三库集成测试、`CHANGELOG.md`。
+- 测试结果：SQLite 全量 `198 passed, 2 skipped`，覆盖率 `86.13%`；利润单测/性质测试 `5 passed`；利润集成测试通过；MySQL 8.4 利润定向测试 `1 passed`；PostgreSQL 18 利润定向测试 `1 passed`；`ruff`、`mypy`、`pre-commit`、样本 `--check` 全部通过。
+- 口径：按已授权推荐采用退款不冲回成本、非订单费用不分摊到 SKU、最终一步 ROUND_HALF_UP；广告未含。
+- 偏离计划：T20 未新增依赖；利润快照的旧记录保留，输入哈希变化时新增快照。

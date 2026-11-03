@@ -1,1 +1,1 @@
-"""SKU 利润占位包。"""
+"""Deterministic SKU and order profit calculation."""
