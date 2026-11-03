@@ -48,9 +48,7 @@ class DuplicateImportError(CrossErpError):
         self.file_sha256 = file_sha256
         self.imported_at = imported_at
         self.status = status
-        super().__init__(
-            f"文件已成功导入过。首次成功时间 {imported_at}。sha256 {file_sha256}"
-        )
+        super().__init__(f"文件已成功导入过。首次成功时间 {imported_at}。sha256 {file_sha256}")
 
 
 class FileUnreadableError(CrossErpError):

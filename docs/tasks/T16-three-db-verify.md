@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W3 | 1 天 | T07, T13 | `task/T16-three-db-verify` |
+| review | W3 | 1 天 | T07, T13 | `task/T16-three-db-verify` |
 
 ## 目标
 把 T01–T14 在 MySQL 8.4 和 PostgreSQL 18 上**真正跑一遍**，修掉暴露的问题，留下证据。之后所有任务都在三库绿灯的基础上做。
@@ -51,4 +51,37 @@
 
 ## 问题
 
+- GitHub Actions 上一轮 main 运行（[CI #2](https://github.com/makenBlous/CrossERP/actions/runs/41567272614)）的公开 API 显示 lint、6 个 test、3 个 db-matrix job 全部失败；未授权读取 job 日志返回 403，因此不能编造每个 job 的具体错误。当前分支尚未推送，未产生本分支 Checks 结果。
+- `samples/real_anonymized/` 未提供，现有真实文件试导入测试按约定跳过 1 项；三库主测试均实际连接并通过，不是连接失败导致跳过。
+- 本机没有 PowerShell，`scripts/dev/db-up.ps1` 只做了人工代码检查，未在 PowerShell 解释器执行。
+
 ## 完成记录
+
+分支：`task/T16-three-db-verify`。状态改为 `review`，不是 `done`。
+
+### 做了什么
+
+- 增加 `tests/integration/test_three_db_roundtrip.py`，覆盖迁移往返、Money4 五个边界值、FxRate 八位小数、中文和 emoji、UTC 时间；三库均为 6 passed。
+- 增加 `scripts/dev/db-up.sh`、`scripts/dev/db-up.ps1` 和 `docs/dev-three-db.md`，固定使用项目 `.venv`、MySQL 8.4 端口 13306、PostgreSQL 18 端口 15432，并说明无 Docker 时只看 CI。
+- 增加 `docs/evidence/three-db-2026-11-03.md`，记录真实版本、自检、三库测试数和上一轮 CI 运行链接。
+- 增加 `tests/__init__.py`，修复 Python 3.14 下外部同名 `tests` 包导致的测试收集失败。
+- 修复初始迁移 downgrade 先删外键再删索引，使 MySQL 8.4 的 `upgrade head → downgrade base → upgrade head` 可执行；没有改变表字段或新增迁移。
+- 按 ruff 规则格式化既有文件，并修正既有中文标点 lint 报错，使项目全量 lint 通过。
+
+### 实际验收命令与结果
+
+| 命令 | 结果 |
+|---|---|
+| `uv run pytest --cov=crosserp --cov-fail-under=60 -q` | 181 passed, 2 skipped；覆盖率 85.82% |
+| `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://root:dev@127.0.0.1:13306/crosserp?charset=utf8mb4 uv run pytest -m db -q` | 90 passed, 3 skipped；MySQL 8.4.13 |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp uv run pytest -m db -q` | 89 passed, 4 skipped；PostgreSQL 18.6 |
+| `uv run pytest -m db -q` | 91 passed, 2 skipped；SQLite |
+| `uv run ruff format --check . && uv run ruff check .` | 全部通过 |
+| `uv run mypy` | `Success: no issues found in 49 source files` |
+| `uv run pre-commit run --all-files` | ruff-format、ruff、mypy 全部 Passed |
+| `bash -n scripts/dev/db-up.sh` | 通过 |
+
+### 偏离计划
+
+- `.github/workflows/ci.yml` 未改动；现有 workflow 已包含目标矩阵。由于本任务分支未推送，不能声称本分支 GitHub Checks 已绿；本地三库结果已真实跑通。
+- GitHub 分支保护只写入人工验收清单，未通过网页设置。

@@ -32,9 +32,7 @@ def _resolve_url() -> str:
     return get_database_url()
 
 
-def _render_item(
-    type_: str, obj: Any, autogen_context: AutogenContext
-) -> str | Literal[False]:
+def _render_item(type_: str, obj: Any, autogen_context: AutogenContext) -> str | Literal[False]:
     """自定义类型按类名渲染。避免生成方言专属类型。"""
     if type_ == "type" and isinstance(obj, Money4 | FxRate | UtcDateTime):
         autogen_context.imports.add("from crosserp.db.types import FxRate, Money4, UtcDateTime")
