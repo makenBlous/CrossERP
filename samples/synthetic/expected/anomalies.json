@@ -114,8 +114,8 @@
     "scenario": "refund_without_order",
     "file": "amazon_us_2026-10-01_2026-10-14.tsv",
     "row_nos": [
-      294,
-      295
+      297,
+      298
     ],
     "order_id": "SYN-US-REFUND-NO-ORDER",
     "sku": "CUP-US-001",
@@ -126,9 +126,9 @@
     "scenario": "not_in_erp",
     "file": "amazon_us_2026-10-01_2026-10-14.tsv",
     "row_nos": [
-      291,
-      292,
-      293
+      294,
+      295,
+      296
     ],
     "order_id": "SYN-US-NOT-IN-ERP",
     "sku": "CUP-US-001",
@@ -202,7 +202,7 @@
     "scenario": "unknown_fee_type",
     "file": "amazon_us_2026-10-01_2026-10-14.tsv",
     "row_nos": [
-      296
+      299
     ],
     "order_id": "",
     "sku": "",

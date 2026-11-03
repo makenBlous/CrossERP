@@ -386,6 +386,6 @@ codes:
   sample_coverage: uncovered
   sample_note: 样本未覆盖。匹配率计法待 maken 确认。
   kind: DUPLICATE_SETTLEMENT
-  counts_as_unmatched: false
+  counts_as_unmatched: true
   template_zh: 订单 {order_id}（SKU {sku}）在结算 {settlement_id_a} 和 {settlement_id_b} 里都有收款。请核对是不是同一笔钱记了两次。
   action_zh: 人工核对两张结算。不要自动删掉其中一笔，也不要自动改利润。

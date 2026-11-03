@@ -108,7 +108,7 @@
 ### refund_without_order
 
 - 文件：`amazon_us_2026-10-01_2026-10-14.tsv`
-- 行号：294, 295
+- 行号：297, 298
 - 订单号：SYN-US-REFUND-NO-ORDER
 - SKU：CUP-US-001
 - 期望原因码：REFUND_WITHOUT_ORDER
@@ -117,7 +117,7 @@
 ### not_in_erp
 
 - 文件：`amazon_us_2026-10-01_2026-10-14.tsv`
-- 行号：291, 292, 293
+- 行号：294, 295, 296
 - 订单号：SYN-US-NOT-IN-ERP
 - SKU：CUP-US-001
 - 期望原因码：NOT_IN_ERP
@@ -171,7 +171,7 @@
 ### unknown_fee_type
 
 - 文件：`amazon_us_2026-10-01_2026-10-14.tsv`
-- 行号：296
+- 行号：299
 - 订单号：（无）
 - SKU：（无）
 - 期望原因码：UNKNOWN_FEE_TYPE

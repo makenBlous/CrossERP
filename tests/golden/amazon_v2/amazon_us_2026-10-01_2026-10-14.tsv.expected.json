@@ -10,7 +10,7 @@
     "external_id": "SYN-SETTLE-US-20261014",
     "currency": "USD",
     "marketplace": "Amazon.com",
-    "total": "3088.16",
+    "total": "3095.15",
     "period_start": "2026-10-01T00:00:00+00:00",
     "period_end": "2026-10-14T00:00:00+00:00",
     "deposit_date": "2026-10-16T00:00:00+00:00"
@@ -20,13 +20,13 @@
     "marketplace": "Amazon.com",
     "currency": "USD"
   },
-  "raw_row_count": 295,
-  "settlement_line_count": 293,
+  "raw_row_count": 298,
+  "settlement_line_count": 296,
   "fee_totals": {
-    "commission": "-662.00",
-    "fba": "-613.50",
+    "commission": "-663.85",
+    "fba": "-617.00",
     "other": "-1.23",
-    "principal": "4368.39"
+    "principal": "4380.73"
   },
   "issues": [
     {
@@ -36,14 +36,14 @@
     },
     {
       "kind": "UNKNOWN_FEE_TYPE",
-      "row_no": 296,
+      "row_no": 299,
       "severity": "warn"
     }
   ],
   "not_inserted_row_nos": [6],
   "stored_rows": [
     {
-      "row_no": 296,
+      "row_no": 299,
       "order_id": null,
       "amount_type": "ItemFees",
       "amount_description": "SyntheticUnknownFee",

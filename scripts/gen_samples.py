@@ -13,6 +13,8 @@ import csv
 import json
 import random
 import re
+import sys
+import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -546,8 +548,19 @@ def _in_transit_orders() -> list[Order]:
 
 def _build_orders(rng: random.Random) -> list[Order]:
     orders = [*_normal_orders(rng), *_special_orders(), *_in_transit_orders()]
-    if len(orders) != 120:
-        _fail(f"订单行 {len(orders)} != 120")
+    orders.append(
+        Order(
+            "SYN-US-EXTRA",
+            _STORE_US,
+            _SKU_CUP,
+            1,
+            "2026-10-14",
+            Decimal("12.34"),
+            "USD",
+        )
+    )
+    if len(orders) != 121:
+        _fail(f"订单行 {len(orders)} != 121")
     ids = [order.order_id for order in orders]
     if len(ids) != len(set(ids)):
         _fail("订单号重复")
@@ -751,7 +764,7 @@ def _groups(
         if row["transaction-type"] in vocab.ORDER_TRANSACTION_TYPES:
             add("amazon", row["order-id"], row["sku"])
     for row in shopify_rows:
-        if row["Type"] in vocab.SHOPIFY_ORDER_TYPES:
+        if row["Type"] in vocab.SHOPIFY_ORDER_TYPES and row["Payout Status"].casefold() == "paid":
             add("shopify", row["Order"], "")
     return groups
 
@@ -1627,8 +1640,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--out", default="samples/synthetic", help="输出目录，默认 samples/synthetic"
     )
+    parser.add_argument("--check", action="store_true", help="只检查现有目录是否可复现，不改文件")
     args = parser.parse_args(list(argv) if argv is not None else None)
-    summary = generate(Path(args.out))
+    destination = Path(args.out)
+    if args.check:
+        with tempfile.TemporaryDirectory(prefix="crosserp-samples-") as temporary:
+            generated = Path(temporary)
+            summary = generate(generated)
+            expected = sorted(path.relative_to(generated) for path in generated.rglob("*"))
+            actual = sorted(path.relative_to(destination) for path in destination.rglob("*"))
+            if expected != actual:
+                print("样本目录文件列表与固定种子生成结果不一致。", file=sys.stderr)
+                return 1
+            for relative in expected:
+                left = generated / relative
+                right = destination / relative
+                if left.is_file() and left.read_bytes() != right.read_bytes():
+                    print(f"样本文件与固定种子生成结果不一致: {relative}", file=sys.stderr)
+                    return 1
+    else:
+        summary = generate(destination)
     _print_summary(summary)
     return 0
 

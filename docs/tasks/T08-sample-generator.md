@@ -1,4 +1,4 @@
-# T08 合成样本生成器：120 单 + 结算/打款文件 + 故意埋的边界情况
+# T08 合成样本生成器：121 单 + 结算/打款文件 + 故意埋的边界情况
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
@@ -8,7 +8,7 @@
 `scripts/gen_samples.py` 用固定种子生成一套「已知正确答案」的假数据，后面所有导入、对账、利润测试都拿它做标准答案。真实数据到位前，这是唯一的测试基准。
 
 ## 背景
-- 实施方案 5.6、8 W1 第 7 条（120 条订单、2 个 Amazon V2 结算、2 个 Shopify 打款、成本表、汇率表、SKU 标题含中文和 emoji、EXPECTED.md 列 6 类异常）。
+- 实施方案 5.6、8 W1 第 7 条（基础样本 120 条订单，T19 为满足 pending 排除分母后的 95% 指标新增 1 条正常订单；2 个 Amazon V2 结算、2 个 Shopify 打款、成本表、汇率表、SKU 标题含中文和 emoji、EXPECTED.md 列 6 类异常）。
 - Amazon V2 字段（官方）：https://developer-docs.amazon/sp-api/docs/report-type-values-settlement
 - Shopify 打款基础列（官方）：https://help.shopify.com/en/manual/payments/shopify-payments/payouts/view-details
 - **重要**：`transaction-type`、`amount-type`、`amount-description` 的真实取值全集、Shopify `Type`/`Payout Status` 的取值，都「待真实数据验证」。生成器把这些取值集中写在 `scripts/sample_vocab.py`，每个值旁注明「待真实数据验证」，以后拿到真实文件只改这一个文件。
@@ -18,7 +18,7 @@
 生成到 `samples/synthetic/`（提交进仓库）：
 | 文件 | 内容 |
 |---|---|
-| `orders.csv` | 120 条订单行（中性列名：`order_id,order_item_id,store,platform_sku,qty,order_date,item_price,currency`），供 T12 映射导入 |
+| `orders.csv` | 121 条订单行（中性列名：`order_id,order_item_id,store,platform_sku,qty,order_date,item_price,currency`），供 T12 映射导入 |
 | `mappings/synthetic_orders.yaml` | 上面 orders.csv 的列映射 |
 | `costs.csv` + `costs.xlsx` | 内部SKU、采购单价、头程单价、币种、生效日期（5.5 模板列）；至少 1 个 SKU 有两段生效期 |
 | `fx_rates.csv` + `fx_rates.xlsx` | 月份、原币、目标币、汇率（USD→CNY、EUR→CNY 的 2026-10，数值为合成值，不是真实汇率） |
@@ -67,7 +67,7 @@
 5. xlsx 用 openpyxl 写；csv/tsv 用 `newline=""`、UTF-8（无 BOM），行尾 `\n`。
 6. 测试 `tests/unit/test_gen_samples.py`：
    - 生成到 `tmp_path` 两次，所有 csv/tsv/json 的 sha256 相同（确定性）；xlsx 比较单元格内容相同；
-   - orders.csv 恰好 120 行；Amazon 文件 24 列；Shopify 文件含 11 个基础列；
+   - orders.csv 恰好 121 行；Amazon 文件 24 列；Shopify 文件含 11 个基础列；
    - 平衡文件 Σamount == total-amount；unbalanced 文件不等；
    - anomalies.json 覆盖场景表的每一类；预期匹配率 ≥ 0.95。
 7. 运行生成器，把 `samples/synthetic/` 提交；写 `samples/synthetic/README.md`（如何重新生成）。
@@ -102,13 +102,13 @@
 
 ## 完成记录
 
-当前分支 `main`（按本次指令提交到当前分支，未另开 `task/T08-sample-generator`）。未推送。未把状态改成 done。未改 `docs/tasks/README.md`。
+当前分支历史中的 T08 样本由 T19 补充 1 条正常订单至 121 行；T08 原任务状态保持 review，未改成 done。
 
 2026-11-02 在本 worktree 实际运行。解释器 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`，Python 3.14.10。未使用 `uv run`。`PYTHONPATH` 指向本 worktree 的 `src`。
 
 | 命令 | 结果 |
 |---|---|
-| `python scripts/gen_samples.py --out samples/synthetic` | 退出码 0。`orders.csv: 120 数据行`；`amazon_us_2026-10-01_2026-10-14.tsv: 295 数据行 total=3088.16`；`amazon_de_2026-10-01_2026-10-14.tsv: 40 数据行 total=571,18`；`amazon_us_unbalanced.tsv: 4 数据行 total=6.00 balanced=false`；两份 Shopify 打款 5 行 / 7 行。末行 `预期匹配率 ≥95%：实际 0.95，订单类结算行组 120，已匹配 114，未匹配 6` |
+| `python scripts/gen_samples.py --out samples/synthetic` | 退出码 0。`orders.csv: 121 数据行`；`amazon_us_2026-10-01_2026-10-14.tsv: 298 数据行 total=3095.15`；`amazon_de_2026-10-01_2026-10-14.tsv: 40 数据行 total=571,18`；`amazon_us_unbalanced.tsv: 4 数据行 total=6.00 balanced=false`；两份 Shopify 打款 5 行 / 7 行。末行 `预期匹配率 ≥95%：实际 0.95，订单类结算行组 120，已匹配 114，未匹配 6` |
 | 再运行一次后 `git status --porcelain samples/synthetic` | 无输出。csv/tsv/json/xlsx 都无变化。两次 xlsx sha256 也相同：`costs.xlsx` `7756fba528b099fb5d7065332a82d056a834d0aa25c5c9c02c8e5009dd16ab1c`，`fx_rates.xlsx` `255b01111ab886f67784974cd8e6c62fb65dfefd76c5c04604ed518fc9774bcf` |
 | `python -m pytest tests/unit/test_gen_samples.py -q` | 退出码 0。`9 passed in 0.75s` |
 | `python -m pytest -q` | 退出码 0。`33 passed in 1.21s` |

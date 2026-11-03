@@ -30,6 +30,7 @@ from crosserp.core.enums import Platform
 from crosserp.core.models import (
     CanonicalRecord,
     ColumnMapping,
+    FeeReferenceRec,
     FxRateRec,
     OrderLineRec,
     RawRow,
@@ -111,6 +112,8 @@ class GenericMappedConnector:
             return [_cost(spec, row, prepared)]
         if spec.target == "fx_rate":
             return [_fx(spec, row)]
+        if spec.target == "fee_reference":
+            return [_fee_reference(spec, row)]
         return [_sku(spec, row)]
 
 
@@ -199,7 +202,7 @@ def _cost(spec: MappingSpec, row: RawRow, prepared: _Prepared | None) -> SkuCost
     if prepared is None:
         raise ValueError(f"第 {row.row_no} 行没有成本预计算。")
     return SkuCostRec(
-        internal_sku=_limit(require_text(spec, row.payload, "internal_sku"), 128, "内部 SKU"),
+        internal_sku=_limit(require_text(spec, row.payload, "internal_sku"), 64, "内部 SKU"),
         valid_from=_parse_datetime(require_text(spec, row.payload, "valid_from"), spec),
         valid_to=prepared.valid_to,
         unit_cost=_parse_money(require_text(spec, row.payload, "unit_cost"), spec),
@@ -216,6 +219,19 @@ def _fx(spec: MappingSpec, row: RawRow) -> FxRateRec:
         to_ccy=_currency(require_text(spec, row.payload, "to_ccy")),
         rate=_parse_rate(require_text(spec, row.payload, "rate"), spec),
         source=_limit(source, 128, "汇率来源"),
+    )
+
+
+def _fee_reference(spec: MappingSpec, row: RawRow) -> FeeReferenceRec:
+    valid_to = field_text(spec, row.payload, "valid_to")
+    fee_category = require_text(spec, row.payload, "fee_category").strip().casefold()
+    return FeeReferenceRec(
+        internal_sku=_limit(require_text(spec, row.payload, "internal_sku"), 128, "内部 SKU"),
+        fee_category=_limit(fee_category, 32, "费用类别"),
+        currency=_currency(require_text(spec, row.payload, "currency")),
+        expected_per_unit=_parse_money(require_text(spec, row.payload, "expected_per_unit"), spec),
+        valid_from=_parse_datetime(require_text(spec, row.payload, "valid_from"), spec),
+        valid_to=None if valid_to is None else _parse_datetime(valid_to, spec),
     )
 
 

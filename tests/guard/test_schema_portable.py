@@ -33,6 +33,7 @@ _MONEY_COLUMNS = {
     ("settlement", "total"),
     ("settlement_line", "amount"),
     ("fee", "amount"),
+    ("fee_reference", "expected_per_unit"),
     ("match", "diff"),
     ("profit_snapshot", "revenue"),
     ("profit_snapshot", "fees"),

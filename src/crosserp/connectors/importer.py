@@ -29,6 +29,7 @@ from crosserp.core.errors import (
 from crosserp.core.models import (
     CanonicalRecord,
     ColumnMapping,
+    FeeReferenceRec,
     FxRateRec,
     IssueRec,
     OrderLineRec,
@@ -47,6 +48,7 @@ from crosserp.db.repo.imports import (
     get_settlement,
     get_successful_import_by_sha256,
     insert_fee,
+    insert_fee_reference,
     insert_import_batch,
     insert_order_line,
     insert_raw_row,
@@ -56,7 +58,7 @@ from crosserp.db.repo.imports import (
     insert_sku_cost,
     mark_import_batch,
 )
-from crosserp.db.schema import ImportBatch, SkuCost
+from crosserp.db.schema import FeeReference, ImportBatch, SkuCost
 from crosserp.issues.service import open_issue
 
 _CHUNK = 1024 * 1024
@@ -269,6 +271,9 @@ def _persist(session: Session, record: CanonicalRecord, batch_id: UUID, raw_row_
     if isinstance(record, SkuCostRec):
         _write_cost(session, record, batch_id)
         return
+    if isinstance(record, FeeReferenceRec):
+        _write_fee_reference(session, record, batch_id)
+        return
     if isinstance(record, FxRateRec):
         _write_fx(session, record)
         return
@@ -375,6 +380,35 @@ def _write_cost(session: Session, record: SkuCostRec, batch_id: UUID) -> None:
         unit_cost=record.unit_cost,
         currency=record.currency,
         freight_per_unit=record.freight_per_unit,
+        source_batch_id=batch_id,
+    )
+
+
+def _write_fee_reference(session: Session, record: FeeReferenceRec, batch_id: UUID) -> None:
+    """写入配送费参考值；重叠生效期不猜测，整行留 PARSE_ERROR。"""  # noqa: RUF002
+    statement = select(FeeReference).where(
+        FeeReference.internal_sku == record.internal_sku,
+        FeeReference.fee_category == record.fee_category,
+    )
+    for existing in session.scalars(statement):
+        if not periods_overlap(
+            record.valid_from, record.valid_to, existing.valid_from, existing.valid_to
+        ):
+            continue
+        row_no = 1 if record.provenance is None else record.provenance.row_no
+        raise RowParseError(
+            row_no,
+            f"配送费参考 {record.internal_sku} 的生效期与已有记录重叠。",
+        )
+    insert_fee_reference(
+        session,
+        store_id=record.store_id,
+        internal_sku=record.internal_sku,
+        fee_category=record.fee_category,
+        currency=record.currency,
+        expected_per_unit=record.expected_per_unit,
+        valid_from=record.valid_from,
+        valid_to=record.valid_to,
         source_batch_id=batch_id,
     )
 

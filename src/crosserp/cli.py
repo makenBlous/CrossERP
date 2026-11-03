@@ -150,7 +150,7 @@ def demo_jobs() -> list[_ImportJob]:
     costs.xlsx 与 costs.csv 内容相同。两份都导入会因生效期重叠写出预期外的 PARSE_ERROR。
     fx_rates.xlsx 也是同一份汇率。再导入不会产生新的标准答案。
     fx_rates_missing_eur.csv 是缺汇率场景的替代文件。不是正常汇率表。
-    fee_reference.csv 没有导入器。留给以后的费用核对。
+    fee_reference.csv 用通用映射导入器写入配送费参考值。
     说明文件和 expected JSON 不是表格。
     """
     root = _synthetic_dir()
@@ -159,6 +159,13 @@ def demo_jobs() -> list[_ImportJob]:
     return [
         _ImportJob(root / "sku_map.csv", "mapped", package_maps / "template_sku.yaml", None, None),
         _ImportJob(root / "costs.csv", "mapped", package_maps / "template_costs.yaml", None, None),
+        _ImportJob(
+            root / "fee_reference.csv",
+            "mapped",
+            package_maps / "template_fee_reference.yaml",
+            None,
+            None,
+        ),
         _ImportJob(
             root / "fx_rates.csv", "mapped", package_maps / "template_fx_rates.yaml", None, None
         ),
@@ -286,10 +293,21 @@ def reconcile_command(
                     )
                     or "无"
                 )
+                overcharge = (
+                    "、".join(
+                        f"{currency}={amount}"
+                        for currency, amount in sorted(
+                            (result.overcharge_by_currency or {}).items()
+                        )
+                    )
+                    or "无"
+                )
                 typer.echo(
                     f"店铺 {result.store_id}: 组数 {result.groups_total}，"  # noqa: RUF001
                     f"匹配 {result.groups_matched}，匹配率 {rate}，"  # noqa: RUF001
-                    f"未匹配原因 {reasons}，非订单行 {result.non_order_lines}"  # noqa: RUF001
+                    f"未匹配原因 {reasons}，待下期 {result.delayed_count}，"  # noqa: RUF001
+                    f"多收费 {overcharge}，拒付 {result.chargeback_count}，"  # noqa: RUF001
+                    f"非订单行 {result.non_order_lines}"
                 )
     except DatabaseConfigError as exc:
         typer.echo(_hide_password(str(exc), url_text), err=True)
