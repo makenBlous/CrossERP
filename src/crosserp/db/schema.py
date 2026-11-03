@@ -142,6 +142,26 @@ class SkuCost(Base):
     source_batch_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("import_batch.id"))
 
 
+class FeeReference(Base):
+    """按 SKU、生效期存放的配送费参考值。"""
+
+    __tablename__ = "fee_reference"
+    __table_args__ = (
+        Index("ix_fee_reference_internal_sku", "internal_sku"),
+        Index("ix_fee_reference_source_batch_id", "source_batch_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    store_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("store.id"))
+    internal_sku: Mapped[str] = mapped_column(String(64))
+    fee_category: Mapped[str] = mapped_column(_KIND)
+    currency: Mapped[str] = mapped_column(String(3))
+    expected_per_unit: Mapped[Decimal] = mapped_column(Money4())
+    valid_from: Mapped[datetime] = mapped_column(UtcDateTime())
+    valid_to: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    source_batch_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("import_batch.id"))
+
+
 class FxRate(Base):
     """用户填写的月汇率。v0.x 不调实时汇率。"""
 

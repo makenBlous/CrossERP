@@ -1,0 +1,17 @@
+# 配送费参考模板。金额按每件、按生效日期读取。
+target: fee_reference
+source_name: template_fee_reference
+sheet: 0
+header_row: 1
+encoding: utf-8-sig
+amount_locale: us
+date_formats:
+  - "%Y-%m-%d"
+timezone: UTC
+columns:
+  internal_sku: platform_sku
+  currency: currency
+  expected_per_unit: expected_fba_fee_per_unit
+defaults:
+  fee_category: fba
+  valid_from: "2026-10-01"

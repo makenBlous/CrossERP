@@ -12,7 +12,7 @@ from pydantic import Field, ValidationError, model_validator
 
 from crosserp.core.models import ColumnMapping
 
-TargetName = Literal["order_line", "sku_cost", "fx_rate", "sku"]
+TargetName = Literal["order_line", "sku_cost", "fx_rate", "sku", "fee_reference"]
 
 # 每个 target 允许的字段。不在表里的名字拒绝。不猜测。
 _FIELDS: dict[str, frozenset[str]] = {
@@ -43,6 +43,9 @@ _FIELDS: dict[str, frozenset[str]] = {
         }
     ),
     "fx_rate": frozenset({"period", "from_ccy", "to_ccy", "rate", "source"}),
+    "fee_reference": frozenset(
+        {"internal_sku", "fee_category", "currency", "expected_per_unit", "valid_from", "valid_to"}
+    ),
     "sku": frozenset(
         {
             "platform_sku",
@@ -71,11 +74,18 @@ _REQUIRED: dict[str, tuple[str, ...]] = {
     ),
     "sku_cost": ("internal_sku", "unit_cost", "freight_per_unit", "currency", "valid_from"),
     "fx_rate": ("period", "from_ccy", "to_ccy", "rate"),
+    "fee_reference": (
+        "internal_sku",
+        "fee_category",
+        "currency",
+        "expected_per_unit",
+        "valid_from",
+    ),
     "sku": ("platform_sku", "internal_sku", "store"),
 }
 
-_DATE_TARGETS = frozenset({"order_line", "sku_cost"})
-_AMOUNT_TARGETS = frozenset({"order_line", "sku_cost", "fx_rate"})
+_DATE_TARGETS = frozenset({"order_line", "sku_cost", "fee_reference"})
+_AMOUNT_TARGETS = frozenset({"order_line", "sku_cost", "fx_rate", "fee_reference"})
 _TODO_HINT = "请先填写真实表头"
 
 

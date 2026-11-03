@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 
 from crosserp.cli import app
 from crosserp.db.migrate import downgrade_base
-from crosserp.db.schema import ReconRun
+from crosserp.db.schema import Issue, ReconRun
 from crosserp.db.session import session_scope
 from crosserp.recon.engine import reconcile_all
 
@@ -46,6 +46,16 @@ def test_reconcile_synthetic_matches_expected_and_preserves_runs(
                 == expected["matched_order_type_group_count"]
             )
             assert sum(item.groups_total - item.groups_matched for item in active) == 6
+            run_ids = [item.run_id for item in first]
+            kinds = [
+                issue.kind
+                for issue in session.scalars(select(Issue).where(Issue.recon_run_id.in_(run_ids)))
+            ]
+            assert kinds.count("FEE_OVERCHARGE") == 1
+            assert kinds.count("SETTLEMENT_DELAYED") == 3
+            assert kinds.count("CHARGEBACK") == 2
+            assert kinds.count("PARTIAL_REFUND") == 1
+            assert "DUPLICATE_SETTLEMENT" not in kinds
             second = reconcile_all(session, "2026-10")
             assert [item.groups_matched for item in second] == [
                 item.groups_matched for item in first

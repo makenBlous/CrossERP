@@ -17,7 +17,7 @@
   "match_rate_definition": "已匹配的订单类结算行组数 / 全部订单类结算行组数。Amazon 按 (order-id, sku) 分组。transaction-type 属于 Order/Refund/Chargeback（待真实数据验证）。Shopify 按 Order 分组，Type 属于 charge/refund/dispute（待真实数据验证）。未匹配原因码：NOT_IN_ERP、REFUND_WITHOUT_ORDER、QTY_MISMATCH、AMOUNT_MISMATCH、SKU_UNMAPPED。Shopify Net ≠ Amount − Fee 使用 AMOUNT_MISMATCH，计入未匹配组。amazon_us_unbalanced.tsv 不进入分母。非订单类行不进入分母。重复行不另计一组。",
   "files": {
     "orders.csv": {
-      "data_rows": 120
+      "data_rows": 121
     },
     "mappings/synthetic_orders.yaml": {
       "data_rows": 0,
@@ -45,8 +45,8 @@
       "data_rows": 7
     },
     "amazon_us_2026-10-01_2026-10-14.tsv": {
-      "data_rows": 295,
-      "total_amount": "3088.16"
+      "data_rows": 298,
+      "total_amount": "3095.15"
     },
     "amazon_de_2026-10-01_2026-10-14.tsv": {
       "data_rows": 40,
@@ -88,12 +88,12 @@
       "settlement_id": "SYN-SETTLE-US-20261014",
       "currency": "USD",
       "locale": "us",
-      "total_amount": "3088.16",
-      "total_amount_display": "3088.16",
-      "line_amount_sum": "3088.16",
+      "total_amount": "3095.15",
+      "total_amount_display": "3095.15",
+      "line_amount_sum": "3095.15",
       "balanced": true,
-      "data_rows": 295,
-      "transaction_rows": 294
+      "data_rows": 298,
+      "transaction_rows": 297
     },
     {
       "file": "amazon_de_2026-10-01_2026-10-14.tsv",

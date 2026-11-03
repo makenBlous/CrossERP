@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from crosserp.core.enums import IssueKind
@@ -18,6 +18,7 @@ from crosserp.core.errors import ReconInvariantError
 from crosserp.db.repo.recon import create_recon_run, finish_recon_run, insert_match
 from crosserp.db.schema import (
     Fee,
+    FeeReference,
     Issue,
     OrderLine,
     RawRow,
@@ -44,6 +45,9 @@ class ReconResult:
     match_rate: Decimal | None
     unmatched_by_kind: dict[str, int]
     non_order_lines: int
+    delayed_count: int = 0
+    overcharge_by_currency: dict[str, Decimal] | None = None
+    chargeback_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -96,6 +100,21 @@ def _is_order_line(line: SettlementLine) -> bool:
 
 def _is_refund(line: SettlementLine) -> bool:
     return _kind(line) in REFUND_TYPES
+
+
+def _is_principal(line: SettlementLine) -> bool:
+    return line.amount_type == "ItemPrice" and line.amount_description == "Principal"
+
+
+def _payout_status(line: SettlementLine) -> str | None:
+    prefix = "payout_status="
+    if line.amount_description and line.amount_description.startswith(prefix):
+        return line.amount_description.removeprefix(prefix).strip().casefold()
+    return None
+
+
+def _is_pending_shopify(line: SettlementLine, platform: str) -> bool:
+    return platform == "shopify" and _payout_status(line) not in {None, "paid"}
 
 
 def _group_key(line: SettlementLine, platform: str) -> tuple[str, str]:
@@ -181,6 +200,166 @@ def _open_recon_issue(
     )
 
 
+def _open_order_issue(
+    session: Session,
+    *,
+    kind: IssueKind,
+    run: ReconRun,
+    order: OrderLine,
+    detail: dict[str, Any],
+) -> None:
+    """Write an order-side issue which has no settlement line."""
+    open_issue(
+        session,
+        kind,
+        store_id=run.store_id,
+        period=run.period,
+        source_ref=f"{run.id}:order:{order.id}:{kind.value}",
+        detail=detail,
+        order_line_id=order.id,
+        recon_run_id=run.id,
+    )
+
+
+def _open_post_match_issues(
+    session: Session,
+    *,
+    group: _Group,
+    run: ReconRun,
+    candidates: tuple[OrderLine, ...],
+    overcharge_by_currency: dict[str, Decimal],
+) -> None:
+    """Attach non-blocking warnings after a group has matched."""
+    if not candidates:
+        return
+    first_order = candidates[0]
+    principal = _principal_total(session, group.lines, group.settlement.platform, refunds=False)
+    refund_principal = _principal_total(
+        session, group.lines, group.settlement.platform, refunds=True
+    )
+    if any(_kind(line) == "chargeback" for line in group.lines):
+        amount = sum(
+            (
+                abs(value[1])
+                for value in _line_amounts(session, group.lines, group.settlement.platform)
+                if value[0] == "chargeback"
+            ),
+            Decimal(0),
+        )
+        _open_recon_issue(
+            session,
+            kind=IssueKind.CHARGEBACK,
+            group=group,
+            run=run,
+            detail={"amount": str(amount)},
+            order_line_id=first_order.id,
+        )
+    if Decimal(0) < refund_principal < principal:
+        _open_recon_issue(
+            session,
+            kind=IssueKind.PARTIAL_REFUND,
+            group=group,
+            run=run,
+            detail={
+                "refund_principal": str(refund_principal),
+                "principal": str(principal),
+            },
+            order_line_id=first_order.id,
+        )
+    sku = session.scalar(
+        select(Sku)
+        .join(Store, Store.id == Sku.store_id)
+        .where(
+            Store.platform == group.settlement.platform,
+            Store.currency == group.settlement.currency,
+            Sku.platform_sku == _norm(first_order.platform_sku),
+        )
+    )
+    if sku is None:
+        return
+    fee_total = sum(
+        (
+            abs(fee.amount)
+            for fee in session.scalars(
+                select(Fee).where(Fee.settlement_line_id.in_([line.id for line in group.lines]))
+            )
+            if fee.fee_category == "fba"
+        ),
+        Decimal(0),
+    )
+    qty = sum(order.qty for order in candidates)
+    if fee_total == 0 or qty <= 0:
+        return
+    reference = session.scalar(
+        select(FeeReference)
+        .where(
+            or_(
+                FeeReference.internal_sku == sku.internal_sku,
+                FeeReference.internal_sku == first_order.platform_sku,
+            ),
+            FeeReference.fee_category == "fba",
+            FeeReference.currency == group.settlement.currency,
+            FeeReference.valid_from <= first_order.order_date,
+            (FeeReference.valid_to.is_(None) | (FeeReference.valid_to > first_order.order_date)),
+        )
+        .order_by(FeeReference.valid_from.desc())
+    )
+    if reference is None:
+        return
+    expected = reference.expected_per_unit * qty
+    if fee_total <= expected:
+        return
+    overcharge = fee_total - expected
+    overcharge_by_currency[group.settlement.currency] += overcharge
+    _open_recon_issue(
+        session,
+        kind=IssueKind.FEE_OVERCHARGE,
+        group=group,
+        run=run,
+        detail={
+            "fee_amount": str(fee_total),
+            "fee_reference": str(reference.expected_per_unit),
+            "qty": qty,
+            "fee_expected": str(expected),
+            "overcharge": str(overcharge),
+        },
+        order_line_id=first_order.id,
+    )
+
+
+def _line_amounts(
+    session: Session,
+    lines: tuple[SettlementLine, ...],
+    platform: str,
+) -> list[tuple[str, Decimal]]:
+    if platform == "shopify":
+        return [(_kind(line), line.amount) for line in lines]
+    fees = session.scalars(
+        select(Fee).where(Fee.settlement_line_id.in_([line.id for line in lines]))
+    )
+    by_line = {line.id: _kind(line) for line in lines}
+    return [
+        (by_line[fee.settlement_line_id], fee.amount)
+        for fee in fees
+        if fee.fee_category == "principal"
+    ]
+
+
+def _principal_total(
+    session: Session,
+    lines: tuple[SettlementLine, ...],
+    platform: str,
+    *,
+    refunds: bool,
+) -> Decimal:
+    values = _line_amounts(session, lines, platform)
+    if refunds:
+        return sum((abs(value) for kind, value in values if kind in REFUND_TYPES), Decimal(0))
+    return sum(
+        (value for kind, value in values if kind in {"order", "charge"} and value > 0), Decimal(0)
+    )
+
+
 def _unbalanced_settlements(session: Session) -> set[str]:
     values: set[str] = set()
     for issue in session.scalars(
@@ -262,6 +441,8 @@ def reconcile(
     ).all()
     groups: dict[tuple[str, str], list[SettlementLine]] = defaultdict(list)
     settlements: dict[tuple[str, str], Settlement] = {}
+    group_settlements: dict[tuple[str, str], set[str]] = defaultdict(set)
+    pending_order_ids: set[str] = set()
     non_order_lines = 0
     for line, settlement in rows:
         if settlement.external_id in unbalanced:
@@ -269,12 +450,20 @@ def reconcile(
         if not _is_order_line(line):
             non_order_lines += 1
             continue
+        if _is_pending_shopify(line, settlement.platform):
+            if line.order_id:
+                pending_order_ids.add(_norm(line.order_id))
+            continue
         key = _group_key(line, settlement.platform)
         groups[key].append(line)
         settlements[key] = settlement
+        if (settlement.platform == "amazon" and _is_principal(line) and line.amount > 0) or (
+            settlement.platform == "shopify" and _kind(line) == "charge" and line.amount > 0
+        ):
+            group_settlements[key].add(settlement.external_id)
     order_rows = _default_orders(session, store, start, end, order_window_days)
     order_index: dict[tuple[str, str], list[OrderLine]] = defaultdict(list)
-    for order in order_rows:
+    for order in order_rows if groups or pending_order_ids else ():
         order_index[_order_key(order, store.platform)].append(order)
     sku_values = {
         _norm(item.platform_sku)
@@ -290,6 +479,10 @@ def reconcile(
     }
     groups_matched = 0
     unmatched: dict[str, int] = defaultdict(int)
+    delayed_count = 0
+    chargeback_count = 0
+    overcharge_by_currency: dict[str, Decimal] = defaultdict(Decimal)
+    matched_order_keys: set[tuple[str, str]] = set()
     for key, line_list in groups.items():
         group = _Group(key=key, lines=tuple(line_list), settlement=settlements[key])
         candidates = order_index.get(key, [])
@@ -308,9 +501,7 @@ def reconcile(
             (
                 line.qty or 0
                 for line in group.lines
-                if _kind(line) == "order"
-                and line.amount_type == "ItemPrice"
-                and line.amount_description == "Principal"
+                if _kind(line) == "order" and _is_principal(line)
             ),
             0,
         )
@@ -354,7 +545,22 @@ def reconcile(
                 )
                 unmatched[issue.kind.value] += 1
             continue
+        if len(group_settlements[group.key]) > 1:
+            _open_recon_issue(
+                session,
+                kind=IssueKind.DUPLICATE_SETTLEMENT,
+                group=group,
+                run=run,
+                detail={
+                    "settlement_id_a": sorted(group_settlements[group.key])[0],
+                    "settlement_id_b": sorted(group_settlements[group.key])[1],
+                },
+                order_line_id=context.candidates[0].id,
+            )
+            unmatched[IssueKind.DUPLICATE_SETTLEMENT.value] += 1
+            continue
         groups_matched += 1
+        matched_order_keys.add(group.key)
         first_order = decision.order_lines[0]
         for line in group.lines:
             insert_match(
@@ -366,6 +572,42 @@ def reconcile(
                 diff=decision.diff,
                 matched_at=datetime.now(UTC),
             )
+        _open_post_match_issues(
+            session,
+            group=group,
+            run=run,
+            candidates=context.candidates,
+            overcharge_by_currency=overcharge_by_currency,
+        )
+        if any(_kind(line) == "chargeback" for line in group.lines):
+            chargeback_count += 1
+    cutoff = as_of - timedelta(days=grace_days)
+    for order in order_rows:
+        key = _order_key(order, store.platform)
+        if key in matched_order_keys:
+            continue
+        if key[0] not in pending_order_ids and key in groups:
+            continue
+        if key[0] not in pending_order_ids and key not in order_index:
+            continue
+        if order.order_date.date() < cutoff:
+            kind = IssueKind.NOT_IN_SETTLEMENT
+            detail: dict[str, Any] = {
+                "order_id": key[0],
+                "sku": key[1],
+                "order_date": order.order_date.isoformat(),
+            }
+        else:
+            kind = IssueKind.SETTLEMENT_DELAYED
+            detail = {
+                "order_id": key[0],
+                "sku": key[1],
+                "order_date": order.order_date.isoformat(),
+                "grace_days": grace_days,
+            }
+        _open_order_issue(session, kind=kind, run=run, order=order, detail=detail)
+        if kind is IssueKind.SETTLEMENT_DELAYED:
+            delayed_count += 1
     total = len(groups)
     finish_recon_run(
         session,
@@ -385,6 +627,9 @@ def reconcile(
         match_rate=rate,
         unmatched_by_kind=dict(unmatched),
         non_order_lines=non_order_lines,
+        delayed_count=delayed_count,
+        overcharge_by_currency=dict(overcharge_by_currency),
+        chargeback_count=chargeback_count,
     )
 
 

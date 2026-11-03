@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from crosserp.core.enums import ImportStatus
 from crosserp.db.schema import (
     Fee,
+    FeeReference,
     FxRate,
     ImportBatch,
     Issue,
@@ -373,6 +374,34 @@ def insert_sku_cost(
         unit_cost=unit_cost,
         currency=currency,
         freight_per_unit=freight_per_unit,
+        source_batch_id=source_batch_id,
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def insert_fee_reference(
+    session: Session,
+    *,
+    store_id: UUID | None,
+    internal_sku: str,
+    fee_category: str,
+    currency: str,
+    expected_per_unit: Decimal,
+    valid_from: datetime,
+    valid_to: datetime | None,
+    source_batch_id: UUID,
+) -> FeeReference:
+    """写入配送费参考值。"""
+    row = FeeReference(
+        store_id=store_id,
+        internal_sku=internal_sku,
+        fee_category=fee_category,
+        currency=currency,
+        expected_per_unit=expected_per_unit,
+        valid_from=valid_from,
+        valid_to=valid_to,
         source_batch_id=source_batch_id,
     )
     session.add(row)

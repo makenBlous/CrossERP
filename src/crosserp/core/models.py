@@ -363,6 +363,19 @@ class SkuCostRec(_Canonical):
     freight_per_unit: Decimal
 
 
+class FeeReferenceRec(_Canonical):
+    """一条按 SKU 和生效期的配送费参考值。"""
+
+    record_type: Literal["fee_reference"] = "fee_reference"
+    internal_sku: str = Field(min_length=1, max_length=128)
+    fee_category: str = Field(min_length=1, max_length=32)
+    currency: str = Field(min_length=3, max_length=3)
+    expected_per_unit: Decimal
+    valid_from: datetime
+    valid_to: datetime | None = None
+    store_id: UUID | None = None
+
+
 class FxRateRec(_Canonical):
     """一条月汇率。"""
 
@@ -404,6 +417,7 @@ CanonicalRecord = Annotated[
     | SettlementLineRec
     | OrderLineRec
     | SkuCostRec
+    | FeeReferenceRec
     | FxRateRec
     | SkuRec
     | IssueRec,

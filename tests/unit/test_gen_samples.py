@@ -77,11 +77,11 @@ def test_generation_is_deterministic(tmp_path: Path) -> None:
             assert _sha256(left) == _sha256(right)
 
 
-def test_orders_have_120_data_rows(tmp_path: Path) -> None:
+def test_orders_have_121_data_rows(tmp_path: Path) -> None:
     out, _gen, vocab = _generate(tmp_path)
     rows = _read_csv(out / vocab.FILE_ORDERS)
     assert rows[0] == list(vocab.ORDER_COLUMNS)
-    assert len(rows) - 1 == 120
+    assert len(rows) - 1 == 121
 
 
 def test_amazon_files_have_24_columns(tmp_path: Path) -> None:
@@ -194,7 +194,10 @@ def test_expected_match_rate_at_least_95_percent(tmp_path: Path) -> None:
         header = rows[0]
         for raw in rows[1:]:
             row = dict(zip(header, raw, strict=True))
-            if row["Type"] not in vocab.SHOPIFY_ORDER_TYPES:
+            if (
+                row["Type"] not in vocab.SHOPIFY_ORDER_TYPES
+                or row["Payout Status"].casefold() != "paid"
+            ):
                 continue
             if not row["Order"]:
                 continue
