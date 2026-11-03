@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import re
 import unicodedata
 import warnings
@@ -41,10 +42,12 @@ from crosserp.db.repo.issues import (
     get_import_batch,
     list_issues,
 )
-from crosserp.db.schema import ImportBatch, Issue, Store
+from crosserp.db.schema import ImportBatch, Issue, ReconRun, Store
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
 from crosserp.profit.golden import compare_issues_csv, compare_profit_csv
+from crosserp.profit.report_csv import write_report_csv
+from crosserp.profit.report_xlsx import write_report_xlsx
 from crosserp.profit.service import compute_and_save
 from crosserp.recon.engine import reconcile_all
 from crosserp.web.app import create_app
@@ -270,6 +273,7 @@ def reconcile_command(
     period: str = typer.Option(..., "--period", help="对账月份，格式 YYYY-MM。"),  # noqa: RUF001
     store: str | None = typer.Option(None, "--store", help="只对指定店铺运行。"),
     as_of: str | None = typer.Option(None, "--as-of", help="预留的截止日，格式 YYYY-MM-DD。"),  # noqa: RUF001
+    json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """运行确定性的订单与结算匹配。"""
     cutoff: date | None = None
@@ -285,6 +289,29 @@ def reconcile_command(
             results = reconcile_all(session, period, store, as_of=cutoff)
             if not results:
                 typer.echo("没有找到可对账的店铺。")
+                return
+            if json_output:
+                typer.echo(
+                    json.dumps(
+                        [
+                            {
+                                "store_id": str(result.store_id),
+                                "period": result.period,
+                                "groups_total": result.groups_total,
+                                "groups_matched": result.groups_matched,
+                                "match_rate": None
+                                if result.match_rate is None
+                                else str(result.match_rate),
+                                "unmatched_by_kind": result.unmatched_by_kind,
+                                "delayed_count": result.delayed_count,
+                                "non_order_lines": result.non_order_lines,
+                                "recon_run_id": str(result.run_id),
+                            }
+                            for result in results
+                        ],
+                        ensure_ascii=False,
+                    )
+                )
                 return
             for result in results:
                 rate = "无分母" if result.match_rate is None else f"{result.match_rate:.2%}"
@@ -325,17 +352,34 @@ def reconcile_command(
 def profit_command(
     period: str = typer.Option(..., "--period", help="利润月份，格式 YYYY-MM。"),  # noqa: RUF001
     store: str | None = typer.Option(None, "--store", help="只计算指定店铺。"),
+    out: Path | None = typer.Option(None, "--out"),  # noqa: B008
+    csv_dir: Path | None = typer.Option(None, "--csv-dir"),  # noqa: B008
+    overwrite: bool = typer.Option(False, "--overwrite"),
 ) -> None:
     """计算确定性的 SKU 利润摘要。"""
     url_text, engine = _open_ready_engine()
     try:
         with session_scope(engine) as session:
+            if (
+                session.scalar(
+                    select(ReconRun.id).where(ReconRun.period == period, ReconRun.status == "done")
+                )
+                is None
+            ):
+                typer.echo("尚未有当前对账结果，先运行对账。")  # noqa: RUF001
+                reconcile_all(session, period, store)
             statement = select(Store).order_by(Store.platform, Store.name)
             if store is not None:
                 statement = statement.where(Store.name == store)
             reports = [
                 compute_and_save(session, item.id, period) for item in session.scalars(statement)
             ]
+            if out is not None:
+                write_report_xlsx(
+                    session, period=period, reports=reports, path=out, overwrite=overwrite
+                )
+            if csv_dir is not None:
+                write_report_csv(session, period=period, directory=csv_dir)
             if not reports:
                 typer.echo("没有找到可计算利润的店铺。")
                 return
