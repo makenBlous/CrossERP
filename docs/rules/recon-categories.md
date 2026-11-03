@@ -459,22 +459,22 @@ v0.1 不计算置信度，不自动关闭，不自动忽略，不自动解释。
 
 ## 12. 开放问题
 
-请 maken 逐项写「要 / 不要 / 以后再说」，或把答案写在本节下面。
+maken 已确认以下口径（2026-11-03）。
 
-- [ ] `FEE_OVERCHARGE` 要不要进正式原因码？阈值用严格大于参考值、绝对差额，还是百分比？佣金要不要比？参考表目前没有佣金列。
-- [ ] `SETTLEMENT_DELAYED` 要独立原因码，还是只在界面显示「待下期」、不写入 `issue.kind`？
-- [ ] `period_end` 用自然月最后一天，还是用文件里的 `settlement-end-date`？
-- [ ] `CHARGEBACK` 要不要单独统计？利润是继续并进退款，还是单独一行？
-- [ ] `PARTIAL_REFUND` 要不要 info 提示？
-- [ ] `DUPLICATE_SETTLEMENT` 要不要进 v0.1？两笔收款怎么计匹配率？没有 `Payout ID` 时，能否用 `Payout Date` 区分 Shopify 打款？
-- [ ] `partial` 是否只用于「本期只有退款或拒付、原订单在、没有收款行」？
-- [ ] 只有拒付、没有原订单：用 `NOT_IN_ERP`，还是并进 `REFUND_WITHOUT_ORDER`？
-- [ ] `CURRENCY_MISMATCH` 是否计入未匹配？
-- [ ] 不平衡结算单：报完 `SETTLEMENT_UNBALANCED` 后，是否还继续匹配明细？继续匹配会让 `amazon_us_unbalanced.tsv` 再冒出 `NOT_IN_ERP`。
-- [ ] 未知费用如果出现在订单行上，是否仍算已匹配，只另挂 `UNKNOWN_FEE_TYPE`？
-- [ ] Shopify 没有数量列时，是否永不报 `QTY_MISMATCH`？
-- [ ] 未知列继续用 `PARSE_ERROR` 且严重度 info，还是另设原因码？
-- [ ] `normalize(sku)` 是否只去掉首尾空白？
+- [x] `FEE_OVERCHARGE` 进入正式原因码；严格大于参考值才报，使用绝对差额，当前容差为 `0.00`，只比较已有参考表的费用类别。
+- [x] `SETTLEMENT_DELAYED` 作为独立原因码，同时在界面显示「待下期」。
+- [x] `period_end` 使用自然月最后一天。
+- [x] `CHARGEBACK` 单独统计和提示；利润继续并入退款，不另改利润口径。
+- [x] `PARTIAL_REFUND` 作为 `info` 提示，不影响匹配成功。
+- [x] `DUPLICATE_SETTLEMENT` 纳入 v0.1；第二笔重复收款不计入匹配成功；Shopify 没有 `Payout ID` 时使用 `Payout Date` 区分批次。
+- [x] `partial` 只用于「本期只有退款或拒付、原订单存在、没有收款行」的情况。
+- [x] 只有拒付且没有原订单时使用 `REFUND_WITHOUT_ORDER`。
+- [x] `CURRENCY_MISMATCH` 计入未匹配。
+- [x] 不平衡结算单只报 `SETTLEMENT_UNBALANCED`，不继续用明细做匹配。
+- [x] 未知费用出现在订单行上时仍算已匹配，另挂 `UNKNOWN_FEE_TYPE`。
+- [x] Shopify 没有数量列时不报 `QTY_MISMATCH`。
+- [x] 未知列继续使用 `PARSE_ERROR`，严重度保持 `error`；不新增原因码。
+- [x] `normalize(sku)` 只去掉首尾空白，不改变大小写或其他字符。
 
 ## 13. 本文没有做的事
 
