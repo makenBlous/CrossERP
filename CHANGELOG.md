@@ -15,6 +15,7 @@
 - Shopify Payments 打款 CSV 导入器。
 - Amazon Settlement Flat File V2 导入器。
 - `crosserp import`、`crosserp demo-import` 和 `crosserp issues list`。
+- 失败批次可以重导。文件打不开也记一条失败批次，`sha256` 留空。
 - 金额类型 `Money` 与 `parse_amount()`。全程 `Decimal`，禁止 float。
 - 数据库类型 `Money4`、`FxRate`、`UtcDateTime`，以及 `crosserp db check`。当前默认 SQLite，切换库只改配置文件。
 - 固定种子合成样本生成器，以及 `samples/synthetic/` 标准答案。

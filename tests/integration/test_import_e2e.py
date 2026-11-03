@@ -205,7 +205,13 @@ def test_one_file_failure_does_not_stop_others(
         assert "orders.csv" in result.output
         with session_scope(engine) as session:
             names = set(session.scalars(select(ImportBatch.file_name)))
-            assert names == {"orders.csv"}
+            assert names == {"missing.csv", "orders.csv"}
+            missing_batch = session.scalar(
+                select(ImportBatch).where(ImportBatch.file_name == "missing.csv")
+            )
+            assert missing_batch is not None
+            assert missing_batch.file_sha256 is None
+            assert missing_batch.status == "failed"
             counted = session.scalar(select(func.count()).select_from(RawRow))
             assert counted == _data_rows("orders.csv")
     finally:

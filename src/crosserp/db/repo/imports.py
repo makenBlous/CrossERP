@@ -26,10 +26,17 @@ from crosserp.db.schema import (
 )
 
 
-def get_import_batch_by_sha256(session: Session, file_sha256: str) -> ImportBatch | None:
-    """按文件哈希读取已有批次。"""
-    statement = select(ImportBatch).where(ImportBatch.file_sha256 == file_sha256)
-    return session.scalars(statement).one_or_none()
+def get_successful_import_by_sha256(session: Session, file_sha256: str) -> ImportBatch | None:
+    """按文件哈希读取最早的成功批次。失败和进行中的批次不算重复。"""
+    statement = (
+        select(ImportBatch)
+        .where(
+            ImportBatch.file_sha256 == file_sha256,
+            ImportBatch.status == ImportStatus.DONE.value,
+        )
+        .order_by(ImportBatch.imported_at)
+    )
+    return session.scalars(statement).first()
 
 
 def insert_import_batch(
@@ -38,7 +45,7 @@ def insert_import_batch(
     connector_id: str,
     connector_version: str,
     file_name: str,
-    file_sha256: str,
+    file_sha256: str | None,
     imported_at: datetime,
 ) -> ImportBatch:
     """新建 running 批次。row_count 与 error_count 从 0 开始。"""

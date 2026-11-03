@@ -10,7 +10,6 @@ from typing import Any, assert_never
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from crosserp.audit.log import append
@@ -38,8 +37,8 @@ from crosserp.core.models import (
 from crosserp.db.repo.fx import get_fx_rate, upsert_fx_rate
 from crosserp.db.repo.imports import (
     ensure_store,
-    get_import_batch_by_sha256,
     get_settlement,
+    get_successful_import_by_sha256,
     insert_fee,
     insert_import_batch,
     insert_issue,
@@ -61,7 +60,7 @@ class ImportResult:
     """一次导入的结果。失败批次也返回。调用方提交后能看到 status=failed。"""
 
     batch_id: UUID
-    file_sha256: str
+    file_sha256: str | None
     row_count: int
     error_count: int
     status: ImportStatus
@@ -78,23 +77,25 @@ def import_file(
     connector: FileConnector,
     mapping: ColumnMapping | None = None,
 ) -> ImportResult:
-    """导入一个文件。调用方提交事务。审计与批次在同一事务。"""
-    digest = _file_sha256(path)
-    _reject_duplicate(session, digest)
-    file_name = _file_name(path)
+    """导入一个文件。调用方提交事务。审计与批次在同一事务。
+
+    只有已成功的批次才算重复。失败批次可以重导。旧失败记录保留。
+    文件打不开时也写一条失败批次。sha256 留空。
+    """
     try:
-        with session.begin_nested():
-            batch = insert_import_batch(
-                session,
-                connector_id=connector.id,
-                connector_version=connector.version,
-                file_name=file_name,
-                file_sha256=digest,
-                imported_at=datetime.now(UTC),
-            )
-    except IntegrityError as exc:
-        _reject_duplicate(session, digest)
-        raise DuplicateImportError(digest, "未知", ImportStatus.FAILED.value) from exc
+        file_name = _file_name(path)
+        digest = _file_sha256(path)
+    except FileUnreadableError as exc:
+        return _record_unreadable(session, path, connector, mapping, str(exc))
+    _reject_duplicate(session, digest)
+    batch = insert_import_batch(
+        session,
+        connector_id=connector.id,
+        connector_version=connector.version,
+        file_name=file_name,
+        file_sha256=digest,
+        imported_at=datetime.now(UTC),
+    )
 
     try:
         with session.begin_nested():
@@ -503,8 +504,42 @@ def _write_audit(
     )
 
 
+def _record_unreadable(
+    session: Session,
+    path: Path,
+    connector: FileConnector,
+    mapping: ColumnMapping | None,
+    message: str,
+) -> ImportResult:
+    """文件打不开时留下失败批次。算不出指纹。sha256 留空。"""
+    batch = insert_import_batch(
+        session,
+        connector_id=connector.id,
+        connector_version=connector.version,
+        file_name=_display_file_name(path),
+        file_sha256=None,
+        imported_at=datetime.now(UTC),
+    )
+    mark_import_batch(
+        session,
+        batch,
+        status=ImportStatus.FAILED.value,
+        row_count=0,
+        error_count=1,
+    )
+    _write_audit(session, batch, message=message, mapping=mapping)
+    return ImportResult(
+        batch_id=batch.id,
+        file_sha256=None,
+        row_count=0,
+        error_count=1,
+        status=ImportStatus.FAILED,
+        message=message,
+    )
+
+
 def _reject_duplicate(session: Session, digest: str) -> None:
-    existing = get_import_batch_by_sha256(session, digest)
+    existing = get_successful_import_by_sha256(session, digest)
     if existing is None:
         return
     raise DuplicateImportError(digest, _format_time(existing.imported_at), existing.status)
@@ -531,6 +566,13 @@ def _file_name(path: Path) -> str:
     if not name:
         raise FileUnreadableError("文件名为空。无法导入。")
     return name
+
+
+def _display_file_name(path: Path) -> str:
+    name = path.name or "(空文件名)"
+    if len(name) <= 512:
+        return name
+    return f"{name[:509]}..."
 
 
 def _format_time(value: datetime) -> str:

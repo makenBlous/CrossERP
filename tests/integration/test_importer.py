@@ -95,7 +95,7 @@ def test_duplicate_file_is_rejected(engine: Engine, tmp_path: Path) -> None:
                 "audit": _count(session, AuditLog),
             }
         with session_scope(engine) as session:
-            with pytest.raises(DuplicateImportError, match="首次导入时间") as caught:
+            with pytest.raises(DuplicateImportError, match="首次成功时间") as caught:
                 import_file(session, path, FakeCsvConnector())
             assert "UTC" in str(caught.value)
         with session_scope(engine) as session:
@@ -160,7 +160,45 @@ def test_batch_read_failure_rolls_back_rows(engine: Engine, tmp_path: Path) -> N
             assert _count(session, RawRow) == 0
             assert _count(session, OrderLine) == 0
             assert verify_chain(session).ok
-            with pytest.raises(DuplicateImportError, match="首次导入时间"):
-                import_file(session, path, FakeCsvConnector())
+            retry = import_file(session, path, FakeCsvConnector())
+            assert retry.status is ImportStatus.DONE
+            assert retry.batch_id != result.batch_id
+            batches = session.scalars(select(ImportBatch)).all()
+            assert len(batches) == 2
+            assert {item.status for item in batches} == {
+                ImportStatus.FAILED.value,
+                ImportStatus.DONE.value,
+            }
+            audits = session.scalars(select(AuditLog)).all()
+            assert len(audits) == 2
+            assert verify_chain(session).ok
+    finally:
+        downgrade_base(url)
+
+
+def test_unreadable_file_records_failed_batch(engine: Engine, tmp_path: Path) -> None:
+    url = _url(engine)
+    path = tmp_path / "missing.csv"
+    try:
+        upgrade_head(url)
+        with session_scope(engine) as session:
+            result = import_file(session, path, FakeCsvConnector())
+            assert result.status is ImportStatus.FAILED
+            assert result.file_sha256 is None
+            assert "无法读取文件" in (result.message or "")
+        with session_scope(engine) as session:
+            batch = session.get(ImportBatch, result.batch_id)
+            assert batch is not None
+            assert batch.status == ImportStatus.FAILED.value
+            assert batch.file_sha256 is None
+            assert batch.file_name == "missing.csv"
+            audit = session.scalars(select(AuditLog)).one()
+            assert audit.action == "import"
+            assert audit.target_id == str(batch.id)
+            assert verify_chain(session).ok
+            again = import_file(session, path, FakeCsvConnector())
+            assert again.status is ImportStatus.FAILED
+            assert again.batch_id != result.batch_id
+            assert _count(session, ImportBatch) == 2
     finally:
         downgrade_base(url)

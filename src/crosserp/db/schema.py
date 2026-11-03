@@ -51,16 +51,15 @@ def _uuid_pk() -> Mapped[uuid.UUID]:
 
 
 class ImportBatch(Base):
-    """一次文件导入。同一 sha256 拒绝重复导入。"""
+    """一次文件导入。只有成功批次才按 sha256 拒绝重复。失败批次可以重导。"""
 
     __tablename__ = "import_batch"
-    __table_args__ = (UniqueConstraint("file_sha256", name="uq_import_batch_file_sha256"),)
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     connector_id: Mapped[str] = mapped_column(String(64))
     connector_version: Mapped[str] = mapped_column(String(32))
     file_name: Mapped[str] = mapped_column(String(512))
-    file_sha256: Mapped[str] = mapped_column(String(64))
+    file_sha256: Mapped[str | None] = mapped_column(String(64))
     imported_at: Mapped[datetime] = mapped_column(UtcDateTime())
     row_count: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(_KIND)

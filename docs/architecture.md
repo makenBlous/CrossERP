@@ -8,7 +8,7 @@ v0.1 业务表在 `src/crosserp/db/schema.py`。字段以实施方案第 4 节�
 
 | 表 | 字段 | 说明 |
 |---|---|---|
-| `import_batch` | id, connector_id, connector_version, file_name, file_sha256, imported_at, row_count, status, error_count | `file_sha256` 唯一。同一文件重复导入会被拒绝 |
+| `import_batch` | id, connector_id, connector_version, file_name, file_sha256, imported_at, row_count, status, error_count | 只有成功批次按 sha256 拒绝重复。失败可重导。打不开时 sha256 留空 |
 | `raw_row` | id, batch_id, row_no, payload_json | 原样保留。id 自增。SQLite 上是 INTEGER PRIMARY KEY。MySQL / PostgreSQL 是 BIGINT |
 | `store` | id, platform, marketplace, name, currency | 店铺。platform 为 amazon/shopify/lingxing/sellfox/other |
 | `sku` | id, store_id, platform_sku, internal_sku, title, active | 唯一约束 `(store_id, platform_sku)` |
@@ -36,9 +36,9 @@ v0.1 业务表在 `src/crosserp/db/schema.py`。字段以实施方案第 4 节�
 
 导入一个文件时：
 
-1. 先算 sha256。库里已经有同一哈希的批次，就拒绝，并提示首次导入时间。不会多写一行。
+1. 先算 sha256。只有已经成功导入的同一哈希才拒绝，并提示首次成功时间。失败批次可以重导，旧失败记录留在审计里。
 2. 新建批次，状态是 running。每一行先原样写入 `raw_row`，再标准化，再写入标准表。未知列留在原始 payload，不丢、不猜。文件里的文字只当数据。
 3. 某一行解析失败：写一条 `issue`，原因码 `PARSE_ERROR`，detail 里有行号、错误和原文。然后继续下一行。整批状态仍是 done，错误数另计。
-4. 整批读失败：回滚这一批的数据行，批次状态改为 failed。这条失败批次仍占着 sha256，不能把同一文件再导一次。
-5. 文件在算出哈希之前就打不开：不写批次，直接报错。
+4. 整批读失败：回滚这一批的数据行，批次状态改为 failed。这条失败记录保留。同一文件可以再导，并新开一个批次。
+5. 文件在算出哈希之前就打不开：仍写一条 failed 批次，写明原因。sha256 留空。
 6. 同一事务写一条审计，动作是 `import`。写审计失败，则这一批一起回滚。

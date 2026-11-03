@@ -49,7 +49,7 @@ class DuplicateImportError(CrossErpError):
         self.imported_at = imported_at
         self.status = status
         super().__init__(
-            f"文件已导入过。首次导入时间 {imported_at}。状态 {status}。sha256 {file_sha256}"
+            f"文件已成功导入过。首次成功时间 {imported_at}。sha256 {file_sha256}"
         )
 
 

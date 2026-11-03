@@ -46,7 +46,7 @@ class ImportBatchRecord(ImportRecord):
     connector_id: str = Field(max_length=64)
     connector_version: str = Field(max_length=32)
     file_name: str = Field(max_length=512)
-    file_sha256: str = Field(min_length=64, max_length=64)
+    file_sha256: str | None = Field(default=None, min_length=64, max_length=64)
     imported_at: datetime
     row_count: int = Field(ge=0)
     status: ImportStatus
