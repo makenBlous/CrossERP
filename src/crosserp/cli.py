@@ -43,6 +43,7 @@ from crosserp.db.repo.issues import (
 )
 from crosserp.db.schema import ImportBatch, Issue
 from crosserp.db.session import get_database_url, make_engine, session_scope
+from crosserp.issues.catalog import definition, render
 from crosserp.web.app import create_app
 
 app = typer.Typer(add_completion=False)
@@ -566,16 +567,17 @@ def _render_issue_table(found: list[Issue]) -> str:
             [
                 _format_time(item.created_at),
                 item.kind,
+                definition(item.kind).name_zh,
                 item.severity,
                 item.status,
                 file_name,
                 "-" if row_no is None else str(row_no),
                 batch,
-                _issue_summary(detail),
+                render(item, detail),
             ]
         )
     return _render_table(
-        ["时间", "原因码", "严重程度", "状态", "文件", "行号", "批次", "说明"], rows
+        ["时间", "原因码", "中文名称", "严重程度", "状态", "文件", "行号", "批次", "说明"], rows
     )
 
 

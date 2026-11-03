@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W3 | 0.5 天 | T14 | `task/T17-issues-catalog` |
+| review | W3 | 0.5 天 | T14 | `task/T17-issues-catalog` |
 
 ## 目标
 所有原因码有唯一来源（枚举 + `catalog.yaml`），每条异常都能渲染成一句中文人话；T14 的 5 个候选码按 maken 的决定进枚举。
@@ -50,3 +50,32 @@
 ## 问题
 
 ## 完成记录
+
+分支：`task/T17-issues-catalog`。状态改为 `review`，不是 `done`。
+
+### 做了什么
+
+- 将 `catalog_draft.yaml` 定稿为 `src/crosserp/issues/catalog.yaml`，补齐 `kind`、`name_zh`、`severity`、`counts_as_unmatched`、`template_zh`、`action_zh`，并删除草稿文件。
+- 新增 `issues/catalog.py`：启动时校验目录与 `IssueKind` 一一对应；缺少模板字段时显示 `{缺:字段}` 并记录 warning，不抛出渲染异常。
+- 新增 `issues/service.py`：`open_issue` 统一原因码、严重度、open 状态和同一 `source_ref` 去重。
+- 导入阶段的 `PARSE_ERROR`、连接器产生的 `IssueRec` 改为经过 `open_issue`；`crosserp issues list` 显示中文名称和渲染后的说明。
+- 在规则文档中记录 maken 已确认的五个候选码及相关口径：五码全部启用，币种不一致计入未匹配，不平衡结算单不继续匹配明细等。
+
+### 实际验收命令与结果
+
+| 命令 | 结果 |
+|---|---|
+| `uv run pytest tests/unit/test_issue_catalog.py -q` | 6 passed |
+| `uv run pytest tests/integration/test_issue_catalog_service.py -q` | 1 passed |
+| `uv run pytest -m db -k e2e -q` | SQLite 3 passed |
+| `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://root:dev@127.0.0.1:13306/crosserp?charset=utf8mb4 uv run pytest -m db -k e2e -q` | MySQL 3 passed |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp uv run pytest -m db -k e2e -q` | PostgreSQL 3 passed |
+| `uv run crosserp demo-import && uv run crosserp issues list` | 已实际验证 `SETTLEMENT_UNBALANCED` 显示中文名称和完整说明 |
+| `uv run pytest --cov=crosserp --cov-fail-under=60 -q` | 186 passed, 2 skipped；覆盖率 85.53% |
+| `uv run mypy` | 0 errors |
+| `uv run ruff format --check . && uv run ruff check .` | 全部通过 |
+
+### 偏离计划
+
+- 未新增依赖，继续使用项目已有的 PyYAML。
+- 未实现异常状态流转或 AI 解释；只完成目录、渲染和导入阶段统一写入。

@@ -24,3 +24,4 @@
 - 初始化可安装的 `crosserp` 空包，并提供 `crosserp --version`。
 - 三库实测文档、Docker 启动脚本和跨 SQLite/MySQL 8.4/PostgreSQL 18 的金额、时间、字符与迁移往返测试；修复 MySQL 初始迁移回滚时外键索引删除顺序。
 - 导入批次规则：只有成功批次按 sha256 拒绝重复，失败批次可重导并保留重试关系；打不开的文件留失败记录，running 批次可手动标记失败。
+- 原因码正式目录 `issues/catalog.yaml`、中文说明渲染和统一异常写入服务；`crosserp issues list` 显示原因名称与人话模板。

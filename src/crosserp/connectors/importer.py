@@ -19,7 +19,7 @@ from crosserp.connectors.generic_mapped.periods import (
     periods_overlap,
     segment_text,
 )
-from crosserp.core.enums import ImportStatus, IssueKind, IssueStatus
+from crosserp.core.enums import ImportStatus, IssueKind
 from crosserp.core.errors import (
     DuplicateImportError,
     FileUnreadableError,
@@ -48,7 +48,6 @@ from crosserp.db.repo.imports import (
     get_successful_import_by_sha256,
     insert_fee,
     insert_import_batch,
-    insert_issue,
     insert_order_line,
     insert_raw_row,
     insert_settlement,
@@ -58,6 +57,7 @@ from crosserp.db.repo.imports import (
     mark_import_batch,
 )
 from crosserp.db.schema import ImportBatch, SkuCost
+from crosserp.issues.service import open_issue
 
 _CHUNK = 1024 * 1024
 
@@ -239,19 +239,19 @@ def _write_row_error(
     batch_id: UUID,
     source_file: str,
 ) -> int:
-    insert_issue(
+    open_issue(
         session,
-        kind=IssueKind.PARSE_ERROR.value,
-        severity="error",
-        detail_json={
+        IssueKind.PARSE_ERROR,
+        store_id=None,
+        period=None,
+        source_ref=f"{source_file}:{row_no}:PARSE_ERROR",
+        detail={
             "row_no": row_no,
             "error": message,
             "raw": raw,
             "import_batch_id": str(batch_id),
             "source_file": source_file,
         },
-        status=IssueStatus.OPEN.value,
-        created_at=datetime.now(UTC),
     )
     return 1
 
@@ -281,13 +281,18 @@ def _persist(session: Session, record: CanonicalRecord, batch_id: UUID, raw_row_
         if record.provenance is not None:
             detail.setdefault("row_no", record.provenance.row_no)
             detail.setdefault("source_file", record.provenance.source_file)
-        insert_issue(
+        source_file = str(detail.get("source_file", ""))
+        row_no = detail.get("row_no", "")
+        open_issue(
             session,
-            kind=record.issue_kind.value,
+            record.issue_kind,
+            store_id=None,
+            period=None,
+            source_ref=str(
+                detail.get("source_ref", f"{source_file}:{row_no}:{record.issue_kind.value}")
+            ),
+            detail=detail,
             severity=record.severity,
-            detail_json=detail,
-            status=record.status.value,
-            created_at=datetime.now(UTC),
         )
         return
     assert_never(record)
