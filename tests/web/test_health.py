@@ -32,7 +32,7 @@ def test_htmx_static_served() -> None:
     assert "htmx" in response.text
 
 
-def test_serve_defaults_and_public_warning(monkeypatch: MonkeyPatch) -> None:
+def test_serve_is_always_localhost(monkeypatch: MonkeyPatch) -> None:
     calls: list[tuple[str, int]] = []
 
     def fake_run(application: object, *, host: str, port: int) -> None:
@@ -47,7 +47,6 @@ def test_serve_defaults_and_public_warning(monkeypatch: MonkeyPatch) -> None:
     assert "对外开放前请配置 HTTPS 和登录（v0.5）" not in local.stdout  # noqa: RUF001
     assert calls == [("127.0.0.1", 8000)]
 
-    public = runner.invoke(app, ["serve", "--host", "0.0.0.0", "--port", "8000"])
+    public = runner.invoke(app, ["serve", "--port", "8000"])
     assert public.exit_code == 0
-    assert "对外开放前请配置 HTTPS 和登录（v0.5）" in public.stdout  # noqa: RUF001
-    assert calls == [("127.0.0.1", 8000), ("0.0.0.0", 8000)]
+    assert calls == [("127.0.0.1", 8000), ("127.0.0.1", 8000)]

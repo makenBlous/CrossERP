@@ -1,0 +1,4 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>导入记录</title></head>
+<body><h1>导入记录</h1><a href="/">首页</a><table><tr><th>时间</th><th>文件</th><th>连接器</th><th>状态</th><th>行数</th><th>异常</th><th>失败原因</th></tr>
+{% for batch in batches %}<tr><td>{{ batch.imported_at }}</td><td>{{ batch.file_name }}</td><td>{{ batch.connector_id }}</td><td>{{ batch.status }}</td><td>{{ batch.row_count }}</td><td>{{ batch.error_count }}</td><td>{{ batch.failure_reason or '' }}</td></tr>{% endfor %}
+</table></body></html>
