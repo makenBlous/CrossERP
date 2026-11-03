@@ -28,6 +28,31 @@ env:
   PYTHONUTF8: "1"
 
 jobs:
+  install-smoke:
+    name: install-smoke
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+      - name: 安装 uv 与 Python
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.13.x"
+          python-version: "3.12"
+          enable-cache: true
+          cache-python: true
+      - name: 构建 wheel
+        run: uv build
+      - name: 安装 wheel 并运行 demo 检查
+        run: |
+          uv tool install dist/*.whl --force
+          crosserp demo --check --no-browser
+
   lint:
     name: lint
     runs-on: ubuntu-latest

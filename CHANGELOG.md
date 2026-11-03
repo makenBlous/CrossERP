@@ -31,3 +31,4 @@
 - Golden 逐分比对命令 `crosserp check-golden`、合成利润/异常标准答案和差异报告。
 - Excel/CSV 利润报表、异常清单和说明页；`reconcile --json` 机器可读输出。
 - 只读网页：导入记录、SKU 利润、异常清单和本地静态 HTMX；所有业务路由仅 GET，服务固定监听 127.0.0.1。
+- `crosserp demo --check` 独立演示库、包内合成样本、`python -m crosserp` 和三系统安装 smoke CI。

@@ -6,13 +6,15 @@
 
 ## 快速开始
 
-在仓库根目录：
+快速体验（使用独立的演示数据库）：
 
 ```bash
-uv run crosserp init
-uv run crosserp demo-import
-uv run crosserp issues list
+uv sync
+uv run crosserp demo --check --no-browser
+uv run crosserp demo --no-browser
 ```
+
+正式库操作仍可使用 `uv run crosserp init`。演示数据来自包内固定样本，不会写入正式数据库。
 
 `init` 会在本机创建 SQLite 数据库。默认路径是 `%USERPROFILE%\.crosserp\data.db`。要换 MySQL 或 PostgreSQL，只改配置文件里的 `CROSSERP_DATABASE_URL`，不改代码。
 
