@@ -38,7 +38,7 @@ class FeeCategory(StrEnum):
 
 
 class IssueKind(StrEnum):
-    """对账原因码。含实施方案 6.1 的 13 个码，以及 maken 于 2026-11-02 确认的 5 个码。"""
+    """对账原因码。含实施方案 6.1 的 13 个码, 以及 maken 于 2026-11-02 确认的 5 个码。"""
 
     NOT_IN_ERP = "NOT_IN_ERP"
     NOT_IN_SETTLEMENT = "NOT_IN_SETTLEMENT"
