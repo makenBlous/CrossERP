@@ -29,7 +29,7 @@
 | T12 | [通用映射导入器（领星/赛狐/成本/汇率）](T12-generic-mapped.md) | W2 | 1.5 天 | T09 | review |
 | T13 | [导入命令 + 端到端测试 + 真实文件试导入](T13-import-cli-golden.md) | W2 | 1 天 | T10, T11, T12 | review |
 | T14 | [对账异常分类设计（文档）](T14-recon-categories-design.md) | W2 | 0.5 天 | T08 | review |
-| T15 | [导入批次规则：失败可重导 + 打不开也留记录（⚠ 待 maken 确认）](T15-import-batch-rules.md) | W3 | 1 天 | T09, T13 | todo |
+| T15 | [导入批次规则：失败可重导 + 打不开也留记录（⚠ 待 maken 确认）](T15-import-batch-rules.md) | W3 | 1 天 | T09, T13 | review |
 | T16 | [三库实测：CI db-matrix 在 MySQL 8.4 / PG 18 跑通](T16-three-db-verify.md) | W3 | 1 天 | T07, T13 | review |
 | T17 | [异常目录：原因码定稿 + 中文模板 + 候选码](T17-issues-catalog.md) | W3 | 0.5 天 | T14 | todo |
 | T18 | [对账引擎核心：规则注册表 + 确定性匹配](T18-recon-engine-core.md) | W3 | 2 天 | T16, T17 | todo |

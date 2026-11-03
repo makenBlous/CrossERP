@@ -157,6 +157,7 @@ def test_batch_read_failure_rolls_back_rows(engine: Engine, tmp_path: Path) -> N
             batch = session.get(ImportBatch, result.batch_id)
             assert batch is not None
             assert batch.status == ImportStatus.FAILED.value
+            assert batch.done_sha256 is None
             assert _count(session, RawRow) == 0
             assert _count(session, OrderLine) == 0
             assert verify_chain(session).ok
@@ -169,6 +170,10 @@ def test_batch_read_failure_rolls_back_rows(engine: Engine, tmp_path: Path) -> N
                 ImportStatus.FAILED.value,
                 ImportStatus.DONE.value,
             }
+            successful = session.get(ImportBatch, retry.batch_id)
+            assert successful is not None
+            assert successful.done_sha256 == result.file_sha256
+            assert successful.retry_of_batch_id == result.batch_id
             audits = session.scalars(select(AuditLog)).all()
             assert len(audits) == 2
             assert verify_chain(session).ok
@@ -193,7 +198,7 @@ def test_unreadable_file_records_failed_batch(engine: Engine, tmp_path: Path) ->
             assert batch.file_sha256 is None
             assert batch.file_name == "missing.csv"
             audit = session.scalars(select(AuditLog)).one()
-            assert audit.action == "import"
+            assert audit.action == "import_failed"
             assert audit.target_id == str(batch.id)
             assert verify_chain(session).ok
             again = import_file(session, path, FakeCsvConnector())

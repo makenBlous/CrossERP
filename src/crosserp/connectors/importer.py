@@ -20,7 +20,12 @@ from crosserp.connectors.generic_mapped.periods import (
     segment_text,
 )
 from crosserp.core.enums import ImportStatus, IssueKind, IssueStatus
-from crosserp.core.errors import DuplicateImportError, FileUnreadableError, RowParseError
+from crosserp.core.errors import (
+    DuplicateImportError,
+    FileUnreadableError,
+    ImportInProgressError,
+    RowParseError,
+)
 from crosserp.core.models import (
     CanonicalRecord,
     ColumnMapping,
@@ -37,6 +42,8 @@ from crosserp.core.models import (
 from crosserp.db.repo.fx import get_fx_rate, upsert_fx_rate
 from crosserp.db.repo.imports import (
     ensure_store,
+    get_latest_failed_import_by_sha256,
+    get_running_import_by_sha256,
     get_settlement,
     get_successful_import_by_sha256,
     insert_fee,
@@ -88,12 +95,14 @@ def import_file(
     except FileUnreadableError as exc:
         return _record_unreadable(session, path, connector, mapping, str(exc))
     _reject_duplicate(session, digest)
+    failed = get_latest_failed_import_by_sha256(session, digest)
     batch = insert_import_batch(
         session,
         connector_id=connector.id,
         connector_version=connector.version,
         file_name=file_name,
         file_sha256=digest,
+        retry_of_batch_id=None if failed is None else failed.id,
         imported_at=datetime.now(UTC),
     )
 
@@ -108,6 +117,8 @@ def import_file(
             status=ImportStatus.FAILED.value,
             row_count=0,
             error_count=0,
+            failure_code="BATCH_ERROR",
+            failure_reason=message,
         )
         _write_audit(session, batch, message=message, mapping=mapping)
         return ImportResult(
@@ -486,6 +497,11 @@ def _write_audit(
         "row_count": batch.row_count,
         "error_count": batch.error_count,
         "status": batch.status,
+        "failure_code": batch.failure_code,
+        "failure_reason": batch.failure_reason,
+        "retry_of_batch_id": None
+        if batch.retry_of_batch_id is None
+        else str(batch.retry_of_batch_id),
     }
     if mapping is not None and mapping.source_name:
         after["source_name"] = mapping.source_name
@@ -494,7 +510,7 @@ def _write_audit(
     append(
         session,
         actor_type="system",
-        action="import",
+        action="import" if message is None else "import_failed",
         target_type="import_batch",
         target_id=str(batch.id),
         before=None,
@@ -512,10 +528,30 @@ def _record_unreadable(
     message: str,
 ) -> ImportResult:
     """文件打不开时留下失败批次。算不出指纹。sha256 留空。"""
-    batch = insert_import_batch(
+    return record_unreadable_file(
         session,
+        path,
         connector_id=connector.id,
         connector_version=connector.version,
+        mapping=mapping,
+        message=message,
+    )
+
+
+def record_unreadable_file(
+    session: Session,
+    path: Path,
+    *,
+    connector_id: str,
+    connector_version: str,
+    mapping: ColumnMapping | None = None,
+    message: str,
+) -> ImportResult:
+    """为尚未能识别连接器的不可读文件留下失败批次。"""
+    batch = insert_import_batch(
+        session,
+        connector_id=connector_id,
+        connector_version=connector_version,
         file_name=_display_file_name(path),
         file_sha256=None,
         imported_at=datetime.now(UTC),
@@ -526,6 +562,8 @@ def _record_unreadable(
         status=ImportStatus.FAILED.value,
         row_count=0,
         error_count=1,
+        failure_code="FILE_UNREADABLE",
+        failure_reason=message,
     )
     _write_audit(session, batch, message=message, mapping=mapping)
     return ImportResult(
@@ -541,6 +579,9 @@ def _record_unreadable(
 def _reject_duplicate(session: Session, digest: str) -> None:
     existing = get_successful_import_by_sha256(session, digest)
     if existing is None:
+        running = get_running_import_by_sha256(session, digest)
+        if running is not None:
+            raise ImportInProgressError(str(running.id))
         return
     raise DuplicateImportError(digest, _format_time(existing.imported_at), existing.status)
 

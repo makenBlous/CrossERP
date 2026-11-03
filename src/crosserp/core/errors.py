@@ -51,6 +51,17 @@ class DuplicateImportError(CrossErpError):
         super().__init__(f"文件已成功导入过。首次成功时间 {imported_at}。sha256 {file_sha256}")
 
 
+class ImportInProgressError(CrossErpError):
+    """同一文件已有运行中的批次。"""
+
+    def __init__(self, batch_id: str) -> None:
+        self.batch_id = batch_id
+        super().__init__(
+            "这个文件可能正在导入或上次导入被中断；如果确定没有在导入，"  # noqa: RUF001
+            f"运行 `crosserp import --mark-failed {batch_id}`"
+        )
+
+
 class FileUnreadableError(CrossErpError):
     """计算 sha256 之前无法打开文件。此时不写批次。"""
 

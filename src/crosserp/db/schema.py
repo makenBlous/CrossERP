@@ -54,12 +54,19 @@ class ImportBatch(Base):
     """一次文件导入。只有成功批次才按 sha256 拒绝重复。失败批次可以重导。"""
 
     __tablename__ = "import_batch"
+    __table_args__ = (Index("ix_import_batch_file_sha256", "file_sha256"),)
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     connector_id: Mapped[str] = mapped_column(String(64))
     connector_version: Mapped[str] = mapped_column(String(32))
     file_name: Mapped[str] = mapped_column(String(512))
     file_sha256: Mapped[str | None] = mapped_column(String(64))
+    done_sha256: Mapped[str | None] = mapped_column(String(64), unique=True)
+    retry_of_batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(), ForeignKey("import_batch.id")
+    )
+    failure_code: Mapped[str | None] = mapped_column(String(32))
+    failure_reason: Mapped[str | None] = mapped_column(String(1000))
     imported_at: Mapped[datetime] = mapped_column(UtcDateTime())
     row_count: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(_KIND)
