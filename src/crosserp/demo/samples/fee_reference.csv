@@ -1,0 +1,8 @@
+platform_sku,currency,expected_fba_fee_per_unit
+CUP-US-001,USD,3.50
+MUG-US-002,USD,2.80
+BAG-US-003,USD,4.20
+BOT-DE-001,EUR,3.10
+PAD-DE-002,EUR,1.90
+COST-GAP-US,USD,3.00
+SYN-UNMAPPED,USD,3.00

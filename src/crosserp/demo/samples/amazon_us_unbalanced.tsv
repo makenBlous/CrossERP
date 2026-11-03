@@ -1,0 +1,5 @@
+settlement-id	settlement-start-date	settlement-end-date	deposit-date	total-amount	currency	transaction-type	order-id	merchant-order-id	adjustment-id	shipment-id	marketplace-name	amount-type	amount-description	amount	fulfillment-id	posted-date	posted-date-time	order-item-code	merchant-order-item-id	merchant-adjustment-item-id	sku	quantity-purchased	promotion-id
+SYN-SETTLE-US-UNBALANCED	2026-10-01	2026-10-14	2026-10-16	6.00	USD						Amazon.com												
+SYN-SETTLE-US-UNBALANCED	2026-10-01	2026-10-14	2026-10-16		USD	Order	SYN-US-UNBAL-1	SYN-US-UNBAL-1			Amazon.com	ItemPrice	Principal	10.00	AFN	2026-10-02	2026-10-02 12:00:00 UTC	SYN-US-UNBAL-1-1	SYN-US-UNBAL-1-1		CUP-US-001	1	
+SYN-SETTLE-US-UNBALANCED	2026-10-01	2026-10-14	2026-10-16		USD	Order	SYN-US-UNBAL-1	SYN-US-UNBAL-1			Amazon.com	ItemFees	Commission	-1.50	AFN	2026-10-02	2026-10-02 12:00:00 UTC	SYN-US-UNBAL-1-1	SYN-US-UNBAL-1-1		CUP-US-001	1	
+SYN-SETTLE-US-UNBALANCED	2026-10-01	2026-10-14	2026-10-16		USD	Order	SYN-US-UNBAL-1	SYN-US-UNBAL-1			Amazon.com	ItemFees	FBAPerUnitFulfillmentFee	-3.50	AFN	2026-10-02	2026-10-02 12:00:00 UTC	SYN-US-UNBAL-1-1	SYN-US-UNBAL-1-1		CUP-US-001	1	

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import re
+import time
 import unicodedata
 import warnings
+import webbrowser
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -264,6 +267,55 @@ def demo_import() -> None:
     code = _import_jobs(jobs)
     if code != 0:
         raise typer.Exit(code=code)
+
+
+@app.command("demo")
+def demo_command(
+    db: str | None = typer.Option(None, "--db"),
+    no_browser: bool = typer.Option(False, "--no-browser"),
+    check: bool = typer.Option(False, "--check"),
+    port: int = typer.Option(8765, "--port"),
+) -> None:
+    """在独立演示库中导入样本、对账并计算利润。"""
+    started = time.monotonic()
+    database = db or f"sqlite:///{Path.home() / '.crosserp' / 'demo.db'}"
+    previous = os.environ.get("CROSSERP_DATABASE_URL")
+    os.environ["CROSSERP_DATABASE_URL"] = database
+    try:
+        if not check and db is None and database.startswith("sqlite:///"):
+            database_path = Path(database.removeprefix("sqlite:///"))
+            if database_path.exists():
+                typer.echo(f"演示数据库已存在，请用 --db 指定新路径: {database_path}", err=True)  # noqa: RUF001
+                raise typer.Exit(code=1)
+        _import_jobs(demo_jobs())
+        _url_text, engine = _open_ready_engine()
+        try:
+            with session_scope(engine) as session:
+                results = reconcile_all(session, "2026-10")
+                reports = [
+                    compute_and_save(session, result.store_id, "2026-10") for result in results
+                ]
+                total = sum((result.groups_total for result in results), 0)
+                matched = sum((result.groups_matched for result in results), 0)
+                rate = "无分母" if total == 0 else f"{matched / total:.2%}"
+                typer.echo(
+                    f"Demo: 组数 {total}，匹配 {matched}，"  # noqa: RUF001
+                    f"匹配率 {rate}，利润店铺 {len(reports)}"  # noqa: RUF001
+                )
+                if check and (total == 0 or matched / total < 0.95):
+                    raise typer.Exit(code=1)
+        finally:
+            engine.dispose()
+        typer.echo(f"耗时 {time.monotonic() - started:.2f}s")
+        if not check and not no_browser:
+            typer.echo(f"启动网页 http://127.0.0.1:{port}")
+            webbrowser.open(f"http://127.0.0.1:{port}")
+            uvicorn.run(create_app(database), host="127.0.0.1", port=port)
+    finally:
+        if previous is None:
+            os.environ.pop("CROSSERP_DATABASE_URL", None)
+        else:
+            os.environ["CROSSERP_DATABASE_URL"] = previous
 
 
 @app.command("reconcile")
@@ -730,7 +782,7 @@ def _format_counts(counts: dict[str, int]) -> str:
 
 
 def _synthetic_dir() -> Path:
-    packaged = Path(__file__).resolve().parents[2] / "samples" / "synthetic"
+    packaged = Path(__file__).parent / "demo" / "samples" / "synthetic"
     cwd_samples = Path.cwd() / "samples" / "synthetic"
     for item in (packaged, cwd_samples):
         if (item / "sku_map.csv").is_file():

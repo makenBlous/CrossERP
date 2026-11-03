@@ -1,0 +1,19 @@
+# 合成订单列映射。右边是本生成器的中性列名，不是领星/赛狐真实表头。
+target: order_line
+source_name: synthetic_orders
+sheet: 0
+header_row: 1
+encoding: utf-8-sig
+amount_locale: us
+date_formats:
+  - "%Y-%m-%d"
+timezone: UTC
+columns:
+  platform_order_id: order_id
+  order_item_id: order_item_id
+  store: store
+  platform_sku: platform_sku
+  qty: qty
+  order_date: order_date
+  item_price: item_price
+  currency: currency

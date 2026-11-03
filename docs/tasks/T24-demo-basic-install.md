@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W3 | 1 天 | T21, T23 | `task/T24-demo-install` |
+| review | W3 | 1 天 | T21, T23 | `task/T24-demo-install` |
 
 ## 目标
 新用户在 Windows / macOS / Linux 上装好后，一条 `crosserp demo` 看到完整效果；不再需要手动设 `PYTHONPATH`。
@@ -50,3 +50,8 @@
 ## 问题
 
 ## 完成记录
+
+- 完成内容：新增包内 `crosserp/demo/samples`、`crosserp demo --check/--no-browser`、`python -m crosserp`；demo 使用独立 `~/.crosserp/demo.db`，不碰正式库；新增三系统 wheel install-smoke CI；README 快速开始更新。
+- 修改文件：`src/crosserp/demo/*`、`src/crosserp/__main__.py`、`src/crosserp/cli.py`、`scripts/gen_samples.py` 生成的包内样本、`.github/workflows/ci.yml`、`README.md`、`tests/integration/test_demo.py`、`CHANGELOG.md`。
+- 测试结果：`.venv` 中 `crosserp demo --check --no-browser` 通过，打印 120 组/114 匹配/95%；wheel 构建成功并含包内样本；ruff、mypy、pre-commit；SQLite 全量 `204 passed, 2 skipped`，覆盖率 `86.24%`。
+- 偏离计划：演示库已存在时提示换路径，不自动删除，保护本地演示数据；发布前仍用 wheel 路径测试，不发布 PyPI。
