@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W3 | 1 天 | T20 | `task/T22-cli-report` |
+| review | W3 | 1 天 | T20 | `task/T22-cli-report` |
 
 ## 目标
 用户两条命令拿到一个 Excel：SKU 利润表 + 异常清单（每条带中文原因），可以直接发给老板/会计看。
@@ -47,3 +47,8 @@
 ## 问题
 
 ## 完成记录
+
+- 完成内容：`profit --out report.xlsx` 生成「SKU利润」「异常清单」「说明」三个 sheet，支持中文/emoji、金额格式、异常筛选、未含广告口径和重复文件保护；支持 `--csv-dir` 精确 CSV；`reconcile --json` 输出机器可读结果，并在利润报表前自动补跑对账。
+- 修改文件：`src/crosserp/profit/report_xlsx.py`、`src/crosserp/profit/report_csv.py`、`src/crosserp/cli.py`、`tests/integration/test_report_xlsx.py`、`CHANGELOG.md`。
+- 测试结果：SQLite 全量 `202 passed, 2 skipped`，覆盖率 `86.37%`；MySQL 8.4/PG18 报表定向测试各 `1 passed`；ruff、mypy、pre-commit 通过。
+- 偏离计划：未新增依赖；当前报告按已有利润快照输出，空快照会先自动执行对账和利润计算。
