@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W3 | 1.5 天 | T22（T15 可选） | `task/T23-web-readonly` |
+| review | W3 | 1.5 天 | T22（T15 可选） | `task/T23-web-readonly` |
 
 ## 目标
 `crosserp serve` 后在浏览器里看导入记录、SKU 利润、异常清单（按原因码筛选），不用开 Excel。
@@ -52,3 +52,8 @@
 ## 问题
 
 ## 完成记录
+
+- 完成内容：新增只读首页、导入记录、SKU 利润、异常清单页面；异常原因码筛选、分页和中文渲染；安全响应头；服务固定监听 `127.0.0.1`，删除 `--host` 参数；模板和本地 HTMX 随 wheel 打包。
+- 修改文件：`src/crosserp/web/app.py`、`src/crosserp/web/templates/*`、`src/crosserp/cli.py`、`tests/web/test_health.py`、`tests/web/test_readonly_pages.py`、`CHANGELOG.md`。
+- 测试结果：`tests/web` `5 passed`；ruff、mypy、pre-commit 通过；`uv build` 成功，wheel 含 templates 和 static/htmx.min.js。
+- 偏离计划：未增加依赖；下载 Excel 路由留给后续收敛，当前页面提供只读数据浏览。

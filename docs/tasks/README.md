@@ -37,7 +37,7 @@
 | T20 | [利润计算：订单行 / SKU（成本生效期 + 汇率）](T20-profit-sku-order.md) | W3 | 2 天 | T18 | review |
 | T21 | [标准答案比对：利润逐分 + 匹配率断言（指标 2、3）](T21-golden-eval.md) | W3 | 1 天 | T19, T20 | review |
 | T22 | [报表输出：reconcile / profit --out report.xlsx](T22-cli-report-xlsx.md) | W3 | 1 天 | T20 | review |
-| T23 | [只读网页：导入记录 / SKU 利润 / 异常清单](T23-web-readonly.md) | W3 | 1.5 天 | T22（T15 可选） | todo |
+| T23 | [只读网页：导入记录 / SKU 利润 / 异常清单](T23-web-readonly.md) | W3 | 1.5 天 | T22（T15 可选） | review |
 | T24 | [crosserp demo + 基础安装（三系统）](T24-demo-basic-install.md) | W3 | 1 天 | T21, T23 | todo |
 | T25 | [v0.1 验收证据汇总](T25-v01-acceptance.md) | W3 | 0.5 天 | T16, T21, T24 | todo |
 | T26 | [发布 v0.1.0（发布动作由 maken 操作）](T26-release-v01.md) | W3 | 0.5 天 | T25 | todo |
