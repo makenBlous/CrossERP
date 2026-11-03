@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W3 | 0.5 天 | T16, T21, T24 | `task/T25-v01-acceptance` |
+| review | W3 | 0.5 天 | T16, T21, T24 | `task/T25-v01-acceptance` |
 
 ## 目标
 发布 v0.1 之前，把每一项验收标准的结果和证据链接写进一个文件，maken 看这一个文件就能决定「能不能发」。
@@ -55,3 +55,7 @@
 ## 问题
 
 ## 完成记录
+
+- 完成内容：新增 `docs/evidence/v0.1-acceptance.md`，汇总指标 1/2/3、三库和覆盖率证据；补充 `CHANGELOG.md` 的 `[0.1.0] - 未发布` 小节。
+- 测试结果：本地 `.venv` `crosserp demo --check --no-browser` 通过；SQLite 全量 `204 passed, 2 skipped`，覆盖率 `86.24%`；MySQL 8.4/PG18 定向验证通过；真实数据两项明确标注未验收，不用合成数据代替。
+- 未决事项：GitHub Actions 具体运行链接和 maken 的真实 20 SKU 手算验收仍待人工完成；本任务不替 maken 同意发布。
