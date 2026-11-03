@@ -333,7 +333,10 @@ class ProfitSnapshot(Base):
     """可复算的利润结果。ads 为空表示本期未含广告。"""
 
     __tablename__ = "profit_snapshot"
-    __table_args__ = (Index("ix_profit_snapshot_store_id", "store_id"),)
+    __table_args__ = (
+        Index("ix_profit_snapshot_store_id", "store_id"),
+        Index("ix_profit_snapshot_recon_run_id", "recon_run_id"),
+    )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     period: Mapped[str] = mapped_column(String(7))
@@ -342,13 +345,22 @@ class ProfitSnapshot(Base):
     revenue: Mapped[Decimal] = mapped_column(Money4())
     fees: Mapped[Decimal] = mapped_column(Money4())
     refunds: Mapped[Decimal] = mapped_column(Money4())
-    cogs: Mapped[Decimal] = mapped_column(Money4())
-    freight: Mapped[Decimal] = mapped_column(Money4())
+    cogs: Mapped[Decimal | None] = mapped_column(Money4())
+    freight: Mapped[Decimal | None] = mapped_column(Money4())
     ads: Mapped[Decimal | None] = mapped_column(Money4())
-    profit: Mapped[Decimal] = mapped_column(Money4())
+    profit: Mapped[Decimal | None] = mapped_column(Money4())
     currency: Mapped[str] = mapped_column(String(3))
     calc_version: Mapped[str] = mapped_column(String(32))
     inputs_hash: Mapped[str] = mapped_column(String(64))
+    qty_sold: Mapped[int] = mapped_column(Integer, default=0)
+    qty_refunded: Mapped[int] = mapped_column(Integer, default=0)
+    qty_net: Mapped[int] = mapped_column(Integer, default=0)
+    promotion: Mapped[Decimal] = mapped_column(Money4(), default=Decimal(0))
+    fx_rate: Mapped[Decimal | None] = mapped_column(FxRateColumn())
+    profit_cny: Mapped[Decimal | None] = mapped_column(Money4())
+    ads_included: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(_KIND, default="ok")
+    recon_run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("recon_run.id"))
 
 
 class AuditLog(Base):

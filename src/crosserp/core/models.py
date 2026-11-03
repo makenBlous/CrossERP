@@ -200,13 +200,22 @@ class ProfitSnapshotRecord(ImportRecord):
     revenue: Decimal
     fees: Decimal
     refunds: Decimal
-    cogs: Decimal
-    freight: Decimal
+    cogs: Decimal | None
+    freight: Decimal | None
     ads: Decimal | None = None
-    profit: Decimal
+    profit: Decimal | None
     currency: str = Field(min_length=3, max_length=3)
     calc_version: str = Field(max_length=32)
     inputs_hash: str = Field(max_length=64)
+    qty_sold: int = 0
+    qty_refunded: int = 0
+    qty_net: int = 0
+    promotion: Decimal = Decimal(0)
+    fx_rate: Decimal | None = None
+    profit_cny: Decimal | None = None
+    ads_included: bool = False
+    status: str = Field(default="ok", max_length=32)
+    recon_run_id: UUID | None = None
 
 
 class AuditLogRecord(ImportRecord):

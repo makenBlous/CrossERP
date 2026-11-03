@@ -34,7 +34,7 @@
 | T17 | [异常目录：原因码定稿 + 中文模板 + 候选码](T17-issues-catalog.md) | W3 | 0.5 天 | T14 | review |
 | T18 | [对账引擎核心：规则注册表 + 确定性匹配](T18-recon-engine-core.md) | W3 | 2 天 | T16, T17 | review |
 | T19 | [对账补充规则：待下期、多收费、拒付、部分退款、重复结算](T19-recon-timing-fees-refunds.md) | W3 | 1.5 天 | T18 | review |
-| T20 | [利润计算：订单行 / SKU（成本生效期 + 汇率）](T20-profit-sku-order.md) | W3 | 2 天 | T18 | todo |
+| T20 | [利润计算：订单行 / SKU（成本生效期 + 汇率）](T20-profit-sku-order.md) | W3 | 2 天 | T18 | review |
 | T21 | [标准答案比对：利润逐分 + 匹配率断言（指标 2、3）](T21-golden-eval.md) | W3 | 1 天 | T19, T20 | todo |
 | T22 | [报表输出：reconcile / profit --out report.xlsx](T22-cli-report-xlsx.md) | W3 | 1 天 | T20 | todo |
 | T23 | [只读网页：导入记录 / SKU 利润 / 异常清单](T23-web-readonly.md) | W3 | 1.5 天 | T22（T15 可选） | todo |

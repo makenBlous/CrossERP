@@ -41,9 +41,10 @@ from crosserp.db.repo.issues import (
     get_import_batch,
     list_issues,
 )
-from crosserp.db.schema import ImportBatch, Issue
+from crosserp.db.schema import ImportBatch, Issue, Store
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
+from crosserp.profit.service import compute_and_save
 from crosserp.recon.engine import reconcile_all
 from crosserp.web.app import create_app
 
@@ -314,6 +315,45 @@ def reconcile_command(
         raise typer.Exit(code=1) from exc
     except Exception as exc:
         typer.echo(f"对账失败: {_hide_password(str(exc), url_text)}", err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@app.command("profit")
+def profit_command(
+    period: str = typer.Option(..., "--period", help="利润月份，格式 YYYY-MM。"),  # noqa: RUF001
+    store: str | None = typer.Option(None, "--store", help="只计算指定店铺。"),
+) -> None:
+    """计算确定性的 SKU 利润摘要。"""
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            statement = select(Store).order_by(Store.platform, Store.name)
+            if store is not None:
+                statement = statement.where(Store.name == store)
+            reports = [
+                compute_and_save(session, item.id, period) for item in session.scalars(statement)
+            ]
+            if not reports:
+                typer.echo("没有找到可计算利润的店铺。")
+                return
+            for report in reports:
+                profit = "缺成本/汇率" if report.store_profit is None else str(report.store_profit)
+                cny = "缺汇率" if report.store_profit_cny is None else str(report.store_profit_cny)
+                typer.echo(
+                    f"店铺 {report.store_id}: SKU {len(report.sku_profits)} 个，"  # noqa: RUF001
+                    f"原币利润 {profit}，人民币利润 {cny}，未分摊费用 {report.unallocated_fees}，"  # noqa: RUF001
+                    f"广告 {'已含' if report.ads_included else '未含'}"
+                )
+                for item in report.sku_profits[:10]:
+                    value = "缺成本/汇率" if item.profit is None else str(item.profit)
+                    typer.echo(f"  {item.internal_sku}: {value} ({item.status})")
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    except Exception as exc:
+        typer.echo(f"利润计算失败: {_hide_password(str(exc), url_text)}", err=True)
         raise typer.Exit(code=1) from exc
     finally:
         engine.dispose()
