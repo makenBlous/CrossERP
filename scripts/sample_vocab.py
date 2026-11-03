@@ -167,6 +167,7 @@ FILE_README = "README.md"
 FILE_MAPPING = "mappings/synthetic_orders.yaml"
 FILE_ANOMALIES = "expected/anomalies.json"
 FILE_SUMMARY = "expected/summary.json"
+FILE_PROFIT_EXPECTED = "expected/profit_expected.csv"
 
 # 匹配率分母不含不平衡夹具。该文件只用于 SETTLEMENT_UNBALANCED。
 MATCH_RATE_AMAZON_FILES: tuple[str, ...] = (FILE_AMAZON_US, FILE_AMAZON_DE)

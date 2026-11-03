@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W3 | 1 天 | T19, T20 | `task/T21-golden-eval` |
+| review | W3 | 1 天 | T19, T20 | `task/T21-golden-eval` |
 
 ## 目标
 用一条命令把系统结果和**手算的标准答案**逐格对比，差 0.01 也报出来；指标 2、3 变成 CI 里的断言，以后改代码一旦算错就红灯。
@@ -56,3 +56,8 @@
 ## 问题
 
 ## 完成记录
+
+- 完成内容：新增独立 `profit_expected.csv`（8 个运行 SKU + 12 个 reference-only 合成手算行，共 20 行）、异常标准答案、`crosserp check-golden` 逐格比较和 Markdown 报告；golden 测试覆盖利润逐分一致、异常漏报/多报、故意改大 0.01 必须失败；生成器提供独立参考答案输出，不导入 `crosserp.profit`。
+- 修改文件：`src/crosserp/profit/golden.py`、`src/crosserp/cli.py`、`scripts/gen_samples.py`、`scripts/sample_vocab.py`、`samples/synthetic/expected/profit_expected.csv`、`tests/golden/profit_expected.csv`、`tests/golden/issues_expected.csv`、`tests/golden/test_golden.py`、`docs/eval-results/README.md`、相关任务文档和 `CHANGELOG.md`。
+- 测试结果：SQLite 全量 `201 passed, 2 skipped`，覆盖率 `86.26%`；`tests/golden` SQLite `55 passed`；MySQL 8.4 和 PostgreSQL 18 golden 定向测试各 `30 passed`；`check-golden` 输出 `8/8 行完全一致、reference-only 12 行、异常 6/6 条一致`；故意把 profit 改大 0.01 的单测通过；样本生成器 `--check`、ruff、mypy、pre-commit 通过。
+- 偏离计划：当前合成数据只有 8 个可运行利润 SKU，因此 12 行明确标记 `reference-only`，没有伪装成运行结果；maken 的 20 个真实 SKU 仍按人工验收清单放在忽略目录中。

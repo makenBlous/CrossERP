@@ -80,6 +80,10 @@
     "expected/summary.json": {
       "data_rows": 1,
       "note": "本文件"
+    },
+    "expected/profit_expected.csv": {
+      "data_rows": 20,
+      "note": "独立 Decimal 参考答案"
     }
   },
   "settlements": [
