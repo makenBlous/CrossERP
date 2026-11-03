@@ -1,0 +1,21 @@
+period,store,internal_sku,currency,qty_sold,qty_refunded,revenue,promotion,platform_fees,refunds,cogs,freight,ads,profit,fx_rate,profit_cny,note
+2026-10,Amazon.com,(未映射)SYN-UNMAPPED,USD,1,0,18.00,0.00,-5.70,0.00,,,,,7.25000000,,cost_missing
+2026-10,Amazon.com,INT-BAG-01,USD,57,0,1324.53,0.00,-436.58,-8.50,370.50,68.40,n/a,440.55,7.25000000,3193.99,synthetic calculated reference
+2026-10,Amazon.de,INT-BOT-750,EUR,11,0,424.40,0.00,-97.75,0.00,165.00,33.00,n/a,128.65,7.85000000,1009.90,synthetic calculated reference
+2026-10,Amazon.com,INT-COST-GAP,USD,1,0,21.00,0.00,-6.15,0.00,,,,,7.25000000,,cost_missing
+2026-10,Amazon.com,INT-CUP-500,USD,55,0,1625.55,0.00,-438.32,-45.00,688.50,113.80,n/a,339.93,7.25000000,2464.49,synthetic calculated reference
+2026-10,Amazon.com,INT-MUG-300,USD,62,1,1493.65,0.00,-390.15,-42.50,496.00,93.00,n/a,472.00,7.25000000,3422.00,synthetic calculated reference
+2026-10,Amazon.de,INT-PAD-A5,EUR,10,0,310.04,0.00,-65.51,0.00,40.00,8.00,n/a,196.53,7.85000000,1542.76,synthetic calculated reference
+2026-10,shopify-main,INT-TEE-M,USD,0,0,441.74,0.00,-8.84,-35.00,0.00,0.00,n/a,397.90,7.25000000,2884.78,synthetic calculated reference
+2026-10,reference-only,REF-01,USD,1,0,10.00,0.00,-1.00,0.00,2.00,0.50,n/a,6.50,1.00000000,6.50,reference-only synthetic row 01
+2026-10,reference-only,REF-02,USD,2,0,20.00,0.00,-2.00,0.00,4.00,1.00,n/a,13.00,1.00000000,13.00,reference-only synthetic row 02
+2026-10,reference-only,REF-03,USD,3,1,30.00,0.00,-3.00,-5.00,6.00,1.50,n/a,14.50,1.00000000,14.50,reference-only synthetic row 03
+2026-10,reference-only,REF-04,USD,1,0,40.00,0.00,-4.00,0.00,8.00,2.00,n/a,26.00,1.00000000,26.00,reference-only synthetic row 04
+2026-10,reference-only,REF-05,USD,2,0,50.00,0.00,-5.00,0.00,10.00,2.50,n/a,32.50,1.00000000,32.50,reference-only synthetic row 05
+2026-10,reference-only,REF-06,USD,3,0,60.00,0.00,-6.00,0.00,12.00,3.00,n/a,39.00,1.00000000,39.00,reference-only synthetic row 06
+2026-10,reference-only,REF-07,USD,1,0,70.00,0.00,-7.00,0.00,14.00,3.50,n/a,45.50,1.00000000,45.50,reference-only synthetic row 07
+2026-10,reference-only,REF-08,USD,2,0,80.00,0.00,-8.00,0.00,16.00,4.00,n/a,52.00,1.00000000,52.00,reference-only synthetic row 08
+2026-10,reference-only,REF-09,USD,3,1,90.00,0.00,-9.00,-10.00,18.00,4.50,n/a,48.50,1.00000000,48.50,reference-only synthetic row 09
+2026-10,reference-only,REF-10,USD,1,0,100.00,0.00,-10.00,0.00,20.00,5.00,n/a,65.00,1.00000000,65.00,reference-only synthetic row 10
+2026-10,reference-only,REF-11,USD,2,0,110.00,0.00,-11.00,0.00,22.00,5.50,n/a,71.50,1.00000000,71.50,reference-only synthetic row 11
+2026-10,reference-only,REF-12,USD,3,0,120.00,0.00,-12.00,0.00,24.00,6.00,n/a,78.00,1.00000000,78.00,reference-only synthetic row 12

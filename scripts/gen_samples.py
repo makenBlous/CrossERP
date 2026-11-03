@@ -1135,6 +1135,19 @@ def _fee_rows(skus: dict[str, Sku]) -> list[list[str]]:
     return rows
 
 
+def reference_profit() -> list[dict[str, str]]:
+    """Return the independent synthetic profit reference rows.
+
+    The checked-in CSV is data produced from the generator's fixed scenarios;
+    it is never calculated by importing ``crosserp.profit``.
+    """
+    source = (
+        Path(__file__).resolve().parents[1] / "samples" / "synthetic" / vocab.FILE_PROFIT_EXPECTED
+    )
+    with source.open("r", encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
 def _write_table(
     path: Path, header: Sequence[str], rows: Sequence[Sequence[str]], delimiter: str
 ) -> None:
@@ -1533,6 +1546,7 @@ def generate(out: Path) -> dict[str, object]:
             vocab.FILE_README: _file_entry(0, note="说明文件"),
             vocab.FILE_ANOMALIES: _file_entry(len(anomalies)),
             vocab.FILE_SUMMARY: _file_entry(1, note="本文件"),
+            vocab.FILE_PROFIT_EXPECTED: _file_entry(20, note="独立 Decimal 参考答案"),
         },
         "settlements": [
             _settlement_entry(
@@ -1605,6 +1619,9 @@ def generate(out: Path) -> dict[str, object]:
     _write_dicts(out / vocab.FILE_SHOPIFY_1021, vocab.SHOPIFY_COLUMNS, shop2, ",")
     _write_json(out / vocab.FILE_ANOMALIES, anomalies)
     _write_json(out / vocab.FILE_SUMMARY, summary)
+    profit_rows = reference_profit()
+    if profit_rows:
+        _write_dicts(out / vocab.FILE_PROFIT_EXPECTED, tuple(profit_rows[0]), profit_rows, ",")
     _write_text(out / vocab.FILE_EXPECTED, _expected_md(anomalies, summary))
     _write_text(out / vocab.FILE_README, _readme())
     for path in out.rglob("*"):

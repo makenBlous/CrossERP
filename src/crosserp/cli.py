@@ -44,6 +44,7 @@ from crosserp.db.repo.issues import (
 from crosserp.db.schema import ImportBatch, Issue, Store
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
+from crosserp.profit.golden import compare_issues_csv, compare_profit_csv
 from crosserp.profit.service import compute_and_save
 from crosserp.recon.engine import reconcile_all
 from crosserp.web.app import create_app
@@ -354,6 +355,56 @@ def profit_command(
         raise typer.Exit(code=1) from exc
     except Exception as exc:
         typer.echo(f"利润计算失败: {_hide_password(str(exc), url_text)}", err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@app.command("check-golden")
+def check_golden_command(
+    period: str = typer.Option(..., "--period", help="利润月份，格式 YYYY-MM。"),  # noqa: RUF001
+    expected: Path = typer.Option(..., "--expected", exists=True, readable=True),  # noqa: B008
+    issues: Path | None = typer.Option(None, "--issues", exists=True, readable=True),  # noqa: B008
+    store: str | None = typer.Option(None, "--store", help="只比对指定店铺。"),
+    report_md: Path | None = typer.Option(None, "--report-md"),  # noqa: B008
+) -> None:
+    """逐格检查利润 golden CSV。"""
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            result = compare_profit_csv(session, period, expected, store)
+            issue_result = None if issues is None else compare_issues_csv(session, issues)
+        typer.echo(
+            f"{result.matched_rows}/{result.compared_rows} 行完全一致，"  # noqa: RUF001
+            + f"reference-only {result.reference_only_rows} 行，"  # noqa: RUF001
+            + f"差异 {len(result.diffs)}，缺行 {len(result.missing_rows)}"  # noqa: RUF001
+        )
+        if result.missing_rows:
+            typer.echo("缺行: " + "、".join(result.missing_rows), err=True)
+        for diff in result.diffs:
+            typer.echo(
+                f"差异 {diff.key} {diff.column}: 期望 {diff.expected}，实际 {diff.actual}",  # noqa: RUF001
+                err=True,
+            )
+        if issue_result is not None:
+            typer.echo(
+                f"异常 {issue_result.matched}/{issue_result.expected} 条一致，"  # noqa: RUF001
+                f"漏报 {len(issue_result.missing)}，多报 {len(issue_result.extra)}"  # noqa: RUF001
+            )
+        if report_md is not None:
+            report_md.parent.mkdir(parents=True, exist_ok=True)
+            report_md.write_text(
+                "# Golden 利润比对\n\n"
+                + f"- 完全一致：{result.matched_rows}/{result.compared_rows}\n"  # noqa: RUF001
+                + f"- reference-only：{result.reference_only_rows}\n"  # noqa: RUF001
+                + f"- 差异：{len(result.diffs)}\n"  # noqa: RUF001
+                + f"- 缺行：{len(result.missing_rows)}\n",  # noqa: RUF001
+                encoding="utf-8",
+            )
+        if not result.ok or (issue_result is not None and not issue_result.ok):
+            raise typer.Exit(code=1)
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
         raise typer.Exit(code=1) from exc
     finally:
         engine.dispose()
