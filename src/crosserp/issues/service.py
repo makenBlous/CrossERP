@@ -24,6 +24,9 @@ def open_issue(
     source_ref: str,
     detail: dict[str, Any],
     severity: str | None = None,
+    settlement_line_id: UUID | None = None,
+    order_line_id: UUID | None = None,
+    recon_run_id: UUID | None = None,
 ) -> Issue:
     """打开异常; 同一原因码和 source_ref 已存在时复用旧记录。"""
     item = definition(kind)
@@ -44,4 +47,7 @@ def open_issue(
         detail_json=data,
         status=IssueStatus.OPEN.value,
         created_at=datetime.now(UTC),
+        settlement_line_id=settlement_line_id,
+        order_line_id=order_line_id,
+        recon_run_id=recon_run_id,
     )

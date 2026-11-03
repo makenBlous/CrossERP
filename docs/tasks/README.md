@@ -32,7 +32,7 @@
 | T15 | [导入批次规则：失败可重导 + 打不开也留记录（⚠ 待 maken 确认）](T15-import-batch-rules.md) | W3 | 1 天 | T09, T13 | review |
 | T16 | [三库实测：CI db-matrix 在 MySQL 8.4 / PG 18 跑通](T16-three-db-verify.md) | W3 | 1 天 | T07, T13 | review |
 | T17 | [异常目录：原因码定稿 + 中文模板 + 候选码](T17-issues-catalog.md) | W3 | 0.5 天 | T14 | review |
-| T18 | [对账引擎核心：规则注册表 + 确定性匹配](T18-recon-engine-core.md) | W3 | 2 天 | T16, T17 | todo |
+| T18 | [对账引擎核心：规则注册表 + 确定性匹配](T18-recon-engine-core.md) | W3 | 2 天 | T16, T17 | review |
 | T19 | [对账补充规则：待下期、多收费、拒付、部分退款、重复结算](T19-recon-timing-fees-refunds.md) | W3 | 1.5 天 | T18 | todo |
 | T20 | [利润计算：订单行 / SKU（成本生效期 + 汇率）](T20-profit-sku-order.md) | W3 | 2 天 | T18 | todo |
 | T21 | [标准答案比对：利润逐分 + 匹配率断言（指标 2、3）](T21-golden-eval.md) | W3 | 1 天 | T19, T20 | todo |

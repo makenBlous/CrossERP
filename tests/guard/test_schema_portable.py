@@ -23,7 +23,9 @@ from crosserp.db.types import FxRate, Money4
 
 _MONEY_HINT = re.compile(r"amount|total|price|cost|fee|profit|revenue", re.IGNORECASE)
 # 实施方案第 4 节的分类字段。名字里带 amount/fee。但不是金额。
-_NOT_MONEY = frozenset({"amount_type", "amount_description", "fee_category"})
+_NOT_MONEY = frozenset(
+    {"amount_type", "amount_description", "fee_category", "groups_total", "groups_matched"}
+)
 _MONEY_COLUMNS = {
     ("sku_cost", "unit_cost"),
     ("sku_cost", "freight_per_unit"),

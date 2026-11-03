@@ -78,3 +78,7 @@ class RowParseError(CrossErpError):
         self.row_no = row_no
         self.raw = raw
         super().__init__(message)
+
+
+class ReconInvariantError(CrossErpError):
+    """对账结果违反了每个未匹配组必须有原因的约束。"""
