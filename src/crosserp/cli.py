@@ -7,7 +7,7 @@ import re
 import unicodedata
 import warnings
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -44,6 +44,7 @@ from crosserp.db.repo.issues import (
 from crosserp.db.schema import ImportBatch, Issue
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
+from crosserp.recon.engine import reconcile_all
 from crosserp.web.app import create_app
 
 app = typer.Typer(add_completion=False)
@@ -253,6 +254,51 @@ def demo_import() -> None:
     code = _import_jobs(jobs)
     if code != 0:
         raise typer.Exit(code=code)
+
+
+@app.command("reconcile")
+def reconcile_command(
+    period: str = typer.Option(..., "--period", help="对账月份，格式 YYYY-MM。"),  # noqa: RUF001
+    store: str | None = typer.Option(None, "--store", help="只对指定店铺运行。"),
+    as_of: str | None = typer.Option(None, "--as-of", help="预留的截止日，格式 YYYY-MM-DD。"),  # noqa: RUF001
+) -> None:
+    """运行确定性的订单与结算匹配。"""
+    cutoff: date | None = None
+    if as_of is not None:
+        try:
+            cutoff = date.fromisoformat(as_of)
+        except ValueError as exc:
+            typer.echo("--as-of 必须是 YYYY-MM-DD。", err=True)
+            raise typer.Exit(code=1) from exc
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            results = reconcile_all(session, period, store, as_of=cutoff)
+            if not results:
+                typer.echo("没有找到可对账的店铺。")
+                return
+            for result in results:
+                rate = "无分母" if result.match_rate is None else f"{result.match_rate:.2%}"
+                reasons = (
+                    "、".join(
+                        f"{kind}={count}"
+                        for kind, count in sorted(result.unmatched_by_kind.items())
+                    )
+                    or "无"
+                )
+                typer.echo(
+                    f"店铺 {result.store_id}: 组数 {result.groups_total}，"  # noqa: RUF001
+                    f"匹配 {result.groups_matched}，匹配率 {rate}，"  # noqa: RUF001
+                    f"未匹配原因 {reasons}，非订单行 {result.non_order_lines}"  # noqa: RUF001
+                )
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    except Exception as exc:
+        typer.echo(f"对账失败: {_hide_password(str(exc), url_text)}", err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
 
 
 def _import_jobs(jobs: list[_ImportJob]) -> int:

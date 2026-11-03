@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo | W3 | 2 天 | T16, T17 | `task/T18-recon-engine-core` |
+| review | W3 | 2 天 | T16, T17 | `task/T18-recon-engine-core` |
 
 ## 目标
 `reconcile(store, period)` 用确定性规则把结算行组和订单行配上；每个没配上的组都至少有一条带原因码的异常；匹配率按实施方案的口径算出来。
@@ -67,3 +67,9 @@
 ## 问题
 
 ## 完成记录
+
+- 完成内容：新增 `recon_run` 运行记录和结果外键；实现 Amazon `(订单号, SKU)`、Shopify `订单号` 的确定性分组匹配；规则注册表提供 `applies/evaluate`、`Matched/Unmatched/Pass` 协议并记录规则集版本；未匹配组统一写入原因码，重跑保留旧运行；新增 `crosserp reconcile` 摘要命令。
+- 修改文件：`src/crosserp/recon/registry.py`、`src/crosserp/recon/engine.py`、`src/crosserp/db/repo/recon.py`、`src/crosserp/db/schema.py`、`src/crosserp/db/migrations/versions/0005_recon_run.py`、`src/crosserp/cli.py`、导入/异常服务及迁移守卫测试；新增对账单测、性质测试和合成样本集成测试；更新 `CHANGELOG.md`。
+- 测试结果：`.venv/bin/uv run ruff format --check .` 通过；`ruff check .` 通过；`mypy` 通过；`pre-commit run --all-files` 通过；SQLite 全量 `192 passed, 2 skipped`，覆盖率 `85.75%`；MySQL 8.4 定向对账 `1 passed`；PostgreSQL 18 定向对账 `1 passed`；规则/性质/合成集成定向测试 `6 passed`。
+- 偏离计划：将任务中描述的规则协议完整落地为可执行注册表；`grace_days`、待下期、多收费、拒付、部分退款和重复结算仍按范围留给 T19；当前项目未安装 `gh`，PR 需通过 GitHub 网页创建。
+- PR：已推送任务分支后由 maken 在 GitHub 创建/审核；本地合并回 `main`。

@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -15,6 +15,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    Date,
     ForeignKey,
     Index,
     Integer,
@@ -242,6 +243,26 @@ class Fee(Base):
     amount: Mapped[Decimal] = mapped_column(Money4())
 
 
+class ReconRun(Base):
+    """一次确定性对账运行。重跑保留旧运行, 最新 done 运行是当前结果。"""
+
+    __tablename__ = "recon_run"
+    __table_args__ = (Index("ix_recon_run_store_period", "store_id", "period"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    store_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("store.id"))
+    period: Mapped[str] = mapped_column(String(7))
+    as_of: Mapped[date] = mapped_column(Date())
+    rule_set_version: Mapped[str] = mapped_column(String(32))
+    started_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    status: Mapped[str] = mapped_column(_KIND)
+    groups_total: Mapped[int] = mapped_column(Integer)
+    groups_matched: Mapped[int] = mapped_column(Integer)
+    non_order_lines: Mapped[int] = mapped_column(Integer)
+    created_by: Mapped[str | None] = mapped_column(String(64))
+
+
 class Match(Base):
     """一条匹配结果。settlement_line_id 可空。表示组级匹配。推断。未另建组表。"""
 
@@ -249,9 +270,11 @@ class Match(Base):
     __table_args__ = (
         Index("ix_match_settlement_line_id", "settlement_line_id"),
         Index("ix_match_order_line_id", "order_line_id"),
+        Index("ix_match_recon_run_id", "recon_run_id"),
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
+    recon_run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("recon_run.id"))
     settlement_line_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(), ForeignKey("settlement_line.id")
     )
@@ -269,9 +292,11 @@ class Issue(Base):
     __table_args__ = (
         Index("ix_issue_settlement_line_id", "settlement_line_id"),
         Index("ix_issue_order_line_id", "order_line_id"),
+        Index("ix_issue_recon_run_id", "recon_run_id"),
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
+    recon_run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("recon_run.id"))
     kind: Mapped[str] = mapped_column(_KIND)
     severity: Mapped[str] = mapped_column(_KIND)
     settlement_line_id: Mapped[uuid.UUID | None] = mapped_column(

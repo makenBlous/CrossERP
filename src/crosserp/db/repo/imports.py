@@ -157,6 +157,7 @@ def insert_issue(
     created_at: datetime,
     settlement_line_id: UUID | None = None,
     order_line_id: UUID | None = None,
+    recon_run_id: UUID | None = None,
 ) -> Issue:
     """写入一条异常。"""
     issue = Issue(
@@ -164,6 +165,7 @@ def insert_issue(
         severity=severity,
         settlement_line_id=settlement_line_id,
         order_line_id=order_line_id,
+        recon_run_id=recon_run_id,
         detail_json=detail_json,
         status=status,
         resolution_note=None,
