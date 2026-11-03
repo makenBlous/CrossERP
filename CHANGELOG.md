@@ -32,3 +32,16 @@
 - Excel/CSV 利润报表、异常清单和说明页；`reconcile --json` 机器可读输出。
 - 只读网页：导入记录、SKU 利润、异常清单和本地静态 HTMX；所有业务路由仅 GET，服务固定监听 127.0.0.1。
 - `crosserp demo --check` 独立演示库、包内合成样本、`python -m crosserp` 和三系统安装 smoke CI。
+
+## [0.1.0] - 未发布
+
+### 已完成
+
+- 文件导入、确定性对账、SKU 利润、Golden 比对、Excel/CSV 报表和只读网页。
+- SQLite、MySQL 8.4、PostgreSQL 18 兼容验证。
+
+### 已知限制
+
+- 未含广告；非订单费用不分摊到 SKU。
+- 拒付与退款按当前 v0.1 口径处理，真实数据仍需 maken 验收。
+- 真实 20 个 SKU 手算答案和真实卖家数据尚未提交。
