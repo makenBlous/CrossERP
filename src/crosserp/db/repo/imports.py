@@ -31,10 +31,36 @@ def get_successful_import_by_sha256(session: Session, file_sha256: str) -> Impor
     statement = (
         select(ImportBatch)
         .where(
-            ImportBatch.file_sha256 == file_sha256,
+            ImportBatch.done_sha256 == file_sha256,
             ImportBatch.status == ImportStatus.DONE.value,
         )
         .order_by(ImportBatch.imported_at)
+    )
+    return session.scalars(statement).first()
+
+
+def get_running_import_by_sha256(session: Session, file_sha256: str) -> ImportBatch | None:
+    """读取同一文件仍在 running 的批次。"""
+    statement = (
+        select(ImportBatch)
+        .where(
+            ImportBatch.file_sha256 == file_sha256,
+            ImportBatch.status == ImportStatus.RUNNING.value,
+        )
+        .order_by(ImportBatch.imported_at.desc())
+    )
+    return session.scalars(statement).first()
+
+
+def get_latest_failed_import_by_sha256(session: Session, file_sha256: str) -> ImportBatch | None:
+    """读取同一文件最近的失败批次, 用于建立重试关系。"""
+    statement = (
+        select(ImportBatch)
+        .where(
+            ImportBatch.file_sha256 == file_sha256,
+            ImportBatch.status == ImportStatus.FAILED.value,
+        )
+        .order_by(ImportBatch.imported_at.desc())
     )
     return session.scalars(statement).first()
 
@@ -46,6 +72,7 @@ def insert_import_batch(
     connector_version: str,
     file_name: str,
     file_sha256: str | None,
+    retry_of_batch_id: UUID | None = None,
     imported_at: datetime,
 ) -> ImportBatch:
     """新建 running 批次。row_count 与 error_count 从 0 开始。"""
@@ -54,6 +81,7 @@ def insert_import_batch(
         connector_version=connector_version,
         file_name=file_name,
         file_sha256=file_sha256,
+        retry_of_batch_id=retry_of_batch_id,
         imported_at=imported_at,
         row_count=0,
         status=ImportStatus.RUNNING.value,
@@ -71,12 +99,38 @@ def mark_import_batch(
     status: str,
     row_count: int,
     error_count: int,
+    failure_code: str | None = None,
+    failure_reason: str | None = None,
 ) -> None:
     """更新批次计数和状态。不提交。"""
     batch.status = status
     batch.row_count = row_count
     batch.error_count = error_count
+    batch.done_sha256 = batch.file_sha256 if status == ImportStatus.DONE.value else None
+    batch.failure_code = failure_code
+    batch.failure_reason = failure_reason
     session.flush()
+
+
+def mark_import_batch_failed(
+    session: Session,
+    batch: ImportBatch,
+    *,
+    failure_code: str,
+    failure_reason: str,
+) -> None:
+    """人工把 running 批次标成失败。"""
+    if batch.status != ImportStatus.RUNNING.value:
+        raise ValueError(f"批次当前状态是 {batch.status}，只能标记 running 批次")  # noqa: RUF001
+    mark_import_batch(
+        session,
+        batch,
+        status=ImportStatus.FAILED.value,
+        row_count=batch.row_count,
+        error_count=batch.error_count,
+        failure_code=failure_code,
+        failure_reason=failure_reason,
+    )
 
 
 def insert_raw_row(

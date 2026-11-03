@@ -13,24 +13,27 @@ from uuid import UUID
 
 import typer
 import uvicorn
+from sqlalchemy import select
 from sqlalchemy.engine import Engine, make_url
 
 from crosserp import __version__
-from crosserp.audit.log import VerifyResult, verify_chain
+from crosserp.audit.log import VerifyResult, append, verify_chain
 from crosserp.connectors.base import FileConnector
 from crosserp.connectors.generic_mapped.mapping import MappingError, load_mapping, mappings_dir
-from crosserp.connectors.importer import import_file
+from crosserp.connectors.importer import import_file, record_unreadable_file
 from crosserp.connectors.registry import detect, load_connectors
 from crosserp.core.enums import ImportStatus, IssueKind
 from crosserp.core.errors import (
     DatabaseConfigError,
     DuplicateImportError,
     FileUnreadableError,
+    ImportInProgressError,
     UnknownFileTypeError,
 )
 from crosserp.core.models import ColumnMapping
 from crosserp.db.dialects import ServerStatus, check_server
 from crosserp.db.migrate import ensure_database_directory, upgrade_head
+from crosserp.db.repo.imports import mark_import_batch_failed
 from crosserp.db.repo.issues import (
     batch_id_of,
     count_issues_by_kind,
@@ -38,7 +41,7 @@ from crosserp.db.repo.issues import (
     get_import_batch,
     list_issues,
 )
-from crosserp.db.schema import Issue
+from crosserp.db.schema import ImportBatch, Issue
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.web.app import create_app
 
@@ -46,9 +49,11 @@ app = typer.Typer(add_completion=False)
 db_app = typer.Typer(add_completion=False, help="数据库连接与启动自检。")
 audit_app = typer.Typer(add_completion=False, help="审计哈希链。")
 issues_app = typer.Typer(add_completion=False, help="异常清单。只读。")
+imports_app = typer.Typer(add_completion=False, help="导入批次记录。")
 app.add_typer(db_app, name="db")
 app.add_typer(audit_app, name="audit")
 app.add_typer(issues_app, name="issues")
+app.add_typer(imports_app, name="imports")
 
 _TYPES = ("auto", "amazon", "shopify", "mapped")
 _TYPE_TO_ID = {
@@ -173,13 +178,25 @@ def demo_jobs() -> list[_ImportJob]:
 
 @app.command("import")
 def import_files(
-    files: list[Path] = typer.Argument(..., help="要导入的文件。可以一次传多个。"),  # noqa: B008
+    files: list[Path] | None = typer.Argument(None, help="要导入的文件。可以一次传多个。"),  # noqa: B008
     file_type: str = typer.Option("auto", "--type", help="auto、amazon、shopify 或 mapped。"),
     mapping: Path | None = typer.Option(None, "--mapping", help="mapped 的 YAML 列映射。"),  # noqa: B008
     currency: str | None = typer.Option(None, "--currency", help="文件没有币种时使用。例如 USD。"),
     store: str | None = typer.Option(None, "--store", help="文件没有店铺名时使用。"),
+    mark_failed: UUID | None = typer.Option(  # noqa: B008
+        None, "--mark-failed", help="把一个 running 批次人工标成失败。"
+    ),
 ) -> None:
     """导入一个或多个文件。每个文件单独一个批次。"""
+    if mark_failed is not None:
+        if files:
+            typer.echo("--mark-failed 不能和文件路径同时使用。", err=True)
+            raise typer.Exit(code=1)
+        _mark_failed(mark_failed)
+        return
+    if not files:
+        typer.echo("请提供文件路径，或使用 --mark-failed <批次id>。", err=True)  # noqa: RUF001
+        raise typer.Exit(code=1)
     jobs = [_ImportJob(path, file_type, mapping, currency, store) for path in files]
     code = _import_jobs(jobs)
     if code != 0:
@@ -276,6 +293,20 @@ def _import_one(
         connector = _connector_for(job.path, job.file_type, connectors)
         mapping = _mapping_for(job, loaded)
     except (UnknownFileTypeError, MappingError, FileUnreadableError) as exc:
+        if not job.path.is_file():
+            message = f"无法读取文件 {job.path.name}。文件不存在或不是普通文件。"
+            with session_scope(engine) as session:
+                result = record_unreadable_file(
+                    session,
+                    job.path,
+                    connector_id="unknown",
+                    connector_version="0",
+                    mapping=None,
+                    message=message,
+                )
+            typer.echo(message, err=True)
+            rows.append([job.path.name, "unknown", "0", "0", "失败", str(result.batch_id)])
+            return False
         typer.echo(_file_error(job.path, exc), err=True)
         rows.append([job.path.name, "-", "0", "0", "失败", "-"])
         return False
@@ -286,6 +317,10 @@ def _import_one(
     except DuplicateImportError as exc:
         typer.echo(f"警告: {job.path.name} 已导入过（{exc.imported_at}），跳过")  # noqa: RUF001
         return True
+    except ImportInProgressError as exc:
+        typer.echo(f"{job.path.name}: {exc}", err=True)
+        rows.append([job.path.name, connector.id, "0", "0", "失败", "-"])
+        return False
     except FileUnreadableError as exc:
         typer.echo(str(exc), err=True)
         rows.append([job.path.name, connector.id, "0", "0", "失败", "-"])
@@ -319,6 +354,76 @@ def _import_one(
         ]
     )
     return True
+
+
+@imports_app.command("list")
+def imports_list() -> None:
+    """列出导入批次及失败、重试信息。"""
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            batches = session.scalars(
+                select(ImportBatch).order_by(ImportBatch.imported_at.desc())
+            ).all()
+            rows = [
+                [
+                    _format_time(batch.imported_at),
+                    batch.file_name,
+                    batch.status,
+                    "-" if batch.file_sha256 is None else batch.file_sha256[:8],
+                    "-" if batch.failure_reason is None else batch.failure_reason,
+                    "-" if batch.retry_of_batch_id is None else str(batch.retry_of_batch_id),
+                    str(batch.id),
+                ]
+                for batch in batches
+            ]
+            typer.echo(
+                _render_table(
+                    ["时间", "文件", "状态", "sha256", "失败原因", "重试自", "批次"], rows
+                )
+            )
+            typer.echo(f"共 {len(rows)} 条")
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+def _mark_failed(batch_id: UUID) -> None:
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            batch = session.get(ImportBatch, batch_id)
+            if batch is None:
+                typer.echo(f"没有这个批次 {batch_id}。", err=True)
+                raise typer.Exit(code=1)
+            mark_import_batch_failed(
+                session,
+                batch,
+                failure_code="MANUAL_MARK_FAILED",
+                failure_reason="用户确认导入进程已中断，手动标记失败。",  # noqa: RUF001
+            )
+            append(
+                session,
+                actor_type="system",
+                action="import_failed",
+                target_type="import_batch",
+                target_id=str(batch.id),
+                before={"status": ImportStatus.RUNNING.value},
+                after={"status": batch.status, "failure_code": batch.failure_code},
+                reason="手动标记导入失败",
+                self_approved=False,
+            )
+            typer.echo(f"批次 {batch.id} 已标记失败")
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
 
 
 def _reject_bad_flags(jobs: list[_ImportJob]) -> None:

@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
-| todo（⚠ 待 maken 确认下面两条决定后才能开工） | W3 | 1 天 | T09, T13 | `task/T15-import-batch-rules` |
+| review | W3 | 1 天 | T09, T13 | `task/T15-import-batch-rules` |
 
 ## 目标
 导入失败的文件修好原因后可以用**同一个文件**再导一次；连 sha256 都没算出来（文件打不开）的情况也在 `import_batch` 留一条失败记录，用户能在导入记录里看到「哪个文件、什么时候、为什么失败」。
@@ -73,8 +73,36 @@
 - [ ] `uv run crosserp audit verify` 通过。
 
 ## 问题
-- Q1（待 maken）：决定 1 是否同意？
-- Q2（待 maken）：决定 2 是否同意？
-- Q3（待 maken，可默认）：僵尸 running 批次用 `--mark-failed` 人工处理，可以吗？
+- Q1：同意。只有成功批次禁止同文件重复导入；失败批次允许用同一文件重导，旧失败批次保留。
+- Q2：同意。文件在计算 sha256 前打不开时，写入 `file_sha256=NULL` 的失败批次并保留中文失败原因。
+- Q3：同意。僵尸 `running` 批次只检测，不自动处理；由 `--mark-failed` 手动标记失败。
 
 ## 完成记录
+
+分支：`task/T15-import-batch-rules`。状态改为 `review`，不是 `done`。
+
+### 做了什么
+
+- 新增迁移 `0004_import_batch_fields`：成功批次写入唯一 `done_sha256`，原始 `file_sha256` 可重复且可为空；增加 `retry_of_batch_id`、`failure_code`、`failure_reason`，并保留普通 sha 索引。
+- 导入失败后同文件可以重导，旧失败批次保留；成功后再次导入仍抛 `DuplicateImportError`。
+- 文件打不开或 CLI 无法识别不存在的文件时，写入 `FILE_UNREADABLE` 失败批次和审计记录。
+- 检测到同 sha 的 `running` 批次时抛 `ImportInProgressError`；增加 `crosserp import --mark-failed <批次id>` 和 `crosserp imports list`。
+- 增加 T15 集成测试，覆盖失败重导、成功去重、running 手动收尾、不可读文件记录和三库迁移。
+
+### 实际验收命令与结果
+
+| 命令 | 结果 |
+|---|---|
+| `uv run pytest --cov=crosserp --cov-fail-under=60 -q` | 183 passed, 2 skipped；覆盖率 85.72% |
+| `uv run pytest -q tests/integration/test_import_batch_rules.py` | 2 passed |
+| `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://root:dev@127.0.0.1:13306/crosserp?charset=utf8mb4 uv run pytest -m db -q` | 92 passed, 3 skipped |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp uv run pytest -m db -q` | 91 passed, 4 skipped |
+| `uv run pytest -m db -q` | 91 passed, 2 skipped |
+| `uv run ruff format --check . && uv run ruff check .` | 全部通过 |
+| `uv run mypy` | 0 errors |
+| `uv run pre-commit run --all-files` | 全部通过 |
+
+### 偏离计划
+
+- 本任务没有新增依赖，也没有修改已合并迁移；新字段全部放在 `0004_import_batch_fields`。
+- PowerShell 脚本仍只能在 Windows/PowerShell 环境人工执行；本机只完成脚本内容检查。
