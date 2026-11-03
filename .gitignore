@@ -20,11 +20,4 @@ samples/real_anonymized/
 
 # 数据库文件
 *.db
-/.idea/inspectionProfiles/profiles_settings.xml
-/.idea/inspectionProfiles/Project_Default.xml
-/.idea/.gitignore
-/.idea/crosserp.iml
-/.idea/misc.xml
-/.idea/modules.xml
-/.idea/pyProjectModel.xml
-/.idea/vcs.xml
+/.idea/*
