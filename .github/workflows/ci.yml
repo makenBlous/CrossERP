@@ -122,7 +122,25 @@ jobs:
         run: uv run python -c 'import os, sys; wanted=tuple(int(part) for part in os.environ["PYTHON_VERSION"].split(".")); assert sys.version_info[:2] == wanted, sys.version; assert sys.version_info.releaselevel == "final", sys.version; print(sys.version)'
 
       - name: pytest
-        run: uv run pytest --cov=crosserp --cov-fail-under=60
+        run: |
+          set +e
+          mkdir -p .ci
+          uv run pytest --cov=crosserp --cov-fail-under=60 --junitxml=.ci/pytest.xml 2>&1 | tee .ci/pytest.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ] && [ -f .ci/pytest.xml ]; then
+            uv run python - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse('.ci/pytest.xml').getroot()
+          for testcase in root.iter('testcase'):
+              failure = testcase.find('failure') or testcase.find('error')
+              if failure is not None:
+                  name = f"{testcase.attrib.get('classname', '')}::{testcase.attrib.get('name', '')}"
+                  message = (failure.attrib.get('message') or failure.text or '').replace('%', '%25').replace('\n', '%0A')
+                  print(f"::error title=pytest::{name}: {message[:1000]}")
+          PY
+          fi
+          exit "$status"
 
   db-matrix:
     name: db-matrix
