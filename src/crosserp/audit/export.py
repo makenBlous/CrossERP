@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from crosserp import __version__
 from crosserp.audit.chain import GENESIS_PREV_HASH
 from crosserp.audit.log import append, payload_from_log
-from crosserp.db.schema import AuditExport, AuditLog
+from crosserp.db.schema import AuditExport, AuditLog, SecurityEvent
 
 
 def export_audit(
@@ -29,22 +29,36 @@ def export_audit(
     fmt: str,
     output: Path,
     requested_by: str,
+    chain: str = "audit_log",
 ) -> AuditExport:
     """导出时间范围内的审计记录，并记录导出动作。"""  # noqa: RUF002
     if fmt not in {"jsonl", "csv"}:
         raise ValueError("format 只能是 jsonl 或 csv")
     if output.exists():
         raise FileExistsError(f"输出文件已存在: {output}")
-    rows = list(
-        session.scalars(
-            select(AuditLog)
-            .where(AuditLog.ts >= from_ts, AuditLog.ts < to_ts)
-            .order_by(AuditLog.seq)
+    if chain not in {"audit_log", "security"}:
+        raise ValueError("chain 只能是 audit_log 或 security")
+    if chain == "security":
+        rows = list(
+            session.scalars(
+                select(SecurityEvent)
+                .where(SecurityEvent.ts >= from_ts, SecurityEvent.ts < to_ts)
+                .order_by(SecurityEvent.seq)
+            )
         )
-    )
-    previous = rows[0].prev_hash if rows else _previous_hash(session, from_ts)
-    records = [_record(row) for row in rows]
-    data_name = "audit_log.jsonl" if fmt == "jsonl" else "audit_log.csv"
+        previous = rows[0].prev_hash if rows else GENESIS_PREV_HASH
+        records = [_security_record(row) for row in rows]
+    else:
+        rows = list(
+            session.scalars(
+                select(AuditLog)
+                .where(AuditLog.ts >= from_ts, AuditLog.ts < to_ts)
+                .order_by(AuditLog.seq)
+            )
+        )
+        previous = rows[0].prev_hash if rows else _previous_hash(session, from_ts)
+        records = [_record(row) for row in rows]  # type: ignore[arg-type]
+    data_name = f"{chain}.jsonl" if fmt == "jsonl" else f"{chain}.csv"
     data = _render(records, fmt)
     verify_md = _verify_instructions(data_name, fmt)
     files = {
@@ -109,6 +123,24 @@ def _record(row: AuditLog) -> dict[str, Any]:
     payload = payload_from_log(row)
     payload["hash"] = row.hash
     return payload
+
+
+def _security_record(row: SecurityEvent) -> dict[str, Any]:
+    return {
+        "id": str(row.id),
+        "seq": row.seq,
+        "ts": row.ts.isoformat(),
+        "event": row.event,
+        "user_id": str(row.user_id) if row.user_id else None,
+        "username": row.username,
+        "target_user_id": str(row.target_user_id) if row.target_user_id else None,
+        "ip": row.ip,
+        "user_agent": row.user_agent,
+        "request_id": row.request_id,
+        "detail_json": row.detail_json,
+        "prev_hash": row.prev_hash,
+        "hash": row.hash,
+    }
 
 
 def _render(rows: list[dict[str, Any]], fmt: str) -> bytes:

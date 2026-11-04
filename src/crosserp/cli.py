@@ -1539,6 +1539,7 @@ def audit_export_command(
     fmt: str = typer.Option("jsonl", "--format", help="jsonl 或 csv。"),
     out: Path = typer.Option(..., "--out"),  # noqa: B008
     requested_by: str = typer.Option("system", "--as", help="导出申请人名称。"),
+    chain: str = typer.Option("audit_log", "--chain", help="audit_log 或 security"),
 ) -> None:
     """导出可离线校验的审计包。"""
     from datetime import timedelta
@@ -1562,6 +1563,7 @@ def audit_export_command(
                 fmt=fmt,
                 output=out,
                 requested_by=requested_by,
+                chain=chain,
             )
             typer.echo(f"审计包已导出：{out}")  # noqa: RUF001
             typer.echo(f"记录数：{row.row_count}，sha256：{row.file_sha256}")  # noqa: RUF001
