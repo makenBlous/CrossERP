@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
 from sqlalchemy import String, UniqueConstraint
 from sqlalchemy.sql.schema import Column
 from sqlalchemy.sql.type_api import TypeEngine
@@ -21,6 +22,8 @@ from crosserp.core.enums import (
 )
 from crosserp.db.schema import Base
 from crosserp.db.types import FxRate, Money4
+
+pytestmark = pytest.mark.guard
 
 _MONEY_HINT = re.compile(r"amount|total|price|cost|fee|profit|revenue", re.IGNORECASE)
 # 实施方案第 4 节的分类字段。名字里带 amount/fee。但不是金额。

@@ -1,0 +1,175 @@
+"""唯一的外部写出入口。"""
+
+from __future__ import annotations
+
+import hashlib
+from datetime import UTC, datetime
+from pathlib import Path
+from uuid import UUID, uuid4
+
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session
+
+from crosserp.approval.service import hash_token, mark_exported
+from crosserp.approval.state import ApprovalState
+from crosserp.audit.log import append
+from crosserp.core.errors import CrossErpError
+from crosserp.db.schema import Approval, ExportArtifact, ProfitSnapshot, Store
+from crosserp.ledger.targets.base import LedgerTarget
+
+
+class ApprovalRequired(CrossErpError):
+    """写出前置审批不满足。"""
+
+    def __init__(self, reason_code: str, message: str) -> None:
+        self.reason_code = reason_code
+        super().__init__(message)
+
+
+def export(
+    session: Session,
+    batch_id: str,
+    target_id: str,
+    approval_token: str | None,
+    *,
+    output_dir: Path | None = None,
+) -> ExportArtifact:
+    """验证审批、生成 XLSX、记录产物并消费一次性 token。"""
+    approval: Approval | None = None
+    approval_id: UUID | None = None
+    reason: tuple[str, str] | None = None
+    bind = session.get_bind()
+    # 先用独立会话完成拒绝判断，避免 SQLite 读锁挡住拒绝审计。  # noqa: RUF003
+    with Session(bind=bind) as validation:
+        if approval_token:
+            approval = validation.scalar(
+                select(Approval).where(Approval.token_hash == hash_token(approval_token))
+            )
+        if approval is None:
+            reason = ("MISSING_APPROVAL", "没有有效审批或审批 token 不正确")
+        else:
+            approval_id = approval.id
+            if approval.target_type + ":" + approval.target_id != batch_id:
+                reason = ("TARGET_MISMATCH", "审批对象与要导出的对象不一致")
+            elif approval.used_at is not None:
+                reason = ("TOKEN_USED", "审批已被使用，不能重复导出")  # noqa: RUF001
+            elif approval.state != ApprovalState.APPROVED.value:
+                reason = ("NOT_APPROVED", "审批当前不是已批准状态")
+            else:
+                current_hash = _payload_hash(validation, approval.target_id)
+                if current_hash != approval.payload_hash:
+                    reason = (
+                        "PAYLOAD_CHANGED",
+                        "审批后的报表内容已经变化，请重新申请审批",  # noqa: RUF001
+                    )
+
+    if reason is not None:
+        _record_denial(session, batch_id, reason[1], approval_id)
+        raise ApprovalRequired(reason[0], reason[1])
+    assert approval_id is not None
+    approval = session.get(Approval, approval_id)
+    if approval is None:
+        _record_denial(session, batch_id, "审批单在导出前消失", approval_id)
+        raise ApprovalRequired("MISSING_APPROVAL", "审批单在导出前消失")
+    target = _target(target_id)
+    path = target.render(
+        session,
+        batch_id=batch_id,
+        approval_id=str(approval.id),
+        output_dir=output_dir or Path.cwd() / "exports",
+    )
+    try:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        now = datetime.now(UTC)
+        artifact = ExportArtifact(
+            id=uuid4(),
+            approval_id=approval.id,
+            target_id=target_id,
+            file_path=str(path),
+            ext_ref=None,
+            sha256=digest,
+            created_at=now,
+        )
+        session.add(artifact)
+        session.flush()
+        approval.used_at = now
+        mark_exported(session, approval, actor="system")
+        append(
+            session,
+            "system",
+            "ledger.export",
+            "export_artifact",
+            str(artifact.id),
+            None,
+            {
+                "approval_id": str(approval.id),
+                "target_id": target_id,
+                "file_path": str(path),
+                "sha256": digest,
+            },
+            approval_id=approval.id,
+            approver_id=None,
+            self_approved=False,
+        )
+        return artifact
+    except Exception:
+        if path.exists():
+            path.unlink()
+        raise
+
+
+def _record_denial(
+    session: Session,
+    batch_id: str,
+    reason: str,
+    approval_id: UUID | None,
+) -> None:
+    """在独立事务里写拒绝审计，避免外层回滚吞掉拒绝记录。"""  # noqa: RUF002
+    bind = session.get_bind()
+    with Session(bind=bind) as audit_session, audit_session.begin():
+        append(
+            audit_session,
+            "system",
+            "ledger.export_denied",
+            "ledger_export",
+            batch_id,
+            None,
+            {"approval_id": None if approval_id is None else str(approval_id)},
+            reason=reason,
+            approval_id=approval_id,
+            self_approved=False,
+        )
+
+
+def _payload_hash(session: Session, target_id: str) -> str:
+    store_name, separator, period = target_id.rpartition(":")
+    if not separator or not store_name or len(period) != 7:
+        raise ApprovalRequired("INVALID_TARGET", "利润报表对象必须是 店铺:YYYY-MM")
+    store_uuid = None
+    try:
+        from uuid import UUID
+
+        store_uuid = UUID(store_name)
+    except ValueError:
+        pass
+    statement = (
+        select(ProfitSnapshot.inputs_hash)
+        .join(Store, ProfitSnapshot.store_id == Store.id)
+        .where(
+            ProfitSnapshot.period == period,
+            or_(Store.name == store_name, Store.id == store_uuid),
+        )
+        .order_by(ProfitSnapshot.internal_sku)
+    )
+    values = [str(value) for value in session.scalars(statement)]
+    if not values:
+        raise ApprovalRequired("MISSING_REPORT", "找不到要导出的利润报表")
+    return hashlib.sha256("\n".join(values).encode("ascii")).hexdigest()
+
+
+def _target(target_id: str) -> LedgerTarget:
+    if target_id == "xlsx":
+        from crosserp.ledger.targets.xlsx import XlsxLedgerTarget
+
+        return XlsxLedgerTarget()
+    raise ApprovalRequired("UNKNOWN_TARGET", f"不支持的写出目标 {target_id}")

@@ -41,7 +41,13 @@ SKU_HEADERS = (
 
 
 def write_report_xlsx(
-    session: Session, *, period: str, reports: Sequence[object], path: Path, overwrite: bool = False
+    session: Session,
+    *,
+    period: str,
+    reports: Sequence[object],
+    path: Path,
+    overwrite: bool = False,
+    store_name: str | None = None,
 ) -> None:
     if path.exists() and not overwrite:
         raise FileExistsError(f"输出文件已存在: {path}")
@@ -57,6 +63,8 @@ def write_report_xlsx(
         .where(ProfitSnapshot.period == period)
         .order_by(Store.name, ProfitSnapshot.internal_sku)
     )
+    if store_name is not None:
+        statement = statement.where(Store.name == store_name)
     snapshots = list(session.execute(statement))
     for snapshot, store in snapshots:
         sku_sheet.append(

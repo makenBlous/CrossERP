@@ -293,7 +293,11 @@ def mark_exported(
     row = _load(session, approval)
     old = _audit_after(row)
     transition(row.state, ApprovalState.EXPORTED)
-    _update(session, row, {"state": ApprovalState.EXPORTED.value})
+    _update(
+        session,
+        row,
+        {"state": ApprovalState.EXPORTED.value, "used_at": _utc(None)},
+    )
     _record_transition(session, row, "approval.export", old, actor, actor_role=actor_role)
     return row
 

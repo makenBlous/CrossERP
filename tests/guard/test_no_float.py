@@ -5,6 +5,10 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.guard
+
 SRC_ROOT = Path(__file__).resolve().parents[2] / "src" / "crosserp"
 NOQA = "noqa: money-float"
 

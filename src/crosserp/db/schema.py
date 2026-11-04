@@ -427,4 +427,19 @@ class Approval(Base):
     version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
+class ExportArtifact(Base):
+    """一次审批后的外部文件产物。"""
+
+    __tablename__ = "export_artifact"
+    __table_args__ = (Index("ix_export_artifact_approval_id", "approval_id"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    approval_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("approval.id"))
+    target_id: Mapped[str] = mapped_column(String(32))
+    file_path: Mapped[str | None] = mapped_column(String(1000))
+    ext_ref: Mapped[str | None] = mapped_column(String(255))
+    sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
 V01_TABLES: frozenset[str] = frozenset(Base.metadata.tables)

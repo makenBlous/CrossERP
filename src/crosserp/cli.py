@@ -59,9 +59,19 @@ from crosserp.db.repo.issues import (
     get_import_batch,
     list_issues,
 )
-from crosserp.db.schema import Approval, ImportBatch, Issue, ProfitSnapshot, ReconRun, Store
+from crosserp.db.schema import (
+    Approval,
+    AuditLog,
+    ImportBatch,
+    Issue,
+    ProfitSnapshot,
+    ReconRun,
+    Store,
+)
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
+from crosserp.ledger.write_service import ApprovalRequired
+from crosserp.ledger.write_service import export as export_ledger
 from crosserp.profit.golden import compare_issues_csv, compare_profit_csv
 from crosserp.profit.report_csv import write_report_csv
 from crosserp.profit.report_xlsx import write_report_xlsx
@@ -783,6 +793,32 @@ def approval_reject(
         engine.dispose()
 
 
+@app.command("export")
+def export_command(
+    target: str = typer.Option(..., "--target", help="写出目标，目前只有 xlsx。"),  # noqa: RUF001
+    batch: str = typer.Option(..., "--batch", help="对象，格式 profit_report:<店铺>:<期间>。"),  # noqa: RUF001
+    token: str | None = typer.Option(None, "--token", help="审批批准后打印的一次性 token。"),
+) -> None:
+    """通过唯一写出口导出已批准的报表。"""
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            artifact = export_ledger(session, batch, target, token)
+            typer.echo(f"导出成功：{artifact.file_path}")  # noqa: RUF001
+            typer.echo(f"sha256：{artifact.sha256}")  # noqa: RUF001
+    except ApprovalRequired as exc:
+        typer.echo(f"没有有效审批：{exc}", err=True)  # noqa: RUF001
+        raise typer.Exit(code=1) from exc
+    except (LookupError, ValueError, FileExistsError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
 def _parse_approval_target(value: str) -> tuple[str, str]:
     target_type, separator, target_id = value.partition(":")
     if not separator or not target_type.strip() or not target_id.strip():
@@ -1103,6 +1139,34 @@ def audit_verify() -> None:
     reason = result.reason or "哈希链校验失败"
     typer.echo(f"审计链损坏：第一条坏记录 {bad}。{reason}", err=True)  # noqa: RUF001
     raise typer.Exit(code=1)
+
+
+@audit_app.command("tail")
+def audit_tail(
+    count: int = typer.Option(20, "-n", min=1, max=200, help="显示最近多少条。"),
+) -> None:
+    """按 Asia/Shanghai 时间显示最近审计记录。"""
+    from zoneinfo import ZoneInfo
+
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            rows = list(
+                session.scalars(select(AuditLog).order_by(AuditLog.seq.desc()).limit(count))
+            )
+            for row in rows:
+                timestamp = row.ts.astimezone(ZoneInfo("Asia/Shanghai"))
+                actor = row.actor_user_id or row.actor_type
+                reason = "" if row.reason is None else f" 原因: {row.reason}"
+                typer.echo(
+                    f"{timestamp:%Y-%m-%d %H:%M:%S %z} actor={actor} "
+                    f"action={row.action} target={row.target_type}:{row.target_id}{reason}"
+                )
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
 
 
 @db_app.command("check")

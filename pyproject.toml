@@ -54,6 +54,7 @@ testpaths = ["tests"]
 addopts = "-ra"
 markers = [
     "db: 需要数据库的测试",
+    "guard: 红线守卫测试",
     "slow: 慢速测试",
 ]
 

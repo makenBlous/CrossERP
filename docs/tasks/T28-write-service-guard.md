@@ -1,8 +1,8 @@
 # T28 唯一写出口 `ledger/write_service.py` + 守卫测试（指标 4）
 
-| 状态 | 周 | 估时 | 依赖 | 分支 |
+| 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W4 | 1.5 天 | T27 | `task/T28-write-guard` |
+| review | W4 | 1.5 天 | T27 | `main` |
 
 ## 目标
 系统里只有一个函数能把东西「写出去」，它没看到有效审批就拒绝并留审计；测试从三个方向保证没人能绕过去。
@@ -55,3 +55,38 @@
 ## 问题
 
 ## 完成记录
+
+提交位置：`main`。状态：`review`，没有标记 `done`。
+
+### 做了什么
+
+- 新增 `ledger/write_service.py` 作为唯一写出入口，支持 `xlsx` 目标；没有有效审批、对象不一致、审批未批准、内容哈希变化或 token 已使用时拒绝。
+- 新增 `export_artifact` 表和 `0009_export_artifact` 迁移，成功导出记录文件路径、SHA-256、审批单和创建时间；文件已存在时不覆盖。
+- 新增 `ledger/targets/base.py`、`ledger/targets/xlsx.py`，并用 AST 守卫确保其他模块不能绕过 `write_service` 导入写出目标。
+- 拒绝动作通过独立会话写 `ledger.export_denied` 审计；成功动作写 `ledger.export`，审批 token 只允许使用一次。
+- 新增 `crosserp export` 和 `crosserp audit tail` CLI；T30 前的智能体只读会话测试保留为严格 xfail。
+- 修正 `0009_export_artifact` 回滚顺序，先删外键再删索引，兼容 MySQL 8.4。
+
+### 改动文件
+
+- `src/crosserp/ledger/`、`src/crosserp/db/schema.py`、`src/crosserp/db/migrations/versions/0009_export_artifact.py`、`src/crosserp/cli.py`
+- `tests/guard/`、`tests/integration/test_migrations.py`
+- `docs/tasks/README.md`、`CHANGELOG.md`
+
+### 实际验收命令与结果
+
+| 命令 | 结果 |
+|---|---|
+| `.venv/bin/python -m pytest tests/guard -q` | `13 passed, 1 xfailed`；xfailed 是 T30 只读会话占位。 |
+| `.venv/bin/python -m pytest --cov=crosserp --cov-fail-under=60` | `214 passed, 2 skipped, 1 xfailed`；覆盖率 `85.66%`。 |
+| `.venv/bin/python -m pytest -m db -q` | SQLite `105 passed, 4 skipped`。 |
+| `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://root:dev@127.0.0.1:13306/crosserp?charset=utf8mb4 .venv/bin/python -m pytest -m db -q` | MySQL 8.4 `106 passed, 3 skipped`。 |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp .venv/bin/python -m pytest -m db -q` | PostgreSQL 18 `105 passed, 4 skipped`。 |
+| `.venv/bin/ruff format --check . && .venv/bin/ruff check .` | `131 files already formatted`，检查通过。 |
+| `.venv/bin/mypy --strict` | `Success: no issues found in 81 source files`。 |
+| `.venv/bin/pre-commit run --all-files` | `ruff-format`、`ruff`、`mypy` 全部 `Passed`。 |
+
+### 偏离计划
+
+- 没有新增依赖、没有修改既有迁移；新增迁移为 `0009_export_artifact`。
+- 按 maken 的单代理要求直接在 `main` 修改和提交，没有创建分支或工作树。
