@@ -43,3 +43,13 @@ def test_agent_cannot_insert_business_row() -> None:
             )
     finally:
         engine.dispose()
+
+
+def test_agent_cannot_read_auth_secrets() -> None:
+    engine = make_engine(_grant_url("CROSSERP_GRANTS_AGENT_URL"))
+    try:
+        for table in ("app_user", "user_session", "api_token"):
+            with engine.connect() as connection, pytest.raises(SQLAlchemyError):
+                connection.execute(text(f"SELECT * FROM {table}"))
+    finally:
+        engine.dispose()

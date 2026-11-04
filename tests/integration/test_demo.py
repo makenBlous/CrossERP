@@ -13,4 +13,5 @@ def test_demo_check_uses_independent_database(tmp_path: Path, monkeypatch) -> No
     result = CliRunner().invoke(app, ["demo", "--check", "--no-browser"])
     assert result.exit_code == 0, result.output
     assert "匹配率 95.00%" in result.output
+    assert "演示账号 demo" in result.output
     assert (tmp_path / ".crosserp" / "demo.db").is_file()

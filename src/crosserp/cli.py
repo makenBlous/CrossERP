@@ -7,6 +7,7 @@ import importlib
 import json
 import os
 import re
+import secrets
 import time
 import unicodedata
 import warnings
@@ -39,6 +40,7 @@ from crosserp.audit.checkpoint import create_checkpoint
 from crosserp.audit.export import export_audit
 from crosserp.audit.log import VerifyResult, append, verify_chain, verify_chain_from_checkpoint
 from crosserp.audit.offline_verify import OfflineVerifyError, verify_export
+from crosserp.auth.roles import Role
 from crosserp.connectors.base import FileConnector
 from crosserp.connectors.generic_mapped.mapping import MappingError, load_mapping, mappings_dir
 from crosserp.connectors.importer import import_file, record_unreadable_file
@@ -62,8 +64,19 @@ from crosserp.db.repo.issues import (
     get_import_batch,
     list_issues,
 )
+from crosserp.db.repo.users import (
+    create_user,
+    get_by_username,
+    grant_role,
+    list_users,
+    revoke_role,
+    set_active,
+    set_password,
+)
 from crosserp.db.schema import (
     Approval,
+    AppSetting,
+    AppUser,
     AuditLog,
     ImportBatch,
     Issue,
@@ -88,11 +101,13 @@ audit_app = typer.Typer(add_completion=False, help="审计哈希链。")
 issues_app = typer.Typer(add_completion=False, help="异常清单。只读。")
 imports_app = typer.Typer(add_completion=False, help="导入批次记录。")
 approval_app = typer.Typer(add_completion=False, help="审批状态机。")
+user_app = typer.Typer(add_completion=False, help="用户与角色管理。")
 app.add_typer(db_app, name="db")
 app.add_typer(audit_app, name="audit")
 app.add_typer(issues_app, name="issues")
 app.add_typer(imports_app, name="imports")
 app.add_typer(approval_app, name="approval")
+app.add_typer(user_app, name="user")
 
 _TYPES = ("auto", "amazon", "shopify", "mapped")
 _TYPE_TO_ID = {
@@ -130,7 +145,12 @@ def main(
 
 
 @app.command()
-def init() -> None:
+def init(
+    admin_username: str | None = typer.Option(None, "--admin-username", help="首个管理员用户名。"),
+    admin_password_stdin: bool = typer.Option(
+        False, "--admin-password-stdin", help="从标准输入读取两行相同的管理员密码。"
+    ),
+) -> None:
     """建库目录、执行迁移并做启动自检。重复执行无副作用。"""
     url_text = get_database_url()
     engine = None
@@ -146,6 +166,36 @@ def init() -> None:
             message = str(item.message)
             if "PostgreSQL" in message:
                 typer.echo(f"警告: {message}")
+        with session_scope(engine) as session:
+            if session.scalar(select(AppUser.id)) is None:
+                credentials = _admin_credentials(admin_username, admin_password_stdin)
+                if credentials is not None:
+                    username, password = credentials
+                    user = create_user(
+                        session,
+                        username=username,
+                        password=password,
+                        roles=tuple(Role),
+                    )
+                    session.add(
+                        AppSetting(
+                            key="solo_mode",
+                            value_json=True,
+                            updated_by=None,
+                            updated_at=datetime.now(UTC),
+                        )
+                    )
+                    append(
+                        session,
+                        "system",
+                        "user.create",
+                        "app_user",
+                        str(user.id),
+                        None,
+                        {"username": user.username, "roles": [role.value for role in Role]},
+                        reason="初始化首个管理员",
+                    )
+                    typer.echo(f"已创建管理员 {username}")
         typer.echo("数据库已就绪")
     except DatabaseConfigError as exc:
         typer.echo(_hide_password(str(exc), url_text), err=True)
@@ -156,6 +206,243 @@ def init() -> None:
     finally:
         if engine is not None:
             engine.dispose()
+
+
+def _admin_credentials(username: str | None, password_stdin: bool) -> tuple[str, str] | None:
+    """获取首个管理员凭据; 无终端时保留旧 init 的无交互幂等行为。"""
+    import sys
+
+    if username is None and not password_stdin and not sys.stdin.isatty():
+        return None
+    if username is None:
+        username = typer.prompt("管理员用户名").strip()
+    if not username:
+        raise ValueError("管理员用户名不能为空")
+    if password_stdin:
+        first = sys.stdin.readline().rstrip("\r\n")
+        second = sys.stdin.readline().rstrip("\r\n")
+    else:
+        first = typer.prompt("管理员密码", hide_input=True)
+        second = typer.prompt("再次输入管理员密码", hide_input=True)
+    if first != second:
+        raise ValueError("两次输入的密码不一致")
+    if len(first) < 10:
+        raise ValueError("密码至少 10 个字符")
+    return username, first
+
+
+def _user_engine() -> tuple[str, Engine]:
+    url = get_database_url()
+    upgrade_head(url)
+    return url, make_engine(url)
+
+
+def _read_password(*, stdin: bool) -> str:
+    import getpass
+    import sys
+
+    value = sys.stdin.readline().rstrip("\r\n") if stdin else getpass.getpass("密码: ")
+    if len(value) < 10:
+        raise ValueError("密码至少 10 个字符")
+    return value
+
+
+def _actor_user(session: Session, username: str | None) -> AppUser | None:
+    if username is None:
+        return None
+    actor = get_by_username(session, username)
+    if actor is None:
+        raise ValueError(f"操作者不存在: {username}")
+    return actor
+
+
+@user_app.command("list")
+def user_list() -> None:
+    """列出用户和角色。"""
+    _url, engine = _user_engine()
+    try:
+        with session_scope(engine) as session:
+            for user, roles in list_users(session):
+                state = "启用" if user.is_active else "停用"
+                typer.echo(f"{user.username}\t{state}\t{','.join(roles)}")
+    finally:
+        engine.dispose()
+
+
+@user_app.command("add")
+def user_add(
+    username: str = typer.Option(..., "--username"),
+    role: list[str] | None = typer.Option(None, "--role"),  # noqa: B008
+    as_username: str | None = typer.Option(None, "--as"),
+    password_stdin: bool = typer.Option(False, "--password-stdin"),
+) -> None:
+    """添加用户并可授予初始角色。"""
+    _url, engine = _user_engine()
+    try:
+        with session_scope(engine) as session:
+            actor = _actor_user(session, as_username)
+            if get_by_username(session, username) is not None:
+                raise ValueError(f"用户已存在: {username}")
+            roles = tuple(Role(item) for item in (role or ()))
+            user = create_user(
+                session,
+                username=username,
+                password=_read_password(stdin=password_stdin),
+                roles=roles,
+                granted_by=None if actor is None else actor.id,
+            )
+            append(
+                session,
+                "user" if actor is not None else "system",
+                "user.create",
+                "app_user",
+                str(user.id),
+                None,
+                {"username": user.username, "roles": [item.value for item in roles]},
+                actor_user_id=None if actor is None else actor.id,
+                actor_name=None if actor is None else actor.username,
+            )
+            typer.echo(f"已创建用户 {user.username}")
+    except (ValueError, LookupError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@user_app.command("grant")
+def user_grant(
+    username: str = typer.Option(..., "--username"),
+    role: str = typer.Option(..., "--role"),
+    as_username: str | None = typer.Option(None, "--as"),
+) -> None:
+    """授予用户角色。"""
+    _change_role(username, role, as_username, grant=True)
+
+
+@user_app.command("revoke")
+def user_revoke(
+    username: str = typer.Option(..., "--username"),
+    role: str = typer.Option(..., "--role"),
+    as_username: str | None = typer.Option(None, "--as"),
+) -> None:
+    """收回用户角色。"""
+    _change_role(username, role, as_username, grant=False)
+
+
+def _change_role(username: str, role: str, as_username: str | None, *, grant: bool) -> None:
+    _url, engine = _user_engine()
+    try:
+        with session_scope(engine) as session:
+            actor = _actor_user(session, as_username)
+            user = get_by_username(session, username)
+            if user is None:
+                raise ValueError(f"用户不存在: {username}")
+            role_value = Role(role)
+            changed = (
+                grant_role(
+                    session, user.id, role_value, granted_by=None if actor is None else actor.id
+                )
+                if grant
+                else revoke_role(session, user.id, role_value)
+            )
+            if not grant and not changed:
+                raise ValueError(f"用户没有角色: {role}")
+            append(
+                session,
+                "user" if actor is not None else "system",
+                "role.grant" if grant else "role.revoke",
+                "app_user",
+                str(user.id),
+                None,
+                {"username": username, "role": role_value.value},
+                actor_user_id=None if actor is None else actor.id,
+                actor_name=None if actor is None else actor.username,
+            )
+            typer.echo("角色已更新")
+    except (ValueError, LookupError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@user_app.command("disable")
+def user_disable(
+    username: str = typer.Option(..., "--username"),
+    as_username: str | None = typer.Option(None, "--as"),
+) -> None:
+    _set_user_active(username, as_username, active=False)
+
+
+@user_app.command("enable")
+def user_enable(
+    username: str = typer.Option(..., "--username"),
+    as_username: str | None = typer.Option(None, "--as"),
+) -> None:
+    _set_user_active(username, as_username, active=True)
+
+
+def _set_user_active(username: str, as_username: str | None, *, active: bool) -> None:
+    _url, engine = _user_engine()
+    try:
+        with session_scope(engine) as session:
+            actor = _actor_user(session, as_username)
+            user = get_by_username(session, username)
+            if user is None:
+                raise ValueError(f"用户不存在: {username}")
+            set_active(session, user.id, active)
+            append(
+                session,
+                "user" if actor is not None else "system",
+                "user.enable" if active else "user.disable",
+                "app_user",
+                str(user.id),
+                {"is_active": not active},
+                {"is_active": active},
+                actor_user_id=None if actor is None else actor.id,
+                actor_name=None if actor is None else actor.username,
+            )
+            typer.echo("用户状态已更新")
+    except (ValueError, LookupError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@user_app.command("passwd")
+def user_passwd(
+    username: str = typer.Option(..., "--username"),
+    as_username: str | None = typer.Option(None, "--as"),
+    password_stdin: bool = typer.Option(False, "--password-stdin"),
+) -> None:
+    """重置密码。"""
+    _url, engine = _user_engine()
+    try:
+        with session_scope(engine) as session:
+            actor = _actor_user(session, as_username)
+            user = get_by_username(session, username)
+            if user is None:
+                raise ValueError(f"用户不存在: {username}")
+            set_password(session, user.id, _read_password(stdin=password_stdin))
+            append(
+                session,
+                "user" if actor is not None else "system",
+                "password.changed",
+                "app_user",
+                str(user.id),
+                None,
+                {"username": username},
+                actor_user_id=None if actor is None else actor.id,
+                actor_name=None if actor is None else actor.username,
+            )
+            typer.echo("密码已更新")
+    except (ValueError, LookupError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
 
 
 @app.command()
@@ -320,6 +607,7 @@ def demo_command(
         _url_text, engine = _open_ready_engine()
         try:
             with session_scope(engine) as session:
+                _ensure_demo_user(session)
                 results = reconcile_all(session, "2026-10")
                 reports = [
                     compute_and_save(session, result.store_id, "2026-10") for result in results
@@ -345,6 +633,33 @@ def demo_command(
             os.environ.pop("CROSSERP_DATABASE_URL", None)
         else:
             os.environ["CROSSERP_DATABASE_URL"] = previous
+
+
+def _ensure_demo_user(session: Session) -> None:
+    """演示库首次运行创建 demo 账号，并只打印一次随机密码。"""  # noqa: RUF002
+    if session.scalar(select(AppUser.id)) is not None:
+        return
+    password = secrets.token_urlsafe(18)
+    user = create_user(session, username="demo", password=password, roles=tuple(Role))
+    session.add(
+        AppSetting(
+            key="solo_mode",
+            value_json=True,
+            updated_by=None,
+            updated_at=datetime.now(UTC),
+        )
+    )
+    append(
+        session,
+        "system",
+        "user.create",
+        "app_user",
+        str(user.id),
+        None,
+        {"username": user.username, "roles": [role.value for role in Role], "demo": True},
+        reason="初始化演示管理员",
+    )
+    typer.echo(f"演示账号 demo，随机密码（仅本次显示）: {password}")  # noqa: RUF001
 
 
 @app.command("reconcile")

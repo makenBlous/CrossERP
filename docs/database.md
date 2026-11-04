@@ -6,6 +6,13 @@
 
 本文件不建业务表。表结构在后续迁移任务里。
 
+## W5 认证表
+
+迁移 `0012_auth` 新增 `app_user`、`user_role`、`user_session`、`api_token` 和 `app_setting`。
+密码列只保存 Argon2id 哈希；用户通过停用保留审计关联，不物理删除。`solo_mode` 设置保存在
+`app_setting`，首次 `crosserp init` 创建管理员时默认设为 `true`。智能体账号不授予
+`app_user`、`user_session`、`api_token` 的读取权限。
+
 ## 环境变量
 
 | 变量 | 用途 |

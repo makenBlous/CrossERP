@@ -5,6 +5,9 @@ CREATE USER IF NOT EXISTS 'crosserp_app'@'%' IDENTIFIED BY '__APP_PASSWORD__';
 CREATE USER IF NOT EXISTS 'crosserp_agent'@'%' IDENTIFIED BY '__AGENT_PASSWORD__';
 
 GRANT ALL PRIVILEGES ON crosserp.* TO 'crosserp_owner'@'%';
+# MySQL 8.4 对从未授过权限的用户执行 REVOKE 会报错。先授一个最小的
+# 数据库级权限，再撤回，保证首次执行和重复执行都可用。
+GRANT SELECT ON crosserp.* TO 'crosserp_app'@'%';
 REVOKE ALL PRIVILEGES ON crosserp.* FROM 'crosserp_app'@'%';
 -- MySQL 没有从 database 级授权中单独撤回某张表的 UPDATE。
 -- 因此应用账号对业务表逐表授权，新增迁移后把新业务表补到这里并重跑脚本。
@@ -27,7 +30,38 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.sku_cost TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.store TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT ON crosserp.audit_log TO 'crosserp_app'@'%';
 GRANT SELECT, UPDATE ON crosserp.audit_head TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT ON crosserp.audit_checkpoint TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT ON crosserp.audit_export TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON crosserp.app_user TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON crosserp.user_role TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON crosserp.user_session TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON crosserp.api_token TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON crosserp.app_setting TO 'crosserp_app'@'%';
+# MySQL 没有“除三张表外全部 SELECT”的简写，逐表授权避免读到密码哈希、会话和 token。
 GRANT SELECT ON crosserp.* TO 'crosserp_agent'@'%';
+REVOKE ALL PRIVILEGES ON crosserp.* FROM 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.approval TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.app_setting TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.audit_checkpoint TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.audit_export TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.audit_head TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.audit_log TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.export_artifact TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.fee TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.fee_reference TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.fx_rate TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.import_batch TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.issue TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.match TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.order_line TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.profit_snapshot TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.raw_row TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.recon_run TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.settlement TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.settlement_line TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.sku TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.sku_cost TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.store TO 'crosserp_agent'@'%';
 
 -- security_event / audit_checkpoint / audit_export 在 W5/T31 创建。
 -- 建表后重跑本文件，并按同样原则给 app SELECT/INSERT、agent SELECT。

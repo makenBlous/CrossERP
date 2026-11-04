@@ -28,7 +28,12 @@ REVOKE UPDATE, DELETE ON TABLE public.audit_log FROM crosserp_app;
 GRANT SELECT, INSERT ON TABLE public.audit_log TO crosserp_app;
 REVOKE UPDATE, DELETE ON TABLE public.audit_head FROM crosserp_app;
 GRANT SELECT, UPDATE ON TABLE public.audit_head TO crosserp_app;
+REVOKE UPDATE, DELETE ON TABLE public.audit_checkpoint, public.audit_export FROM crosserp_app;
+GRANT SELECT, INSERT ON TABLE public.audit_checkpoint, public.audit_export TO crosserp_app;
+REVOKE DELETE ON TABLE public.app_user, public.user_role, public.user_session, public.api_token, public.app_setting FROM crosserp_app;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.app_user, public.user_role, public.user_session, public.api_token, public.app_setting TO crosserp_app;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO crosserp_agent;
+REVOKE SELECT ON TABLE public.app_user, public.user_session, public.api_token FROM crosserp_agent;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE crosserp_owner IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO crosserp_app;

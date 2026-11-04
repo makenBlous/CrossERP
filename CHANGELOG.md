@@ -6,6 +6,8 @@
 
 ### 新增
 
+- W5 T32 用户、角色、会话、API token、系统设置表；Argon2id 密码哈希；`crosserp init` 首次创建管理员；`crosserp user` 用户管理命令。
+- MySQL/PG 授权脚本支持全新账号首次执行，并覆盖审计导出和 W5 认证表权限。
 - 对账异常分类草案 `docs/rules/recon-categories.md`，以及原因码人话模板草稿。5 个原因码已由 maken 于 2026-11-02 确认。
 - v0.1 业务表、初始迁移和 `crosserp init`。已确认的 5 个原因码写入 `IssueKind`。
 - GitHub Actions：三系统测试，以及 SQLite / MySQL 8.4 / PostgreSQL 18 检查。

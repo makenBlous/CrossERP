@@ -475,4 +475,73 @@ class AuditExport(Base):
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
+class AppUser(Base):
+    """登录用户。用户只停用, 不物理删除。"""
+
+    __tablename__ = "app_user"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    username: Mapped[str] = mapped_column(String(64), unique=True)
+    display_name: Mapped[str] = mapped_column(String(128))
+    password_hash: Mapped[str] = mapped_column(String(255))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    locked_until: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    password_changed_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class UserRole(Base):
+    """用户角色, 多角色可叠加。"""
+
+    __tablename__ = "user_role"
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(16), primary_key=True)
+    granted_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    granted_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class UserSession(Base):
+    """服务器端登录会话; id 存 token 的 sha256, 不存明文 cookie。"""
+
+    __tablename__ = "user_session"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    last_seen_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(512))
+    csrf_token_hash: Mapped[str] = mapped_column(String(64))
+    revoked_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+
+
+class ApiToken(Base):
+    """API token 只保存哈希, 实际 token 由 T47 使用。"""
+
+    __tablename__ = "api_token"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"))
+    name: Mapped[str] = mapped_column(String(64))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    scopes: Mapped[Any] = mapped_column(JSON())
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    last_used_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    revoked_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+
+
+class AppSetting(Base):
+    """可审计的系统设置。"""
+
+    __tablename__ = "app_setting"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value_json: Mapped[Any] = mapped_column(JSON())
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
 V01_TABLES: frozenset[str] = frozenset(Base.metadata.tables)

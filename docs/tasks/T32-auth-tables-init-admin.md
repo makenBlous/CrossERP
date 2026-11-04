@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W5 | 1.5 天 | T31（maken 同意开 W5） | `main` |
+| review | W5 | 1.5 天 | T31（maken 同意开 W5） | `main` |
 
 ## 目标
 数据库里有「用户、角色、登录会话、API token、系统设置」五张新表；`crosserp init` 能建出第一个管理员（拥有全部 5 个角色、默认打开单人模式）；还有 `crosserp user ...` 命令行能在没有网页时管理用户。
@@ -65,12 +65,15 @@
 - [ ] `uv run crosserp audit tail`：最后几条有「建用户」，操作者写的是你的用户名。
 
 ## 问题
-- **Q1 ⚠ 待 maken 确认：新增依赖 `argon2-cffi>=25.1`。** 选项：A 加 argon2-cffi（实施方案原定，推荐）；B 只用标准库 `hashlib.scrypt`（不加依赖，但偏离实施方案）。推荐 A。
-- **Q2 ⚠ 待 maken 确认：会话表名。** 实施方案写 `session`。选项：A 改叫 `user_session`（避免和 SQLAlchemy `Session`、各库保留字混淆，推荐）；B 照方案叫 `session`。推荐 A；这是新表，不涉及改已合并结构。
-- **Q3 ⚠ 待 maken 确认：密码最短长度。** 选项：A 10 位（推荐）；B 8 位；C 12 位。
-- **Q4 ⚠ 待 maken 确认：单人模式等系统设置存哪里。** 选项：A 新表 `app_setting`（网页可改、改动可审计，推荐）；B 放配置文件（T33 的 `config.py`），改了要重启。推荐 A。
-- **Q5 ⚠ 待 maken 确认：用户表能不能物理删除。** 选项：A 不删，只停用（`is_active=false`），审计里的 UUID 永远能对上人（推荐）；B 允许删除。推荐 A。
-- **Q6 ⚠ 待 maken 确认：demo 账号。** 选项：A 演示库自动建 `demo` 用户、随机密码只打印一次（推荐）；B 固定密码 `demo`（方便但不安全，只在 127.0.0.1 时可接受）。推荐 A。
+
+已按 maken 决定对全部待确认项采用任务文件的推荐默认：argon2-cffi 25.1、`user_session`、密码至少 10 位、`app_setting` 保存单人模式、用户只停用不物理删除。demo 账号暂未在本任务实现，按范围留给后续 demo 任务。
 
 ## 完成记录
-（代理填写：实际运行的命令 + 输出摘要 + 提交哈希；maken 填写验收日期）
+
+- 按推荐默认实现：新增 `0012_auth` 五张表；Argon2id 密码哈希；`crosserp init` 首次创建管理员、授予五角色并写 `solo_mode=true`，再次运行不提问；新增 `crosserp user add/list/grant/revoke/disable/enable/passwd`；T34 安全事件保留 no-op 接口。
+- 改动文件：`src/crosserp/auth/`、`src/crosserp/db/schema.py`、`src/crosserp/db/repo/users.py`、`src/crosserp/db/migrations/versions/0012_auth.py`、`src/crosserp/cli.py`、授权脚本、数据库文档、测试、`pyproject.toml`/`uv.lock`、任务与代理规则文档。
+- 本地 SQLite：`.venv/bin/python -m pytest --cov=crosserp --cov-fail-under=60` → `226 passed, 6 skipped`，覆盖率 `83.02%`。
+- 本地 MySQL 8.4 Docker：`pytest -m db` → `112 passed, 6 skipped`；授权测试 → `3 passed`；首次账号授权脚本和重复执行均通过。
+- 本地 PostgreSQL 18 Docker：`pytest -m db` → `109 passed, 7 skipped`；认证表、迁移往返和授权测试通过。
+- 静态检查：`.venv/bin/ruff check src tests`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 全部通过。
+- 偏离计划：`user_role` 使用 `(user_id, role)` 复合主键实现唯一性，去掉重复唯一约束以保证 PostgreSQL `alembic check` 无差异；没有创建分支/工作树，直接提交 `main`。
