@@ -19,11 +19,9 @@ def test_health_ok() -> None:
 
 
 def test_index_shows_running() -> None:
-    response = TestClient(create_app()).get("/")
-    assert response.status_code == 200
-    assert "CrossERP 运行中" in response.text
-    assert __version__ in response.text
-    assert "/static/htmx.min.js" in response.text
+    response = TestClient(create_app()).get("/", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"].startswith("/login")
 
 
 def test_htmx_static_served() -> None:

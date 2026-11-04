@@ -448,9 +448,13 @@ def user_passwd(
 @app.command()
 def serve(
     port: int = typer.Option(8000, "--port", help="监听端口。"),
+    host: str = typer.Option("127.0.0.1", "--host", help="监听地址。"),
+    i_understand_https: bool = typer.Option(False, "--i-understand-https"),
 ) -> None:
-    """启动只监听本机的网页服务。"""
-    host = "127.0.0.1"
+    """启动网页服务。对外监听必须确认 HTTPS 反向代理。"""
+    if host not in {"127.0.0.1", "localhost", "::1"} and not i_understand_https:
+        typer.echo("警告：必须放在 HTTPS 反向代理后面，并设置 CROSSERP_COOKIE_SECURE=1。", err=True)  # noqa: RUF001
+        raise typer.Exit(code=1)
     typer.echo(f"CrossERP 服务启动 http://{host}:{port}")
     uvicorn.run(create_app(), host=host, port=port)
 

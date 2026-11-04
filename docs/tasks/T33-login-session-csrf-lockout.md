@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W5 | 1.5 天 | T32 | `main` |
+| review | W5 | 1.5 天 | T32 | `main` |
 
 ## 目标
 打开网页先要登录；登录后 cookie 安全（HttpOnly、SameSite=Lax），所有会改数据的请求都要带 CSRF 令牌；连续输错 5 次密码锁 15 分钟；`serve` 可以改监听地址，但改成非本机地址时会大声提醒必须放在 HTTPS 反向代理后面。
@@ -55,10 +55,12 @@
 - [ ] `uv run crosserp serve --host 0.0.0.0`：终端出现「必须放在 HTTPS 反向代理后面」的提醒。
 
 ## 问题
-- **Q1 ⚠ 待 maken 确认：`tests/web/test_readonly_pages.py` 里「所有路由只能 GET」的断言。** 红线是不删、不弱化测试。选项：A 保留原测试函数，把断言范围改成「T23 的 4 个报表页仍只允许 GET/HEAD」，并**新增**更严格的测试「所有非 GET 路由都要求登录 + CSRF」（推荐；守护目的从“没有写接口”升级为“写接口都受保护”）；B 原测试一字不改、标 `xfail(strict=True)` 并写原因（会一直显示 xfail，不推荐）。推荐 A，改动需在完成记录里逐行说明。
-- **Q2 ⚠ 待 maken 确认：改监听地址的门槛。** 选项：A 非本机地址必须再加 `--i-understand-https`（推荐）；B 只打印警告照常启动（实施方案原话是「启动提示」）。推荐 A。
-- **Q3 ⚠ 待 maken 确认：会话有效期。** 选项：A 12 小时绝对过期 + 2 小时无操作过期（推荐）；B 7 天；C 24 小时。
-- **Q4 ⚠ 待 maken 确认：新增依赖 `python-multipart`（FastAPI 表单必需）。** 选项：A 加（推荐）；B 所有表单改用 HTMX 发 JSON（不加依赖，但浏览器原生表单/无 JS 时不可用）。推荐 A。
+已按 maken 决定对全部待确认项采用任务文件推荐：报表页保留 GET/HEAD 守卫并增加登录/CSRF 保护测试；非本机监听必须 `--i-understand-https`；会话 12 小时；加入 `python-multipart`。
 
 ## 完成记录
-（代理填写）
+- 实现登录/登出、Argon2 密码验证、服务器端 `user_session`、HttpOnly/SameSite cookie、CSRF 双提交令牌、失败 5 次锁定 15 分钟；页面端点未登录返回 302，HX/JSON 返回 401，`/health` 和静态资源匿名。
+- 新增 `config.py`，支持环境变量 > `~/.crosserp/config.toml` > 默认值；补充审计保留配置和 `.env.example`。
+- `serve --host` 对外监听需要 `--i-understand-https` 并输出 HTTPS 警告；`python-multipart` 已锁定。
+- 测试：`.venv/bin/python -m pytest tests/unit/test_config.py tests/web -q` → 8 passed；`.venv/bin/ruff check src tests`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 全部通过；`serve --host 0.0.0.0` 退出码 1 且输出 HTTPS 警告。
+- 按推荐调整 `test_readonly_pages.py`：四个 T23 报表页继续只允许 GET/HEAD，同时新增登录/CSRF 测试；未删除测试。
+- 全量 SQLite：`.venv/bin/python -m pytest --cov=crosserp --cov-fail-under=60` → `229 passed, 6 skipped`，覆盖率 `83.03%`。

@@ -47,7 +47,7 @@
 | T30 | [数据库账号权限 + 智能体只读会话](T30-db-grants-readonly-session.md) | W4 | 1 天 | T16, T29 | review |
 | T31 | [审计导出 / 离线校验 / 保留 + W4 验收](T31-audit-export-retention.md) | W4 | 1.5 天 | T29, T30 | review |
 | T32 | [用户 / 角色 / 会话表 + argon2 + `init` 建第一个管理员（⚠ 待 maken 确认）](T32-auth-tables-init-admin.md) | W5 | 1.5 天 | T31（maken 同意开 W5） | review |
-| T33 | [网页登录 / 登出 / 会话 / CSRF / 登录锁定 + `config.py`（⚠ 待 maken 确认）](T33-login-session-csrf-lockout.md) | W5 | 1.5 天 | T32 | todo |
+| T33 | [网页登录 / 登出 / 会话 / CSRF / 登录锁定 + `config.py`（⚠ 待 maken 确认）](T33-login-session-csrf-lockout.md) | W5 | 1.5 天 | T32 | review |
 | T34 | [登录/权限审计 security_event：独立哈希链 + 登录日志页 + 导出（⚠ 待 maken 确认）](T34-security-event-chain.md) | W5 | 1 天 | T33 | todo |
 | T35 | [权限 `require(permission)` + 权限矩阵参数化测试 + 职责分离 / 单人模式（⚠ 待 maken 确认）](T35-permissions-matrix.md) | W5 | 1.5 天 | T34 | todo |
 | T36 | [用户管理页（admin）](T36-user-admin-page.md) | W5 | 1 天 | T35 | todo |

@@ -18,3 +18,5 @@ crosserp audit checkpoint --reason "月度离线归档前留锚点"
 ```
 
 以后如果要清理登录日志或模型原文，必须先写检查点；本版本不提供任何删除命令。会计档案的法定保管期限尚未核实，请先向会计确认后再配置。
+
+T33 配置读取 `CROSSERP_AUDIT_RETENTION_BUSINESS` 和 `CROSSERP_AUDIT_RETENTION_SECURITY_DAYS`；业务审计默认 `never`，安全事件默认 180 天。配置只影响后续 T34/T45 的清理策略，不会自动删除现有记录。
