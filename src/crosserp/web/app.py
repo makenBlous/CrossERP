@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp import __version__
+from crosserp.db.migrate import ensure_database_directory, upgrade_head
 from crosserp.db.schema import ImportBatch, Issue, ProfitSnapshot, Store
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
@@ -26,7 +27,10 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app = FastAPI()
     templates = Jinja2Templates(directory=_WEB_DIR / "templates")
     app.mount("/static", StaticFiles(directory=_WEB_DIR / "static"), name="static")
-    engine = make_engine(database_url or get_database_url())
+    resolved_database_url = database_url or get_database_url()
+    ensure_database_directory(resolved_database_url)
+    upgrade_head(resolved_database_url)
+    engine = make_engine(resolved_database_url)
 
     @contextmanager
     def sessions() -> Iterator[Session]:

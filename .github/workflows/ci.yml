@@ -282,13 +282,29 @@ jobs:
           if [ "$DB" = mysql ]; then
             sed -e 's/__OWNER_PASSWORD__/dev/g' -e 's/__APP_PASSWORD__/dev/g' -e 's/__AGENT_PASSWORD__/dev/g' \
               scripts/sql/grant_mysql.sql > .ci/grant.sql
-            mysql -h 127.0.0.1 -u root -pdev crosserp < .ci/grant.sql
+            set +e
+            grant_output=$(mysql -h 127.0.0.1 -u root -pdev crosserp < .ci/grant.sql 2>&1)
+            grant_status=$?
+            set -e
+            if [ "$grant_status" -ne 0 ]; then
+              safe_output=$(printf '%s' "$grant_output" | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
+              echo "::error title=MySQL grants::$safe_output"
+              exit "$grant_status"
+            fi
             echo 'CROSSERP_GRANTS_APP_URL=mysql+pymysql://crosserp_app:dev@127.0.0.1:3306/crosserp?charset=utf8mb4' >> "$GITHUB_ENV"
             echo 'CROSSERP_GRANTS_AGENT_URL=mysql+pymysql://crosserp_agent:dev@127.0.0.1:3306/crosserp?charset=utf8mb4' >> "$GITHUB_ENV"
           else
             sed -e 's/__OWNER_PASSWORD__/dev/g' -e 's/__APP_PASSWORD__/dev/g' -e 's/__AGENT_PASSWORD__/dev/g' \
               scripts/sql/grant_pg.sql > .ci/grant.sql
-            PGPASSWORD=dev psql -h 127.0.0.1 -U postgres -d crosserp -f .ci/grant.sql
+            set +e
+            grant_output=$(PGPASSWORD=dev psql -h 127.0.0.1 -U postgres -d crosserp -v ON_ERROR_STOP=1 -f .ci/grant.sql 2>&1)
+            grant_status=$?
+            set -e
+            if [ "$grant_status" -ne 0 ]; then
+              safe_output=$(printf '%s' "$grant_output" | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
+              echo "::error title=PostgreSQL grants::$safe_output"
+              exit "$grant_status"
+            fi
             echo 'CROSSERP_GRANTS_APP_URL=postgresql+psycopg://crosserp_app:dev@127.0.0.1:5432/crosserp' >> "$GITHUB_ENV"
             echo 'CROSSERP_GRANTS_AGENT_URL=postgresql+psycopg://crosserp_agent:dev@127.0.0.1:5432/crosserp' >> "$GITHUB_ENV"
           fi
