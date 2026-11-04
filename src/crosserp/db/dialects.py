@@ -136,6 +136,17 @@ def lock_for_update[SelectT](session: Session, statement: Select[SelectT]) -> Se
     raise DatabaseConfigError(f"不支持的数据库类型: {dialect_name}")
 
 
+def set_readonly_transaction(session: Session) -> None:
+    """给智能体会话设置数据库级只读事务。"""
+    dialect_name = session.get_bind().dialect.name
+    if dialect_name == "mysql":
+        session.execute(text("SET SESSION TRANSACTION READ ONLY"))
+    elif dialect_name == "postgresql":
+        session.execute(text("SET default_transaction_read_only = on"))
+    elif dialect_name != "sqlite":
+        raise DatabaseConfigError(f"不支持的数据库类型: {dialect_name}")
+
+
 def upsert(
     session: Session,
     table: object,

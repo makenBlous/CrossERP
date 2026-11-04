@@ -13,6 +13,7 @@ from sqlalchemy.engine import URL, Engine, make_url
 from sqlalchemy.orm import Session
 
 from crosserp.core.errors import DatabaseConfigError
+from crosserp.db.dialects import set_readonly_transaction
 
 _MYSQL_CHARSET = "utf8mb4"
 
@@ -51,6 +52,18 @@ def get_database_url() -> str:
     return sqlite_file_url(path)
 
 
+def get_migrate_database_url() -> str:
+    """迁移账号连接串；未配置时沿用应用连接串。"""  # noqa: RUF002
+    _load_env_file()
+    return os.environ.get("CROSSERP_MIGRATE_DATABASE_URL", "").strip() or get_database_url()
+
+
+def get_agent_database_url() -> str:
+    """智能体只读账号连接串；本地未单独配置时沿用应用连接串。"""  # noqa: RUF002
+    _load_env_file()
+    return os.environ.get("CROSSERP_AGENT_DATABASE_URL", "").strip() or get_database_url()
+
+
 def _query_param(url: URL, key: str) -> str | None:
     value = url.query.get(key)
     if isinstance(value, str):
@@ -83,6 +96,36 @@ def make_engine(url: str) -> Engine:
     if backend == "sqlite":
         event.listen(engine, "connect", _enable_sqlite_foreign_keys)
     return engine
+
+
+def make_readonly_engine(url: str) -> Engine:
+    """创建只读引擎。SQLite 使用 mode=ro URI，三库均设置只读事务。"""  # noqa: RUF002
+    sa_url = make_url(url)
+    if sa_url.get_backend_name() == "sqlite":
+        if not sa_url.database or sa_url.database == ":memory:":
+            raise DatabaseConfigError("SQLite 只读会话必须连接已有文件，不能使用内存库")  # noqa: RUF001
+        readonly = URL.create(
+            drivername="sqlite",
+            database=f"file:{Path(sa_url.database).expanduser().resolve()}?mode=ro",
+        )
+        return create_engine(readonly, connect_args={"uri": True})
+    engine = make_engine(url)
+    return engine
+
+
+@contextmanager
+def readonly_session() -> Iterator[Session]:
+    """打开智能体专用只读会话。"""
+    url = get_agent_database_url()
+    engine = make_readonly_engine(url)
+    session = Session(engine)
+    try:
+        if engine.dialect.name != "sqlite":
+            set_readonly_transaction(session)
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
 
 
 @contextmanager

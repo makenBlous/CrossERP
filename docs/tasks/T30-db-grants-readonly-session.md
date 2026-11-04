@@ -1,8 +1,8 @@
 # T30 数据库账号权限（MySQL/PG）+ 智能体只读会话
 
-| 状态 | 周 | 估时 | 依赖 | 分支 |
+| 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W4 | 1 天 | T16, T29 | `task/T30-db-grants` |
+| review | W4 | 1 天 | T16, T29 | `main` |
 
 ## 目标
 就算代码有 bug，数据库本身也不让应用改审计记录、不让智能体写任何表。
@@ -45,3 +45,33 @@
 ## 问题
 
 ## 完成记录
+
+提交位置：`main`。状态：`review`，没有标记 `done`。
+
+### 做了什么
+
+- 新增 `scripts/sql/grant_mysql.sql` 和 `grant_pg.sql`：owner 负责迁移，app 负责业务，agent 只读；app 对 `audit_log` 只能 SELECT/INSERT，对 `audit_head` 只能 SELECT/UPDATE。
+- 新增 `docs/db-grants.md`，说明临时替换密码、配置 `CROSSERP_DATABASE_URL` / `CROSSERP_MIGRATE_DATABASE_URL` / `CROSSERP_AGENT_DATABASE_URL` 和 MySQL 新表重跑授权脚本的要求。
+- 新增 `readonly_session()`：SQLite 使用 `mode=ro`，MySQL 使用 `SET SESSION TRANSACTION READ ONLY`，PostgreSQL 使用 `default_transaction_read_only = on`。
+- CI db-matrix 的 MySQL/PG 格会先执行授权模板，再运行账号权限测试。
+- T30 守卫移除 xfail，三库真实只读写入测试通过。
+
+### 实际验收命令与结果
+
+| 命令 | 结果 |
+|---|---|
+| `.venv/bin/python -m pytest --cov=crosserp --cov-fail-under=60` | `219 passed, 5 skipped`；覆盖率 `85.61%`。账号权限/agent 外部连接未设置时按预期跳过。 |
+| `.venv/bin/python -m pytest tests/guard -q` | `14 passed`，无 xfail。 |
+| `CROSSERP_GRANTS_APP_URL=mysql+pymysql://... .venv/bin/python -m pytest tests/integration/test_grants.py tests/guard/test_agent_session_readonly.py -q` | MySQL 8.4 `3 passed`。 |
+| `CROSSERP_GRANTS_APP_URL=postgresql+psycopg://... .venv/bin/python -m pytest tests/integration/test_grants.py tests/guard/test_agent_session_readonly.py -q` | PostgreSQL 18 `3 passed`。 |
+| `CROSSERP_AGENT_DATABASE_URL=mysql+pymysql://... .venv/bin/python -m pytest tests/integration/test_readonly_session.py -q` | MySQL agent `1 passed`。 |
+| `CROSSERP_AGENT_DATABASE_URL=postgresql+psycopg://... .venv/bin/python -m pytest tests/integration/test_readonly_session.py -q` | PostgreSQL agent `1 passed`。 |
+| `.venv/bin/ruff format --check . && .venv/bin/ruff check .` | 通过。 |
+| `.venv/bin/mypy --strict` | 通过。 |
+| `.venv/bin/pre-commit run --all-files` | 全部 `Passed`。 |
+
+### 偏离计划
+
+- 未保存任何真实密码；本地验证只使用 Docker 临时账号 `dev`，仓库仅提交占位符。
+- MySQL 权限脚本按表逐项授权，因为 MySQL 无法从 database 级授权单独撤回某张表的 UPDATE/DELETE；新增业务表后需重跑脚本并补授权。
+- 没有创建分支或工作树，直接在 `main` 开发和提交。

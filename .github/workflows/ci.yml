@@ -253,5 +253,26 @@ jobs:
         run: |
           uv run python -c 'import os; from crosserp.db.migrate import downgrade_base, upgrade_head; url=os.environ["CROSSERP_TEST_DATABASE_URL"]; upgrade_head(url); downgrade_base(url); upgrade_head(url); print("迁移往返完成 upgrade head -> downgrade base -> upgrade head")'
 
+      - name: 配置并检查数据库账号权限
+        if: matrix.db != 'sqlite'
+        env:
+          DB: ${{ matrix.db }}
+        run: |
+          set -euo pipefail
+          if [ "$DB" = mysql ]; then
+            sed -e 's/__OWNER_PASSWORD__/dev/g' -e 's/__APP_PASSWORD__/dev/g' -e 's/__AGENT_PASSWORD__/dev/g' \
+              scripts/sql/grant_mysql.sql > .ci/grant.sql
+            mysql -h 127.0.0.1 -u root -pdev crosserp < .ci/grant.sql
+            echo 'CROSSERP_GRANTS_APP_URL=mysql+pymysql://crosserp_app:dev@127.0.0.1:3306/crosserp?charset=utf8mb4' >> "$GITHUB_ENV"
+            echo 'CROSSERP_GRANTS_AGENT_URL=mysql+pymysql://crosserp_agent:dev@127.0.0.1:3306/crosserp?charset=utf8mb4' >> "$GITHUB_ENV"
+          else
+            sed -e 's/__OWNER_PASSWORD__/dev/g' -e 's/__APP_PASSWORD__/dev/g' -e 's/__AGENT_PASSWORD__/dev/g' \
+              scripts/sql/grant_pg.sql > .ci/grant.sql
+            PGPASSWORD=dev psql -h 127.0.0.1 -U postgres -d crosserp -f .ci/grant.sql
+            echo 'CROSSERP_GRANTS_APP_URL=postgresql+psycopg://crosserp_app:dev@127.0.0.1:5432/crosserp' >> "$GITHUB_ENV"
+            echo 'CROSSERP_GRANTS_AGENT_URL=postgresql+psycopg://crosserp_agent:dev@127.0.0.1:5432/crosserp' >> "$GITHUB_ENV"
+          fi
+          uv run pytest tests/integration/test_grants.py -q
+
       - name: pytest -m db
         run: uv run pytest -m db
