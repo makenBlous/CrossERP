@@ -13,6 +13,7 @@ from uuid import UUID
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from crosserp.audit.log import append
 from crosserp.core.enums import IssueKind
 from crosserp.core.errors import ReconInvariantError
 from crosserp.db.repo.recon import create_recon_run, finish_recon_run, insert_match
@@ -616,6 +617,22 @@ def reconcile(
         groups_total=total,
         groups_matched=groups_matched,
         non_order_lines=non_order_lines,
+    )
+    append(
+        session,
+        "system",
+        "recon.run",
+        "recon_run",
+        str(run.id),
+        None,
+        {
+            "period": period,
+            "groups_total": total,
+            "groups_matched": groups_matched,
+            "non_order_lines": non_order_lines,
+            "unmatched_by_kind": dict(unmatched),
+        },
+        self_approved=False,
     )
     rate = None if total == 0 else Decimal(groups_matched) / Decimal(total)
     return ReconResult(

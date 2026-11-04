@@ -59,12 +59,34 @@ def test_payload_covers_every_column_except_hash() -> None:
         seq=1,
         ts=datetime(2026, 11, 2, tzinfo=UTC),
         actor_type="system",
+        actor_name="system",
         action="import",
         target_type="sku",
         target_id="1",
         self_approved=False,
         prev_hash=GENESIS_PREV_HASH,
         hash=GENESIS_PREV_HASH,
+        hash_version=2,
     )
     columns = {column.key for column in AuditLog.__table__.columns}
     assert set(payload_from_log(row)) == columns - {"hash"}
+
+
+def test_old_hash_payload_omits_new_context_fields() -> None:
+    row = AuditLog(
+        id=uuid4(),
+        seq=1,
+        ts=datetime(2026, 11, 2, tzinfo=UTC),
+        actor_type="system",
+        actor_name=None,
+        action="import",
+        target_type="batch",
+        target_id="1",
+        self_approved=False,
+        prev_hash=GENESIS_PREV_HASH,
+        hash=GENESIS_PREV_HASH,
+        hash_version=1,
+    )
+    payload = payload_from_log(row)
+    assert "actor_name" not in payload
+    assert "hash_version" not in payload

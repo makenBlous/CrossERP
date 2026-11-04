@@ -11,6 +11,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from crosserp.audit.log import append
 from crosserp.core.enums import IssueKind
 from crosserp.db.repo.fx import get_fx_rate
 from crosserp.db.repo.profit import get_snapshot, insert_snapshot
@@ -362,6 +363,24 @@ def compute_and_save(session: Session, store_id: UUID, period: str) -> PeriodRep
             Decimal(0),
         )
     )
-    return PeriodReport(
+    report = PeriodReport(
         store_id, period, sku_results, unallocated, store_profit, store_profit_cny, False
     )
+    append(
+        session,
+        "system",
+        "profit.snapshot",
+        "profit_report",
+        f"{store_id}:{period}",
+        None,
+        {
+            "period": period,
+            "store_id": str(store_id),
+            "sku_count": len(sku_results),
+            "inputs_hash": report_hash,
+            "store_profit": store_profit,
+            "store_profit_cny": store_profit_cny,
+        },
+        self_approved=False,
+    )
+    return report

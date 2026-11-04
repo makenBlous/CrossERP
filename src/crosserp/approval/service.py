@@ -36,6 +36,7 @@ def create(
     payload_hash: str | None = None,
     requested_at: datetime | None = None,
     actor_role: str | None = None,
+    actor_name: str | None = None,
 ) -> Approval:
     """创建草稿审批单。调用方负责提交事务。"""
     _require_text("target_type", target_type, _TARGET_TYPE_MAX)
@@ -68,6 +69,7 @@ def create(
         None,
         _audit_after(row),
         actor_role=actor_role,
+        actor_name=actor_name or requested_by,
         approval_id=row.id,
     )
     return row
@@ -79,6 +81,7 @@ def submit(
     *,
     actor: str | None = None,
     actor_role: str | None = None,
+    actor_name: str | None = None,
 ) -> Approval:
     """草稿提交，进入待审批。"""  # noqa: RUF002
     row = _load(session, approval)
@@ -99,6 +102,7 @@ def submit(
         old,
         actor or row.requested_by,
         actor_role=actor_role,
+        actor_name=actor_name or actor or row.requested_by,
     )
     return row
 
@@ -111,6 +115,7 @@ def approve(
     payload_hash: str | None = None,
     decided_at: datetime | None = None,
     actor_role: str | None = None,
+    actor_name: str | None = None,
 ) -> str:
     """批准审批单并返回一次性明文 token。"""
     row = _load(session, approval)
@@ -142,6 +147,7 @@ def approve(
         old,
         approver,
         actor_role=actor_role,
+        actor_name=actor_name or approver,
         reason=None,
         self_approved=row.requested_by == approver,
     )
@@ -156,6 +162,7 @@ def reject(
     comment: str,
     decided_at: datetime | None = None,
     actor_role: str | None = None,
+    actor_name: str | None = None,
 ) -> Approval:
     """驳回审批单。驳回原因必填。"""
     row = _load(session, approval)
@@ -185,6 +192,7 @@ def reject(
         old,
         approver,
         actor_role=actor_role,
+        actor_name=actor_name or approver,
         reason=comment,
         self_approved=row.requested_by == approver,
     )
@@ -197,6 +205,7 @@ def reopen(
     *,
     actor: str,
     actor_role: str | None = None,
+    actor_name: str | None = None,
 ) -> Approval:
     """将驳回的审批单重新打开为草稿。"""
     row = _load(session, approval)
@@ -215,7 +224,15 @@ def reopen(
             "used_at": None,
         },
     )
-    _record_transition(session, row, "approval.reopen", old, actor, actor_role=actor_role)
+    _record_transition(
+        session,
+        row,
+        "approval.reopen",
+        old,
+        actor,
+        actor_role=actor_role,
+        actor_name=actor_name or actor,
+    )
     return row
 
 
@@ -226,6 +243,7 @@ def invalidate(
     current_payload_hash: str,
     actor: str = "system",
     actor_role: str | None = None,
+    actor_name: str | None = None,
 ) -> Approval:
     """因报表内容变化让批准失效，回到待审批并清除旧 token。"""  # noqa: RUF002
     row = _load(session, approval)
@@ -252,6 +270,7 @@ def invalidate(
         old,
         actor,
         actor_role=actor_role,
+        actor_name=actor_name or actor,
         reason="审批内容哈希发生变化",
     )
     return row
@@ -264,6 +283,7 @@ def check_fresh(
     *,
     actor: str = "system",
     actor_role: str | None = None,
+    actor_name: str | None = None,
 ) -> bool:
     """检查批准时锁定的哈希；内容变化会自动失效并返回 False。"""  # noqa: RUF002
     row = _load(session, approval)
@@ -278,6 +298,7 @@ def check_fresh(
         current_payload_hash=current_payload_hash,
         actor=actor,
         actor_role=actor_role,
+        actor_name=actor_name or actor,
     )
     return False
 
@@ -298,7 +319,15 @@ def mark_exported(
         row,
         {"state": ApprovalState.EXPORTED.value, "used_at": _utc(None)},
     )
-    _record_transition(session, row, "approval.export", old, actor, actor_role=actor_role)
+    _record_transition(
+        session,
+        row,
+        "approval.export",
+        old,
+        actor,
+        actor_role=actor_role,
+        actor_name=actor,
+    )
     return row
 
 
@@ -349,6 +378,7 @@ def _record_transition(
     actor_role: str | None,
     reason: str | None = None,
     self_approved: bool = False,
+    actor_name: str | None = None,
 ) -> None:
     _require_text("actor", actor, _ACTOR_MAX)
     append(
@@ -363,6 +393,7 @@ def _record_transition(
         reason=reason,
         approval_id=row.id,
         self_approved=self_approved,
+        actor_name=actor_name or actor,
     )
 
 

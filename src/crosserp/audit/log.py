@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import getpass
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -18,6 +19,7 @@ _ACTOR_TYPES = frozenset({"user", "agent", "system"})
 _OPTIONAL = frozenset(
     {
         "actor_user_id",
+        "actor_name",
         "actor_role",
         "approval_id",
         "approver_id",
@@ -31,6 +33,7 @@ _OPTIONAL = frozenset(
 )
 _LIMITS = {
     "actor_type": 32,
+    "actor_name": 64,
     "actor_role": 32,
     "action": 64,
     "target_type": 64,
@@ -71,6 +74,10 @@ def append(
     _require_text("target_type", target_type, required=True)
     _require_text("target_id", target_id, required=True)
     _require_text("actor_role", _optional_text("actor_role", optional))
+    actor_name = _optional_text("actor_name", optional)
+    if actor_name is None and actor_type == "system":
+        actor_name = getpass.getuser()
+    _require_text("actor_name", actor_name)
     _require_text("reason", _optional_text("reason", optional))
     _require_text("request_id", _optional_text("request_id", optional))
     _require_text("ip", _optional_text("ip", optional))
@@ -86,6 +93,7 @@ def append(
         ts=_require_ts(optional.get("ts")),
         actor_type=actor_type,
         actor_user_id=_optional_uuid("actor_user_id", optional),
+        actor_name=actor_name,
         actor_role=_optional_text("actor_role", optional),
         action=action,
         target_type=target_type,
@@ -101,6 +109,7 @@ def append(
         self_approved=_require_bool(optional.get("self_approved", False)),
         prev_hash=previous,
         hash=GENESIS_PREV_HASH,
+        hash_version=2,
     )
     session.add(row)
     session.flush()
@@ -154,7 +163,7 @@ def verify_chain(session: Session) -> VerifyResult:
 
 def payload_from_log(row: AuditLog) -> dict[str, object]:
     """除 hash 以外的全部列。校验和写入用同一份。"""
-    return {
+    payload: dict[str, object] = {
         "id": _uuid_text(row.id),
         "seq": row.seq,
         "ts": _iso_from_row(row.ts),
@@ -175,6 +184,11 @@ def payload_from_log(row: AuditLog) -> dict[str, object]:
         "self_approved": _as_bool(row.self_approved),
         "prev_hash": row.prev_hash,
     }
+    version = row.hash_version or 1
+    if version >= 2:
+        payload["actor_name"] = row.actor_name
+        payload["hash_version"] = version
+    return payload
 
 
 def _locked_head(session: Session) -> AuditHead:

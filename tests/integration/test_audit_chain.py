@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -10,6 +11,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.engine import Engine
 from typer.testing import CliRunner
 
+from crosserp.audit.context import AuditContext, audited
 from crosserp.audit.log import append, verify_chain
 from crosserp.cli import app
 from crosserp.db.migrate import downgrade_base, upgrade_head
@@ -149,6 +151,118 @@ def test_optional_fields_stay_in_chain(engine: Engine) -> None:
             result = verify_chain(session)
         assert result.ok is True
         assert result.checked == 1
+    finally:
+        downgrade_base(url)
+
+
+def test_reason_over_512_is_rejected_and_actor_name_is_stored(engine: Engine) -> None:
+    url = _url(engine)
+    upgrade_head(url)
+    try:
+        with session_scope(engine) as session:
+            with pytest.raises(ValueError, match="reason 超过 512"):
+                append(
+                    session,
+                    "system",
+                    "config.change",
+                    "config",
+                    "1",
+                    None,
+                    {"changed": True},
+                    reason="x" * 513,
+                )
+            row = append(
+                session,
+                "system",
+                "config.change",
+                "config",
+                "2",
+                None,
+                {"changed": True},
+                actor_name="maken",
+            )
+            assert row.actor_user_id is None
+            assert row.actor_name == "maken"
+            assert row.hash_version == 2
+            assert verify_chain(session).ok
+    finally:
+        downgrade_base(url)
+
+
+def test_audited_context_writes_actor_name(engine: Engine) -> None:
+    url = _url(engine)
+    upgrade_head(url)
+    try:
+        with session_scope(engine) as session:
+            with audited(
+                session,
+                AuditContext(actor_type="user", actor_name="maken", request_id="req-1"),
+                action="config.change",
+                target_type="config",
+                target_id="demo",
+                before={"enabled": False},
+                after={"enabled": True},
+            ):
+                pass
+            row = session.scalar(select(AuditLog).where(AuditLog.action == "config.change"))
+            assert row is not None
+            assert row.actor_name == "maken"
+            assert row.request_id == "req-1"
+            assert verify_chain(session).ok
+    finally:
+        downgrade_base(url)
+
+
+def test_audited_append_failure_rolls_back_business_change(
+    engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    url = _url(engine)
+    upgrade_head(url)
+    try:
+        from crosserp.audit import context as audit_context
+
+        def fail_append(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("模拟审计失败")
+
+        monkeypatch.setattr(audit_context, "append", fail_append)
+        with pytest.raises(RuntimeError, match="模拟审计失败"), session_scope(engine) as session:
+            row = AuditLog(
+                id=uuid4(),
+                seq=1,
+                ts=datetime.now(UTC),
+                actor_type="system",
+                actor_user_id=None,
+                actor_name="system",
+                actor_role=None,
+                action="config.change",
+                target_type="config",
+                target_id="rollback",
+                before_json={"enabled": False},
+                after_json={"enabled": True},
+                approval_id=None,
+                approver_id=None,
+                reason=None,
+                request_id=None,
+                ip=None,
+                user_agent=None,
+                self_approved=False,
+                prev_hash="0" * 64,
+                hash="0" * 64,
+                hash_version=2,
+            )
+            session.add(row)
+            with audit_context.audited(
+                session,
+                AuditContext(actor_name="maken"),
+                action="config.change",
+                target_type="config",
+                target_id="rollback",
+                before=None,
+                after={"enabled": True},
+            ):
+                session.flush()
+        with session_scope(engine) as session:
+            assert session.scalar(select(AuditLog).where(AuditLog.target_id == "rollback")) is None
     finally:
         downgrade_base(url)
 

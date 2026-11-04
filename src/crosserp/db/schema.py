@@ -377,6 +377,7 @@ class AuditLog(Base):
     ts: Mapped[datetime] = mapped_column(UtcDateTime())
     actor_type: Mapped[str] = mapped_column(_KIND)
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    actor_name: Mapped[str | None] = mapped_column(String(64))
     actor_role: Mapped[str | None] = mapped_column(String(32))
     action: Mapped[str] = mapped_column(String(64))
     target_type: Mapped[str] = mapped_column(String(64))
@@ -392,6 +393,7 @@ class AuditLog(Base):
     self_approved: Mapped[bool] = mapped_column(Boolean())
     prev_hash: Mapped[str] = mapped_column(String(64))
     hash: Mapped[str] = mapped_column(String(64))
+    hash_version: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
 
 
 class AuditHead(Base):

@@ -1156,7 +1156,7 @@ def audit_tail(
             )
             for row in rows:
                 timestamp = row.ts.astimezone(ZoneInfo("Asia/Shanghai"))
-                actor = row.actor_user_id or row.actor_type
+                actor = row.actor_name or row.actor_user_id or row.actor_type
                 reason = "" if row.reason is None else f" 原因: {row.reason}"
                 typer.echo(
                     f"{timestamp:%Y-%m-%d %H:%M:%S %z} actor={actor} "

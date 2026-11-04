@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| blocked | W4 | 1.5 天 | T06, T27 | `main` |
+| doing | W4 | 1.5 天 | T06, T27 | `main` |
 
 ## 目标
 任意一条业务数据都能查到「谁、什么时候、改前/改后、谁批准的」；写审计失败，业务修改一起回滚。
@@ -13,8 +13,8 @@
 - 哈希链（T06）：`hash = sha256(prev_hash + 规范化 JSON)`，`audit_head` 行锁（MySQL/PG `SELECT … FOR UPDATE`；SQLite 单写者）。
 
 ## 范围
-- 迁移 `000x_audit_fields`：`audit_log` 补齐上面 10 个字段中缺的（`actor_user_id String(64) NULL`、`actor_role String(32) NULL`、`approval_id Uuid NULL`、`approver_id String(64) NULL`、`reason String(1000) NULL`、`request_id String(64) NULL`、`ip String(45) NULL`、`self_approved Boolean NOT NULL DEFAULT false`；`before_json`/`after_json` 若 T05 已有则不动）。**新字段全部进入哈希计算**；旧记录的哈希不能变——在 `canonical_json` 里对旧记录缺省字段按「不存在」处理（或升 `hash_version` 字段区分新旧规则），三库测试证明迁移前写的链在迁移后 `audit verify` 仍通过。
-- `audit/context.py`：`AuditContext(actor_type, actor_user_id, actor_role, request_id, ip)`；CLI 每次命令生成 `request_id`（uuid4），`actor_user_id` = `--as` 或系统用户名（`getpass.getuser()`），`actor_role` = `"cli"`（W5 接入真实角色）。
+- 迁移 `0010_audit_context`：只新增缺失的 `actor_name String(64) NULL` 和哈希版本标记；已合并的 `actor_user_id UUID`、`approver_id UUID`、`reason String(512)`、`ip String(64)` 均保持不变。`reason` 超过 512 个字符在写入前报错，不截断、不改表。**新字段全部进入哈希计算**；旧记录用旧版本规则验证，三库测试证明迁移前写的链在迁移后 `audit verify` 仍通过。
+- `audit/context.py`：`AuditContext(actor_type, actor_user_id, actor_name, actor_role, request_id, ip)`；CLI 没有真实用户时 `actor_user_id` 留空，`actor_name` 记录 `--as` 或系统用户名，W5 接入登录后再填用户 UUID。
 - `audit/log.py` 的 `append(...)` 接收 `AuditContext`；新增 `audited(session, ctx, action, target, before, after, **kw)` 上下文管理器：在业务事务内 flush 业务修改后写审计；审计写失败 → 抛出 → 整个事务回滚。
 - 接入点（每个都要有测试证明「有审计 + 字段对」）：`import` / `import_failed`（T15）、`recon.run`（T18，after = 汇总数字，不放全部明细）、`profit.snapshot`、`approval.*`（T27）、`ledger.export` / `ledger.export_denied`（T28）、`config.change`（若已有配置写入命令）。
 - before/after 规则：JSON 里金额存字符串、时间存 ISO UTC；**不写**密码、token 明文、数据库 URL 里的密码（有测试：审批 token 明文不出现在任何审计行）。
@@ -44,13 +44,56 @@
 
 ## 问题
 
-T29 暂停，等待 maken 决定是否允许改动已合并的 `audit_log` 数据库结构。当前 `main` 已有的结构与任务要求不一致：
+maken 已确认 T29 的字段口径：
 
-- `audit_log.actor_user_id` 当前是 `Uuid NULL`，任务要求 `String(64) NULL`。
-- `audit_log.approver_id` 当前是 `Uuid NULL`，任务要求 `String(64) NULL`。
-- `audit_log.reason` 当前是 `String(512)`，任务要求 `String(1000)`。
-- `audit_log.ip` 当前是 `String(64)`，任务要求 `String(45)`。
+- `actor_user_id`、`approver_id` 保持现有 `Uuid NULL`。
+- `reason` 保持现有 `String(512)`，超过 512 个字符时写入前报错，不截断。
+- `ip` 保持现有 `String(64)`。
+- CLI 没有真实用户时 `actor_user_id` 留空，新增 `actor_name String(64) NULL` 保存 `--as` 或系统用户名；W5 再填用户 UUID。
+- 迁移只新增缺失字段，不改不删已有列；新字段进入哈希计算，旧记录哈希必须继续通过验证。
 
-AGENTS.md 红线要求：删除数据、删除迁移文件或改动已经合并的数据库结构前必须先问 maken。因此尚未创建 T29 实现改动，也没有执行迁移。
+已获得继续实现授权，状态恢复为 `doing`。
 
 ## 完成记录
+
+提交位置：`main`。状态：`review`，没有标记 `done`。
+
+### maken 决定与实现口径
+
+- 不修改已合并字段：`actor_user_id`、`approver_id` 保持 UUID，`reason` 保持 512 字符，`ip` 保持 64 字符。
+- 新增 `actor_name String(64) NULL`：CLI 没有真实用户时 `actor_user_id` 留空，`--as` 或系统用户名写入 `actor_name`。
+- 新增 `hash_version`：旧记录按版本 1 的哈希字段验证，新记录按版本 2 把 `actor_name` 和版本号纳入哈希；迁移不改写旧哈希。
+- `reason` 超过 512 字符在 `append` 写入前报错，不截断、不修改表结构。
+
+### 做了什么
+
+- 新增 `0010_audit_context` 迁移和 `AuditContext` / `audited(...)` 事务辅助器。
+- 审计哈希链支持新旧版本；新增 actor_name 字段，`audit tail` 优先显示操作者名称。
+- 对账运行写入 `recon.run` 摘要审计，利润快照写入 `profit.snapshot` 摘要审计；审批和导出沿用 T27/T28 审计并带操作者名称。
+- 新增旧哈希兼容、超长 reason、actor_name、审计失败回滚和三库迁移/审计测试。
+
+### 改动文件
+
+- `src/crosserp/audit/{log.py,context.py,__init__.py}`
+- `src/crosserp/db/schema.py`、`src/crosserp/db/migrations/versions/0010_audit_context.py`
+- `src/crosserp/recon/engine.py`、`src/crosserp/profit/service.py`、`src/crosserp/approval/service.py`、`src/crosserp/cli.py`
+- `tests/unit/test_audit_hash.py`、`tests/integration/test_audit_chain.py`、`tests/property/test_audit_tamper.py`
+- `docs/tasks/README.md`、`CHANGELOG.md`
+
+### 实际验收命令与结果
+
+| 命令 | 结果 |
+|---|---|
+| `.venv/bin/python -m pytest --cov=crosserp --cov-fail-under=60` | `218 passed, 2 skipped, 1 xfailed`；覆盖率 `85.77%`。 |
+| `.venv/bin/python -m pytest -m db -k audit -q` | SQLite `15 passed`。 |
+| `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://root:dev@127.0.0.1:13306/crosserp?charset=utf8mb4 .venv/bin/python -m pytest -m db -k audit -q` | MySQL 8.4 `15 passed`。 |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp .venv/bin/python -m pytest -m db -k audit -q` | PostgreSQL 18 `15 passed`。 |
+| `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://root:dev@127.0.0.1:13306/crosserp?charset=utf8mb4 .venv/bin/python -m pytest -m db -q` | MySQL 8.4 `108 passed, 4 skipped`。 |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp .venv/bin/python -m pytest -m db -q` | PostgreSQL 18 `108 passed, 4 skipped`。 |
+| `.venv/bin/ruff format --check . && .venv/bin/ruff check .` | 通过。 |
+| `.venv/bin/mypy --strict` | 通过。 |
+
+### 偏离计划
+
+- 按 maken 决定，没有改动任何已合并列的类型或长度；只新增 `actor_name` 和 `hash_version`。
+- 没有新增依赖、没有创建分支或工作树；直接在 `main` 开发和提交。

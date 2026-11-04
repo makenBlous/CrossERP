@@ -52,6 +52,8 @@ def _replacement(field: str, row: AuditLog) -> object:
         return uuid4()
     if field == "seq":
         return int(row.seq) + 1000
+    if field == "hash_version":
+        return int(row.hash_version) + 1
     if field == "ts":
         return datetime(2099, 1, 2, tzinfo=UTC)
     if field == "actor_type":

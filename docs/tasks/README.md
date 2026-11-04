@@ -43,7 +43,7 @@
 | T26 | [发布 v0.1.0（发布动作由 maken 操作）](T26-release-v01.md) | W3 | 0.5 天 | T25 | todo |
 | T27 | [审批状态机 approval/](T27-approval-state-machine.md) | W4 | 1 天 | T26（maken 同意先开 W4） | review |
 | T28 | [唯一写出口 write_service + 守卫测试（指标 4）](T28-write-service-guard.md) | W4 | 1.5 天 | T27 | review |
-| T29 | [业务审计补全：字段 + 同事务 + 全动作](T29-audit-fields-transaction.md) | W4 | 1.5 天 | T06, T27 | blocked |
+| T29 | [业务审计补全：字段 + 同事务 + 全动作](T29-audit-fields-transaction.md) | W4 | 1.5 天 | T06, T27 | review |
 | T30 | [数据库账号权限 + 智能体只读会话](T30-db-grants-readonly-session.md) | W4 | 1 天 | T16, T29 | todo |
 | T31 | [审计导出 / 离线校验 / 保留 + W4 验收](T31-audit-export-retention.md) | W4 | 1.5 天 | T29, T30 | todo |
 
