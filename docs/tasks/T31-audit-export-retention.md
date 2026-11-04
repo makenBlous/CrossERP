@@ -1,8 +1,8 @@
 # T31 审计导出 / 离线校验 / 保留策略 + W4 验收（指标 4）
 
-| 状态 | 周 | 估时 | 依赖 | 分支 |
+| 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W4 | 1.5 天 | T29, T30 | `task/T31-audit-export` |
+| review | W4 | 1.5 天 | T29, T30 | `main` |
 
 ## 目标
 审计记录能打包给会计/审计师，对方不装 CrossERP 也能离线验证没被改过；以后清理日志不会把哈希链弄断。W4 的验收在本任务收口。
@@ -50,3 +50,39 @@
 ## 问题
 
 ## 完成记录
+
+提交位置：`main`。状态：`review`，没有标记 `done`。
+
+### 做了什么
+
+- 新增 `audit_checkpoint`、`audit_export` 表和 `0011_audit_export` 迁移；检查点只写当前链尾锚点，不删除任何日志。
+- 新增 JSONL/CSV 审计包导出：包含数据文件、`manifest.json`、`VERIFY.md`、时间范围、首尾 hash 和每个文件 SHA-256。
+- 新增只依赖标准库的 `audit/offline_verify.py`；篡改数据文件或 manifest 会指出校验失败。
+- 新增 `crosserp audit export`、`audit verify-export`、`audit checkpoint`，支持从检查点继续验证哈希链。
+- 新增 `docs/audit.md` 和 `docs/evidence/w4-acceptance.md`，明确业务审计默认不自动删除，法定保管期限仍待会计确认。
+
+### 改动文件
+
+- `src/crosserp/audit/{export.py,offline_verify.py,checkpoint.py,log.py}`、`src/crosserp/cli.py`
+- `src/crosserp/db/schema.py`、`src/crosserp/db/migrations/versions/0011_audit_export.py`
+- `tests/unit/test_offline_verify.py`、`tests/integration/test_audit_export.py`、`tests/integration/test_migrations.py`
+- `docs/audit.md`、`docs/evidence/w4-acceptance.md`、`docs/tasks/README.md`、`CHANGELOG.md`
+
+### 实际验收命令与结果
+
+| 命令 | 结果 |
+|---|---|
+| `.venv/bin/python -m pytest --cov=crosserp --cov-fail-under=60` | `221 passed, 5 skipped`；覆盖率 `84.70%`。 |
+| `.venv/bin/python -m pytest tests/unit/test_offline_verify.py tests/integration/test_audit_export.py -q` | `2 passed`。 |
+| `.venv/bin/python -m pytest -m db -k 'audit or guard' -q` | SQLite `18 passed, 1 skipped`。 |
+| `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://... .venv/bin/python -m pytest -m db -k 'audit or guard' -q` | MySQL 8.4 `18 passed, 1 skipped`。 |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://... .venv/bin/python -m pytest -m db -k 'audit or guard' -q` | PostgreSQL 18 通过。 |
+| 三库 `tests/integration/test_migrations.py` + `test_audit_export.py` | SQLite `6 passed`；MySQL/PG 各 `5 passed, 1 skipped`。 |
+| `.venv/bin/ruff format --check . && .venv/bin/ruff check .` | 通过。 |
+| `.venv/bin/mypy --strict` | 通过。 |
+| `.venv/bin/pre-commit run --all-files` | 全部 `Passed`。 |
+
+### 偏离计划
+
+- 没有实现任何自动删除或归档命令；只提供检查点。
+- 没有新增依赖，离线校验只使用 Python 标准库；没有创建分支或工作树，直接在 `main` 开发和提交。

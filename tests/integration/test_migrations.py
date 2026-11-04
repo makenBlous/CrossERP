@@ -1,4 +1,4 @@
-"""迁移往返。upgrade head → 19 张表 → downgrade base → 再 upgrade。"""
+"""迁移往返。upgrade head → 21 张表 → downgrade base → 再 upgrade。"""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from crosserp.db.session import session_scope, sqlite_file_url
 
 pytestmark = pytest.mark.db
 
-_EXPECTED_COUNT = 19
+_EXPECTED_COUNT = 21
 
 
 def _url(engine: Engine) -> str:

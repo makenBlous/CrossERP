@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.audit.chain import GENESIS_PREV_HASH, compute_hash, json_ready
 from crosserp.db.dialects import lock_for_update
-from crosserp.db.schema import AuditHead, AuditLog
+from crosserp.db.schema import AuditCheckpoint, AuditHead, AuditLog
 
 AUDIT_LOG_CHAIN = "audit_log"
 _ACTOR_TYPES = frozenset({"user", "agent", "system"})
@@ -158,6 +158,32 @@ def verify_chain(session: Session) -> VerifyResult:
         if head is not None and head.last_id is not None:
             bad = str(head.last_id)
         return VerifyResult(False, len(rows), bad, "audit_head 与链尾不一致")
+    return VerifyResult(True, len(rows), None, None)
+
+
+def verify_chain_from_checkpoint(session: Session, checkpoint_id: uuid.UUID) -> VerifyResult:
+    """从检查点锚定的 hash 开始校验后续链，不删除或修改任何记录。"""  # noqa: RUF002
+    checkpoint = session.get(AuditCheckpoint, checkpoint_id)
+    if checkpoint is None:
+        return VerifyResult(False, 0, str(checkpoint_id), "检查点不存在")
+    start_seq = 0
+    if checkpoint.upto_id is not None:
+        prior = session.get(AuditLog, checkpoint.upto_id)
+        if prior is None:
+            return VerifyResult(False, 0, str(checkpoint.upto_id), "检查点指向的审计记录不存在")
+        start_seq = prior.seq
+    rows = list(
+        session.scalars(select(AuditLog).where(AuditLog.seq > start_seq).order_by(AuditLog.seq))
+    )
+    previous = checkpoint.upto_hash
+    for offset, row in enumerate(rows, start=1):
+        try:
+            expected = compute_hash(row.prev_hash, payload_from_log(row))
+        except (TypeError, ValueError) as exc:
+            return VerifyResult(False, offset - 1, str(row.id), f"记录无法规范化: {exc}")
+        if row.seq != start_seq + offset or row.prev_hash != previous or row.hash != expected:
+            return VerifyResult(False, offset - 1, str(row.id), "检查点后的哈希链不完整")
+        previous = row.hash
     return VerifyResult(True, len(rows), None, None)
 
 

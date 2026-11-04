@@ -444,4 +444,35 @@ class ExportArtifact(Base):
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
+class AuditCheckpoint(Base):
+    """审计保留锚点。创建检查点不删除任何日志。"""
+
+    __tablename__ = "audit_checkpoint"
+    __table_args__ = (Index("ix_audit_checkpoint_chain_created_at", "chain", "created_at"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    chain: Mapped[str] = mapped_column(String(32))
+    upto_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    upto_hash: Mapped[str] = mapped_column(String(64))
+    reason: Mapped[str] = mapped_column(String(512))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class AuditExport(Base):
+    """一次审计包导出的索引记录。"""
+
+    __tablename__ = "audit_export"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    requested_by: Mapped[str] = mapped_column(String(64))
+    from_ts: Mapped[datetime] = mapped_column(UtcDateTime())
+    to_ts: Mapped[datetime] = mapped_column(UtcDateTime())
+    format: Mapped[str] = mapped_column(String(16))
+    row_count: Mapped[int] = mapped_column(Integer)
+    first_hash: Mapped[str | None] = mapped_column(String(64))
+    last_hash: Mapped[str | None] = mapped_column(String(64))
+    file_sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
 V01_TABLES: frozenset[str] = frozenset(Base.metadata.tables)

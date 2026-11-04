@@ -35,7 +35,10 @@ from crosserp.approval.service import (
 from crosserp.approval.service import (
     submit as submit_approval,
 )
-from crosserp.audit.log import VerifyResult, append, verify_chain
+from crosserp.audit.checkpoint import create_checkpoint
+from crosserp.audit.export import export_audit
+from crosserp.audit.log import VerifyResult, append, verify_chain, verify_chain_from_checkpoint
+from crosserp.audit.offline_verify import OfflineVerifyError, verify_export
 from crosserp.connectors.base import FileConnector
 from crosserp.connectors.generic_mapped.mapping import MappingError, load_mapping, mappings_dir
 from crosserp.connectors.importer import import_file, record_unreadable_file
@@ -1110,7 +1113,9 @@ def _hide_password(message: str, url_text: str) -> str:
 
 
 @audit_app.command("verify")
-def audit_verify() -> None:
+def audit_verify(
+    from_checkpoint: UUID | None = typer.Option(None, "--from-checkpoint"),  # noqa: B008
+) -> None:
     """校验审计哈希链。完整时退出码 0。发现改动或删除时退出码 1。"""
     url_text = get_database_url()
     engine = None
@@ -1120,7 +1125,11 @@ def audit_verify() -> None:
         upgrade_head(url_text)
         engine = make_engine(url_text)
         with session_scope(engine) as session:
-            result = verify_chain(session)
+            result = (
+                verify_chain_from_checkpoint(session, from_checkpoint)
+                if from_checkpoint is not None
+                else verify_chain(session)
+            )
     except DatabaseConfigError as exc:
         typer.echo(_hide_password(str(exc), url_text), err=True)
         raise typer.Exit(code=1) from exc
@@ -1163,6 +1172,75 @@ def audit_tail(
                     f"action={row.action} target={row.target_type}:{row.target_id}{reason}"
                 )
     except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@audit_app.command("export")
+def audit_export_command(
+    from_date: str = typer.Option(..., "--from", help="上海时区起始日期 YYYY-MM-DD。"),
+    to_date: str = typer.Option(..., "--to", help="上海时区结束日期 YYYY-MM-DD（含当天）。"),  # noqa: RUF001
+    fmt: str = typer.Option("jsonl", "--format", help="jsonl 或 csv。"),
+    out: Path = typer.Option(..., "--out"),  # noqa: B008
+    requested_by: str = typer.Option("system", "--as", help="导出申请人名称。"),
+) -> None:
+    """导出可离线校验的审计包。"""
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    try:
+        timezone = ZoneInfo("Asia/Shanghai")
+        start = datetime.fromisoformat(from_date).replace(tzinfo=timezone).astimezone(UTC)
+        end_local = datetime.fromisoformat(to_date).replace(tzinfo=timezone) + timedelta(days=1)
+        end = end_local.astimezone(UTC)
+    except ValueError as exc:
+        typer.echo(f"日期必须是 YYYY-MM-DD: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            row = export_audit(
+                session,
+                from_ts=start,
+                to_ts=end,
+                fmt=fmt,
+                output=out,
+                requested_by=requested_by,
+            )
+            typer.echo(f"审计包已导出：{out}")  # noqa: RUF001
+            typer.echo(f"记录数：{row.row_count}，sha256：{row.file_sha256}")  # noqa: RUF001
+    except (ValueError, FileExistsError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@audit_app.command("verify-export")
+def audit_verify_export(path: Path = typer.Argument(..., exists=True, readable=True)) -> None:  # noqa: B008
+    """不连接数据库，离线校验审计包。"""  # noqa: RUF002
+    try:
+        verify_export(path)
+    except OfflineVerifyError as exc:
+        typer.echo(f"审计包校验失败：{exc}", err=True)  # noqa: RUF001
+        raise typer.Exit(code=1) from exc
+    typer.echo("审计包校验通过")
+
+
+@audit_app.command("checkpoint")
+def audit_checkpoint(reason: str = typer.Option(..., "--reason", help="检查点原因。")) -> None:
+    """记录审计链检查点，不删除任何记录。"""  # noqa: RUF002
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            row = create_checkpoint(session, reason=reason)
+            typer.echo(f"检查点已创建：{row.id}")  # noqa: RUF001
+    except (ValueError, DatabaseConfigError) as exc:
         typer.echo(_hide_password(str(exc), url_text), err=True)
         raise typer.Exit(code=1) from exc
     finally:
