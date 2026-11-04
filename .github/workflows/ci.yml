@@ -133,7 +133,9 @@ jobs:
 
           root = ET.parse('.ci/pytest.xml').getroot()
           for testcase in root.iter('testcase'):
-              failure = testcase.find('failure') or testcase.find('error')
+              failure = testcase.find('failure')
+              if failure is None:
+                  failure = testcase.find('error')
               if failure is not None:
                   name = f"{testcase.attrib.get('classname', '')}::{testcase.attrib.get('name', '')}"
                   message = (failure.attrib.get('message') or failure.text or '').replace('%', '%25').replace('\n', '%0A')
