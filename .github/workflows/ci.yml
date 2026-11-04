@@ -50,8 +50,18 @@ jobs:
         run: uv build
       - name: 安装 wheel 并运行 demo 检查
         run: |
-          uv tool install dist/*.whl --force
-          crosserp demo --check --no-browser
+          set +e
+          uv tool install dist/*.whl --force 2>&1 | tee /tmp/crosserp-install.log
+          install_status=${PIPESTATUS[0]}
+          if [ "$install_status" -eq 0 ]; then
+            crosserp demo --check --no-browser 2>&1 | tee /tmp/crosserp-demo.log
+            install_status=${PIPESTATUS[0]}
+          fi
+          if [ "$install_status" -ne 0 ]; then
+            details=$(cat /tmp/crosserp-install.log /tmp/crosserp-demo.log 2>/dev/null | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
+            echo "::error title=install-smoke::$details"
+          fi
+          exit "$install_status"
 
   lint:
     name: lint
@@ -308,7 +318,25 @@ jobs:
             echo 'CROSSERP_GRANTS_APP_URL=postgresql+psycopg://crosserp_app:dev@127.0.0.1:5432/crosserp' >> "$GITHUB_ENV"
             echo 'CROSSERP_GRANTS_AGENT_URL=postgresql+psycopg://crosserp_agent:dev@127.0.0.1:5432/crosserp' >> "$GITHUB_ENV"
           fi
-          uv run pytest tests/integration/test_grants.py -q
+          set +e
+          uv run pytest tests/integration/test_grants.py -q --junitxml=.ci/grants.xml 2>&1 | tee .ci/grants.log
+          grants_status=${PIPESTATUS[0]}
+          if [ "$grants_status" -ne 0 ] && [ -f .ci/grants.xml ]; then
+            uv run python - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse('.ci/grants.xml').getroot()
+          for testcase in root.iter('testcase'):
+              failure = testcase.find('failure')
+              if failure is None:
+                  failure = testcase.find('error')
+              if failure is not None:
+                  name = f"{testcase.attrib.get('classname', '')}::{testcase.attrib.get('name', '')}"
+                  message = (failure.attrib.get('message') or failure.text or '').replace('%', '%25').replace('\n', '%0A')
+                  print(f"::error title=database grants::{name}: {message[:1000]}")
+          PY
+          fi
+          exit "$grants_status"
 
       - name: pytest -m db
         run: uv run pytest -m db
