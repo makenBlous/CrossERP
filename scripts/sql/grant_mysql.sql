@@ -32,6 +32,7 @@ GRANT SELECT, INSERT ON crosserp.audit_log TO 'crosserp_app'@'%';
 GRANT SELECT, UPDATE ON crosserp.audit_head TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT ON crosserp.audit_checkpoint TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT ON crosserp.audit_export TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT ON crosserp.security_event TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE ON crosserp.app_user TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE ON crosserp.user_role TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE ON crosserp.user_session TO 'crosserp_app'@'%';
@@ -62,6 +63,7 @@ GRANT SELECT ON crosserp.settlement_line TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.sku TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.sku_cost TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.store TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.security_event TO 'crosserp_agent'@'%';
 
 -- security_event / audit_checkpoint / audit_export 在 W5/T31 创建。
 -- 建表后重跑本文件，并按同样原则给 app SELECT/INSERT、agent SELECT。

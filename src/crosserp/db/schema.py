@@ -544,4 +544,30 @@ class AppSetting(Base):
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
+class SecurityEvent(Base):
+    """登录和权限事件独立哈希链。"""
+
+    __tablename__ = "security_event"
+    __table_args__ = (
+        UniqueConstraint("seq", name="uq_security_event_seq"),
+        Index("ix_security_event_ts", "ts"),
+        Index("ix_security_event_user_ts", "user_id", "ts"),
+        Index("ix_security_event_event_ts", "event", "ts"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    seq: Mapped[int] = mapped_column(Integer)
+    ts: Mapped[datetime] = mapped_column(UtcDateTime())
+    event: Mapped[str] = mapped_column(String(32))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    username: Mapped[str | None] = mapped_column(String(64))
+    target_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(512))
+    request_id: Mapped[str | None] = mapped_column(String(64))
+    detail_json: Mapped[Any | None] = mapped_column(JSON())
+    prev_hash: Mapped[str] = mapped_column(String(64))
+    hash: Mapped[str] = mapped_column(String(64))
+
+
 V01_TABLES: frozenset[str] = frozenset(Base.metadata.tables)

@@ -17,6 +17,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp import __version__
+from crosserp.audit.security import SecurityEventName
+from crosserp.audit.security import record as record_security
 from crosserp.auth.passwords import hash_password, verify_password
 from crosserp.auth.sessions import create_session, find_user, revoke_session
 from crosserp.config import load_settings
@@ -100,6 +102,14 @@ def create_app(database_url: str | None = None) -> FastAPI:
                     if user.failed_logins >= settings.auth.max_failed_logins:
                         user.locked_until = now + timedelta(minutes=settings.auth.lockout_minutes)
                 message = "账号已锁定，请稍后再试。" if locked else "账号或密码错误。"  # noqa: RUF001
+                record_security(
+                    session,
+                    SecurityEventName.LOGIN_FAILED,
+                    user_id=user.id if user else None,
+                    username=username,
+                    ip=request.client.host if request.client else None,
+                    user_agent=request.headers.get("user-agent"),
+                )
                 return templates.TemplateResponse(
                     request,
                     "login.html",
@@ -108,6 +118,14 @@ def create_app(database_url: str | None = None) -> FastAPI:
                 )
             user.failed_logins = 0
             user.locked_until = None
+            record_security(
+                session,
+                SecurityEventName.LOGIN_SUCCESS,
+                user_id=user.id,
+                username=user.username,
+                ip=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+            )
             token = create_session(
                 session,
                 user,
@@ -136,6 +154,13 @@ def create_app(database_url: str | None = None) -> FastAPI:
             return Response("CSRF 校验失败", status_code=403)
         with sessions() as session:
             revoke_session(session, request.cookies.get("crosserp_session"))
+            record_security(
+                session,
+                SecurityEventName.LOGOUT,
+                username=None,
+                ip=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+            )
         response = RedirectResponse("/login", status_code=303)
         response.delete_cookie("crosserp_session", path="/")
         response.delete_cookie("crosserp_csrf", path="/")
