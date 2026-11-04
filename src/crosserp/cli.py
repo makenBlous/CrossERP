@@ -40,6 +40,7 @@ from crosserp.audit.checkpoint import create_checkpoint
 from crosserp.audit.export import export_audit
 from crosserp.audit.log import VerifyResult, append, verify_chain, verify_chain_from_checkpoint
 from crosserp.audit.offline_verify import OfflineVerifyError, verify_export
+from crosserp.audit.security import verify_security_chain
 from crosserp.auth.roles import Role
 from crosserp.connectors.base import FileConnector
 from crosserp.connectors.generic_mapped.mapping import MappingError, load_mapping, mappings_dir
@@ -1435,6 +1436,7 @@ def _hide_password(message: str, url_text: str) -> str:
 @audit_app.command("verify")
 def audit_verify(
     from_checkpoint: UUID | None = typer.Option(None, "--from-checkpoint"),  # noqa: B008
+    chain: str = typer.Option("audit_log", "--chain", help="audit_log 或 security"),
 ) -> None:
     """校验审计哈希链。完整时退出码 0。发现改动或删除时退出码 1。"""
     url_text = get_database_url()
@@ -1445,6 +1447,13 @@ def audit_verify(
         upgrade_head(url_text)
         engine = make_engine(url_text)
         with session_scope(engine) as session:
+            if chain == "security":
+                if not verify_security_chain(session):
+                    raise ValueError("security 哈希链损坏")
+                typer.echo("security 审计链完整")
+                return
+            if chain != "audit_log":
+                raise ValueError("chain 只能是 audit_log 或 security")
             result = (
                 verify_chain_from_checkpoint(session, from_checkpoint)
                 if from_checkpoint is not None
@@ -1468,6 +1477,31 @@ def audit_verify(
     reason = result.reason or "哈希链校验失败"
     typer.echo(f"审计链损坏：第一条坏记录 {bad}。{reason}", err=True)  # noqa: RUF001
     raise typer.Exit(code=1)
+
+
+@audit_app.command("security-tail")
+def security_tail(count: int = typer.Option(20, "-n", min=1, max=200)) -> None:
+    """显示最近安全事件。"""
+    from crosserp.db.schema import SecurityEvent
+
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            rows = list(
+                session.scalars(
+                    select(SecurityEvent).order_by(SecurityEvent.seq.desc()).limit(count)
+                )
+            )
+            for row in rows:
+                typer.echo(
+                    f"{row.ts.isoformat()} event={row.event} "
+                    f"username={row.username or ''} ip={row.ip or ''}"
+                )
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
 
 
 @audit_app.command("tail")

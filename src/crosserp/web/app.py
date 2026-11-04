@@ -24,7 +24,15 @@ from crosserp.auth.sessions import create_session, find_user, revoke_session
 from crosserp.config import load_settings
 from crosserp.db.migrate import ensure_database_directory, upgrade_head
 from crosserp.db.repo.users import get_by_username
-from crosserp.db.schema import AppUser, ImportBatch, Issue, ProfitSnapshot, Store
+from crosserp.db.schema import (
+    AppUser,
+    ImportBatch,
+    Issue,
+    ProfitSnapshot,
+    SecurityEvent,
+    Store,
+    UserRole,
+)
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
 
@@ -245,6 +253,22 @@ def create_app(database_url: str | None = None) -> FastAPI:
                 "page": page,
                 "user": user,
             },
+        )
+
+    @app.get("/security-log", response_class=HTMLResponse)
+    def security_log(request: Request) -> Response:
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            roles = set(session.scalars(select(UserRole.role).where(UserRole.user_id == user.id)))
+            if not roles.intersection({"admin", "auditor"}):
+                return Response("无权查看登录日志", status_code=403)
+            rows = list(
+                session.scalars(select(SecurityEvent).order_by(SecurityEvent.seq.desc()).limit(100))
+            )
+        return templates.TemplateResponse(
+            request, "security_log.html", {"request": request, "rows": rows, "user": user}
         )
 
     return app
