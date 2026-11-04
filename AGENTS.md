@@ -95,12 +95,12 @@ v0.5 才有的目录（vouchers/ approval/ ledger/ auth/ observability/ agent/ m
 ## 6. 工作流程
 1. 打开 `docs/tasks/README.md` 看状态表，**一次只做一个任务**：选第一个 `todo` 且依赖都 `done` 的任务（或 maken 指定的）。
 2. **先完整读任务文件**，再读它引用的实施方案章节。
-3. 从 `main` 开分支：`task/T<编号>-<短名>`，例如 `task/T04-db-types`。
+3. 直接在 `main` 上工作和提交；本项目只有一个开发代理，不创建任务分支、工作树，也不做分支合并。
 4. 把任务文件状态改为 `doing`，在状态表同步。
 5. 按「步骤」做，只改「涉及文件」里列出的文件；需要改别的文件，在 PR 说明里写原因。
 6. 本地跑完第 7 节全部命令并通过，再跑任务里的验收命令。
 7. 更新 `CHANGELOG.md`、相关 docs、任务文件末尾的「完成记录」（实际跑的命令 + 输出摘要）。
-8. 状态改为 `review`（**不是 done**；done 由 maken 人工验收后改）。提交、推送、开 PR，PR 描述写「如何验收」。
+8. 状态改为 `review`（**不是 done**；done 由 maken 人工验收后改）。测试全通过后按 Conventional Commits 直接提交到 `main`；不要创建任务分支、工作树或合并提交。PR/发布等对外动作按 maken 的明确要求执行。
 9. **遇到以下情况立刻停下，在任务文件「问题」一节写清楚并问 maken**：需求含糊或互相矛盾；需要真实数据而样本没有；要加新依赖；要动红线相关代码；测试怎么都过不了。
 10. **没实际跑过测试，绝不说「完成」**；不许伪造输出。
 
@@ -129,7 +129,7 @@ Windows PowerShell 设环境变量：`$env:CROSSERP_TEST_DATABASE_URL="..."`。
 - [ ] 涉及数据库的改动：SQLite + MySQL 8.4 + PostgreSQL 18 都跑过（本地或 CI db-matrix）。
 - [ ] 新代码有测试；金额相关有 hypothesis 性质测试或逐分 golden 测试。
 - [ ] 没有 float 算钱、没有密钥、没有真实数据、没有越过红线。
-- [ ] CHANGELOG、docs、任务状态已更新；PR 已开且 CI 绿。
+- [ ] CHANGELOG、docs、任务状态已更新；`main` 上的提交已通过 CI。
 - [ ] maken 的人工验收清单可以照着做（命令能直接复制运行）。
 
 ## 9. 提交信息（Conventional Commits）

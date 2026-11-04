@@ -406,4 +406,25 @@ class AuditHead(Base):
     last_hash: Mapped[str | None] = mapped_column(String(64))
 
 
+class Approval(Base):
+    """一张审批单。token 只在批准时返回一次，数据库只保存其哈希。"""  # noqa: RUF002
+
+    __tablename__ = "approval"
+    __table_args__ = (Index("ix_approval_target_type_target_id", "target_type", "target_id"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    target_type: Mapped[str] = mapped_column(String(32))
+    target_id: Mapped[str] = mapped_column(String(128))
+    state: Mapped[str] = mapped_column(String(16))
+    payload_hash: Mapped[str | None] = mapped_column(String(64))
+    requested_by: Mapped[str] = mapped_column(String(64))
+    requested_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    approver: Mapped[str | None] = mapped_column(String(64))
+    decided_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    comment: Mapped[str | None] = mapped_column(String(1000))
+    token_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
+    used_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+
 V01_TABLES: frozenset[str] = frozenset(Base.metadata.tables)

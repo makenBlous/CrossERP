@@ -10,6 +10,7 @@ from sqlalchemy.sql.schema import Column
 from sqlalchemy.sql.type_api import TypeEngine
 from sqlalchemy.types import TypeDecorator
 
+from crosserp.approval.state import ApprovalState
 from crosserp.core.enums import (
     FeeCategory,
     ImportStatus,
@@ -148,7 +149,15 @@ def test_money_named_columns_are_money4() -> None:
 
 
 def test_enum_values_fit_string32() -> None:
-    for enum_cls in (Platform, ImportStatus, FeeCategory, IssueKind, IssueStatus, MatchStatus):
+    for enum_cls in (
+        Platform,
+        ImportStatus,
+        FeeCategory,
+        IssueKind,
+        IssueStatus,
+        MatchStatus,
+        ApprovalState,
+    ):
         for item in enum_cls:
             assert len(item.value) <= 32
     # 实施方案 6.1 的 13 个码, 加上 maken 于 2026-11-02 确认的 5 个码。

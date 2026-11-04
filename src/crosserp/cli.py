@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import json
 import os
@@ -17,10 +18,23 @@ from uuid import UUID
 
 import typer
 import uvicorn
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.orm import Session
 
 from crosserp import __version__
+from crosserp.approval.service import (
+    approve as approve_approval,
+)
+from crosserp.approval.service import (
+    create as create_approval,
+)
+from crosserp.approval.service import (
+    reject as reject_approval,
+)
+from crosserp.approval.service import (
+    submit as submit_approval,
+)
 from crosserp.audit.log import VerifyResult, append, verify_chain
 from crosserp.connectors.base import FileConnector
 from crosserp.connectors.generic_mapped.mapping import MappingError, load_mapping, mappings_dir
@@ -45,7 +59,7 @@ from crosserp.db.repo.issues import (
     get_import_batch,
     list_issues,
 )
-from crosserp.db.schema import ImportBatch, Issue, ReconRun, Store
+from crosserp.db.schema import Approval, ImportBatch, Issue, ProfitSnapshot, ReconRun, Store
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
 from crosserp.profit.golden import compare_issues_csv, compare_profit_csv
@@ -60,10 +74,12 @@ db_app = typer.Typer(add_completion=False, help="数据库连接与启动自检�
 audit_app = typer.Typer(add_completion=False, help="审计哈希链。")
 issues_app = typer.Typer(add_completion=False, help="异常清单。只读。")
 imports_app = typer.Typer(add_completion=False, help="导入批次记录。")
+approval_app = typer.Typer(add_completion=False, help="审批状态机。")
 app.add_typer(db_app, name="db")
 app.add_typer(audit_app, name="audit")
 app.add_typer(issues_app, name="issues")
 app.add_typer(imports_app, name="imports")
+app.add_typer(approval_app, name="approval")
 
 _TYPES = ("auto", "amazon", "shopify", "mapped")
 _TYPE_TO_ID = {
@@ -638,6 +654,166 @@ def imports_list() -> None:
         raise typer.Exit(code=1) from exc
     finally:
         engine.dispose()
+
+
+@approval_app.command("request")
+def approval_request(
+    target: str = typer.Option(..., "--target", help="对象，格式 profit_report:<店铺>:<期间>。"),  # noqa: RUF001
+    as_name: str = typer.Option(..., "--as", help="提交人姓名。"),
+    payload_hash: str | None = typer.Option(None, "--payload-hash", help="对象当前内容哈希。"),
+) -> None:
+    """创建并提交一张审批单。"""
+    target_type, target_id = _parse_approval_target(target)
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            current_hash = payload_hash
+            if target_type == "profit_report" and current_hash is None:
+                current_hash = _profit_report_payload_hash(session, target_id)
+            row = create_approval(
+                session,
+                target_type=target_type,
+                target_id=target_id,
+                requested_by=as_name,
+                payload_hash=current_hash,
+            )
+            submit_approval(session, row, actor=as_name)
+            typer.echo(f"审批单已提交：{row.id}（状态 {row.state}）")  # noqa: RUF001
+    except (LookupError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@approval_app.command("list")
+def approval_list() -> None:
+    """列出审批单，不显示任何 token 明文。"""  # noqa: RUF002
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            rows = [
+                [
+                    str(row.id),
+                    row.target_type,
+                    row.target_id,
+                    row.state,
+                    row.requested_by,
+                    row.approver or "-",
+                    _format_time(row.requested_at),
+                    "是" if row.used_at is not None else "否",
+                ]
+                for row in session.scalars(
+                    select(Approval).order_by(Approval.requested_at, Approval.id)
+                )
+            ]
+            typer.echo(
+                _render_table(
+                    [
+                        "审批单",
+                        "对象类型",
+                        "对象",
+                        "状态",
+                        "提交人",
+                        "审批人",
+                        "申请时间",
+                        "已使用",
+                    ],
+                    rows,
+                )
+            )
+            typer.echo(f"共 {len(rows)} 条")
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@approval_app.command("approve")
+def approval_approve(
+    approval_id: UUID = typer.Argument(..., help="审批单 UUID。"),  # noqa: B008
+    as_name: str = typer.Option(..., "--as", help="审批人姓名。"),
+) -> None:
+    """批准并只打印一次性 token。"""
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            row = session.get(Approval, approval_id)
+            if row is None:
+                raise LookupError(f"审批单不存在 {approval_id}")
+            token = approve_approval(session, row, approver=as_name)
+            typer.echo(f"审批已通过：{row.id}")  # noqa: RUF001
+            typer.echo(f"一次性 token（只显示这一次）：{token}")  # noqa: RUF001
+    except (LookupError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@approval_app.command("reject")
+def approval_reject(
+    approval_id: UUID = typer.Argument(..., help="审批单 UUID。"),  # noqa: B008
+    as_name: str = typer.Option(..., "--as", help="审批人姓名。"),
+    comment: str | None = typer.Option(None, "--comment", help="驳回原因，必填。"),  # noqa: RUF001
+) -> None:
+    """驳回审批单，必须留下原因。"""  # noqa: RUF002
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            row = session.get(Approval, approval_id)
+            if row is None:
+                raise LookupError(f"审批单不存在 {approval_id}")
+            reject_approval(session, row, approver=as_name, comment=comment or "")
+            typer.echo(f"审批已驳回：{row.id}")  # noqa: RUF001
+    except (LookupError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+def _parse_approval_target(value: str) -> tuple[str, str]:
+    target_type, separator, target_id = value.partition(":")
+    if not separator or not target_type.strip() or not target_id.strip():
+        raise ValueError("--target 格式必须是 类型:对象，例如 profit_report:店铺:2026-10")  # noqa: RUF001
+    return target_type.strip(), target_id.strip()
+
+
+def _profit_report_payload_hash(session: Session, target_id: str) -> str:
+    store_name, separator, period = target_id.rpartition(":")
+    if not separator or not store_name or len(period) != 7:
+        raise ValueError("利润报表对象必须是 店铺:YYYY-MM")
+    statement = (
+        select(ProfitSnapshot.inputs_hash)
+        .join(Store, ProfitSnapshot.store_id == Store.id)
+        .where(
+            ProfitSnapshot.period == period,
+            or_(Store.name == store_name, Store.id == _try_uuid(store_name)),
+        )
+        .order_by(ProfitSnapshot.internal_sku)
+    )
+    hashes = [str(value) for value in session.scalars(statement)]
+    if not hashes:
+        raise LookupError(f"找不到利润报表 {target_id}，请先运行 demo 或 profit")  # noqa: RUF001
+    return hashlib.sha256("\n".join(hashes).encode("ascii")).hexdigest()
+
+
+def _try_uuid(value: str) -> UUID | None:
+    try:
+        return UUID(value)
+    except ValueError:
+        return None
 
 
 def _mark_failed(batch_id: UUID) -> None:

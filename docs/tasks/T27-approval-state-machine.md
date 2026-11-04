@@ -1,8 +1,8 @@
 # T27 审批状态机 `approval/`
 
-| 状态 | 周 | 估时 | 依赖 | 分支 |
+| 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W4 | 1 天 | T26（v0.1 已发布或 maken 同意先开 W4） | `task/T27-approval` |
+| review | W4 | 1 天 | T26（v0.1 已发布或 maken 同意先开 W4） | `main` |
 
 ## 目标
 任何要「写出去」的东西先变成一张审批单；批准时锁住内容的哈希，内容一变批准自动失效；所有非法状态跳转直接报错。
@@ -54,3 +54,36 @@
 ## 问题
 
 ## 完成记录
+
+提交位置：`main`。状态：`review`，没有标记 `done`。
+
+### 做了什么
+
+- 新增 `approval/` 状态机：`draft → pending → approved|rejected`、`approved → exported|pending`、`rejected → draft`，非法转移抛出中文 `IllegalTransition`。
+- 新增 `approval` 表和 `0008_approval` 迁移，保存内容哈希、批准人、版本号、一次性 token 哈希和使用时间；乐观锁冲突抛出 `ConcurrentModification`。
+- 新增审批服务和 CLI：`approval request/list/approve/reject`；批准只返回一次明文 token，内容哈希变化会自动回到 `pending` 并清空旧 token。
+- 每次创建和状态转移与现有业务审计哈希链在同一事务中写入；新增 SQLite、MySQL 8.4、PostgreSQL 18 审批测试。
+- 按 maken 指示更新 `AGENTS.md` 和任务说明，后续单代理直接在 `main` 开发和提交；T26 保持 `todo`，没有执行发布动作。
+
+### 改动文件
+
+- `src/crosserp/approval/`、`src/crosserp/db/schema.py`、`src/crosserp/db/repo/approval.py`、`src/crosserp/db/migrations/versions/0008_approval.py`
+- `src/crosserp/cli.py`
+- `tests/unit/approval/`、`tests/integration/test_approval_db.py`、`tests/integration/test_migrations.py`、`tests/guard/test_schema_portable.py`
+- `AGENTS.md`、`docs/tasks/README.md`、`CHANGELOG.md`
+
+### 实际验收命令与结果
+
+| 命令 | 结果 |
+|---|---|
+| `.venv/bin/python -m pytest --cov=crosserp --cov-fail-under=60` | `210 passed, 2 skipped`；覆盖率 `85.82%`。跳过项为缺少 Docker 连接串的 MySQL 自检和未提供真实卖家文件。 |
+| `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://root:dev@127.0.0.1:13306/crosserp?charset=utf8mb4 .venv/bin/python -m pytest -m db -q` | `102 passed, 4 skipped`；MySQL `8.4.13`。 |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp .venv/bin/python -m pytest -m db -q` | `102 passed, 4 skipped`；PostgreSQL `18.6`。 |
+| `.venv/bin/ruff format --check . && .venv/bin/ruff check .` | `122 files already formatted`，检查通过。 |
+| `.venv/bin/mypy --strict` | `Success: no issues found in 75 source files`。 |
+| `.venv/bin/pre-commit run --all-files` | `ruff-format`、`ruff`、`mypy` 全部 `Passed`。 |
+
+### 偏离计划
+
+- v0.1.0 没有发布；这是 maken 的明确决定，因此在 T26 保持 `todo` 的情况下先开始 W4。
+- 没有新增依赖、没有删除或修改既有迁移、没有创建分支或工作树；新增迁移为 `0008_approval`。

@@ -32,6 +32,7 @@
 - Excel/CSV 利润报表、异常清单和说明页；`reconcile --json` 机器可读输出。
 - 只读网页：导入记录、SKU 利润、异常清单和本地静态 HTMX；所有业务路由仅 GET，服务固定监听 127.0.0.1。
 - `crosserp demo --check` 独立演示库、包内合成样本、`python -m crosserp` 和三系统安装 smoke CI。
+- W4 审批状态机：审批哈希锁定、一次性 token、内容变更自动失效、乐观锁和 CLI 审批命令。
 
 ## [0.1.0] - 未发布
 

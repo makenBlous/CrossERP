@@ -5,9 +5,9 @@
 ## 怎么用
 1. 代理每次只做**一个**任务：状态为 `todo` 且依赖都为 `done` 的第一个（或 maken 指定的）。
 2. 代理先读 `AGENTS.md`，再完整读任务文件，再读任务「背景」里引用的实施方案章节。
-3. 开分支 `task/T<编号>-<短名>`，状态改 `doing`。
-4. 做完、本地验收命令全部跑过 → 状态改 `review`，填「完成记录」，开 PR。
-5. maken 按任务末尾的「人工验收清单」逐条检查 → 合并 PR → 状态改 `done`。
+3. 直接在 `main` 上工作，状态改 `doing`；本项目只有一个开发代理，不创建任务分支或工作树。
+4. 做完、本地验收命令全部跑过 → 状态改 `review`，填「完成记录」，按 AGENTS.md 直接提交到 `main`。
+5. maken 按任务末尾的「人工验收清单」逐条检查 → 状态改 `done`（不需要合并分支）。
 6. 卡住 → 状态改 `blocked`，在任务文件「问题」一节写清楚，等 maken 回复。
 
 状态取值：`todo` → `doing` → `review` → `done`；任何时候可进入 `blocked`。**只有 maken 能把状态改成 `done`。**
@@ -39,9 +39,9 @@
 | T22 | [报表输出：reconcile / profit --out report.xlsx](T22-cli-report-xlsx.md) | W3 | 1 天 | T20 | review |
 | T23 | [只读网页：导入记录 / SKU 利润 / 异常清单](T23-web-readonly.md) | W3 | 1.5 天 | T22（T15 可选） | review |
 | T24 | [crosserp demo + 基础安装（三系统）](T24-demo-basic-install.md) | W3 | 1 天 | T21, T23 | review |
-| T25 | [v0.1 验收证据汇总](T25-v01-acceptance.md) | W3 | 0.5 天 | T16, T21, T24 | doing |
+| T25 | [v0.1 验收证据汇总](T25-v01-acceptance.md) | W3 | 0.5 天 | T16, T21, T24 | review |
 | T26 | [发布 v0.1.0（发布动作由 maken 操作）](T26-release-v01.md) | W3 | 0.5 天 | T25 | todo |
-| T27 | [审批状态机 approval/](T27-approval-state-machine.md) | W4 | 1 天 | T26 | todo |
+| T27 | [审批状态机 approval/](T27-approval-state-machine.md) | W4 | 1 天 | T26（maken 同意先开 W4） | review |
 | T28 | [唯一写出口 write_service + 守卫测试（指标 4）](T28-write-service-guard.md) | W4 | 1.5 天 | T27 | todo |
 | T29 | [业务审计补全：字段 + 同事务 + 全动作](T29-audit-fields-transaction.md) | W4 | 1.5 天 | T06, T27 | todo |
 | T30 | [数据库账号权限 + 智能体只读会话](T30-db-grants-readonly-session.md) | W4 | 1 天 | T16, T29 | todo |
@@ -77,9 +77,9 @@ W5 及以后的任务（登录与角色、凭证、AI 问答等）等 W4 验收�
 ```markdown
 # T<编号> <任务标题>
 
-| 状态 | 周 | 估时 | 依赖 | 分支 |
+| 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W? | ? 天 | T?? | `task/T<编号>-<短名>` |
+| todo | W? | ? 天 | T?? | `main` |
 
 ## 目标
 （一两句话：做完以后用户/系统能做到什么）
