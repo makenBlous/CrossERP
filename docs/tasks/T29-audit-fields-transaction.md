@@ -1,8 +1,8 @@
 # T29 业务审计补全：字段齐全 + 与业务修改同一事务 + 全动作覆盖
 
-| 状态 | 周 | 估时 | 依赖 | 分支 |
+| 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W4 | 1.5 天 | T06, T27 | `task/T29-audit-fields` |
+| blocked | W4 | 1.5 天 | T06, T27 | `main` |
 
 ## 目标
 任意一条业务数据都能查到「谁、什么时候、改前/改后、谁批准的」；写审计失败，业务修改一起回滚。
@@ -43,5 +43,14 @@
 - [ ] 用 DB Browser for SQLite 打开 `%USERPROFILE%\.crosserp\data.db`，手工改 `audit_log` 某一行的 reason，保存；运行 `uv run crosserp audit verify` → **必须报错**并指出是哪一条。（改完记得删掉这个库重新 init。）
 
 ## 问题
+
+T29 暂停，等待 maken 决定是否允许改动已合并的 `audit_log` 数据库结构。当前 `main` 已有的结构与任务要求不一致：
+
+- `audit_log.actor_user_id` 当前是 `Uuid NULL`，任务要求 `String(64) NULL`。
+- `audit_log.approver_id` 当前是 `Uuid NULL`，任务要求 `String(64) NULL`。
+- `audit_log.reason` 当前是 `String(512)`，任务要求 `String(1000)`。
+- `audit_log.ip` 当前是 `String(64)`，任务要求 `String(45)`。
+
+AGENTS.md 红线要求：删除数据、删除迁移文件或改动已经合并的数据库结构前必须先问 maken。因此尚未创建 T29 实现改动，也没有执行迁移。
 
 ## 完成记录
