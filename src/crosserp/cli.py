@@ -594,7 +594,8 @@ def demo_command(
 ) -> None:
     """在独立演示库中导入样本、对账并计算利润。"""
     started = time.monotonic()
-    database = db or f"sqlite:///{Path.home() / '.crosserp' / 'demo.db'}"
+    home = Path(os.environ.get("HOME", str(Path.home())))
+    database = db or f"sqlite:///{home / '.crosserp' / 'demo.db'}"
     previous = os.environ.get("CROSSERP_DATABASE_URL")
     os.environ["CROSSERP_DATABASE_URL"] = database
     try:
