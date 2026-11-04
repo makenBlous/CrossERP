@@ -77,3 +77,4 @@
 - 本地 PostgreSQL 18 Docker：`pytest -m db` → `109 passed, 7 skipped`；认证表、迁移往返和授权测试通过。
 - 静态检查：`.venv/bin/ruff check src tests`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 全部通过。
 - 偏离计划：`user_role` 使用 `(user_id, role)` 复合主键实现唯一性，去掉重复唯一约束以保证 PostgreSQL `alembic check` 无差异；没有创建分支/工作树，直接提交 `main`。
+- CI 修复：网页服务启动前自动建库迁移；CI 创建 `.ci` 授权脚本目录；通用映射对 `UTC` 使用跨平台固定时区，Windows 安装 smoke 的 demo 可正常达到 95% 匹配率。

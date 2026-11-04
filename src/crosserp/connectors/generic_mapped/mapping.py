@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import codecs
+from datetime import UTC, tzinfo
 from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -206,8 +207,20 @@ def _is_todo(value: str) -> bool:
 
 
 def _require_zone(name: str) -> None:
+    if name in {"UTC", "Etc/UTC", "Z"}:
+        return
     try:
         ZoneInfo(name)
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError(f"不认识的时区 {name}") from exc
+
+
+def timezone_for_name(name: str) -> tzinfo:
+    """返回跨平台时区对象; Windows 不一定附带 IANA 的 UTC 数据文件。"""
+    if name in {"UTC", "Etc/UTC", "Z"}:
+        return UTC
+    try:
+        return ZoneInfo(name)
     except ZoneInfoNotFoundError as exc:
         raise ValueError(f"不认识的时区 {name}") from exc
 

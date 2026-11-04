@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from crosserp.connectors.base import SourceKind
 from crosserp.connectors.generic_mapped.mapping import (
@@ -19,6 +18,7 @@ from crosserp.connectors.generic_mapped.mapping import (
     missing_header_message,
     missing_headers,
     require_text,
+    timezone_for_name,
 )
 from crosserp.connectors.generic_mapped.periods import (
     overlap_message,
@@ -313,7 +313,7 @@ def _platform_from_prefix(store_key: str) -> Platform:
 def _parse_datetime(text: str, spec: MappingSpec) -> datetime:
     if not spec.timezone or not spec.date_formats:
         raise ValueError("YAML 缺少 timezone 或 date_formats。")
-    zone = ZoneInfo(spec.timezone)
+    zone = timezone_for_name(spec.timezone)
     for fmt in spec.date_formats:
         try:
             parsed = datetime.strptime(text, fmt)
