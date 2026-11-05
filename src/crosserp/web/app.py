@@ -69,6 +69,20 @@ def create_app(database_url: str | None = None) -> FastAPI:
             return Response(status_code=401)
         return RedirectResponse(f"/login?next={_safe_next(request.url.path)}", status_code=302)
 
+    def permission_denied(
+        session: Session, user: AppUser, request: Request, permission: str
+    ) -> Response:
+        record_security(
+            session,
+            SecurityEventName.PERMISSION_DENIED,
+            user_id=user.id,
+            username=user.username,
+            ip=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            detail={"permission": permission, "path": request.url.path, "method": request.method},
+        )
+        return Response("你没有权限做这件事", status_code=403)
+
     @app.middleware("http")
     async def security_headers(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
@@ -184,7 +198,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             if user is None:
                 return login_redirect(request)
             if not require(session, user, Permission.REPORT_READ):
-                return Response("你没有权限做这件事", status_code=403)
+                return permission_denied(session, user, request, Permission.REPORT_READ.value)
             stores = list(session.scalars(select(Store).order_by(Store.name)))
         return templates.TemplateResponse(
             request, "index.html", {"version": __version__, "stores": stores, "user": user}
@@ -197,7 +211,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             if user is None:
                 return login_redirect(request)
             if not require(session, user, Permission.REPORT_READ):
-                return Response("你没有权限做这件事", status_code=403)
+                return permission_denied(session, user, request, Permission.REPORT_READ.value)
             batches = list(
                 session.scalars(
                     select(ImportBatch).order_by(ImportBatch.imported_at.desc()).limit(100)
@@ -216,7 +230,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             if user is None:
                 return login_redirect(request)
             if not require(session, user, Permission.REPORT_READ):
-                return Response("你没有权限做这件事", status_code=403)
+                return permission_denied(session, user, request, Permission.REPORT_READ.value)
             statement = select(ProfitSnapshot, Store).join(
                 Store, Store.id == ProfitSnapshot.store_id
             )
@@ -245,7 +259,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             if user is None:
                 return login_redirect(request)
             if not require(session, user, Permission.REPORT_READ):
-                return Response("你没有权限做这件事", status_code=403)
+                return permission_denied(session, user, request, Permission.REPORT_READ.value)
             statement = select(Issue).order_by(Issue.created_at.desc())
             if kind:
                 statement = statement.where(Issue.kind == kind)
@@ -289,7 +303,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             if user is None:
                 return login_redirect(request)
             if not require(session, user, Permission.SETTING_MANAGE):
-                return Response("你没有权限做这件事", status_code=403)
+                return permission_denied(session, user, request, Permission.REPORT_READ.value)
             setting = session.get(AppSetting, "solo_mode")
             enabled = bool(setting.value_json) if setting is not None else False
         state = "开" if enabled else "关"
@@ -313,7 +327,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             if user is None:
                 return login_redirect(request)
             if not require(session, user, Permission.SETTING_MANAGE):
-                return Response("你没有权限做这件事", status_code=403)
+                return permission_denied(session, user, request, Permission.REPORT_READ.value)
             setting = session.get(AppSetting, "solo_mode")
             if setting is None:
                 session.add(
