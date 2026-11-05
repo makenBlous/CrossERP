@@ -36,6 +36,26 @@ def export(
     output_dir: Path | None = None,
 ) -> ExportArtifact:
     """验证审批、生成 XLSX、记录产物并消费一次性 token。"""
+    return export_many(
+        session,
+        batch_id,
+        approval_token,
+        target_ids=[target_id],
+        output_dir=output_dir,
+    )[0]
+
+
+def export_many(
+    session: Session,
+    batch_id: str,
+    approval_token: str | None,
+    *,
+    target_ids: list[str],
+    output_dir: Path | None = None,
+) -> list[ExportArtifact]:
+    """一次校验并消费审批 token, 生成多个格式的凭证产物。"""
+    if not target_ids:
+        raise ValueError("至少需要一个写出目标")
     approval: Approval | None = None
     approval_id: UUID | None = None
     reason: tuple[str, str] | None = None
@@ -72,53 +92,61 @@ def export(
     if approval is None:
         _record_denial(session, batch_id, "审批单在导出前消失", approval_id)
         raise ApprovalRequired("MISSING_APPROVAL", "审批单在导出前消失")
-    target = _target(target_id)
-    if approval.target_type not in target.supported_types:
+    targets = [_target(target_id) for target_id in target_ids]
+    if any(approval.target_type not in target.supported_types for target in targets):
         _record_denial(session, batch_id, "TARGET_TYPE_MISMATCH", approval.id)
         raise ApprovalRequired("TARGET_TYPE_MISMATCH", "审批对象类型与写出目标不匹配")
-    path = target.render(
-        session,
-        batch_id=batch_id,
-        approval_id=str(approval.id),
-        output_dir=output_dir or Path.cwd() / "exports",
-    )
-    try:
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        now = datetime.now(UTC)
-        artifact = ExportArtifact(
-            id=uuid4(),
-            approval_id=approval.id,
-            target_id=target_id,
-            file_path=str(path),
-            ext_ref=None,
-            sha256=digest,
-            created_at=now,
+    paths = [
+        target.render(
+            session,
+            batch_id=batch_id,
+            approval_id=str(approval.id),
+            output_dir=output_dir or Path.cwd() / "exports",
         )
-        session.add(artifact)
-        session.flush()
+        for target in targets
+    ]
+    try:
+        now = datetime.now(UTC)
+        artifacts: list[ExportArtifact] = []
+        for target, path in zip(targets, paths, strict=True):
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            artifact = ExportArtifact(
+                id=uuid4(),
+                approval_id=approval.id,
+                target_id=target.id,
+                file_path=str(path),
+                ext_ref=None,
+                sha256=digest,
+                created_at=now,
+            )
+            session.add(artifact)
+            session.flush()
+            artifacts.append(artifact)
         approval.used_at = now
         mark_exported(session, approval, actor="system")
-        append(
-            session,
-            "system",
-            "ledger.export",
-            "export_artifact",
-            str(artifact.id),
-            None,
-            {
-                "approval_id": str(approval.id),
-                "target_id": target_id,
-                "file_path": str(path),
-                "sha256": digest,
-            },
-            approval_id=approval.id,
-            approver_id=None,
-            self_approved=False,
-        )
-        return artifact
+        for artifact, path, target in zip(artifacts, paths, targets, strict=True):
+            append(
+                session,
+                "system",
+                "ledger.export",
+                "export_artifact",
+                str(artifact.id),
+                None,
+                {
+                    "approval_id": str(approval.id),
+                    "target_id": target.id,
+                    "file_path": str(path),
+                    "sha256": artifact.sha256,
+                },
+                approval_id=approval.id,
+                approver_id=None,
+                self_approved=False,
+            )
+        return artifacts
     except Exception:
-        if path.exists():
-            path.unlink()
+        for path in paths:
+            if path.exists():
+                path.unlink()
         raise
 
 
@@ -193,5 +221,7 @@ def _target(target_id: str) -> LedgerTarget:
 
         return KingdeeXlsxTarget()
     if target_id == "generic_xlsx":
-        raise ApprovalRequired("UNKNOWN_TARGET", "generic_xlsx 将在 T41 实现")
+        from crosserp.ledger.targets.generic_xlsx import GenericXlsxTarget
+
+        return GenericXlsxTarget()
     raise ApprovalRequired("UNKNOWN_TARGET", f"不支持的写出目标 {target_id}")

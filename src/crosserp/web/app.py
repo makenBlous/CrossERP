@@ -44,15 +44,20 @@ from crosserp.db.schema import (
     AppUser,
     AuditHead,
     AuditLog,
+    ExportArtifact,
     ImportBatch,
     Issue,
     ProfitSnapshot,
     SecurityEvent,
     Store,
+    Voucher,
+    VoucherLine,
 )
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
 from crosserp.issues.service import transition as transition_issue
+from crosserp.ledger.write_service import ApprovalRequired
+from crosserp.ledger.write_service import export_many as export_ledger_many
 from crosserp.web.deps import require
 
 _WEB_DIR = Path(__file__).parent
@@ -402,6 +407,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
             return Response("不认识的审批动作", status_code=400)
         if not comment.strip() or len(comment) > 1000:
             return Response("审批意见必填，且不能超过 1000 个字符", status_code=400)  # noqa: RUF001
+        approved_token: str | None = None
+        approved_batch: str | None = None
         with sessions() as session:
             user = current(request, session)
             if user is None:
@@ -422,7 +429,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
                 if action == "approve" and row.payload_hash != current_hash:
                     return Response("数据已变，需要重新提交", status_code=400)  # noqa: RUF001
                 if action == "approve":
-                    approve_approval(
+                    approved_token = approve_approval(
                         session,
                         row,
                         approver=user.username,
@@ -433,6 +440,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
                         solo_mode=solo_mode,
                         comment=comment,
                     )
+                    if row.target_type == "voucher":
+                        approved_batch = f"{row.target_type}:{row.target_id}"
                 else:
                     reject_approval(
                         session,
@@ -448,7 +457,124 @@ def create_app(database_url: str | None = None) -> FastAPI:
                 return Response("别人刚处理过，请刷新", status_code=409)  # noqa: RUF001
             except (LookupError, ValueError) as exc:
                 return Response(str(exc), status_code=400)
+        if approved_token is not None and approved_batch is not None:
+            try:
+                with sessions() as export_session:
+                    export_ledger_many(
+                        export_session,
+                        approved_batch,
+                        approved_token,
+                        target_ids=["kingdee_xlsx", "generic_xlsx"],
+                        output_dir=Path.cwd() / "exports",
+                    )
+            except (ApprovalRequired, LookupError, ValueError, FileExistsError) as exc:
+                return Response(str(exc), status_code=400)
         return RedirectResponse(f"/approvals/{approval_id}", status_code=303)
+
+    @app.get("/vouchers", response_class=HTMLResponse)
+    def vouchers_page(request: Request) -> Response:
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.REPORT_READ):
+                return permission_denied(session, user, request, Permission.REPORT_READ.value)
+            rows = list(session.scalars(select(Voucher).order_by(Voucher.created_at.desc())))
+        return templates.TemplateResponse(
+            request, "vouchers.html", {"request": request, "rows": rows, "user": user}
+        )
+
+    @app.get("/vouchers/{voucher_id}", response_class=HTMLResponse)
+    def voucher_detail(request: Request, voucher_id: str) -> Response:
+        from uuid import UUID
+
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.REPORT_READ):
+                return permission_denied(session, user, request, Permission.REPORT_READ.value)
+            try:
+                row = session.get(Voucher, UUID(voucher_id))
+            except ValueError:
+                row = None
+            if row is None:
+                return Response("凭证不存在", status_code=404)
+            lines = list(
+                session.scalars(
+                    select(VoucherLine)
+                    .where(VoucherLine.voucher_id == row.id)
+                    .order_by(VoucherLine.line_no)
+                )
+            )
+            artifacts = list(
+                session.scalars(
+                    select(ExportArtifact)
+                    .where(
+                        ExportArtifact.approval_id.in_(
+                            select(Approval.id).where(Approval.target_id == str(row.id))
+                        )
+                    )
+                    .order_by(ExportArtifact.target_id)
+                )
+            )
+        return templates.TemplateResponse(
+            request,
+            "voucher_detail.html",
+            {"request": request, "row": row, "lines": lines, "artifacts": artifacts, "user": user},
+        )
+
+    @app.get("/vouchers/{voucher_id}/download")
+    def voucher_download(
+        request: Request, voucher_id: str, target: str = "generic_xlsx"
+    ) -> Response:
+        from uuid import UUID
+
+        if target not in {"kingdee_xlsx", "generic_xlsx"}:
+            return Response("不支持的凭证格式", status_code=400)
+        denial_batch: str | None = None
+        path: Path | None = None
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.VOUCHER_DOWNLOAD):
+                return permission_denied(session, user, request, Permission.VOUCHER_DOWNLOAD.value)
+            try:
+                voucher = session.get(Voucher, UUID(voucher_id))
+            except ValueError:
+                voucher = None
+            if voucher is None:
+                return Response("凭证不存在", status_code=404)
+            artifact = session.scalar(
+                select(ExportArtifact)
+                .join(Approval, Approval.id == ExportArtifact.approval_id)
+                .where(
+                    Approval.target_type == "voucher",
+                    Approval.target_id == str(voucher.id),
+                    ExportArtifact.target_id == target,
+                )
+                .order_by(ExportArtifact.created_at.desc())
+            )
+            if artifact is None or not artifact.file_path or not Path(artifact.file_path).is_file():
+                denial_batch = f"voucher:{voucher.id}"
+            else:
+                path = Path(artifact.file_path)
+        if denial_batch is not None:
+            try:
+                with sessions() as denial_session:
+                    export_ledger_many(
+                        denial_session,
+                        denial_batch,
+                        None,
+                        target_ids=[target],
+                        output_dir=Path.cwd() / "exports",
+                    )
+            except ApprovalRequired as exc:
+                return Response(str(exc), status_code=403)
+            return Response("凭证文件不存在", status_code=403)
+        assert path is not None
+        return FileResponse(path, filename=path.name)
 
     @app.get("/audit", response_class=HTMLResponse)
     def audit_page(

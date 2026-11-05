@@ -1,0 +1,5 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>凭证</title></head>
+<body><h1>凭证草稿</h1><a href="/">首页</a> | <a href="/approvals">审批台</a>
+<table><tr><th>期间</th><th>来源</th><th>状态</th><th>币别</th><th>借方</th><th>贷方</th></tr>
+{% for row in rows %}<tr><td><a href="/vouchers/{{ row.id }}">{{ row.period }}</a></td><td>{{ row.source_id }}</td><td>{{ row.state }}</td><td>{{ row.currency }}</td><td>{{ row.total_debit }}</td><td>{{ row.total_credit }}</td></tr>{% endfor %}
+</table></body></html>

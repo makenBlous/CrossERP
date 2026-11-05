@@ -20,3 +20,4 @@ cp config/accounts.example.yaml ~/.crosserp/accounts.yaml
 每条分录只能有借方或贷方；保存前用 Decimal 检查借贷合计，任何不平衡的草稿都会被拒绝。
 凭证审批哈希包含输入哈希、科目文件哈希和规范化分录，科目文件修改后旧审批会失效。
 金蝶输出模板位于 `src/crosserp/ledger/templates/kingdee_voucher.yaml`，当前列名和顺序是常见列草案，拿到真实模板后只改 YAML。
+网页凭证详情页也提供两种格式的下载链接；批准时文件已生成，下载不会再次消费审批 token。

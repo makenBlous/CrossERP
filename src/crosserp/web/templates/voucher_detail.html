@@ -1,0 +1,6 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>凭证详情</title></head>
+<body><h1>凭证详情</h1><a href="/vouchers">返回凭证</a><p>状态：{{ row.state }}；期间：{{ row.period }}；借方：{{ row.total_debit }}；贷方：{{ row.total_credit }}</p>
+<table><tr><th>行</th><th>科目编码</th><th>科目名称</th><th>摘要</th><th>借方</th><th>贷方</th></tr>{% for line in lines %}<tr><td>{{ line.line_no }}</td><td>{{ line.account_code }}</td><td>{{ line.account_name }}</td><td>{{ line.summary }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr>{% endfor %}</table>
+<h2>下载</h2><a href="/vouchers/{{ row.id }}/download?target=kingdee_xlsx">下载金蝶格式</a> | <a href="/vouchers/{{ row.id }}/download?target=generic_xlsx">下载通用格式</a>
+{% if artifacts %}<h2>已生成文件</h2><ul>{% for artifact in artifacts %}<li>{{ artifact.target_id }}：{{ artifact.file_path }}</li>{% endfor %}</ul>{% endif %}
+</body></html>

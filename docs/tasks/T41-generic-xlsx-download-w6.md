@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W6 | 1.5 天 | T40 | `main` |
+| doing | W6 | 1.5 天 | T40 | `main` |
 
 ## 目标
 不用金蝶的人也能导出一份通用 Excel 凭证；财务在网页上批准凭证后能点「下载凭证」；没批准的凭证点下载（或直接访问下载地址）返回 403，且审计里有被拒记录。
@@ -50,5 +50,10 @@
 - **Q1 ⚠ 待 maken 确认：网页上一次性 token 怎么用。** 选项：A 批准的同一个请求里，服务端立刻用刚生成的 token 调 `write_service.export` 生成两种格式文件并存为 `export_artifact`，token 当场消费；之后「下载」只是读取已存产物（需已批准且产物哈希匹配）（推荐：token 不出服务端，仍是一次性，红线不变）；B 批准后页面显示 token，用户粘贴到下载表单（麻烦、易泄露）；C 下载时用会话身份代替 token（会改变红线语义，不推荐）。
 - **Q2 ⚠ 待 maken 确认：Q1-A 下，批准时生成哪些格式。** 选项：A 两种都生成（推荐；需要给 `write_service.export` 增加 `target_ids: list[str]`，一次校验、一次消费 token、生成多个产物，同一事务；单目标调用行为不变）；B 只生成 accounts 配置里指定的默认格式。
 
+按推荐默认执行 Q1-A、Q2-A：批准后服务端一次生成两种格式并消费 token，网页下载只读取已保存产物。
+
 ## 完成记录
-（代理填写）
+- 完成内容：新增通用双表 Excel 目标；唯一写出口支持一次审批生成多个目标并只消费一次 token；网页新增凭证列表/详情和两种格式下载；未批准、无文件、目标不匹配和越权下载均拒绝并记录审计；新增 W6 验收证据。
+- 修改文件：`src/crosserp/ledger/targets/generic_xlsx.py`、`src/crosserp/ledger/write_service.py`、`src/crosserp/web/app.py`、`src/crosserp/web/routes/__init__.py`、`src/crosserp/web/templates/{vouchers,voucher_detail,index}.html`、`tests/web/test_voucher_download.py`、`docs/evidence/W6.md`、`docs/vouchers.md`、`CHANGELOG.md`。
+- 测试结果：网页/凭证导出/守卫 15 passed；写出筛选 18 passed；全量 SQLite `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 246 passed、7 skipped，覆盖率 79.72%；MySQL 8.4 和 PostgreSQL 18 凭证导出各 1 passed；`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过。
+- 偏离计划：当前网页仍集中装配在 `web/app.py`，按现有项目结构实现；通用格式固定中文两表，金蝶格式继续使用 T40 的可配置模板。
