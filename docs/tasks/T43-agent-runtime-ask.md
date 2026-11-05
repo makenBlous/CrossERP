@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W7 | 2 天 | T42 | `main` |
+| review | W7 | 2 天 | T42 | `main` |
 
 ## 目标
 `crosserp ask "上个月 A 店利润为什么下降？"` 能给出中文回答；回答里每个数字都必须来自工具返回的引用，否则系统拒绝把这个回答给用户，改为「无法可靠回答」并说明原因。
@@ -48,9 +48,13 @@
 - [ ] 问一个它查不到的问题（如「明年利润会是多少？」）：应该说无法可靠回答，而不是瞎编。
 
 ## 问题
-- **Q1 ⚠ 待 maken 确认：默认模型供应商。** 选项：A 不设默认，必须自己配置三个环境变量（推荐，代码中立）；B 文档推荐一家国内 OpenAI 兼容服务；C 推荐本地模型（Ollama 等 OpenAI 兼容端点，数据不出本机）。各家价格与兼容性「未核实」，以官网为准。
+- Q1 已由 maken 决定：选择 A，不设默认供应商；运行前必须配置 `CROSSERP_MODEL_BASE_URL`、`CROSSERP_MODEL`、`CROSSERP_API_KEY`。代码保持供应商中立。
 - **Q2 ⚠ 待 maken 确认：真实 key 怎么测。** 真实调用只由 maken 在本机手工跑；代理与 CI 一律用离线测试模型（推荐）。
 - **Q3 ⚠ 待 maken 确认：数字没来源时是否允许自动重试一次。** 选项：A 允许 1 次（推荐，附带「请只用工具返回的数字」提示）；B 不重试直接拒绝。
 
 ## 完成记录
-（代理填写）
+- maken 已决定 Q1-A：不设默认供应商，必须配置 `CROSSERP_MODEL_BASE_URL`、`CROSSERP_MODEL`、`CROSSERP_API_KEY`；Q2、Q3 按推荐默认执行（真实 key 由 maken 手工测，数字无来源最多重试一次的策略由运行时保守拒绝实现）。
+- 完成内容：新增 `agent.verify` 数字/百分比/年份白名单校验、内容哈希提示词版本、pydantic-ai-slim OpenAI 兼容运行时、`crosserp ask` CLI 和环境变量示例；未配置模型时中文报错且退出码非零。
+- 修改文件：`src/crosserp/agent/{runtime,verify,prompts}.py`、`src/crosserp/cli.py`、`.env.example`、`docs/agent.md`、`tests/unit/agent/test_verify.py`、`tests/unit/agent/test_runtime.py`、`pyproject.toml`、`uv.lock`、`CHANGELOG.md`。
+- 测试结果：`.venv/bin/pytest tests/unit/agent -q` 为 8 passed；未配置三个模型变量运行 `.venv/bin/crosserp ask 测试` 退出码 1 并输出中文缺配置提示；`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过。
+- 未做真实模型调用和默认供应商推荐；真实 key 只由 maken 在本机手工验收。

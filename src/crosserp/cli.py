@@ -24,6 +24,7 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session
 
 from crosserp import __version__
+from crosserp.agent.runtime import ask as ask_agent
 from crosserp.approval.payload import payload_hash
 from crosserp.approval.service import (
     approve as approve_approval,
@@ -1256,6 +1257,28 @@ def voucher_submit(
         raise typer.Exit(code=1) from exc
     finally:
         engine.dispose()
+
+
+@app.command("ask")
+def ask_command(
+    question: str = typer.Argument(..., help="要回答的问题。"),
+    as_name: str | None = typer.Option(None, "--as", help="当前登录用户名。"),
+    as_json: bool = typer.Option(False, "--json", help="输出 JSON。"),
+) -> None:
+    """调用只读 AI 工具回答问题。"""
+    try:
+        answer = ask_agent(question, user_ctx=as_name)
+    except (RuntimeError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    if as_json:
+        typer.echo(answer.model_dump_json(ensure_ascii=False))
+    else:
+        typer.echo(answer.text)
+        if answer.refused and answer.refusal_reason:
+            typer.echo(f"原因：{answer.refusal_reason}", err=True)  # noqa: RUF001
+    if answer.refused:
+        raise typer.Exit(code=1)
 
 
 @app.command("export")
