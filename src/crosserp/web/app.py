@@ -20,6 +20,7 @@ from crosserp import __version__
 from crosserp.audit.security import SecurityEventName
 from crosserp.audit.security import record as record_security
 from crosserp.auth.passwords import hash_password, verify_password
+from crosserp.auth.permissions import Permission
 from crosserp.auth.sessions import create_session, find_user, revoke_session
 from crosserp.config import load_settings
 from crosserp.db.migrate import ensure_database_directory, upgrade_head
@@ -35,6 +36,7 @@ from crosserp.db.schema import (
 )
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
+from crosserp.web.deps import require
 
 _WEB_DIR = Path(__file__).parent
 _DUMMY_HASH = hash_password("CrossERP dummy password value")
@@ -180,6 +182,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
             user = current(request, session)
             if user is None:
                 return login_redirect(request)
+            if not require(session, user, Permission.REPORT_READ):
+                return Response("你没有权限做这件事", status_code=403)
             stores = list(session.scalars(select(Store).order_by(Store.name)))
         return templates.TemplateResponse(
             request, "index.html", {"version": __version__, "stores": stores, "user": user}
@@ -191,6 +195,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
             user = current(request, session)
             if user is None:
                 return login_redirect(request)
+            if not require(session, user, Permission.REPORT_READ):
+                return Response("你没有权限做这件事", status_code=403)
             batches = list(
                 session.scalars(
                     select(ImportBatch).order_by(ImportBatch.imported_at.desc()).limit(100)
@@ -208,6 +214,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
             user = current(request, session)
             if user is None:
                 return login_redirect(request)
+            if not require(session, user, Permission.REPORT_READ):
+                return Response("你没有权限做这件事", status_code=403)
             statement = select(ProfitSnapshot, Store).join(
                 Store, Store.id == ProfitSnapshot.store_id
             )
@@ -235,6 +243,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
             user = current(request, session)
             if user is None:
                 return login_redirect(request)
+            if not require(session, user, Permission.REPORT_READ):
+                return Response("你没有权限做这件事", status_code=403)
             statement = select(Issue).order_by(Issue.created_at.desc())
             if kind:
                 statement = statement.where(Issue.kind == kind)
