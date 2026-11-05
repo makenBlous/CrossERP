@@ -33,7 +33,6 @@ from crosserp.db.schema import (
     ProfitSnapshot,
     SecurityEvent,
     Store,
-    UserRole,
 )
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
@@ -286,9 +285,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
             user = current(request, session)
             if user is None:
                 return login_redirect(request)
-            roles = set(session.scalars(select(UserRole.role).where(UserRole.user_id == user.id)))
-            if not roles.intersection({"admin", "auditor"}):
-                return Response("无权查看登录日志", status_code=403)
+            if not require(session, user, Permission.SECURITY_LOG_READ):
+                return permission_denied(session, user, request, Permission.SECURITY_LOG_READ.value)
             rows = list(
                 session.scalars(select(SecurityEvent).order_by(SecurityEvent.seq.desc()).limit(100))
             )
