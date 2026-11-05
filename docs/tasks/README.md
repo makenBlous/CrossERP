@@ -62,7 +62,7 @@
 | T45 | [发给模型前脱敏 + 提示注入防护 + AI 正文保留期（⚠ 待 maken 确认）](T45-redaction-injection-retention.md) | W7 | 1 天 | T44 | review |
 | T46 | [网页 AI 问答页：引用可点开到原始行 + 审计](T46-web-ask-page.md) | W7 | 1 天 | T45 | review |
 | T47 | [MCP 服务（只读工具）+ API token 鉴权与安全事件（⚠ 待 maken 确认）](T47-mcp-server-api-token.md) | W8 | 1.5 天 | T46 | review |
-| T48 | [AI 监控页：调用量、费用、拒答率、慢调用](T48-llm-monitor-page.md) | W8 | 1 天 | T47 | todo |
+| T48 | [AI 监控页：调用量、费用、拒答率、慢调用](T48-llm-monitor-page.md) | W8 | 1 天 | T47 | review |
 | T49 | [AI 预算与告警：超额横幅 + 硬拒绝 + 演示脚本 + W8 验收证据（⚠ 待 maken 确认）](T49-llm-budget-alert-w8.md) | W8 | 1.5 天 | T48 | todo |
 | T50 | [AI 评测集：20 个问题 + pydantic-evals 评分（⚠ 待 maken 确认）](T50-eval-question-set.md) | W9 | 1.5 天 | T49 | todo |
 | T51 | [评测记录入库 + 基线对比 + CI 离线评测（⚠ 待 maken 确认）](T51-eval-run-ci.md) | W9 | 1 天 | T50 | todo |

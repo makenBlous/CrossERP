@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W8 | 1 天 | T47 | `main` |
+| review | W8 | 1 天 | T47 | `main` |
 
 ## 目标
 管理员/审计员能在一个页面看到：每天多少次 AI 调用、花了多少钱（估算）、被拦截比例、最慢的调用、每个用户用了多少；点开一次调用能看到它调了哪些工具。
@@ -39,7 +39,9 @@
 - [ ] 点开最近一次：能看到它查了哪些工具。
 
 ## 问题
-- **Q1 ⚠ 待 maken 确认：谁能看问答全文。** 选项：A admin 和 auditor（推荐）；B 只有 auditor；C 都只能看元数据，不显示全文。
+- Q1 按推荐默认执行：admin 和 auditor 可看尚未清理的问答正文，正文清理后显示「已清理」。
 
 ## 完成记录
-（代理填写）
+- 完成内容：新增 `observability.stats` 的调用数、成功/拒答/错误、token、Decimal 费用、P50/P95 和最慢调用统计；新增 `/llm` 监控页和 `/llm/calls/{id}` 详情页；viewer 无权访问；问答正文按 Q1 推荐由 admin/auditor 查看。
+- 修改文件：`src/crosserp/observability/stats.py`、`src/crosserp/web/app.py`、`src/crosserp/web/routes/__init__.py`、`src/crosserp/web/templates/{llm,llm_call}.html`、`tests/unit/observability/test_stats.py`、`tests/web/test_llm_page.py`、`CHANGELOG.md`。
+- 测试结果：`.venv/bin/pytest tests/unit/observability tests/web -k llm -q` 为 1 passed；全量 SQLite `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 265 passed、7 skipped，覆盖率 78.61%；ruff/mypy/pre-commit 通过。

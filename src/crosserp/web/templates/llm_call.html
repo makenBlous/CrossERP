@@ -1,0 +1,1 @@
+<!doctype html><html lang="zh-CN"><body><h1>AI 调用</h1><p>模型 {{ row.model }}；状态 {{ row.status }}；耗时 {{ row.latency_ms }}ms；输入 {{ row.input_tokens }}；输出 {{ row.output_tokens }}；费用 {{ row.cost_estimate or '未配置价格' }}</p><p>问题：{{ row.question_text or '已清理' }}</p><p>回答：{{ row.answer_text or '已清理' }}</p></body></html>

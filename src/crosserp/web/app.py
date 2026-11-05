@@ -50,6 +50,7 @@ from crosserp.db.schema import (
     ExportArtifact,
     ImportBatch,
     Issue,
+    LlmCall,
     OrderLine,
     ProfitSnapshot,
     RawRow,
@@ -64,6 +65,7 @@ from crosserp.issues.catalog import definition, render
 from crosserp.issues.service import transition as transition_issue
 from crosserp.ledger.write_service import ApprovalRequired
 from crosserp.ledger.write_service import export_many as export_ledger_many
+from crosserp.observability.stats import summarize
 from crosserp.web.deps import require
 
 _WEB_DIR = Path(__file__).parent
@@ -715,6 +717,37 @@ def create_app(database_url: str | None = None) -> FastAPI:
             _, plain = create_token(session, user, name=name)
         return HTMLResponse(
             f"<p>Token 只显示这一次: <code>{plain}</code></p><a href='/account/tokens'>返回</a>"
+        )
+
+    @app.get("/llm", response_class=HTMLResponse)
+    def llm_page(request: Request) -> Response:
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.LLM_MONITOR_READ):
+                return permission_denied(session, user, request, Permission.LLM_MONITOR_READ.value)
+            rows = list(session.scalars(select(LlmCall).order_by(LlmCall.ts.desc()).limit(1000)))
+            stats = summarize(rows)
+        return templates.TemplateResponse(
+            request, "llm.html", {"request": request, "stats": stats, "user": user}
+        )
+
+    @app.get("/llm/calls/{call_id}", response_class=HTMLResponse)
+    def llm_call_detail(request: Request, call_id: str) -> Response:
+        from uuid import UUID
+
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.LLM_MONITOR_READ):
+                return permission_denied(session, user, request, Permission.LLM_MONITOR_READ.value)
+            row = session.get(LlmCall, UUID(call_id))
+            if row is None:
+                return Response("调用不存在", status_code=404)
+        return templates.TemplateResponse(
+            request, "llm_call.html", {"request": request, "row": row, "user": user}
         )
 
     @app.get("/audit", response_class=HTMLResponse)
