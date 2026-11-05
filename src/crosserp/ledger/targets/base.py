@@ -12,6 +12,7 @@ class LedgerTarget(Protocol):
     """生成一个不可覆盖的外部产物。"""
 
     id: str
+    supported_types: frozenset[str]
 
     def render(
         self,

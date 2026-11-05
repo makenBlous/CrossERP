@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from crosserp.approval.payload import compute as compute_payload
 from crosserp.approval.service import hash_token, mark_exported
 from crosserp.approval.state import ApprovalState
 from crosserp.audit.log import append
@@ -56,7 +57,7 @@ def export(
             elif approval.state != ApprovalState.APPROVED.value:
                 reason = ("NOT_APPROVED", "审批当前不是已批准状态")
             else:
-                current_hash = _payload_hash(validation, approval.target_id)
+                current_hash = _payload_hash(validation, approval.target_type, approval.target_id)
                 if current_hash != approval.payload_hash:
                     reason = (
                         "PAYLOAD_CHANGED",
@@ -72,6 +73,9 @@ def export(
         _record_denial(session, batch_id, "审批单在导出前消失", approval_id)
         raise ApprovalRequired("MISSING_APPROVAL", "审批单在导出前消失")
     target = _target(target_id)
+    if approval.target_type not in target.supported_types:
+        _record_denial(session, batch_id, "TARGET_TYPE_MISMATCH", approval.id)
+        raise ApprovalRequired("TARGET_TYPE_MISMATCH", "审批对象类型与写出目标不匹配")
     path = target.render(
         session,
         batch_id=batch_id,
@@ -141,7 +145,19 @@ def _record_denial(
         )
 
 
-def _payload_hash(session: Session, target_id: str) -> str:
+def _payload_hash(session: Session, target_type: str, target_id: str | None = None) -> str:
+    if target_id is None:
+        target_id = target_type
+        target_type = "profit_report"
+    try:
+        return compute_payload(session, target_type, target_id)
+    except LookupError as exc:
+        raise ApprovalRequired("MISSING_REPORT", str(exc)) from exc
+    except ValueError as exc:
+        raise ApprovalRequired("INVALID_TARGET", str(exc)) from exc
+
+
+def _legacy_payload_hash(session: Session, target_id: str) -> str:
     store_name, separator, period = target_id.rpartition(":")
     if not separator or not store_name or len(period) != 7:
         raise ApprovalRequired("INVALID_TARGET", "利润报表对象必须是 店铺:YYYY-MM")
@@ -172,4 +188,10 @@ def _target(target_id: str) -> LedgerTarget:
         from crosserp.ledger.targets.xlsx import XlsxLedgerTarget
 
         return XlsxLedgerTarget()
+    if target_id == "kingdee_xlsx":
+        from crosserp.ledger.targets.kingdee_xlsx import KingdeeXlsxTarget
+
+        return KingdeeXlsxTarget()
+    if target_id == "generic_xlsx":
+        raise ApprovalRequired("UNKNOWN_TARGET", "generic_xlsx 将在 T41 实现")
     raise ApprovalRequired("UNKNOWN_TARGET", f"不支持的写出目标 {target_id}")

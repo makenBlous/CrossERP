@@ -38,6 +38,11 @@ def payload_hash(session: Session, target_type: str, target_id: str) -> str:
     raise ValueError(f"不支持的审批对象类型: {target_type}")
 
 
+def compute(session: Session, target_type: str, target_id: str) -> str:
+    """统一审批 payload 计算入口。"""
+    return payload_hash(session, target_type, target_id)
+
+
 def canonical_hash(value: Any) -> str:
     return hashlib.sha256(
         json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()

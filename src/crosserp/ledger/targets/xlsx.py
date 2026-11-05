@@ -13,6 +13,7 @@ class XlsxLedgerTarget:
     """复用 T22 报表格式，文件已存在时不覆盖。"""  # noqa: RUF002
 
     id = "xlsx"
+    supported_types = frozenset({"profit_report"})
 
     def render(
         self,
