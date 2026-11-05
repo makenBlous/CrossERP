@@ -27,6 +27,10 @@ _HASH_LENGTH = 64
 ApprovalRef = Approval | UUID
 
 
+class SelfApprovalForbidden(ValueError):
+    """单人模式关闭时提交人不能批准自己的审批单。"""
+
+
 def create(
     session: Session,
     *,
@@ -116,9 +120,13 @@ def approve(
     decided_at: datetime | None = None,
     actor_role: str | None = None,
     actor_name: str | None = None,
+    approver_user_id: UUID | None = None,
+    solo_mode: bool | None = None,
 ) -> str:
     """批准审批单并返回一次性明文 token。"""
     row = _load(session, approval)
+    if solo_mode is False and row.requested_by == approver:
+        raise SelfApprovalForbidden("单人模式关闭时不能批准自己提交的审批单")
     old = _audit_after(row)
     transition(row.state, ApprovalState.APPROVED)
     _require_text("approver", approver, _ACTOR_MAX)
@@ -163,9 +171,13 @@ def reject(
     decided_at: datetime | None = None,
     actor_role: str | None = None,
     actor_name: str | None = None,
+    approver_user_id: UUID | None = None,
+    solo_mode: bool | None = None,
 ) -> Approval:
     """驳回审批单。驳回原因必填。"""
     row = _load(session, approval)
+    if solo_mode is False and row.requested_by == approver:
+        raise SelfApprovalForbidden("单人模式关闭时不能驳回自己提交的审批单")
     old = _audit_after(row)
     transition(row.state, ApprovalState.REJECTED)
     _require_text("approver", approver, _ACTOR_MAX)
