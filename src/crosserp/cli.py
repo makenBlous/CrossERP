@@ -84,6 +84,7 @@ from crosserp.db.schema import (
     AuditLog,
     ImportBatch,
     Issue,
+    LlmBudget,
     LlmCall,
     ProfitSnapshot,
     ReconRun,
@@ -1322,6 +1323,34 @@ def ai_purge_text(
         raise typer.Exit(code=1) from exc
     finally:
         engine.dispose()
+
+
+@ai_app.command("budget-set")
+def ai_budget_set(
+    limit_amount: str | None = typer.Option(None, "--amount"),
+    limit_tokens: int | None = typer.Option(None, "--tokens"),
+    as_name: str = typer.Option(..., "--as"),
+) -> None:
+    """设置本月全局 AI 预算。"""
+    from decimal import Decimal
+    from uuid import uuid4
+
+    with session_scope(_open_ready_engine()[1]) as session:
+        session.add(
+            LlmBudget(
+                id=uuid4(),
+                scope="global",
+                user_id=None,
+                period=datetime.now(UTC).strftime("%Y-%m"),
+                limit_amount=None if limit_amount is None else Decimal(limit_amount),
+                limit_tokens=limit_tokens,
+                currency="USD",
+                warn_percent=80,
+                created_by=as_name,
+                created_at=datetime.now(UTC),
+            )
+        )
+        typer.echo("AI 预算已设置")
 
 
 @mcp_app.command("serve")

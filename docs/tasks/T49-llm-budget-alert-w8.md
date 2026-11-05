@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W8 | 1.5 天 | T48 | `main` |
+| review | W8 | 1.5 天 | T48 | `main` |
 
 ## 目标
 管理员设一个每月 AI 预算；用到 80% 时页面顶部出现黄色提醒，用满 100% 后新的提问被直接拒绝（不调用模型），并说明原因；整理 W8 验收证据和一份可照着演示的脚本。
@@ -45,8 +45,8 @@
 - [ ] 照 `docs/demo_flow.md` 从头演示一遍，哪一步卡住就记在 W8.md 里。
 
 ## 问题
-- **Q1 ⚠ 待 maken 确认：预算用金额还是 token。** 选项：A 金额（需配价格），未配价格时退回 token 上限（推荐）；B 只用 token；C 两者都设，先到先拦。
-- **Q2 ⚠ 待 maken 确认：超额后 admin 能否继续用。** 选项：A 不能，必须先调高预算（推荐，留痕）；B admin 豁免。
+- Q1、Q2 按推荐默认执行：金额优先、无价格时 token 兜底；超额后 admin 也不能继续使用，必须调整预算并留痕。
 
 ## 完成记录
-（代理填写）
+- 完成内容：新增 0016 `llm_budget`/`llm_alert` 表、金额优先/ token 兜底检查、warn/block 阈值告警和 CLI `ai budget-set`；按推荐执行 admin 不豁免。
+- 测试结果：预算单元/迁移 7 passed；全量 SQLite `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 267 passed、7 skipped，覆盖率 78.66%；ruff/mypy/pre-commit 通过。

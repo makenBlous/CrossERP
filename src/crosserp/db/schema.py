@@ -529,6 +529,32 @@ class LlmToolCall(Base):
     status: Mapped[str] = mapped_column(String(16))
 
 
+class LlmBudget(Base):
+    __tablename__ = "llm_budget"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    scope: Mapped[str] = mapped_column(String(16))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    period: Mapped[str] = mapped_column(String(7))
+    limit_amount: Mapped[Decimal | None] = mapped_column(Money4())
+    limit_tokens: Mapped[int | None] = mapped_column(BigInteger())
+    currency: Mapped[str] = mapped_column(String(3))
+    warn_percent: Mapped[int] = mapped_column(Integer, default=80, server_default="80")
+    created_by: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class LlmAlert(Base):
+    __tablename__ = "llm_alert"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    ts: Mapped[datetime] = mapped_column(UtcDateTime())
+    budget_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("llm_budget.id"))
+    kind: Mapped[str] = mapped_column(String(16))
+    used_amount: Mapped[Decimal] = mapped_column(Money4())
+    used_tokens: Mapped[int] = mapped_column(BigInteger())
+    acknowledged_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    acknowledged_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+
+
 class ExportArtifact(Base):
     """一次审批后的外部文件产物。"""
 
