@@ -1,0 +1,3 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>问一问</title></head><body><h1>问一问</h1><a href="/">首页</a>
+<form method="post"><input type="hidden" name="csrf_token" value="{{ request.cookies.get('crosserp_csrf', '') }}"><textarea name="question" maxlength="500" required></textarea><button>提问</button></form>
+{% if error %}<p>{{ error }}</p>{% endif %}{% if answer %}<p>{{ answer.text }}</p>{% if answer.refused %}<p>已拦截：{{ answer.refusal_reason }}</p>{% endif %}<ul>{% for citation in answer.citations %}<li>{{ citation.table }} / {{ citation.id }} / {{ citation.field }}: {{ citation.value }}</li>{% endfor %}</ul>{% endif %}</body></html>

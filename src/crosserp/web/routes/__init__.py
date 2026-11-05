@@ -18,6 +18,8 @@ ROUTE_PERMISSIONS = {
     "/audit": Permission.AUDIT_READ,
     "/audit/verify": Permission.AUDIT_READ,
     "/audit/export": Permission.AUDIT_EXPORT,
+    "/ask": Permission.AI_ASK,
+    "/rows/{table}/{row_id}": Permission.REPORT_READ,
     "/security-log": Permission.SECURITY_LOG_READ,
     "/settings": Permission.SETTING_MANAGE,
 }

@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W7 | 1 天 | T45 | `main` |
+| review | W7 | 1 天 | T45 | `main` |
 
 ## 目标
 在网页「问一问」里提问，得到带引用的中文回答；点引用能打开对应的利润行/异常/订单原始行；每次提问在业务审计里有记录。
@@ -42,4 +42,6 @@
 - 无新的待确认项（原始行可见范围沿用 T37 Q2）。
 
 ## 完成记录
-（代理填写）
+- 完成内容：新增 `/ask` 页面和 POST 问答入口，接入 AI 权限、500 字限制、每用户每分钟 6 次内存限流；新增白名单 `/rows/{table}/{id}` 只读原始行页；问答摘要写入 `audit_log`，不写正文；未配置模型时显示中文提示。
+- 修改文件：`src/crosserp/web/app.py`、`src/crosserp/web/routes/__init__.py`、`src/crosserp/web/templates/{ask,row_detail,index}.html`、`tests/web/test_ask_page.py`、`tests/web/test_rows_whitelist.py`、`CHANGELOG.md`。
+- 测试结果：`.venv/bin/pytest tests/web -k "ask or rows" -q` 为 2 passed；全量 SQLite `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 261 passed、7 skipped，覆盖率 79.19%；`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过。

@@ -60,7 +60,7 @@
 | T43 | [AI 运行时：引用检查 + 数字核对 + `crosserp ask` + 提示词文件（⚠ 待 maken 确认）](T43-agent-runtime-ask.md) | W7 | 2 天 | T42 | review |
 | T44 | [AI 调用记录：OTel → 数据库（`llm_call` / `llm_tool_call` / `prompt_version`）+ 费用表（⚠ 待 maken 确认）](T44-llm-observability-tables.md) | W7 | 1.5 天 | T43 | review |
 | T45 | [发给模型前脱敏 + 提示注入防护 + AI 正文保留期（⚠ 待 maken 确认）](T45-redaction-injection-retention.md) | W7 | 1 天 | T44 | review |
-| T46 | [网页 AI 问答页：引用可点开到原始行 + 审计](T46-web-ask-page.md) | W7 | 1 天 | T45 | todo |
+| T46 | [网页 AI 问答页：引用可点开到原始行 + 审计](T46-web-ask-page.md) | W7 | 1 天 | T45 | review |
 | T47 | [MCP 服务（只读工具）+ API token 鉴权与安全事件（⚠ 待 maken 确认）](T47-mcp-server-api-token.md) | W8 | 1.5 天 | T46 | todo |
 | T48 | [AI 监控页：调用量、费用、拒答率、慢调用](T48-llm-monitor-page.md) | W8 | 1 天 | T47 | todo |
 | T49 | [AI 预算与告警：超额横幅 + 硬拒绝 + 演示脚本 + W8 验收证据（⚠ 待 maken 确认）](T49-llm-budget-alert-w8.md) | W8 | 1.5 天 | T48 | todo |

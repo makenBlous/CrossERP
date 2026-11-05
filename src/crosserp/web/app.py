@@ -6,6 +6,7 @@ import hashlib
 import os
 import secrets
 import tempfile
+import time
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -21,6 +22,7 @@ from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
 from crosserp import __version__
+from crosserp.agent.runtime import ask as ask_agent
 from crosserp.approval.service import approve as approve_approval
 from crosserp.approval.service import check_fresh
 from crosserp.approval.service import create as create_approval
@@ -29,7 +31,7 @@ from crosserp.approval.service import submit as submit_approval
 from crosserp.approval.state import ConcurrentModification
 from crosserp.audit.diff import diff_json
 from crosserp.audit.export import export_audit
-from crosserp.audit.log import verify_chain
+from crosserp.audit.log import append, verify_chain
 from crosserp.audit.security import SecurityEventName
 from crosserp.audit.security import record as record_security
 from crosserp.auth.passwords import hash_password, verify_password
@@ -47,8 +49,11 @@ from crosserp.db.schema import (
     ExportArtifact,
     ImportBatch,
     Issue,
+    OrderLine,
     ProfitSnapshot,
+    RawRow,
     SecurityEvent,
+    SettlementLine,
     Store,
     Voucher,
     VoucherLine,
@@ -74,6 +79,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     ensure_database_directory(resolved)
     upgrade_head(resolved)
     engine = make_engine(resolved)
+    ask_times: dict[str, list[float]] = {}
 
     @contextmanager
     def sessions() -> Iterator[Session]:
@@ -575,6 +581,102 @@ def create_app(database_url: str | None = None) -> FastAPI:
             return Response("凭证文件不存在", status_code=403)
         assert path is not None
         return FileResponse(path, filename=path.name)
+
+    @app.get("/ask", response_class=HTMLResponse)
+    def ask_page(request: Request) -> Response:
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.AI_ASK):
+                return permission_denied(session, user, request, Permission.AI_ASK.value)
+        return templates.TemplateResponse(
+            request, "ask.html", {"request": request, "user": user, "answer": None, "error": None}
+        )
+
+    @app.post("/ask", response_class=HTMLResponse)
+    def ask_submit(
+        request: Request, question: str = Form(...), csrf_token: str = Form(...)
+    ) -> Response:
+        if csrf_token != request.cookies.get("crosserp_csrf"):
+            return Response("CSRF 校验失败", status_code=403)
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.AI_ASK):
+                return permission_denied(session, user, request, Permission.AI_ASK.value)
+            if len(question) > 500:
+                return Response("问题不能超过 500 个字符", status_code=400)
+            now = time.monotonic()
+            recent = [item for item in ask_times.get(user.username, []) if now - item < 60]
+            if len(recent) >= 6:
+                return Response("请求过于频繁，请稍后再试", status_code=429)  # noqa: RUF001
+            ask_times[user.username] = [*recent, now]
+            try:
+                answer = ask_agent(question, user_ctx=user.username)
+            except RuntimeError as exc:
+                return templates.TemplateResponse(
+                    request,
+                    "ask.html",
+                    {"request": request, "user": user, "answer": None, "error": str(exc)},
+                    status_code=503,
+                )
+            append(
+                session,
+                "user",
+                "ai.ask",
+                "llm_call",
+                hashlib.sha256(question.encode()).hexdigest()[:64],
+                None,
+                {
+                    "question_sha256": hashlib.sha256(question.encode()).hexdigest(),
+                    "answer_sha256": hashlib.sha256(answer.text.encode()).hexdigest(),
+                    "refused": answer.refused,
+                    "citations_count": len(answer.citations),
+                },
+                actor_user_id=user.id,
+                actor_name=user.username,
+            )
+        return templates.TemplateResponse(
+            request, "ask.html", {"request": request, "user": user, "answer": answer, "error": None}
+        )
+
+    @app.get("/rows/{table}/{row_id}", response_class=HTMLResponse)
+    def row_detail(request: Request, table: str, row_id: str) -> Response:
+        from uuid import UUID
+
+        allowed = {
+            "profit_snapshot": ProfitSnapshot,
+            "order_line": OrderLine,
+            "settlement_line": SettlementLine,
+            "raw_row": RawRow,
+            "issue": Issue,
+            "voucher": Voucher,
+            "voucher_line": VoucherLine,
+            "approval": Approval,
+        }
+        model = allowed.get(table)
+        if model is None:
+            return Response("行不存在", status_code=404)
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.REPORT_READ):
+                return permission_denied(session, user, request, Permission.REPORT_READ.value)
+            try:
+                row = session.get(model, UUID(row_id))
+            except ValueError:
+                row = None
+            if row is None:
+                return Response("行不存在", status_code=404)
+            values = {column.name: getattr(row, column.name) for column in model.__table__.columns}
+        return templates.TemplateResponse(
+            request,
+            "row_detail.html",
+            {"request": request, "table": table, "values": values, "user": user},
+        )
 
     @app.get("/audit", response_class=HTMLResponse)
     def audit_page(
