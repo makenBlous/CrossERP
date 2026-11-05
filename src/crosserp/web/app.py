@@ -37,6 +37,7 @@ from crosserp.audit.security import record as record_security
 from crosserp.auth.passwords import hash_password, verify_password
 from crosserp.auth.permissions import Permission
 from crosserp.auth.sessions import create_session, find_user, revoke_session
+from crosserp.auth.tokens import create_token
 from crosserp.config import load_settings
 from crosserp.db.migrate import ensure_database_directory, upgrade_head
 from crosserp.db.repo.users import create_user, get_by_username, grant_role, list_users
@@ -676,6 +677,44 @@ def create_app(database_url: str | None = None) -> FastAPI:
             request,
             "row_detail.html",
             {"request": request, "table": table, "values": values, "user": user},
+        )
+
+    @app.get("/account/tokens", response_class=HTMLResponse)
+    def account_tokens(request: Request) -> Response:
+        from crosserp.db.schema import ApiToken
+
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.AI_ASK):
+                return permission_denied(session, user, request, Permission.AI_ASK.value)
+            rows = list(
+                session.scalars(
+                    select(ApiToken)
+                    .where(ApiToken.user_id == user.id)
+                    .order_by(ApiToken.created_at.desc())
+                )
+            )
+        return templates.TemplateResponse(
+            request, "account_tokens.html", {"request": request, "rows": rows, "user": user}
+        )
+
+    @app.post("/account/tokens")
+    def account_tokens_create(
+        request: Request, name: str = Form(...), csrf_token: str = Form(...)
+    ) -> Response:
+        if csrf_token != request.cookies.get("crosserp_csrf"):
+            return Response("CSRF 校验失败", status_code=403)
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.AI_ASK):
+                return permission_denied(session, user, request, Permission.AI_ASK.value)
+            _, plain = create_token(session, user, name=name)
+        return HTMLResponse(
+            f"<p>Token 只显示这一次: <code>{plain}</code></p><a href='/account/tokens'>返回</a>"
         )
 
     @app.get("/audit", response_class=HTMLResponse)

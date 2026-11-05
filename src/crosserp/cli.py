@@ -106,6 +106,7 @@ from crosserp.web.app import create_app
 
 app = typer.Typer(add_completion=False)
 ai_app = typer.Typer(add_completion=False, help="AI 工具。")
+mcp_app = typer.Typer(add_completion=False, help="只读 MCP 服务。")
 db_app = typer.Typer(add_completion=False, help="数据库连接与启动自检。")
 audit_app = typer.Typer(add_completion=False, help="审计哈希链。")
 issues_app = typer.Typer(add_completion=False, help="异常清单。只读。")
@@ -120,6 +121,7 @@ app.add_typer(imports_app, name="imports")
 app.add_typer(approval_app, name="approval")
 app.add_typer(user_app, name="user")
 app.add_typer(ai_app, name="ai")
+app.add_typer(mcp_app, name="mcp")
 app.add_typer(voucher_app, name="voucher")
 
 _TYPES = ("auto", "amazon", "shopify", "mapped")
@@ -1320,6 +1322,21 @@ def ai_purge_text(
         raise typer.Exit(code=1) from exc
     finally:
         engine.dispose()
+
+
+@mcp_app.command("serve")
+def mcp_serve(
+    token: str | None = typer.Option(None, "--token", help="stdio 模式 token。"),
+    http: bool = typer.Option(False, "--http", help="HTTP 模式需额外配置后启用。"),
+) -> None:
+    """启动只读 MCP 服务。"""
+    if http:
+        typer.echo("HTTP MCP 默认关闭，请配置 mcp.http_enabled 后由部署层挂载。", err=True)  # noqa: RUF001
+        raise typer.Exit(code=1)
+    from crosserp.mcp_server.server import create_server
+
+    server = create_server()
+    server.run(transport="stdio")  # type: ignore[attr-defined]
 
 
 @app.command("export")

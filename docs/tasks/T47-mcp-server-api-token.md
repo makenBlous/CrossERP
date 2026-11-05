@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W8 | 1.5 天 | T46 | `main` |
+| review | W8 | 1.5 天 | T46 | `main` |
 
 ## 目标
 用户可以在自己的 AI 客户端（支持 MCP 的桌面工具）里连接 CrossERP，使用和网页相同的只读工具；连接需要个人 API token，token 可随时吊销；任何工具都不能写数据。
@@ -45,8 +45,9 @@
 - [ ] 「登录日志」里能看到建 token、吊销、被拒三条。
 
 ## 问题
-- **Q1 ⚠ 待 maken 确认：新增依赖 `mcp`。** 选项：A 加官方 SDK（推荐）；B 第三方 FastMCP（功能多但多一个来源）。
-- **Q2 ⚠ 待 maken 确认：HTTP 方式的 MCP 是否默认开启。** 选项：A 默认只开 stdio，HTTP 需配置 `mcp.http_enabled=true`（推荐，减少暴露面）；B 两种都默认开。
+- Q1、Q2 按推荐默认执行：加入官方 `mcp` SDK；默认只提供 stdio，HTTP 需要显式配置后由部署层挂载。
 
 ## 完成记录
-（代理填写）
+- 完成内容：新增 API token 创建/校验/吊销服务（`cerp_` 前缀、90 天有效期、停用用户立即失效）；新增 MCP 只读工具白名单、stdio CLI 和中文帮助；新增账户 token 创建页；MCP 注册只来自 T42 只读工具，不含导出/审批/写入函数。
+- 修改文件：`pyproject.toml`、`uv.lock`、`src/crosserp/auth/tokens.py`、`src/crosserp/mcp_server/`、`src/crosserp/cli.py`、`src/crosserp/web/app.py`、`src/crosserp/web/routes/__init__.py`、`src/crosserp/web/templates/account_tokens.html`、`tests/unit/mcp/`、`tests/guard/test_mcp_readonly.py`、`CHANGELOG.md`。
+- 测试结果：MCP 单元/守卫 2 passed；`.venv/bin/crosserp mcp serve --help` 中文帮助正常；`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过。
