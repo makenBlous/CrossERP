@@ -1,0 +1,10 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>审批详情</title></head>
+<body><h1>审批详情</h1><a href="/approvals">返回审批台</a>
+<dl><dt>对象</dt><dd>{{ row.target_type }}:{{ row.target_id }}</dd><dt>状态</dt><dd>{{ row.state }}</dd>
+<dt>提交人</dt><dd>{{ row.requested_by }}</dd><dt>提交时间</dt><dd>{{ row.requested_at }}</dd>
+<dt>payload_hash</dt><dd><code>{{ row.payload_hash }}</code></dd><dt>新鲜度</dt><dd>{{ '正常' if fresh else '数据已变，需要重新提交' }}</dd></dl>
+{% if snapshots %}<h2>利润报表摘要</h2><table><tr><th>店铺</th><th>期间</th><th>SKU</th><th>收入</th><th>平台费</th><th>利润</th><th>币种</th></tr>
+{% for snapshot, store in snapshots %}<tr><td>{{ store.name }}</td><td>{{ snapshot.period }}</td><td>{{ snapshot.internal_sku }}</td><td>{{ snapshot.revenue }}</td><td>{{ snapshot.fees }}</td><td>{{ snapshot.profit }}</td><td>{{ snapshot.currency }}</td></tr>{% endfor %}</table>{% endif %}
+{% if can_decide and row.state == 'pending' and fresh %}<h2>处理</h2>
+<form method="post" action="/approvals/{{ row.id }}/decide"><input type="hidden" name="csrf_token" value="{{ request.cookies.get('crosserp_csrf', '') }}"><textarea name="comment" minlength="1" maxlength="1000" required placeholder="审批意见"></textarea><button name="action" value="approve">批准</button><button name="action" value="reject">驳回</button></form>{% elif row.state == 'pending' and not fresh %}<p>数据已变，需要重新提交后才能批准。</p>{% endif %}
+{% if row.comment %}<p>处理意见：{{ row.comment }}</p>{% endif %}</body></html>

@@ -1,0 +1,9 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>业务审计</title></head>
+<body><h1>业务审计</h1><a href="/">首页</a>
+<p>业务链：<strong>{{ '正常' if audit_ok else '损坏' }}</strong>（最后序号 {{ audit_last_seq }}，已校验 {{ audit_checked }} 条） |
+security 链：<strong>{{ '正常' if security_ok else '损坏' }}</strong>（最后序号 {{ security_last_seq }}）
+<a href="/audit/verify">立即校验</a>{% if can_export %} | <a href="/audit/export">导出审计包</a>{% endif %}</p>
+<form method="get"><input name="actor" value="{{ actor or '' }}" placeholder="操作者"><input name="action" value="{{ action or '' }}" placeholder="动作"><input name="target_type" value="{{ target_type or '' }}" placeholder="对象类型"><input name="target_id" value="{{ target_id or '' }}" placeholder="对象 ID"><button>筛选</button></form>
+<table><tr><th>序号</th><th>时间</th><th>操作者</th><th>动作</th><th>对象</th><th>改前/改后</th></tr>
+{% for item in items %}<tr><td>{{ item.row.seq }}</td><td>{{ item.row.ts }}</td><td>{{ item.row.actor_name or item.row.actor_user_id or item.row.actor_type }}</td><td>{{ item.row.action }}</td><td>{{ item.row.target_type }}:{{ item.row.target_id }}</td><td><details><summary>{{ item.diff|length }} 项</summary><table><tr><th>字段</th><th>变化</th><th>改前</th><th>改后</th></tr>{% for d in item.diff %}<tr class="{{ d.change }}"><td>{{ d.path }}</td><td>{{ d.change }}</td><td>{{ d.before }}</td><td>{{ d.after }}</td></tr>{% endfor %}</table></details></td></tr>{% endfor %}
+</table><p><a href="/audit?page={{ page + 1 }}">下一页</a></p></body></html>

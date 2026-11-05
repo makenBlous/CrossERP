@@ -52,7 +52,7 @@
 | T35 | [权限 `require(permission)` + 权限矩阵参数化测试 + 职责分离 / 单人模式（⚠ 待 maken 确认）](T35-permissions-matrix.md) | W5 | 1.5 天 | T34 | review |
 | T36 | [用户管理页（admin）](T36-user-admin-page.md) | W5 | 1 天 | T35 | review |
 | T37 | [异常处理队列页：状态流转 + 写说明 + 查看原始行](T37-issue-queue-page.md) | W5 | 1 天 | T35 | review |
-| T38 | [审批台 + 审计页（改前改后对比、链状态）+ W5 验收证据](T38-approval-console-audit-page.md) | W5 | 1.5 天 | T36、T37 | todo |
+| T38 | [审批台 + 审计页（改前改后对比、链状态）+ W5 验收证据](T38-approval-console-audit-page.md) | W5 | 1.5 天 | T36、T37 | review |
 | T39 | [凭证草稿：会计科目映射 `accounts.yaml` + `voucher` / `voucher_line` 表 + 借贷平衡（⚠ 待 maken 确认）](T39-voucher-model-accounts.md) | W6 | 2 天 | T38 | todo |
 | T40 | [写出目标重构 + 金蝶导入模板 `kingdee_xlsx`（表头可配置，⚠ 待真实模板验证）](T40-ledger-kingdee-xlsx.md) | W6 | 1.5 天 | T39 | todo |
 | T41 | [通用 Excel 目标 `generic_xlsx` + 网页「下载凭证」+ W6 验收证据（⚠ 待 maken 确认）](T41-generic-xlsx-download-w6.md) | W6 | 1.5 天 | T40 | todo |

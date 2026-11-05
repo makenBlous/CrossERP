@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import os
 import secrets
+import tempfile
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -10,13 +13,23 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Form, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
 
 from crosserp import __version__
+from crosserp.approval.service import approve as approve_approval
+from crosserp.approval.service import check_fresh
+from crosserp.approval.service import create as create_approval
+from crosserp.approval.service import reject as reject_approval
+from crosserp.approval.service import submit as submit_approval
+from crosserp.approval.state import ConcurrentModification
+from crosserp.audit.diff import diff_json
+from crosserp.audit.export import export_audit
+from crosserp.audit.log import verify_chain
 from crosserp.audit.security import SecurityEventName
 from crosserp.audit.security import record as record_security
 from crosserp.auth.passwords import hash_password, verify_password
@@ -26,8 +39,11 @@ from crosserp.config import load_settings
 from crosserp.db.migrate import ensure_database_directory, upgrade_head
 from crosserp.db.repo.users import create_user, get_by_username, grant_role, list_users
 from crosserp.db.schema import (
+    Approval,
     AppSetting,
     AppUser,
+    AuditHead,
+    AuditLog,
     ImportBatch,
     Issue,
     ProfitSnapshot,
@@ -247,6 +263,306 @@ def create_app(database_url: str | None = None) -> FastAPI:
             {"request": request, "rows": rows, "period": period, "store": store, "user": user},
         )
 
+    @app.post("/profit/submit")
+    def profit_submit(
+        request: Request,
+        store: str = Form(...),
+        period: str = Form(...),
+        csrf_token: str = Form(...),
+    ) -> Response:
+        """从利润表提交一个利润报表审批单。"""
+        if csrf_token != request.cookies.get("crosserp_csrf"):
+            return Response("CSRF 校验失败", status_code=403)
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.APPROVAL_SUBMIT):
+                return permission_denied(session, user, request, Permission.APPROVAL_SUBMIT.value)
+            target_id = f"{store}:{period}"
+            try:
+                row = create_approval(
+                    session,
+                    target_type="profit_report",
+                    target_id=target_id,
+                    requested_by=user.username,
+                    payload_hash=_profit_report_payload_hash(session, target_id),
+                    actor_role="operator",
+                    actor_name=user.username,
+                )
+                submit_approval(
+                    session,
+                    row,
+                    actor=user.username,
+                    actor_role="operator",
+                    actor_name=user.username,
+                )
+            except (LookupError, ValueError) as exc:
+                return Response(str(exc), status_code=400)
+        return RedirectResponse("/profit", status_code=303)
+
+    @app.get("/approvals", response_class=HTMLResponse)
+    def approvals_page(request: Request, state: str = "pending") -> Response:
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.REPORT_READ):
+                return permission_denied(session, user, request, Permission.REPORT_READ.value)
+            allowed = {"pending", "approved", "rejected", "exported"}
+            selected = state if state in allowed else "pending"
+            rows = list(
+                session.scalars(
+                    select(Approval)
+                    .where(Approval.state == selected)
+                    .order_by(Approval.requested_at.desc(), Approval.id)
+                )
+            )
+            can_decide = require(session, user, Permission.APPROVAL_DECIDE)
+        return templates.TemplateResponse(
+            request,
+            "approvals.html",
+            {
+                "request": request,
+                "rows": rows,
+                "state": selected,
+                "can_decide": can_decide,
+                "user": user,
+            },
+        )
+
+    @app.get("/approvals/{approval_id}", response_class=HTMLResponse)
+    def approval_detail(request: Request, approval_id: str) -> Response:
+        from uuid import UUID
+
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.REPORT_READ):
+                return permission_denied(session, user, request, Permission.REPORT_READ.value)
+            try:
+                row = session.get(Approval, UUID(approval_id))
+            except ValueError:
+                row = None
+            if row is None:
+                return Response("审批单不存在", status_code=404)
+            current_hash: str | None = None
+            snapshots: list[tuple[ProfitSnapshot, Store]] = []
+            if row.target_type == "profit_report":
+                try:
+                    current_hash = _profit_report_payload_hash(session, row.target_id)
+                except (LookupError, ValueError):
+                    current_hash = None
+                if current_hash is not None and row.state == "approved":
+                    check_fresh(
+                        session,
+                        row,
+                        current_hash,
+                        actor="system",
+                        actor_name="web",
+                    )
+                store_name, _, period = row.target_id.rpartition(":")
+                statement = select(ProfitSnapshot, Store).join(
+                    Store, Store.id == ProfitSnapshot.store_id
+                )
+                statement = statement.where(ProfitSnapshot.period == period)
+                statement = statement.where(
+                    or_(Store.name == store_name, Store.id == _try_uuid(store_name))
+                )
+                snapshots = list(session.execute(statement.order_by(ProfitSnapshot.internal_sku)))
+            fresh = current_hash is None or row.payload_hash == current_hash
+            can_decide = require(session, user, Permission.APPROVAL_DECIDE)
+        return templates.TemplateResponse(
+            request,
+            "approval_detail.html",
+            {
+                "request": request,
+                "row": row,
+                "snapshots": snapshots,
+                "fresh": fresh,
+                "can_decide": can_decide,
+                "user": user,
+            },
+        )
+
+    @app.post("/approvals/{approval_id}/decide")
+    def approval_decide(
+        request: Request,
+        approval_id: str,
+        action: str = Form(...),
+        comment: str = Form(""),
+        csrf_token: str = Form(...),
+    ) -> Response:
+        from uuid import UUID
+
+        if csrf_token != request.cookies.get("crosserp_csrf"):
+            return Response("CSRF 校验失败", status_code=403)
+        if action not in {"approve", "reject"}:
+            return Response("不认识的审批动作", status_code=400)
+        if not comment.strip() or len(comment) > 1000:
+            return Response("审批意见必填，且不能超过 1000 个字符", status_code=400)  # noqa: RUF001
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.APPROVAL_DECIDE):
+                return permission_denied(session, user, request, Permission.APPROVAL_DECIDE.value)
+            row = session.get(Approval, UUID(approval_id))
+            if row is None:
+                return Response("审批单不存在", status_code=404)
+            setting = session.get(AppSetting, "solo_mode")
+            solo_mode = bool(setting.value_json) if setting is not None else False
+            try:
+                current_hash: str | None
+                if row.target_type == "profit_report":
+                    current_hash = _profit_report_payload_hash(session, row.target_id)
+                else:
+                    current_hash = row.payload_hash
+                if action == "approve" and row.payload_hash != current_hash:
+                    return Response("数据已变，需要重新提交", status_code=400)  # noqa: RUF001
+                if action == "approve":
+                    approve_approval(
+                        session,
+                        row,
+                        approver=user.username,
+                        payload_hash=current_hash,
+                        actor_role="finance",
+                        actor_name=user.username,
+                        approver_user_id=user.id,
+                        solo_mode=solo_mode,
+                        comment=comment,
+                    )
+                else:
+                    reject_approval(
+                        session,
+                        row,
+                        approver=user.username,
+                        comment=comment,
+                        actor_role="finance",
+                        actor_name=user.username,
+                        approver_user_id=user.id,
+                        solo_mode=solo_mode,
+                    )
+            except ConcurrentModification:
+                return Response("别人刚处理过，请刷新", status_code=409)  # noqa: RUF001
+            except (LookupError, ValueError) as exc:
+                return Response(str(exc), status_code=400)
+        return RedirectResponse(f"/approvals/{approval_id}", status_code=303)
+
+    @app.get("/audit", response_class=HTMLResponse)
+    def audit_page(
+        request: Request,
+        actor: str | None = None,
+        action: str | None = None,
+        target_type: str | None = None,
+        target_id: str | None = None,
+        page: int = Query(1, ge=1),
+    ) -> Response:
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.AUDIT_READ):
+                return permission_denied(session, user, request, Permission.AUDIT_READ.value)
+            statement = select(AuditLog).order_by(AuditLog.seq.desc())
+            if actor:
+                statement = statement.where(
+                    or_(AuditLog.actor_name == actor, AuditLog.actor_user_id == _try_uuid(actor))
+                )
+            if action:
+                statement = statement.where(AuditLog.action == action)
+            if target_type:
+                statement = statement.where(AuditLog.target_type == target_type)
+            if target_id:
+                statement = statement.where(AuditLog.target_id == target_id)
+            rows = list(session.scalars(statement.offset((page - 1) * 50).limit(50)))
+            items = [
+                {"row": row, "diff": diff_json(row.before_json, row.after_json)} for row in rows
+            ]
+            result = verify_chain(session)
+            # 链尾序号直接从记录读取，避免把 UUID 当作序号展示。  # noqa: RUF003
+            last = session.scalar(select(AuditLog).order_by(AuditLog.seq.desc()).limit(1))
+            last_seq = last.seq if last is not None else 0
+            security_head = session.scalar(select(AuditHead).where(AuditHead.chain == "security"))
+            from crosserp.audit.security import verify_security_chain
+
+            security_ok = verify_security_chain(session)
+            can_export = require(session, user, Permission.AUDIT_EXPORT)
+        return templates.TemplateResponse(
+            request,
+            "audit.html",
+            {
+                "request": request,
+                "items": items,
+                "page": page,
+                "actor": actor,
+                "action": action,
+                "target_type": target_type,
+                "target_id": target_id,
+                "audit_ok": result.ok,
+                "audit_checked": result.checked,
+                "audit_last_seq": last_seq,
+                "security_ok": security_ok,
+                "security_last_seq": (
+                    _security_last_seq(session)
+                    if security_head is not None and security_head.last_id
+                    else 0
+                ),
+                "can_export": can_export,
+                "user": user,
+            },
+        )
+
+    @app.get("/audit/verify")
+    def audit_verify_page(request: Request) -> Response:
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.AUDIT_READ):
+                return permission_denied(session, user, request, Permission.AUDIT_READ.value)
+            business = verify_chain(session)
+            from crosserp.audit.security import verify_security_chain
+
+            security_ok = verify_security_chain(session)
+        status = (
+            f"业务链: {'正常' if business.ok else '损坏'}; "
+            f"security 链: {'正常' if security_ok else '损坏'}"
+        )
+        return Response(status, media_type="text/plain")
+
+    @app.get("/audit/export")
+    def audit_export_page(request: Request) -> Response:
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.AUDIT_EXPORT):
+                return permission_denied(session, user, request, Permission.AUDIT_EXPORT.value)
+            fd, output_name = tempfile.mkstemp(prefix="crosserp-audit-", suffix=".zip")
+            os.close(fd)
+            output = Path(output_name)
+            try:
+                now = datetime.now(UTC)
+                export_audit(
+                    session,
+                    from_ts=datetime(1970, 1, 1, tzinfo=UTC),
+                    to_ts=now + timedelta(seconds=1),
+                    fmt="jsonl",
+                    output=output,
+                    requested_by=user.username,
+                )
+            except Exception:
+                output.unlink(missing_ok=True)
+                raise
+        return FileResponse(
+            output,
+            filename="crosserp-audit.zip",
+            media_type="application/zip",
+            background=BackgroundTask(lambda: output.unlink(missing_ok=True)),
+        )
+
     @app.get("/issues", response_class=HTMLResponse)
     def issues_page(
         request: Request,
@@ -433,3 +749,37 @@ def _safe_next(value: str) -> str:
     if parsed.scheme or parsed.netloc or not value.startswith("/") or value.startswith("//"):
         return "/"
     return value
+
+
+def _try_uuid(value: str) -> object | None:
+    from uuid import UUID
+
+    try:
+        return UUID(value)
+    except ValueError:
+        return None
+
+
+def _profit_report_payload_hash(session: Session, target_id: str) -> str:
+    """利润报表审批使用与 CLI 相同的输入哈希。"""
+    store_name, separator, period = target_id.rpartition(":")
+    if not separator or not store_name or len(period) != 7:
+        raise ValueError("利润报表对象必须是 店铺:YYYY-MM")
+    statement = (
+        select(ProfitSnapshot.inputs_hash)
+        .join(Store, ProfitSnapshot.store_id == Store.id)
+        .where(
+            ProfitSnapshot.period == period,
+            or_(Store.name == store_name, Store.id == _try_uuid(store_name)),
+        )
+        .order_by(ProfitSnapshot.internal_sku)
+    )
+    hashes = [str(value) for value in session.scalars(statement)]
+    if not hashes:
+        raise LookupError(f"找不到利润报表 {target_id}，请先运行 demo 或 profit")  # noqa: RUF001
+    return hashlib.sha256("\n".join(hashes).encode("ascii")).hexdigest()
+
+
+def _security_last_seq(session: Session) -> int:
+    row = session.scalar(select(SecurityEvent).order_by(SecurityEvent.seq.desc()).limit(1))
+    return row.seq if row is not None else 0

@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W5 | 1.5 天 | T36、T37 | `main` |
+| review | W5 | 1.5 天 | T36、T37 | `main` |
 
 ## 目标
 财务在网页上看待审批列表，点开看内容，批准或驳回（必须写意见）；审计员在网页上看业务审计和链校验结果，每条能看改前改后对比。做完后整理 W5 验收证据。
@@ -51,4 +51,7 @@
 - 无新的待确认项（凭证审批、token 用法见 T41）。
 
 ## 完成记录
-（代理填写）
+- 完成内容：新增审批台列表/详情及批准、驳回表单；利润报表提交审批；审批意见和新鲜度检查；审批审计写入真实 `approver_id`；新增后端字段差异计算；新增业务审计页、分页筛选、两条哈希链状态、立即校验和审计包下载；补充 W5 验收证据文档。
+- 修改文件：`src/crosserp/web/app.py`、`src/crosserp/web/templates/{approvals,approval_detail,audit,index,profit}.html`、`src/crosserp/web/routes/__init__.py`、`src/crosserp/audit/diff.py`、`src/crosserp/approval/service.py`、`src/crosserp/db/session.py`、`tests/unit/audit/test_diff.py`、`tests/web/test_approval_console.py`、`tests/web/test_audit_page.py`、`docs/evidence/W5.md`、`CHANGELOG.md`。
+- 测试结果：`.venv/bin/ruff format --check .` 通过；`.venv/bin/ruff check .` 通过；`.venv/bin/mypy` 通过；`.venv/bin/pytest tests/web tests/unit/audit -q` 为 12 passed；全量 `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 238 passed、7 skipped，覆盖率 81.23%。Docker 可用但本次未启动 MySQL/PG 容器，三库由 CI db matrix 负责。
+- 偏离计划：仓库当前网页路由集中在 `web/app.py`，按现有装配方式实现，未新增独立 route 模块；审批意见通过现有 `comment` 字段保存；按推荐默认执行，无新的待 maken 确认项。

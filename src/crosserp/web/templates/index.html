@@ -7,7 +7,7 @@
 </head>
 <body>
   <h1>CrossERP 运行中 {{ version }}</h1>
-  <nav><a href="/imports">导入记录</a> | <a href="/profit">SKU 利润</a> | <a href="/issues">异常清单</a></nav>
+  <nav><a href="/imports">导入记录</a> | <a href="/profit">SKU 利润</a> | <a href="/issues">异常清单</a> | <a href="/approvals">审批台</a> | <a href="/audit">审计</a></nav>
   {% if user %}<form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ request.cookies.get('crosserp_csrf', '') }}"><button>退出（{{ user.username }}）</button></form>{% endif %}
   <p>服务只读，所有业务数据来自本地数据库。</p>
 </body>

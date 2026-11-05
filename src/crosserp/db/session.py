@@ -133,7 +133,9 @@ def session_scope(engine: Engine | None = None) -> Iterator[Session]:
     """提交成功的会话。异常时回滚。未传入引擎时使用 get_database_url()。"""
     owns_engine = engine is None
     bound = make_engine(get_database_url()) if engine is None else engine
-    session = Session(bound)
+    # 页面和 CLI 会在事务关闭后渲染查询结果; 保留已读取字段, 避免把
+    # 已提交的 ORM 对象交给模板时触发 detached refresh。
+    session = Session(bound, expire_on_commit=False)
     try:
         with session.begin():
             yield session

@@ -1,0 +1,10 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>审批台</title></head>
+<body><h1>审批台</h1><a href="/">首页</a> |
+<a href="/approvals?state=pending">待审批</a> |
+<a href="/approvals?state=approved">已批准</a> |
+<a href="/approvals?state=rejected">已驳回</a> |
+<a href="/approvals?state=exported">已失效/已导出</a>
+{% if user %}<form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ request.cookies.get('crosserp_csrf', '') }}"><button>退出</button></form>{% endif %}
+<table><tr><th>对象</th><th>状态</th><th>提交人</th><th>提交时间</th><th>审批人</th></tr>
+{% for row in rows %}<tr><td><a href="/approvals/{{ row.id }}">{{ row.target_type }}:{{ row.target_id }}</a></td><td>{{ row.state }}</td><td>{{ row.requested_by }}</td><td>{{ row.requested_at }}</td><td>{{ row.approver or '-' }}</td></tr>{% endfor %}
+</table></body></html>

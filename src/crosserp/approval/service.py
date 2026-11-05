@@ -122,6 +122,7 @@ def approve(
     actor_name: str | None = None,
     approver_user_id: UUID | None = None,
     solo_mode: bool | None = None,
+    comment: str | None = None,
 ) -> str:
     """批准审批单并返回一次性明文 token。"""
     row = _load(session, approval)
@@ -130,6 +131,8 @@ def approve(
     old = _audit_after(row)
     transition(row.state, ApprovalState.APPROVED)
     _require_text("approver", approver, _ACTOR_MAX)
+    if comment is not None and len(comment) > 1000:
+        raise ValueError("comment 超过 1000 个字符")
     current_hash = payload_hash if payload_hash is not None else row.payload_hash
     _require_hash(current_hash)
     now = _utc(decided_at)
@@ -143,7 +146,7 @@ def approve(
             "payload_hash": current_hash,
             "approver": approver,
             "decided_at": now,
-            "comment": None,
+            "comment": comment,
             "token_hash": token_hash,
             "used_at": None,
         },
@@ -158,6 +161,7 @@ def approve(
         actor_name=actor_name or approver,
         reason=None,
         self_approved=row.requested_by == approver,
+        approver_id=approver_user_id,
     )
     return token
 
@@ -207,6 +211,7 @@ def reject(
         actor_name=actor_name or approver,
         reason=comment,
         self_approved=row.requested_by == approver,
+        approver_id=approver_user_id,
     )
     return row
 
@@ -391,6 +396,7 @@ def _record_transition(
     reason: str | None = None,
     self_approved: bool = False,
     actor_name: str | None = None,
+    approver_id: UUID | None = None,
 ) -> None:
     _require_text("actor", actor, _ACTOR_MAX)
     append(
@@ -404,6 +410,7 @@ def _record_transition(
         actor_role=actor_role,
         reason=reason,
         approval_id=row.id,
+        approver_id=approver_id,
         self_approved=self_approved,
         actor_name=actor_name or actor,
     )
