@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W9 | 1.5 天 | T51 | `main` |
+| blocked | W9 | 1.5 天 | T51 | `main` |
 
 ## 目标
 团队部署时，一条 `docker compose --profile pg up -d` 就能起来：应用 + 数据库 + 只读账号 + 迁移；镜像只在本地构建，**不推到任何镜像仓库**。
@@ -45,8 +45,15 @@
 - [ ] `docker compose --profile pg down` 再 `up -d`：数据还在。
 
 ## 问题
-- **Q1 ⚠ 待 maken 确认：团队部署默认用哪个数据库。** 选项：A PostgreSQL（推荐，事务与 JSON 支持好，测试最全）；B MySQL（如果公司已有 MySQL 运维）；C 小团队继续 SQLite。
-- **Q2 ⚠ 待 maken 确认：HTTPS 反向代理示例。** 选项：A Caddy（推荐，配置最少）；B Nginx；C 只写文字说明。
+- Q1 按推荐默认使用 PostgreSQL；Q2 按推荐默认使用 Caddy。
+- **Q3 阻塞，待 maken 决定：MySQL 8.4 迁移遇到已有字段不兼容。** `prompt_version.content` 当前是已合并的 `String(100000)`，MySQL 8.4 拒绝创建（单列上限 16383 字符），所以 MySQL profile 无法启动。
+  - A（推荐）：把该字段改成三库都能存长文本的通用 `Text`，补一个迁移并重新跑三库往返；这会改已合并的数据库结构，需要 maken 明确同意。
+  - B：保持现有结构，T52 暂时只验收 PostgreSQL/SQLite，把 MySQL 兼容修复另立任务；MySQL profile 继续不可用。
+  - C：换成 MariaDB 或其他数据库绕开；会偏离固定技术栈，不推荐。
 
 ## 完成记录
-（代理填写）
+- 当前状态：blocked，未提交正式 T52；已用 `WIP(T52)` 保存未完成改动。
+- 已完成：Dockerfile、Compose 三 profile、非 root 运行、迁移/授权脚本、授权覆盖守卫、Caddy 示例和部署文档。
+- 已验证：镜像构建成功；PostgreSQL profile `curl /health` 返回 `{"status":"ok","version":"0.0.1"}`，容器内 `crosserp audit verify` 通过；SQLite profile 同样通过。
+- 未通过：MySQL 8.4 在迁移创建 `prompt_version.content VARCHAR(100000)` 时报 `Column length too big ... max = 16383`。这是已有数据库结构问题，按 AGENTS.md 和本次约定未擅自修改。
+- 待决：Q3 选择 A/B/C 后继续；当前未进入 T53。

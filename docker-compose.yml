@@ -1,0 +1,73 @@
+name: crosserp
+
+services:
+  postgres:
+    image: postgres:18.0
+    profiles: [pg]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?请先复制 deploy/.env.example 为 deploy/.env}
+      POSTGRES_USER: ${POSTGRES_USER:?请配置 POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请配置 POSTGRES_PASSWORD}
+    volumes:
+      - pg-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mysql:
+    image: mysql:8.4.6
+    profiles: [mysql]
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?请配置 MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请配置 MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      CROSSERP_DATABASE_URL: ${CROSSERP_MIGRATE_DATABASE_URL:?请配置 CROSSERP_MIGRATE_DATABASE_URL}
+      CROSSERP_MIGRATE_DATABASE_URL: ${CROSSERP_MIGRATE_DATABASE_URL:?请配置 CROSSERP_MIGRATE_DATABASE_URL}
+      CROSSERP_ADMIN_USERNAME: ${CROSSERP_ADMIN_USERNAME:?请配置 CROSSERP_ADMIN_USERNAME}
+      CROSSERP_ADMIN_PASSWORD: ${CROSSERP_ADMIN_PASSWORD:?请配置 CROSSERP_ADMIN_PASSWORD}
+      CROSSERP_OWNER_PASSWORD: ${CROSSERP_OWNER_PASSWORD:?请配置 CROSSERP_OWNER_PASSWORD}
+      CROSSERP_APP_PASSWORD: ${CROSSERP_APP_PASSWORD:?请配置 CROSSERP_APP_PASSWORD}
+      CROSSERP_AGENT_PASSWORD: ${CROSSERP_AGENT_PASSWORD:?请配置 CROSSERP_AGENT_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER-postgres}
+      POSTGRES_DB: ${POSTGRES_DB-crosserp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD-}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD-}
+    volumes:
+      - sqlite-data:/data
+    command: ["/app/scripts/docker-init.sh"]
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      CROSSERP_DATABASE_URL: ${CROSSERP_DATABASE_URL:?请配置 CROSSERP_DATABASE_URL}
+      CROSSERP_AGENT_DATABASE_URL: ${CROSSERP_AGENT_DATABASE_URL:?请配置 CROSSERP_AGENT_DATABASE_URL}
+      CROSSERP_COOKIE_SECURE: "1"
+    ports:
+      - "${CROSSERP_PORT:-8000}:8000"
+    volumes:
+      - sqlite-data:/data
+
+volumes:
+  sqlite-data:
+  pg-data:
+  mysql-data:
