@@ -31,6 +31,17 @@ def test_app_cannot_update_or_delete_audit_log() -> None:
         engine.dispose()
 
 
+def test_app_cannot_update_or_delete_security_event() -> None:
+    engine = make_engine(_grant_url("CROSSERP_GRANTS_APP_URL"))
+    try:
+        with engine.begin() as connection, pytest.raises(SQLAlchemyError):
+            connection.execute(text("UPDATE security_event SET event = 'tampered'"))
+        with engine.begin() as connection, pytest.raises(SQLAlchemyError):
+            connection.execute(text("DELETE FROM security_event"))
+    finally:
+        engine.dispose()
+
+
 def test_agent_cannot_insert_business_row() -> None:
     engine = make_engine(_grant_url("CROSSERP_GRANTS_AGENT_URL"))
     try:
