@@ -104,11 +104,12 @@ def make_readonly_engine(url: str) -> Engine:
     if sa_url.get_backend_name() == "sqlite":
         if not sa_url.database or sa_url.database == ":memory:":
             raise DatabaseConfigError("SQLite 只读会话必须连接已有文件，不能使用内存库")  # noqa: RUF001
-        readonly = URL.create(
-            drivername="sqlite",
-            database=f"file:{Path(sa_url.database).expanduser().resolve()}?mode=ro",
+        database = Path(sa_url.database).expanduser().resolve()
+        # 使用 SQLite URI 原文, 避免 URL.create 把 ``file:`` 编码成普通文件名。
+        return create_engine(
+            f"sqlite:///file:{database}?mode=ro&uri=true",
+            connect_args={"uri": True},
         )
-        return create_engine(readonly, connect_args={"uri": True})
     engine = make_engine(url)
     return engine
 

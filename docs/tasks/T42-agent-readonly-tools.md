@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W7 | 1.5 天 | T41 | `main` |
+| review | W7 | 1.5 天 | T41 | `main` |
 
 ## 目标
 给 AI 准备一组「只能查、不能改」的工具：查订单、查利润、查异常、查对账结果、查审批状态、搜规则文档。工具只通过只读数据库账号连接；每个工具返回的数字都带「来源行」引用，后面的回答必须引用它们。
@@ -47,4 +47,8 @@
 - **Q2 ⚠ 待 maken 确认：规则文档检索方式。** 选项：A 纯 Python 关键词/BM25（推荐，零依赖、可解释）；B 向量检索（需要嵌入模型与额外依赖）。
 
 ## 完成记录
-（代理填写）
+- 按推荐默认执行：Q1 使用 `pydantic-ai-slim` 2.66.0（本任务只准备工具层，不调用模型）；Q2 使用纯 Python 关键词检索。
+- 工具清单：`get_profit`、`list_issues`、`get_order`、`get_settlement`、`get_recon_summary`、`get_approval_status`、`get_voucher`、`compare_profit`、`search_rules_doc`。所有金额字符串化，比较差额由 Decimal 确定性计算；每个结果带表、行 ID、字段和值引用。
+- 修改文件：`pyproject.toml`、`uv.lock`、`src/crosserp/agent/{__init__,db,tools,rules_search}.py`、`src/crosserp/db/session.py`、`tests/unit/agent/`、`tests/guard/test_agent_readonly.py`、`CHANGELOG.md`。
+- 测试结果：`.venv/bin/pytest tests/unit/agent tests/guard/test_agent_readonly.py tests/guard/test_agent_session_readonly.py -q` 为 5 passed；`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过。SQLite 只读会话写入被拒绝；MySQL/PG agent 账号权限由现有 grants/CI 覆盖。
+- 偏离计划：工具层未导入 `pydantic_ai` 的运行类型，也未接模型；依赖已锁定供 T43 使用。规则检索返回匹配行，保持零额外向量依赖、可解释。

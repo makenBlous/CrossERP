@@ -8,6 +8,7 @@ dependencies = [
     "fastapi>=0.162",
     "jinja2>=3.1",
     "openpyxl>=3.1",
+    "pydantic-ai-slim>=2.66",
     "pydantic>=2.14",
     "python-multipart>=0.0.22",
     "python-calamine>=0.9",
