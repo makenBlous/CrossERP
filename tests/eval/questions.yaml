@@ -1,0 +1,101 @@
+# 草稿：待 maken 审核后才是 T50 定稿。数值来自临时 demo.db 的确定性查询。
+- id: profit_rank_01
+  question: "Amazon.com 2026-10 哪个可计算 SKU 利润最高？"
+  expected_facts: ["INT-MUG-300", "472.0000"]
+  must_cite: [{table: profit_snapshot, key: internal_sku, value: INT-MUG-300}]
+  must_refuse: false
+- id: profit_rank_02
+  question: "Amazon.com 2026-10 哪个可计算 SKU 利润最低？"
+  expected_facts: ["INT-CUP-500", "339.9300"]
+  must_cite: [{table: profit_snapshot, key: internal_sku, value: INT-CUP-500}]
+  must_refuse: false
+- id: profit_rank_03
+  question: "shopify-main 2026-10 的净利润是多少？"
+  expected_facts: ["397.9000"]
+  must_cite: [{table: profit_snapshot, key: internal_sku, value: INT-TEE-M}]
+  must_refuse: false
+- id: profit_rank_04
+  question: "Amazon.de 2026-10 哪个 SKU 利润更高？"
+  expected_facts: ["INT-BOT-750", "128.6500", "INT-PAD-A5", "196.5300"]
+  must_cite: [{table: profit_snapshot, key: internal_sku, value: INT-BOT-750}, {table: profit_snapshot, key: internal_sku, value: INT-PAD-A5}]
+  must_refuse: false
+- id: profit_rank_05
+  question: "Amazon.com 可计算 SKU 的利润排名从高到低是什么？"
+  expected_facts: ["INT-MUG-300", "INT-BAG-01", "INT-CUP-500"]
+  must_cite: [{table: profit_snapshot, key: internal_sku, value: INT-MUG-300}, {table: profit_snapshot, key: internal_sku, value: INT-BAG-01}, {table: profit_snapshot, key: internal_sku, value: INT-CUP-500}]
+  must_refuse: false
+- id: profit_sku_01
+  question: "INT-BAG-01 的收入、平台费、退款和利润分别是多少？"
+  expected_facts: ["1324.5300", "-436.5800", "-8.5000", "440.5500"]
+  must_cite: [{table: profit_snapshot, key: internal_sku, value: INT-BAG-01}]
+  must_refuse: false
+- id: profit_sku_02
+  question: "INT-CUP-500 的利润为什么不是收入减平台费？"
+  expected_facts: ["1625.5500", "-438.3200", "-45.0000", "339.9300"]
+  must_cite: [{table: profit_snapshot, key: internal_sku, value: INT-CUP-500}]
+  must_refuse: false
+- id: profit_sku_03
+  question: "INT-MUG-300 的利润构成是什么？"
+  expected_facts: ["1493.6500", "-390.1500", "-42.5000", "472.0000"]
+  must_cite: [{table: profit_snapshot, key: internal_sku, value: INT-MUG-300}]
+  must_refuse: false
+- id: profit_sku_04
+  question: "哪个 SKU 缺成本，系统为什么不给利润？"
+  expected_facts: ["(未映射)SYN-UNMAPPED", "INT-COST-GAP", "cost_missing"]
+  must_cite: [{table: profit_snapshot, key: status, value: cost_missing}]
+  must_refuse: false
+- id: issue_01
+  question: "未处理异常里有没有结算不平？"
+  expected_facts: ["SETTLEMENT_UNBALANCED"]
+  must_cite: [{table: issue, key: kind, value: SETTLEMENT_UNBALANCED}]
+  must_refuse: false
+- id: issue_02
+  question: "Amazon.com 的未映射 SKU 是什么？"
+  expected_facts: ["SYN-UNMAPPED", "SKU_UNMAPPED"]
+  must_cite: [{table: issue, key: kind, value: SKU_UNMAPPED}]
+  must_refuse: false
+- id: issue_03
+  question: "有没有金额不符的 Shopify 打款？"
+  expected_facts: ["AMOUNT_MISMATCH"]
+  must_cite: [{table: issue, key: kind, value: AMOUNT_MISMATCH}]
+  must_refuse: false
+- id: issue_04
+  question: "结算异常应该先看什么原始证据？"
+  expected_facts: ["raw_row", "settlement_line"]
+  must_cite: [{table: raw_row, key: id, value: "存在"}]
+  must_refuse: false
+- id: settlement_01
+  question: "Amazon US 正常结算总额是多少？"
+  expected_facts: ["3095.1500", "USD"]
+  must_cite: [{table: settlement, key: external_id, value: SYN-SETTLE-US-20261014}]
+  must_refuse: false
+- id: settlement_02
+  question: "Amazon DE 结算总额和币种是什么？"
+  expected_facts: ["571.1800", "EUR"]
+  must_cite: [{table: settlement, key: external_id, value: SYN-SETTLE-DE-20261014}]
+  must_refuse: false
+- id: settlement_03
+  question: "Shopify 2026-10-07 打款金额是多少？"
+  expected_facts: ["238.8100", "USD"]
+  must_cite: [{table: settlement, key: external_id, value: "payout-date:2026-10-07"}]
+  must_refuse: false
+- id: settlement_04
+  question: "Shopify 2026-10-21 打款金额是多少？"
+  expected_facts: ["142.8100", "USD"]
+  must_cite: [{table: settlement, key: external_id, value: "payout-date:2026-10-21"}]
+  must_refuse: false
+- id: refuse_01
+  question: "下个月哪个 SKU 一定会亏损？"
+  expected_facts: ["数据不足"]
+  must_cite: []
+  must_refuse: true
+- id: refuse_02
+  question: "如果把广告预算加倍，利润会精确变成多少？"
+  expected_facts: ["数据不足"]
+  must_cite: []
+  must_refuse: true
+- id: refuse_03
+  question: "根据当前样本推断明年全年销售额。"
+  expected_facts: ["数据不足"]
+  must_cite: []
+  must_refuse: true
