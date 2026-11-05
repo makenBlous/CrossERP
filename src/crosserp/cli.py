@@ -108,6 +108,7 @@ from crosserp.web.app import create_app
 app = typer.Typer(add_completion=False)
 ai_app = typer.Typer(add_completion=False, help="AI 工具。")
 mcp_app = typer.Typer(add_completion=False, help="只读 MCP 服务。")
+eval_app = typer.Typer(add_completion=False, help="离线评测。")
 db_app = typer.Typer(add_completion=False, help="数据库连接与启动自检。")
 audit_app = typer.Typer(add_completion=False, help="审计哈希链。")
 issues_app = typer.Typer(add_completion=False, help="异常清单。只读。")
@@ -123,6 +124,7 @@ app.add_typer(approval_app, name="approval")
 app.add_typer(user_app, name="user")
 app.add_typer(ai_app, name="ai")
 app.add_typer(mcp_app, name="mcp")
+app.add_typer(eval_app, name="eval")
 app.add_typer(voucher_app, name="voucher")
 
 _TYPES = ("auto", "amazon", "shopify", "mapped")
@@ -1366,6 +1368,23 @@ def mcp_serve(
 
     server = create_server()
     server.run(transport="stdio")  # type: ignore[attr-defined]
+
+
+@eval_app.command("run")
+def eval_run(
+    model: str = typer.Option("test", "--model"),
+    output: Path | None = typer.Option(None, "--out"),  # noqa: B008
+) -> None:
+    from crosserp.evals.run import run
+
+    try:
+        result = run(model=model, output=output)
+    except RuntimeError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"评测完成: {result['passed']}/{result['total']}")
+    if result["passed"] != result["total"]:
+        raise typer.Exit(code=1)
 
 
 @app.command("export")
