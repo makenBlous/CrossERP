@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W6 | 2 天 | T38 | `main` |
+| review | W6 | 2 天 | T38 | `main` |
 
 ## 目标
 从已对账、已算利润的结算数据，自动生成「凭证草稿」：每张凭证若干分录，借方合计必须等于贷方合计（分毫不差，用 Decimal）；科目由 maken 可改的 `accounts.yaml` 决定；草稿可提交审批，审批对象类型为 `voucher`。
@@ -60,11 +60,15 @@
 - [ ] 把 accounts.yaml 里删掉一项再生成：提示缺哪一项。
 
 ## 问题
-- **Q1 ⚠ 待 maken 确认：`accounts.yaml` 放哪里、默认科目。** 选项：A 仓库带 `config/accounts.example.yaml`（全部占位），实际使用 `~/.crosserp/accounts.yaml`，路径可用 `CROSSERP_ACCOUNTS_FILE` 改（推荐，和 T33 config 一致）；B 存数据库表、网页编辑（工作量大，往后放）。科目编码一律「未核实」，需 maken 或财务提供。
-- **Q2 ⚠ 待 maken 确认：一张凭证对应什么。** 选项：A 每个平台结算单（settlement）一张（推荐，和平台打款一一对应，方便对银行流水）；B 每店铺每月一张汇总（张数少，但追溯麻烦）。
-- **Q3 ⚠ 待 maken 确认：凭证分录结构（几借几贷）。** 代理按「借 平台应收 / 借 平台费用 / 借 广告费 / 贷 销售收入 / 借或贷 汇兑差」起草，需要 maken 或财务确认是否符合你们记账习惯（**未核实**）。
+- **Q3 已由 maken 决定：按 A 执行，并补充收入、平台费用、广告费、退款、打款、汇兑差的借贷方向。** 所有科目编码和方向都在 `accounts.yaml`，默认值标注「待会计核实」；不平衡不生成。当前 T39 先实现按月利润快照草稿，结算单粒度和打款到账分录留接口，后续任务接入。
+- Q1、Q2、Q4 按任务文件推荐默认执行：科目文件使用 `~/.crosserp/accounts.yaml` 并支持 `CROSSERP_ACCOUNTS_FILE`；当前先按店铺月份生成；两位小数尾差并入金额最大行并在摘要说明。科目编码仍标「待会计核实」，不会冒充真实科目表。
 
 - **Q4 ⚠ 待 maken 确认：凭证 2 位小数舍入后的尾差怎么处理。** 选项：A 并入金额最大的一行并在摘要注明（推荐，常见做法，推断）；B 单列「舍入差」科目（需在 accounts.yaml 加一项）。
 
 ## 完成记录
-（代理填写）
+- maken 决定：Q3 选择 A，并明确销售、平台费用、广告费、退款、打款、汇兑差方向；按决定实现，科目编码与方向均由 `accounts.yaml` 提供。
+- 完成内容：新增 `vouchers` 领域模型、YAML 科目映射校验与内容哈希、按店铺月份利润快照确定性生成凭证、Decimal 最终两位舍入、借贷平衡和单行单边校验、来源去重；新增 `voucher`/`voucher_line` 表及 0014 迁移；新增凭证审批 payload 哈希；新增 `voucher draft/list/show/submit` CLI；补充文档和示例科目配置。
+- 修改文件：`src/crosserp/vouchers/`、`src/crosserp/approval/payload.py`、`src/crosserp/db/schema.py`、`src/crosserp/db/migrations/versions/0014_voucher.py`、`src/crosserp/db/repo/vouchers.py`、`src/crosserp/cli.py`、`config/accounts.example.yaml`、`docs/vouchers.md`、`tests/unit/vouchers/`、`tests/integration/test_voucher_db.py`、`CHANGELOG.md`。
+- 测试结果：`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过；凭证单元/数据库/审批测试 10 passed；全量 SQLite `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 244 passed、7 skipped，覆盖率 80.51%；MySQL 8.4 迁移/凭证抽查 6 passed、1 skipped，PostgreSQL 18 迁移/凭证抽查 6 passed、1 skipped；CLI demo + voucher draft 实测借贷均为 485.58。
+- 手算抽查：示例收入 10.00、平台费 1.25、退款 2.00；借方平台应收 10.00 + 平台费用 1.25 + 收入冲减 2.00 = 13.25，贷方销售收入 10.00 + 平台应收 1.25 + 平台应收 2.00 = 13.25，逐分相等。
+- 偏离计划：按 maken 决定先实现按月粒度；按结算单生成、平台打款到账和汇兑差的具体数据接入保留接口，待后续已有结算/汇率数据路径接入；没有修改已合并表结构或新增依赖。

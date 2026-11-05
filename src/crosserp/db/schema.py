@@ -15,6 +15,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     ForeignKey,
     Index,
@@ -427,6 +428,56 @@ class Approval(Base):
     token_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
     used_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+
+class Voucher(Base):
+    """凭证草稿及其输入/科目配置哈希。"""
+
+    __tablename__ = "voucher"
+    __table_args__ = (
+        Index("ix_voucher_store_period", "store_id", "period"),
+        CheckConstraint(
+            "total_debit >= 0 AND total_credit >= 0", name="voucher_totals_nonnegative"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    store_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("store.id"))
+    period: Mapped[str] = mapped_column(String(7))
+    source_type: Mapped[str] = mapped_column(String(32))
+    source_id: Mapped[str] = mapped_column(String(128))
+    state: Mapped[str] = mapped_column(String(16))
+    currency: Mapped[str] = mapped_column(String(3))
+    total_debit: Mapped[Decimal] = mapped_column(Money4())
+    total_credit: Mapped[Decimal] = mapped_column(Money4())
+    inputs_hash: Mapped[str] = mapped_column(String(64))
+    accounts_hash: Mapped[str] = mapped_column(String(64))
+    created_by: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class VoucherLine(Base):
+    """凭证分录, 每行只能填借方或贷方。"""
+
+    __tablename__ = "voucher_line"
+    __table_args__ = (
+        Index("ix_voucher_line_voucher_id", "voucher_id"),
+        CheckConstraint(
+            "debit >= 0 AND credit >= 0 AND NOT (debit > 0 AND credit > 0)",
+            name="voucher_line_one_side",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    voucher_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("voucher.id"))
+    line_no: Mapped[int] = mapped_column(Integer)
+    account_key: Mapped[str] = mapped_column(String(64))
+    account_code: Mapped[str] = mapped_column(String(32))
+    account_name: Mapped[str] = mapped_column(String(128))
+    debit: Mapped[Decimal] = mapped_column(Money4())
+    credit: Mapped[Decimal] = mapped_column(Money4())
+    summary: Mapped[str] = mapped_column(String(200))
+    source_ref: Mapped[str] = mapped_column(String(128))
 
 
 class ExportArtifact(Base):

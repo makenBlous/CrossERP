@@ -24,6 +24,7 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session
 
 from crosserp import __version__
+from crosserp.approval.payload import payload_hash
 from crosserp.approval.service import (
     approve as approve_approval,
 )
@@ -74,6 +75,7 @@ from crosserp.db.repo.users import (
     set_active,
     set_password,
 )
+from crosserp.db.repo.vouchers import list_lines, list_vouchers
 from crosserp.db.schema import (
     Approval,
     AppSetting,
@@ -84,6 +86,7 @@ from crosserp.db.schema import (
     ProfitSnapshot,
     ReconRun,
     Store,
+    Voucher,
 )
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
@@ -94,6 +97,9 @@ from crosserp.profit.report_csv import write_report_csv
 from crosserp.profit.report_xlsx import write_report_xlsx
 from crosserp.profit.service import compute_and_save
 from crosserp.recon.engine import reconcile_all
+from crosserp.vouchers.accounts import load_accounts
+from crosserp.vouchers.builder import build_month_voucher
+from crosserp.vouchers.service import save_draft
 from crosserp.web.app import create_app
 
 app = typer.Typer(add_completion=False)
@@ -103,12 +109,14 @@ issues_app = typer.Typer(add_completion=False, help="异常清单。只读。")
 imports_app = typer.Typer(add_completion=False, help="导入批次记录。")
 approval_app = typer.Typer(add_completion=False, help="审批状态机。")
 user_app = typer.Typer(add_completion=False, help="用户与角色管理。")
+voucher_app = typer.Typer(add_completion=False, help="凭证草稿。")
 app.add_typer(db_app, name="db")
 app.add_typer(audit_app, name="audit")
 app.add_typer(issues_app, name="issues")
 app.add_typer(imports_app, name="imports")
 app.add_typer(approval_app, name="approval")
 app.add_typer(user_app, name="user")
+app.add_typer(voucher_app, name="voucher")
 
 _TYPES = ("auto", "amazon", "shopify", "mapped")
 _TYPE_TO_ID = {
@@ -1107,6 +1115,139 @@ def approval_reject(
                 raise LookupError(f"审批单不存在 {approval_id}")
             reject_approval(session, row, approver=as_name, comment=comment or "")
             typer.echo(f"审批已驳回：{row.id}")  # noqa: RUF001
+    except (LookupError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@voucher_app.command("draft")
+def voucher_draft(
+    store: str = typer.Option(..., "--store", help="店铺名称或 UUID。"),
+    period: str = typer.Option(..., "--period", help="期间 YYYY-MM。"),
+    by: str = typer.Option("month", "--by", help="生成粒度，目前支持 month。"),  # noqa: RUF001
+    as_name: str = typer.Option(..., "--as", help="生成者。"),
+    accounts: Path | None = typer.Option(None, "--accounts", exists=True, readable=True),  # noqa: B008
+) -> None:
+    """根据利润快照生成平衡凭证草稿。"""
+    if by != "month":
+        typer.echo("当前只支持按店铺月份生成；按结算单留待后续实现。", err=True)  # noqa: RUF001
+        raise typer.Exit(code=1)
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            store_row = session.scalar(
+                select(Store).where(or_(Store.name == store, Store.id == _try_uuid(store)))
+            )
+            if store_row is None:
+                raise LookupError(f"店铺不存在: {store}")
+            config = load_accounts(accounts)
+            draft = build_month_voucher(
+                session,
+                store_id=store_row.id,
+                period=period,
+                created_by=as_name,
+                accounts=config,
+            )
+            row = save_draft(session, draft)
+            typer.echo(f"凭证草稿已生成：{row.id}")  # noqa: RUF001
+            typer.echo(f"借方合计：{row.total_debit}；贷方合计：{row.total_credit}")  # noqa: RUF001
+    except (LookupError, ValueError, FileNotFoundError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@voucher_app.command("list")
+def voucher_list() -> None:
+    """列出凭证草稿。"""
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            rows = [
+                [
+                    str(row.id),
+                    row.period,
+                    row.source_type,
+                    row.source_id,
+                    row.state,
+                    str(row.total_debit),
+                    str(row.total_credit),
+                ]
+                for row in list_vouchers(session)
+            ]
+            typer.echo(
+                _render_table(["凭证", "期间", "来源", "对象", "状态", "借方", "贷方"], rows)
+            )
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@voucher_app.command("show")
+def voucher_show(voucher_id: UUID = typer.Argument(..., help="凭证 UUID。")) -> None:  # noqa: B008
+    """显示凭证分录和借贷合计。"""
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            row = session.get(Voucher, voucher_id)
+            if row is None:
+                raise LookupError(f"凭证不存在: {voucher_id}")
+            lines = [
+                [
+                    str(line.line_no),
+                    line.account_code,
+                    line.account_name,
+                    str(line.debit),
+                    str(line.credit),
+                    line.summary,
+                ]
+                for line in list_lines(session, row.id)
+            ]
+            typer.echo(_render_table(["行", "科目编码", "科目", "借方", "贷方", "摘要"], lines))
+            typer.echo(f"借方合计：{row.total_debit}；贷方合计：{row.total_credit}")  # noqa: RUF001
+    except (LookupError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
+
+
+@voucher_app.command("submit")
+def voucher_submit(
+    voucher_id: UUID = typer.Argument(..., help="凭证 UUID。"),  # noqa: B008
+    as_name: str = typer.Option(..., "--as", help="提交人。"),
+) -> None:
+    """提交凭证审批。"""
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            row = session.get(Voucher, voucher_id)
+            if row is None:
+                raise LookupError(f"凭证不存在: {voucher_id}")
+            approval = create_approval(
+                session,
+                target_type="voucher",
+                target_id=str(row.id),
+                requested_by=as_name,
+                payload_hash=payload_hash(session, "voucher", str(row.id)),
+            )
+            submit_approval(session, approval, actor=as_name)
+            row.state = "submitted"
+            typer.echo(f"凭证已提交审批：{row.id}")  # noqa: RUF001
     except (LookupError, ValueError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc

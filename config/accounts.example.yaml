@@ -1,0 +1,34 @@
+# 科目编码未核实, 请按贵司科目表填写。不要直接用于正式记账。
+accounts:
+  sales_revenue:
+    code: "待会计核实-销售收入"
+    name: "销售收入"
+    direction: credit
+  platform_fee:
+    code: "待会计核实-平台费用"
+    name: "平台费用"
+    direction: debit
+  ad_cost:
+    code: "待会计核实-广告费"
+    name: "广告费"
+    direction: debit
+  fx_diff:
+    code: "待会计核实-汇兑差"
+    name: "汇兑差"
+    direction: either
+  platform_receivable:
+    code: "待会计核实-平台应收"
+    name: "平台应收"
+    direction: either
+  bank_deposit:
+    code: "待会计核实-银行存款"
+    name: "银行存款"
+    direction: debit
+  refund_revenue:
+    code: "待会计核实-主营业务收入冲减"
+    name: "主营业务收入冲减"
+    direction: debit
+  refund_fee:
+    code: "待会计核实-平台费用冲回"
+    name: "平台费用冲回"
+    direction: credit
