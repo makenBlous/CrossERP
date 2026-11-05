@@ -36,6 +36,7 @@ from crosserp.db.schema import (
 )
 from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
+from crosserp.issues.service import transition as transition_issue
 from crosserp.web.deps import require
 
 _WEB_DIR = Path(__file__).parent
@@ -278,6 +279,45 @@ def create_app(database_url: str | None = None) -> FastAPI:
                 "user": user,
             },
         )
+
+    @app.get("/issues/{issue_id}", response_class=HTMLResponse)
+    def issue_detail(request: Request, issue_id: str) -> Response:
+        from uuid import UUID
+
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            issue = session.get(Issue, UUID(issue_id))
+            if issue is None:
+                return Response("异常不存在", status_code=404)
+        return HTMLResponse(
+            f"<h1>异常详情</h1><p>状态：{issue.status}</p><pre>{issue.detail_json}</pre>"  # noqa: RUF001
+        )
+
+    @app.post("/issues/{issue_id}")
+    def issue_transition(
+        request: Request,
+        issue_id: str,
+        status: str = Form(...),
+        note: str = Form(""),
+        csrf_token: str = Form(...),
+    ) -> Response:
+        from uuid import UUID
+
+        if csrf_token != request.cookies.get("crosserp_csrf"):
+            return Response("CSRF 校验失败", status_code=403)
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.ISSUE_HANDLE):
+                return permission_denied(session, user, request, Permission.ISSUE_HANDLE.value)
+            try:
+                transition_issue(session, UUID(issue_id), status, note)
+            except (ValueError, LookupError) as exc:
+                return Response(str(exc), status_code=400)
+        return RedirectResponse(f"/issues/{issue_id}", status_code=303)
 
     @app.get("/security-log", response_class=HTMLResponse)
     def security_log(request: Request) -> Response:

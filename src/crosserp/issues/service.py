@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from crosserp.audit.context import AuditContext, audited
 from crosserp.core.enums import IssueKind, IssueStatus
 from crosserp.db.repo.imports import insert_issue
 from crosserp.db.schema import Issue
@@ -51,3 +52,48 @@ def open_issue(
         order_line_id=order_line_id,
         recon_run_id=recon_run_id,
     )
+
+
+_TRANSITIONS = {
+    "open": {"explained", "resolved", "ignored"},
+    "explained": {"resolved", "ignored", "open"},
+    "resolved": {"open"},
+    "ignored": {"open"},
+}
+
+
+def transition(
+    session: Session,
+    issue_id: UUID,
+    to_status: IssueStatus | str,
+    note: str | None,
+    context: AuditContext | None = None,
+) -> Issue:
+    """改变异常状态并记录改前改后。"""
+    issue = session.get(Issue, issue_id)
+    if issue is None:
+        raise LookupError(f"异常不存在: {issue_id}")
+    target = IssueStatus(to_status).value
+    if target not in _TRANSITIONS.get(issue.status, set()):
+        raise ValueError(f"不允许从 {issue.status} 变为 {target}")
+    if target in {IssueStatus.EXPLAINED.value, IssueStatus.IGNORED.value} and (
+        note is None or len(note.strip()) < 5
+    ):
+        raise ValueError("已解释或忽略必须填写至少 5 个字的说明")
+    if note is not None and len(note) > 2000:
+        raise ValueError("说明超过 2000 个字符")
+    before = {"status": issue.status, "resolution_note": issue.resolution_note}
+    issue.status = target
+    issue.resolution_note = note
+    session.flush()
+    with audited(
+        session,
+        context or AuditContext(),
+        action="issue.transition",
+        target_type="issue",
+        target_id=str(issue.id),
+        before=before,
+        after={"status": issue.status, "resolution_note": issue.resolution_note},
+    ):
+        pass
+    return issue
