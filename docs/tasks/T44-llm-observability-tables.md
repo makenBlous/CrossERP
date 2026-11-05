@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W7 | 1.5 天 | T43 | `main` |
+| review | W7 | 1.5 天 | T43 | `main` |
 
 ## 目标
 每次 AI 问答都在数据库里留下：谁问的、用的哪个模型和提示词版本、输入/输出 token 数、耗时、估算费用、调用了哪些工具、是否被拒；不依赖任何外部监控服务。
@@ -49,4 +49,7 @@
 - **Q2 ⚠ 待 maken 确认：`llm_call` 正文到期清理方式。** 选项：A 到期把 `question_text/answer_text` 置空（需要 app 对这两列 UPDATE，推荐，元数据永久保留）；B 整行不清理。（这两列不是审计链的一部分；审计链里的 AI 问答记录只存哈希，见 T46。）
 
 ## 完成记录
-（代理填写）
+- 按推荐默认执行 Q1-A（加入 `opentelemetry-sdk`）和 Q2-A（正文到期置空的接口留给 T45；当前保存元数据和正文）。
+- 完成内容：新增 `prompt_version`、`llm_call`、`llm_tool_call` 三表及 0015 迁移；新增提示词内容哈希和调用落库 exporter；新增模型每百万 token 价格 YAML 与 Decimal 四位费用估算；未配价格返回 NULL；补充观测文档和示例配置。
+- 修改文件：`pyproject.toml`、`uv.lock`、`src/crosserp/db/schema.py`、`src/crosserp/db/migrations/versions/0015_llm_observability.py`、`src/crosserp/observability/`、`config/model_prices.example.yaml`、`docs/observability.md`、`tests/unit/observability/`、`tests/integration/test_llm_tables.py`、`tests/integration/test_migrations.py`、`CHANGELOG.md`。
+- 测试结果：`.venv/bin/pytest tests/unit/observability tests/integration/test_llm_tables.py -q` 为 2 passed；迁移往返 5 passed；全量 SQLite `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 257 passed、7 skipped，覆盖率 79.45%；`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过。

@@ -480,6 +480,55 @@ class VoucherLine(Base):
     source_ref: Mapped[str] = mapped_column(String(128))
 
 
+class PromptVersion(Base):
+    __tablename__ = "prompt_version"
+    __table_args__ = (UniqueConstraint("name", "sha256", name="uq_prompt_version_name_sha256"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    name: Mapped[str] = mapped_column(String(64))
+    version: Mapped[str] = mapped_column(String(32))
+    sha256: Mapped[str] = mapped_column(String(64))
+    content: Mapped[str] = mapped_column(String(100000))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class LlmCall(Base):
+    __tablename__ = "llm_call"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    ts: Mapped[datetime] = mapped_column(UtcDateTime())
+    user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    username: Mapped[str | None] = mapped_column(String(64))
+    channel: Mapped[str] = mapped_column(String(16))
+    model: Mapped[str] = mapped_column(String(128))
+    prompt_version_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("prompt_version.id"))
+    input_tokens: Mapped[int] = mapped_column(Integer)
+    output_tokens: Mapped[int] = mapped_column(Integer)
+    latency_ms: Mapped[int] = mapped_column(Integer)
+    cost_estimate: Mapped[Decimal | None] = mapped_column(Money4())
+    currency: Mapped[str] = mapped_column(String(3))
+    status: Mapped[str] = mapped_column(String(16))
+    refusal_reason: Mapped[str | None] = mapped_column(String(512))
+    question_text: Mapped[str | None] = mapped_column(String(1000000))
+    answer_text: Mapped[str | None] = mapped_column(String(1000000))
+    trace_id: Mapped[str] = mapped_column(String(32))
+    request_id: Mapped[str | None] = mapped_column(String(64))
+
+
+class LlmToolCall(Base):
+    __tablename__ = "llm_tool_call"
+    __table_args__ = (Index("ix_llm_tool_call_llm_call_id", "llm_call_id"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    llm_call_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("llm_call.id"))
+    seq: Mapped[int] = mapped_column(Integer)
+    tool_name: Mapped[str] = mapped_column(String(64))
+    args_json: Mapped[Any] = mapped_column(JSON())
+    result_rows: Mapped[int] = mapped_column(Integer)
+    latency_ms: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16))
+
+
 class ExportArtifact(Base):
     """一次审批后的外部文件产物。"""
 

@@ -1,0 +1,5 @@
+# 价格未核实, 请按供应商官网填写。单位: 每百万 token。
+models:
+  your-model:
+    input_per_million: "待填"
+    output_per_million: "待填"
