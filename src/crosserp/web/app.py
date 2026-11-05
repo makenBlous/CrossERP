@@ -24,7 +24,7 @@ from crosserp.auth.permissions import Permission
 from crosserp.auth.sessions import create_session, find_user, revoke_session
 from crosserp.config import load_settings
 from crosserp.db.migrate import ensure_database_directory, upgrade_head
-from crosserp.db.repo.users import get_by_username
+from crosserp.db.repo.users import create_user, get_by_username, grant_role, list_users
 from crosserp.db.schema import (
     AppSetting,
     AppUser,
@@ -341,6 +341,49 @@ def create_app(database_url: str | None = None) -> FastAPI:
                 setting.updated_by = user.id
                 setting.updated_at = datetime.now(UTC)
         return RedirectResponse("/settings", status_code=303)
+
+    @app.get("/admin/users", response_class=HTMLResponse)
+    def admin_users(request: Request) -> Response:
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.USER_MANAGE):
+                return permission_denied(session, user, request, Permission.USER_MANAGE.value)
+            users = list_users(session)
+        return templates.TemplateResponse(
+            request, "admin_users.html", {"request": request, "users": users, "user": user}
+        )
+
+    @app.post("/admin/users")
+    def admin_users_add(
+        request: Request,
+        username: str = Form(...),
+        password: str = Form(...),
+        role: str = Form("viewer"),
+        csrf_token: str = Form(...),
+    ) -> Response:
+        if csrf_token != request.cookies.get("crosserp_csrf"):
+            return Response("CSRF 校验失败", status_code=403)
+        with sessions() as session:
+            actor = current(request, session)
+            if actor is None:
+                return login_redirect(request)
+            if not require(session, actor, Permission.USER_MANAGE):
+                return permission_denied(session, actor, request, Permission.USER_MANAGE.value)
+            if get_by_username(session, username) is not None:
+                return Response("用户已存在", status_code=400)
+            new_user = create_user(session, username=username, password=password, roles=())
+            grant_role(session, new_user.id, role, granted_by=actor.id)
+            record_security(
+                session,
+                SecurityEventName.USER_CREATED,
+                user_id=actor.id,
+                username=username,
+                target_user_id=new_user.id,
+                detail={"role": role},
+            )
+        return RedirectResponse("/admin/users", status_code=303)
 
     return app
 
