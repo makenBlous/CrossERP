@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| doing | W6 | 1.5 天 | T39 | `main` |
+| review | W6 | 1.5 天 | T39 | `main` |
 
 ## 目标
 已批准的凭证能导出成金蝶可导入的 Excel；表头和列顺序写在配置里，拿到真实模板后改配置即可，不改代码。导出仍然只能经过 `ledger/write_service.py` 这一个入口、仍然要一次性审批 token。
@@ -54,5 +54,10 @@
 ## 问题
 - **Q1 ⚠ 待 maken 确认：用哪个金蝶产品线。** 选项：A 金蝶云星空（中大型常用）；B 金蝶精斗云 / KIS（小微常用）；C 暂不定，先出「常见列」版本，拿到真实模板再改配置（推荐）。模板格式**待真实模板验证**。
 
+按推荐默认执行 Q1-C：当前输出常见列草案，未声称兼容任何具体金蝶产品线；拿到脱敏真实模板后只改 `kingdee_voucher.yaml`。
+
 ## 完成记录
-（代理填写）
+- 完成内容：写出入口按审批对象类型分发 payload 和目标；保留 `xlsx` 利润报表行为；新增 `kingdee_xlsx` 目标和可配置 `kingdee_voucher.yaml`；凭证行、借贷合计、币别和金额格式写入 Excel；未批准、目标类型不匹配、内容变化和重复 token 都拒绝并写审计。
+- 修改文件：`src/crosserp/ledger/write_service.py`、`src/crosserp/ledger/targets/{base,xlsx,kingdee_xlsx}.py`、`src/crosserp/ledger/templates/kingdee_voucher.yaml`、`src/crosserp/approval/payload.py`、`tests/integration/test_voucher_export.py`、`docs/vouchers.md`、`CHANGELOG.md`。
+- 测试结果：`.venv/bin/pytest tests -k "ledger or export or guard" -q` 为 18 passed；SQLite 凭证导出集成测试通过；MySQL 8.4、PostgreSQL 18 凭证/迁移抽查已通过；`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过。
+- 按推荐默认：Q1 选择常见列模板，模板顶部明确「待真实模板验证」；没有真实金蝶模板，因此没有虚报具体产品线兼容性。

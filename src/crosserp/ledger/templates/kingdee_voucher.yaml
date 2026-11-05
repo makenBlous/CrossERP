@@ -1,0 +1,28 @@
+# 常见列草案, 待真实金蝶模板验证。拿到模板后只改本文件。
+sheet: 凭证
+date_format: "%Y-%m-%d"
+voucher_word: 记
+amount_format: "0.00"
+columns:
+  - key: voucher_date
+    title: 凭证日期
+  - key: voucher_word
+    title: 凭证字
+  - key: voucher_no
+    title: 凭证号
+  - key: summary
+    title: 摘要
+  - key: account_code
+    title: 科目编码
+  - key: account_name
+    title: 科目名称
+  - key: debit
+    title: 借方金额
+  - key: credit
+    title: 贷方金额
+  - key: currency
+    title: 币别
+  - key: exchange_rate
+    title: 汇率
+  - key: original_amount
+    title: 原币金额

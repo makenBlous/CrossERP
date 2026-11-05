@@ -13,7 +13,10 @@ cp config/accounts.example.yaml ~/.crosserp/accounts.yaml
 .venv/bin/crosserp voucher list
 .venv/bin/crosserp voucher show <凭证 UUID>
 .venv/bin/crosserp voucher submit <凭证 UUID> --as maken
+# 批准后由唯一写出口生成金蝶常见列版本（模板待真实验证）
+.venv/bin/crosserp export --target kingdee_xlsx --batch voucher:<凭证 UUID> --token <一次性 token>
 ```
 
 每条分录只能有借方或贷方；保存前用 Decimal 检查借贷合计，任何不平衡的草稿都会被拒绝。
 凭证审批哈希包含输入哈希、科目文件哈希和规范化分录，科目文件修改后旧审批会失效。
+金蝶输出模板位于 `src/crosserp/ledger/templates/kingdee_voucher.yaml`，当前列名和顺序是常见列草案，拿到真实模板后只改 YAML。
