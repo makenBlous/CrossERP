@@ -26,6 +26,7 @@ from crosserp.config import load_settings
 from crosserp.db.migrate import ensure_database_directory, upgrade_head
 from crosserp.db.repo.users import get_by_username
 from crosserp.db.schema import (
+    AppSetting,
     AppUser,
     ImportBatch,
     Issue,
@@ -280,6 +281,54 @@ def create_app(database_url: str | None = None) -> FastAPI:
         return templates.TemplateResponse(
             request, "security_log.html", {"request": request, "rows": rows, "user": user}
         )
+
+    @app.get("/settings", response_class=HTMLResponse)
+    def settings_page(request: Request) -> Response:
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.SETTING_MANAGE):
+                return Response("你没有权限做这件事", status_code=403)
+            setting = session.get(AppSetting, "solo_mode")
+            enabled = bool(setting.value_json) if setting is not None else False
+        state = "开" if enabled else "关"
+        csrf = request.cookies.get("crosserp_csrf", "")
+        solo_value = str(not enabled).lower()
+        body = (
+            f"<h1>系统设置</h1><p>单人模式：{state}</p>"  # noqa: RUF001
+            f"<form method='post'><input type='hidden' name='solo_mode' value='{solo_value}'>"
+            f"<input type='hidden' name='csrf_token' value='{csrf}'><button>切换</button></form>"
+        )
+        return HTMLResponse(body)
+
+    @app.post("/settings")
+    def settings_update(
+        request: Request, solo_mode: str = Form(...), csrf_token: str = Form(...)
+    ) -> Response:
+        if csrf_token != request.cookies.get("crosserp_csrf"):
+            return Response("CSRF 校验失败", status_code=403)
+        with sessions() as session:
+            user = current(request, session)
+            if user is None:
+                return login_redirect(request)
+            if not require(session, user, Permission.SETTING_MANAGE):
+                return Response("你没有权限做这件事", status_code=403)
+            setting = session.get(AppSetting, "solo_mode")
+            if setting is None:
+                session.add(
+                    AppSetting(
+                        key="solo_mode",
+                        value_json=solo_mode == "true",
+                        updated_by=user.id,
+                        updated_at=datetime.now(UTC),
+                    )
+                )
+            else:
+                setting.value_json = solo_mode == "true"
+                setting.updated_by = user.id
+                setting.updated_at = datetime.now(UTC)
+        return RedirectResponse("/settings", status_code=303)
 
     return app
 
