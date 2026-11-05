@@ -56,6 +56,7 @@
 - W8 T47：MCP 只读工具白名单、个人 API token 和 stdio 服务入口。
 - W8 T48：AI 调用监控统计、慢调用列表和调用详情页。
 - W8 T49：AI 金额/token 预算检查、阈值告警和预算设置命令。
+- W9 T50：20 道经 maken 审核的离线评测题、确定性评分器和 `crosserp eval run --model test`。
 
 ## [0.1.0] - 未发布
 

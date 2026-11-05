@@ -35,6 +35,9 @@ mysql = [
 postgres = [
     "psycopg[binary]>=3.3",
 ]
+eval = [
+    "pydantic-evals>=2.66",
+]
 
 [build-system]
 requires = ["uv_build>=0.13.6,<0.14"]

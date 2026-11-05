@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| doing | W9 | 1.5 天 | T49 | `main` |
+| review | W9 | 1.5 天 | T49 | `main` |
 
 ## 目标
 有一套固定的 20 个业务问题，每题写好「标准答案要点」和「必须引用的数据行」；一条命令就能跑完，给出每题通过与否和总分；换提示词或换模型时能直接比较好坏。
@@ -48,4 +48,7 @@
 - **Q3 ⚠ 待 maken 确认：20 道题由 maken 审核后才算定稿。** 推荐：代理先起草，maken 审核修改后在完成记录里写「已审核」。
 
 ## 完成记录
-（代理填写）
+- maken 已审核通过 20 道题和标准答案草稿；题目仍基于合成 demo 数据，真实数据题目留待后续补充。
+- 按推荐默认执行 Q1：`pydantic-evals` 放入可选 `eval` 依赖组；Q2 不使用模型裁判，只做确定性评分。
+- 完成内容：新增 20 题 YAML、确定性事实/拒答/引用评分器、离线 `--model test` 回放和 `crosserp eval run` 命令。
+- 测试结果：评测单元测试 2 passed；`.venv/bin/crosserp eval run --model test` 输出 20/20；全量 SQLite `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 269 passed、7 skipped，覆盖率 78.32%；ruff/mypy/pre-commit 通过。
