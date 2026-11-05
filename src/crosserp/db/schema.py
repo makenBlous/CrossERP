@@ -555,6 +555,19 @@ class LlmAlert(Base):
     acknowledged_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
 
 
+class EvalRun(Base):
+    __tablename__ = "eval_run"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    ts: Mapped[datetime] = mapped_column(UtcDateTime())
+    model: Mapped[str] = mapped_column(String(128))
+    prompt_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    git_sha: Mapped[str] = mapped_column(String(40))
+    total: Mapped[int] = mapped_column(Integer)
+    passed: Mapped[int] = mapped_column(Integer)
+    details_json: Mapped[Any] = mapped_column(JSON())
+    triggered_by: Mapped[str] = mapped_column(String(64))
+
+
 class ExportArtifact(Base):
     """一次审批后的外部文件产物。"""
 

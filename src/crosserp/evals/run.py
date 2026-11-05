@@ -42,3 +42,16 @@ def run(model: str = "test", output: Path | None = None) -> dict[str, Any]:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     return result
+
+
+def compare(result: dict[str, Any], baseline: Path) -> tuple[bool, list[str]]:
+    expected = json.loads(baseline.read_text(encoding="utf-8"))
+    problems: list[str] = []
+    if result.get("passed", 0) < expected.get("passed", 0):
+        problems.append(f"总分下降: {expected.get('passed')} -> {result.get('passed')}")
+    old = {item["id"]: item for item in expected.get("results", [])}
+    current = {item["id"]: item for item in result.get("results", [])}
+    for question_id, item in old.items():
+        if item.get("passed") and not current.get(question_id, {}).get("passed"):
+            problems.append(f"题目由通过变失败: {question_id}")
+    return not problems, problems

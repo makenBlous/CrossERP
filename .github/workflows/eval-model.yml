@@ -1,0 +1,19 @@
+name: eval-model
+
+on:
+  workflow_dispatch:
+
+jobs:
+  eval-model:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.13.x"
+      - run: uv sync --all-extras
+      - run: uv run crosserp eval run --model "${{ secrets.CROSSERP_MODEL }}"
+        env:
+          CROSSERP_MODEL_BASE_URL: ${{ secrets.CROSSERP_MODEL_BASE_URL }}
+          CROSSERP_MODEL: ${{ secrets.CROSSERP_MODEL }}
+          CROSSERP_API_KEY: ${{ secrets.CROSSERP_API_KEY }}

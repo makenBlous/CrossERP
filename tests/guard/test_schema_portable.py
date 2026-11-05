@@ -28,7 +28,16 @@ pytestmark = pytest.mark.guard
 _MONEY_HINT = re.compile(r"amount|total|price|cost|fee|profit|revenue", re.IGNORECASE)
 # 实施方案第 4 节的分类字段。名字里带 amount/fee。但不是金额。
 _NOT_MONEY = frozenset(
-    {"amount_type", "amount_description", "fee_category", "groups_total", "groups_matched"}
+    {
+        "amount_type",
+        "amount_description",
+        "fee_category",
+        "groups_total",
+        "groups_matched",
+        # eval_run.total/passed 是评测题数量, 不是金额。
+        "total",
+        "passed",
+    }
 )
 _MONEY_COLUMNS = {
     ("sku_cost", "unit_cost"),

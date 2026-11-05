@@ -8,12 +8,14 @@ import json
 import os
 import re
 import secrets
+import subprocess
 import time
 import unicodedata
 import warnings
 import webbrowser
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from getpass import getuser
 from pathlib import Path
 from uuid import UUID
 
@@ -82,6 +84,7 @@ from crosserp.db.schema import (
     AppSetting,
     AppUser,
     AuditLog,
+    EvalRun,
     ImportBatch,
     Issue,
     LlmBudget,
@@ -1374,6 +1377,7 @@ def mcp_serve(
 def eval_run(
     model: str = typer.Option("test", "--model"),
     output: Path | None = typer.Option(None, "--out"),  # noqa: B008
+    save: bool = typer.Option(False, "--save", help="把本次结果写入 eval_run。"),
 ) -> None:
     from crosserp.evals.run import run
 
@@ -1382,9 +1386,58 @@ def eval_run(
     except RuntimeError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
+    if save:
+        _url_text, engine = _open_ready_engine()
+        try:
+            with session_scope(engine) as session:
+                session.add(
+                    EvalRun(
+                        ts=datetime.now(UTC),
+                        model=model,
+                        prompt_version_id=None,
+                        git_sha=_current_git_sha(),
+                        total=int(result["total"]),
+                        passed=int(result["passed"]),
+                        details_json=result,
+                        triggered_by=getuser()[:64],
+                    )
+                )
+        finally:
+            engine.dispose()
+        typer.echo("评测结果已写入 eval_run")
     typer.echo(f"评测完成: {result['passed']}/{result['total']}")
     if result["passed"] != result["total"]:
         raise typer.Exit(code=1)
+
+
+@eval_app.command("compare")
+def eval_compare(
+    baseline: Path = typer.Option(..., "--baseline", exists=True, readable=True),  # noqa: B008
+) -> None:
+    from crosserp.evals.run import compare, run
+
+    result = run(model="test")
+    ok, problems = compare(result, baseline)
+    if ok:
+        typer.echo("评测基线通过")
+        return
+    for problem in problems:
+        typer.echo(problem, err=True)
+    raise typer.Exit(code=1)
+
+
+def _current_git_sha() -> str:
+    """返回当前提交的 SHA; 安装到 wheel 后没有 Git 时使用全零占位。"""
+    configured = os.environ.get("GITHUB_SHA", "").strip()
+    if configured:
+        return configured[:40].ljust(40, "0")
+    try:
+        value = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL, text=True
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        value = ""
+    return value[:40].ljust(40, "0")
 
 
 @app.command("export")

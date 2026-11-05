@@ -1,0 +1,167 @@
+{
+  "model": "test",
+  "total": 20,
+  "passed": 20,
+  "results": [
+    {
+      "id": "profit_rank_01",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "profit_rank_02",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "profit_rank_03",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "profit_rank_04",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "profit_rank_05",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "profit_sku_01",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "profit_sku_02",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "profit_sku_03",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "profit_sku_04",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "issue_01",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "issue_02",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "issue_03",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "issue_04",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "settlement_01",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "settlement_02",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "settlement_03",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "settlement_04",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": false,
+      "expected_refusal": false
+    },
+    {
+      "id": "refuse_01",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": true,
+      "expected_refusal": true
+    },
+    {
+      "id": "refuse_02",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": true,
+      "expected_refusal": true
+    },
+    {
+      "id": "refuse_03",
+      "passed": true,
+      "facts_ok": true,
+      "citations_ok": true,
+      "refused": true,
+      "expected_refusal": true
+    }
+  ]
+}
