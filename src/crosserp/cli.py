@@ -13,7 +13,7 @@ import unicodedata
 import warnings
 import webbrowser
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
@@ -84,6 +84,7 @@ from crosserp.db.schema import (
     AuditLog,
     ImportBatch,
     Issue,
+    LlmCall,
     ProfitSnapshot,
     ReconRun,
     Store,
@@ -104,6 +105,7 @@ from crosserp.vouchers.service import save_draft
 from crosserp.web.app import create_app
 
 app = typer.Typer(add_completion=False)
+ai_app = typer.Typer(add_completion=False, help="AI 工具。")
 db_app = typer.Typer(add_completion=False, help="数据库连接与启动自检。")
 audit_app = typer.Typer(add_completion=False, help="审计哈希链。")
 issues_app = typer.Typer(add_completion=False, help="异常清单。只读。")
@@ -117,6 +119,7 @@ app.add_typer(issues_app, name="issues")
 app.add_typer(imports_app, name="imports")
 app.add_typer(approval_app, name="approval")
 app.add_typer(user_app, name="user")
+app.add_typer(ai_app, name="ai")
 app.add_typer(voucher_app, name="voucher")
 
 _TYPES = ("auto", "amazon", "shopify", "mapped")
@@ -1279,6 +1282,44 @@ def ask_command(
             typer.echo(f"原因：{answer.refusal_reason}", err=True)  # noqa: RUF001
     if answer.refused:
         raise typer.Exit(code=1)
+
+
+@ai_app.command("purge-text")
+def ai_purge_text(
+    dry_run: bool = typer.Option(False, "--dry-run", help="只显示数量，不修改正文。"),  # noqa: RUF001
+) -> None:
+    """清理超过保留期的 AI 问答正文。"""
+    from crosserp.config import load_settings
+
+    cutoff = datetime.now(UTC) - timedelta(days=load_settings().ai.text_days)
+    url_text, engine = _open_ready_engine()
+    try:
+        with session_scope(engine) as session:
+            rows = list(
+                session.scalars(
+                    select(LlmCall).where(LlmCall.ts < cutoff, LlmCall.question_text.is_not(None))
+                )
+            )
+            typer.echo(f"将清理 {len(rows)} 条 AI 正文（截止 {cutoff.isoformat()}）")  # noqa: RUF001
+            if not dry_run and rows:
+                for row in rows:
+                    row.question_text = None
+                    row.answer_text = None
+                append(
+                    session,
+                    "system",
+                    "ai.purge_text",
+                    "llm_call",
+                    "retention",
+                    None,
+                    {"count": len(rows), "cutoff": cutoff.isoformat()},
+                    reason="AI 正文保留期清理",
+                )
+    except DatabaseConfigError as exc:
+        typer.echo(_hide_password(str(exc), url_text), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
 
 
 @app.command("export")

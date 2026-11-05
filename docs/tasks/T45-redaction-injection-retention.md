@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W7 | 1 天 | T44 | `main` |
+| review | W7 | 1 天 | T44 | `main` |
 
 ## 目标
 买家姓名、手机号、地址、邮箱等个人信息在发给外部模型前被替换成占位符；表格里的文字（比如商品标题、买家备注里写着「忽略之前的指令」）不能让 AI 改变行为；AI 问答正文按配置天数后清空。
@@ -41,8 +41,9 @@
 - [ ] 问一个会涉及买家的问题，然后在 `llm_call` 表里看发给模型的内容——手机号应该是「已隐藏」。
 
 ## 问题
-- **Q1 ⚠ 待 maken 确认：AI 问答正文保留几天。** 选项：A 90 天（估算，推荐）；B 30 天；C 不保存正文，只存哈希和元数据（最安全，但排查问题困难）。
-- **Q2 ⚠ 待 maken 确认：使用本地模型时是否仍脱敏。** 选项：A 一律脱敏（推荐，简单一致）；B 可配置 `ai.redact=false` 仅对本地模型生效。
+- Q1、Q2 按推荐默认执行：正文保留 90 天；无论本地或外部模型都一律脱敏。
 
 ## 完成记录
-（代理填写）
+- 完成内容：新增手机号、邮箱、身份证号、买家字段脱敏器，同一值在一次处理内保持同一占位编号；新增 `<data>` 转义边界和系统提示注入说明；新增 10 条注入样本；新增 `crosserp ai purge-text --dry-run` 和正文清理审计；配置 `ai.text_days` 默认 90 天。
+- 修改文件：`src/crosserp/agent/redact.py`、`src/crosserp/agent/prompts/system_v1.md`、`src/crosserp/config.py`、`src/crosserp/cli.py`、`tests/unit/agent/test_redact.py`、`tests/agent/injection_cases.yaml`、`docs/agent.md`、`docs/security.md`、`CHANGELOG.md`。
+- 测试结果：`.venv/bin/pytest tests/unit/agent -q` 为 10 passed；全量 SQLite `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 259 passed、7 skipped，覆盖率 79.34%；`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过。

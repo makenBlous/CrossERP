@@ -21,12 +21,17 @@ class AuditRetentionSettings(BaseModel):
     security_days: int = Field(default=180, ge=1)
 
 
+class AiSettings(BaseModel):
+    text_days: int = Field(default=90, ge=1)
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     auth: AuthSettings = Field(default_factory=AuthSettings)
     audit_retention: AuditRetentionSettings = Field(default_factory=AuditRetentionSettings)
     cookie_secure: bool = False
+    ai: AiSettings = Field(default_factory=AiSettings)
 
 
 def load_settings() -> Settings:
@@ -62,8 +67,13 @@ def load_settings() -> Settings:
     if env.get("CROSSERP_AUDIT_RETENTION_SECURITY_DAYS") is not None:
         retention_data["security_days"] = int(env["CROSSERP_AUDIT_RETENTION_SECURITY_DAYS"])
     secure = env.get("CROSSERP_COOKIE_SECURE")
+    ai_raw = raw.get("ai")
+    ai_data = {str(k): v for k, v in ai_raw.items()} if isinstance(ai_raw, dict) else {}
+    if env.get("CROSSERP_AI_RETENTION_TEXT_DAYS") is not None:
+        ai_data["text_days"] = int(env["CROSSERP_AI_RETENTION_TEXT_DAYS"])
     return Settings(
         auth=AuthSettings(**auth_data),
         audit_retention=AuditRetentionSettings(**retention_data),
         cookie_secure=values.cookie_secure if secure is None else secure == "1",
+        ai=AiSettings(**ai_data),
     )

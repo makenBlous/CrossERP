@@ -1,5 +1,5 @@
-# CrossERP 权限矩阵
+# AI 数据安全
 
-当前角色权限由 `src/crosserp/auth/permissions.py` 固定定义：`admin` 管理系统，`finance` 审批，`operator` 处理导入和异常，`viewer` 只读报表，`auditor` 查看审计和安全日志。
+发送给模型前，买家姓名、手机号、邮箱、身份证号和地址字段会替换成带编号的占位符；金额、订单号和 SKU 保持原值以便引用。工具自由文本会包在转义后的 `<data>` 标签中，标签内内容只当数据处理。
 
-所有受保护网页先检查登录，再检查权限。权限不足返回 403，并写入 `security_event(permission_denied)`；单人模式关闭时提交人不能批准或驳回自己的审批。
+AI 问答正文默认保留 90 天，可用 `CROSSERP_AI_RETENTION_TEXT_DAYS` 调整；清理通过 `crosserp ai purge-text` 手工执行并写业务审计。
