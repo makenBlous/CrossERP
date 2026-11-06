@@ -32,6 +32,20 @@ def _run(command: list[str], *, env: dict[str, str], input_text: str | None = No
         raise RuntimeError(f"命令失败({completed.returncode}): {' '.join(command)}")
 
 
+def _run_with_retry(
+    command: list[str], *, env: dict[str, str], attempts: int, input_text: str | None = None
+) -> None:
+    """网络下载偶发失败时重试；最终仍以命令成功为准。"""  # noqa: RUF002
+    for attempt in range(1, attempts + 1):
+        try:
+            _run(command, env=env, input_text=input_text)
+            return
+        except RuntimeError:
+            if attempt == attempts:
+                raise
+            time.sleep(2)
+
+
 def _find_wheel(pattern: str) -> Path:
     candidates = [Path(item) for item in glob.glob(pattern)]
     if len(candidates) != 1:
@@ -123,7 +137,12 @@ def main() -> int:
         result["steps"].append({"name": name, "seconds": round(time.perf_counter() - begin, 3)})
 
     step("uv", lambda: _run([uv, "--version"], env=env))
-    step("wheel_install", lambda: _run([uv, "tool", "install", str(wheel), "--force"], env=env))
+    step(
+        "wheel_install",
+        lambda: _run_with_retry(
+            [uv, "tool", "install", str(wheel), "--force"], env=env, attempts=3
+        ),
+    )
     executable = tool_bin / ("crosserp.exe" if os.name == "nt" else "crosserp")
     if not executable.exists():
         raise RuntimeError(f"uv tool 未生成命令: {executable}")

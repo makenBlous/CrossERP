@@ -6,6 +6,7 @@
 
 - 修正本地 Docker Compose 通过 HTTP 访问时的登录 Cookie 配置；HTTPS 部署仍可设置 `CROSSERP_COOKIE_SECURE=1`。
 - 安装 smoke 在跨平台启动本地服务时显式关闭 HTTPS Cookie，并在服务提前退出时立即报告原因。
+- 安装 smoke 的本地 wheel 工具安装遇到瞬时下载失败时最多重试三次，最终仍必须成功。
 
 ### 新增
 
