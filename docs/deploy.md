@@ -65,6 +65,8 @@ docker compose --profile pg up -d --build
 curl.exe -f http://127.0.0.1:8000/health
 ```
 
+本机直接用 `http://127.0.0.1` 体验时，`deploy/.env` 的 `CROSSERP_COOKIE_SECURE` 保持 `0`，否则浏览器不会在 HTTP 请求中发送登录 Cookie。接入 HTTPS 反向代理后再改为 `1`。
+
 ## HTTPS 反向代理
 
 `deploy/Caddyfile` 是示例配置。把 `CROSSERP_DOMAIN` 改成真实域名后，用 Caddy 代理到 `app:8000`，并保留 `CROSSERP_COOKIE_SECURE=1`。不要直接把应用端口暴露到公网；证书和 DNS 由部署方按自己的环境配置。

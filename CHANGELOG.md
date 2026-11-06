@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+- 修正本地 Docker Compose 通过 HTTP 访问时的登录 Cookie 配置；HTTPS 部署仍可设置 `CROSSERP_COOKIE_SECURE=1`。
+
 ### 新增
 
 - 0.5.0 内部验收证据：`docs/evidence/v0.5.md`。未发布、未打 tag。

@@ -15,6 +15,7 @@ from sqlalchemy.engine import URL, Engine
 from sqlalchemy.exc import IntegrityError, StatementError
 from typer.testing import CliRunner
 
+from crosserp import __version__
 from crosserp.cli import app
 from crosserp.core.errors import DatabaseConfigError, PrecisionError
 from crosserp.db.dialects import check_server
@@ -460,4 +461,4 @@ def test_cli_db_check_rejects_mysql_without_charset(monkeypatch: pytest.MonkeyPa
 def test_cli_version_still_works() -> None:
     result = CliRunner().invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert result.stdout.strip() == "0.0.1"
+    assert result.stdout.strip() == __version__
