@@ -60,20 +60,14 @@ jobs:
           cache-python: true
       - name: 构建 wheel
         run: uv build
-      - name: 安装 wheel 并运行 demo 检查
-        run: |
-          set +e
-          uv tool install dist/*.whl --force 2>&1 | tee /tmp/crosserp-install.log
-          install_status=${PIPESTATUS[0]}
-          if [ "$install_status" -eq 0 ]; then
-            crosserp demo --check --no-browser 2>&1 | tee /tmp/crosserp-demo.log
-            install_status=${PIPESTATUS[0]}
-          fi
-          if [ "$install_status" -ne 0 ]; then
-            details=$(cat /tmp/crosserp-install.log /tmp/crosserp-demo.log 2>/dev/null | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
-            echo "::error title=install-smoke::$details"
-          fi
-          exit "$install_status"
+      - name: 本地 wheel 安装、演示和登录计时
+        run: uv run python scripts/install_check.py --wheel 'dist/*.whl' --output .ci/install-timing.json
+      - name: 上传安装计时证据
+        uses: actions/upload-artifact@v4
+        with:
+          name: install-timing-${{ matrix.os }}
+          path: .ci/install-timing.json
+          if-no-files-found: error
 
   lint:
     name: lint

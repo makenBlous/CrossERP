@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| todo | W10 | 1 天 | T52 | `main` |
+| review | W10 | 1 天 | T52 | `main` |
 
 ## 目标
 记录 Windows / macOS / Linux 上「从零安装到打开首页并登录」各花多少分钟，作为 v0.5 指标「安装 ≤ 15 分钟」的证据；因为不发布到 PyPI，安装来源改为本地 wheel。
@@ -38,7 +38,10 @@
 - [ ] 在一台没装过的 Windows 电脑（或新建用户）上，按 `docs/install.md` 从头装一遍，用手机计时，到看到首页并登录成功为止，把分钟数写进 `docs/evidence/W10-install.md`。
 
 ## 问题
-- **Q1 ⚠ 待 maken 确认：不上 PyPI 时用户从哪里安装。** 选项：A 由 maken 把 wheel 文件直接发给内部试用者（推荐，最简单）；B 从私有 Git 仓库安装（`uv tool install git+...`，需要对方有权限）；C 只用 Docker（T52）。
+- Q1 按推荐默认：由 maken 把本地 wheel 文件直接发给内部试用者；本任务不发布 PyPI。
 
 ## 完成记录
-（代理填写）
+- 完成内容：新增跨平台 `scripts/install_check.py`，用本地 wheel 安装到项目 `.ci/uv-tools`，执行 init、demo、serve、`/login` 和真实账号登录；CI 三系统上传 JSON artifact；新增安装文档和 W10 证据模板。
+- 按推荐默认：不上 PyPI，内部试用者由 maken 直接分发 wheel。
+- Linux 本机实测：Python 3.14.10，uv 检查 0.004 秒，wheel 安装 0.113 秒，初始化 3.758 秒，demo 3.752 秒，服务 0.819 秒，登录 0.119 秒，总计 8.780 秒，登录成功。
+- 静态检查：ruff、mypy、pre-commit 通过；远程 Actions 的 Windows/macOS 计时待运行后补充，Windows 人工实测待 maken 补充。
