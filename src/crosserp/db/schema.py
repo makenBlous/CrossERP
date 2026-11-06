@@ -22,9 +22,11 @@ from sqlalchemy import (
     Integer,
     MetaData,
     String,
+    Text,
     UniqueConstraint,
     Uuid,
 )
+from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from crosserp.db.types import FxRate as FxRateColumn
@@ -488,7 +490,7 @@ class PromptVersion(Base):
     name: Mapped[str] = mapped_column(String(64))
     version: Mapped[str] = mapped_column(String(32))
     sha256: Mapped[str] = mapped_column(String(64))
-    content: Mapped[str] = mapped_column(String(100000))
+    content: Mapped[str] = mapped_column(Text().with_variant(mysql.MEDIUMTEXT(), "mysql"))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 

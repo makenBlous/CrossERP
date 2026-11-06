@@ -50,10 +50,16 @@
   - A（推荐）：把该字段改成三库都能存长文本的通用 `Text`，补一个迁移并重新跑三库往返；这会改已合并的数据库结构，需要 maken 明确同意。
   - B：保持现有结构，T52 暂时只验收 PostgreSQL/SQLite，把 MySQL 兼容修复另立任务；MySQL profile 继续不可用。
   - C：换成 MariaDB 或其他数据库绕开；会偏离固定技术栈，不推荐。
+- Q3 已按 maken 选择 A：新增 0018，将 `prompt_version.content` 改为 `Text().with_variant(mysql.MEDIUMTEXT(), "mysql")`，只修改这一列；迁移前后正文和 sha256 保持不变。
+- **Q4 阻塞，待 maken 决定：严格的 `String(n) <= 16383` 守卫与另外两列冲突。** 扫描发现 `llm_call.question_text`、`llm_call.answer_text` 都是 `String(1000000)`；它们不是本次批准修改的列。
+  - A（推荐）：再批准一个后续迁移，把这两列也改成长文本类型；这样严格守卫和 MySQL 全量迁移都能通过。
+  - B：暂不改这两列，守卫对这两个已知遗留列做明确例外；MySQL 全量迁移仍会在它们处失败。
+  - C：不加严格守卫，保留现状；以后仍可能漏掉同类问题。
 
 ## 完成记录
-- 当前状态：blocked，未提交正式 T52；已用 `WIP(T52)` 保存未完成改动。
-- 已完成：Dockerfile、Compose 三 profile、非 root 运行、迁移/授权脚本、授权覆盖守卫、Caddy 示例和部署文档。
-- 已验证：镜像构建成功；PostgreSQL profile `curl /health` 返回 `{"status":"ok","version":"0.0.1"}`，容器内 `crosserp audit verify` 通过；SQLite profile 同样通过。
-- 未通过：MySQL 8.4 在迁移创建 `prompt_version.content VARCHAR(100000)` 时报 `Column length too big ... max = 16383`。这是已有数据库结构问题，按 AGENTS.md 和本次约定未擅自修改。
-- 待决：Q3 选择 A/B/C 后继续；当前未进入 T53。
+- 当前状态：blocked，未提交正式 T52；已用 WIP 提交保存未完成改动。
+- 已完成：Dockerfile、Compose 三 profile、非 root 运行、迁移/授权脚本、授权覆盖守卫、Caddy 示例和部署文档；新增 0018 提示词正文类型迁移。
+- 已验证：SQLite 迁移/数据哈希测试 6 passed；PostgreSQL 迁移测试 5 passed、1 skipped（SQLite 专属断言）；PostgreSQL/SQLite profile 的 `/health` 和容器内 `crosserp audit verify` 均通过。
+- MySQL 结果：修复 `prompt_version.content` 后，迁移继续执行到 `llm_call.question_text` 时失败；`answer_text` 同样是超长列。MySQL 端当前未通过。
+- CI 原因：T16 的 MySQL 通过记录早于 T44 的 `0015_llm_observability` 迁移；现有 CI 会先执行迁移往返再跑测试，不会把迁移错误静默跳过。仓库没有 T44 之后 MySQL 迁移成功的可核实记录，因此之前没有拦住是覆盖范围/时点问题，不是把失败测试删掉。
+- 待决：Q4 选择 A/B/C 后继续；当前未进入 T53。

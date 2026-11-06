@@ -4,6 +4,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import mysql
 
 from crosserp.db.types import Money4, UtcDateTime
 
@@ -11,6 +12,8 @@ revision: str = "0015_llm_observability"
 down_revision: str | Sequence[str] | None = "0014_voucher"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+_PROMPT_CONTENT = sa.Text().with_variant(mysql.MEDIUMTEXT(), "mysql")
 
 
 def upgrade() -> None:
@@ -20,7 +23,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(64), nullable=False),
         sa.Column("version", sa.String(32), nullable=False),
         sa.Column("sha256", sa.String(64), nullable=False),
-        sa.Column("content", sa.String(100000), nullable=False),
+        sa.Column("content", _PROMPT_CONTENT, nullable=False),
         sa.Column("created_at", UtcDateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_prompt_version")),
         sa.UniqueConstraint("name", "sha256", name="uq_prompt_version_name_sha256"),
