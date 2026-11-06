@@ -9,6 +9,7 @@ GRANT ALL PRIVILEGES ON crosserp.* TO 'crosserp_owner'@'%';
 # 数据库级权限，再撤回，保证首次执行和重复执行都可用。
 GRANT SELECT ON crosserp.* TO 'crosserp_app'@'%';
 REVOKE ALL PRIVILEGES ON crosserp.* FROM 'crosserp_app'@'%';
+GRANT SELECT ON crosserp.alembic_version TO 'crosserp_app'@'%';
 -- MySQL 没有从 database 级授权中单独撤回某张表的 UPDATE。
 -- 因此应用账号对业务表逐表授权，新增迁移后把新业务表补到这里并重跑脚本。
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.approval TO 'crosserp_app'@'%';

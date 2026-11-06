@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import String, UniqueConstraint
 from sqlalchemy.sql.schema import Column
 from sqlalchemy.sql.type_api import TypeEngine
-from sqlalchemy.types import TypeDecorator
+from sqlalchemy.types import Text, TypeDecorator
 
 from crosserp.approval.state import ApprovalState
 from crosserp.core.enums import (
@@ -117,9 +117,26 @@ def test_strings_have_length() -> None:
     missing: list[str] = []
     for table in Base.metadata.tables.values():
         for column in table.columns:
-            if isinstance(column.type, String) and not column.type.length:
+            if (
+                isinstance(column.type, String)
+                and not isinstance(column.type, Text)
+                and not column.type.length
+            ):
                 missing.append(f"{table.name}.{column.name}")
     assert missing == []
+
+
+def test_string_lengths_fit_mysql_utf8mb4_column_limit() -> None:
+    oversized = [
+        f"{table.name}.{column.name}={column.type.length}"
+        for table in Base.metadata.tables.values()
+        for column in table.columns
+        if isinstance(column.type, String)
+        and not isinstance(column.type, Text)
+        and column.type.length is not None
+        and column.type.length > 16_383
+    ]
+    assert oversized == []
 
 
 def test_indexed_strings_fit_mysql_prefix() -> None:

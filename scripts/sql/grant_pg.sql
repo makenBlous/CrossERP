@@ -24,6 +24,7 @@ GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO crosserp_owner;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO crosserp_owner;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO crosserp_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO crosserp_app;
+GRANT SELECT ON TABLE public.alembic_version TO crosserp_app;
 -- 显式列出业务表，授权覆盖守卫可在新增迁移时提醒补充。
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.approval, public.api_token,
   public.app_setting, public.app_user, public.audit_checkpoint, public.audit_export,

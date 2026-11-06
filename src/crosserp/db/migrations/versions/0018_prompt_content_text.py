@@ -25,6 +25,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # MySQL 无法创建历史的 VARCHAR(100000), SQLite 的 TEXT 与其等价。
+    # 两者保留长文本类型即可完成版本回退并继续可用。
+    if op.get_bind().dialect.name in {"mysql", "sqlite"}:
+        return
     with op.batch_alter_table("prompt_version") as batch_op:
         batch_op.alter_column(
             "content",

@@ -2,7 +2,7 @@
 
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
-| blocked | W9 | 1.5 天 | T51 | `main` |
+| review | W9 | 1.5 天 | T51 | `main` |
 
 ## 目标
 团队部署时，一条 `docker compose --profile pg up -d` 就能起来：应用 + 数据库 + 只读账号 + 迁移；镜像只在本地构建，**不推到任何镜像仓库**。
@@ -46,20 +46,15 @@
 
 ## 问题
 - Q1 按推荐默认使用 PostgreSQL；Q2 按推荐默认使用 Caddy。
-- **Q3 阻塞，待 maken 决定：MySQL 8.4 迁移遇到已有字段不兼容。** `prompt_version.content` 当前是已合并的 `String(100000)`，MySQL 8.4 拒绝创建（单列上限 16383 字符），所以 MySQL profile 无法启动。
-  - A（推荐）：把该字段改成三库都能存长文本的通用 `Text`，补一个迁移并重新跑三库往返；这会改已合并的数据库结构，需要 maken 明确同意。
-  - B：保持现有结构，T52 暂时只验收 PostgreSQL/SQLite，把 MySQL 兼容修复另立任务；MySQL profile 继续不可用。
-  - C：换成 MariaDB 或其他数据库绕开；会偏离固定技术栈，不推荐。
 - Q3 已按 maken 选择 A：新增 0018，将 `prompt_version.content` 改为 `Text().with_variant(mysql.MEDIUMTEXT(), "mysql")`，只修改这一列；迁移前后正文和 sha256 保持不变。
-- **Q4 阻塞，待 maken 决定：严格的 `String(n) <= 16383` 守卫与另外两列冲突。** 扫描发现 `llm_call.question_text`、`llm_call.answer_text` 都是 `String(1000000)`；它们不是本次批准修改的列。
-  - A（推荐）：再批准一个后续迁移，把这两列也改成长文本类型；这样严格守卫和 MySQL 全量迁移都能通过。
-  - B：暂不改这两列，守卫对这两个已知遗留列做明确例外；MySQL 全量迁移仍会在它们处失败。
-  - C：不加严格守卫，保留现状；以后仍可能漏掉同类问题。
+- **Q4 已按 maken 决定 A：** `llm_call.question_text`、`llm_call.answer_text` 也改成长文本，严格守卫不留例外。
 
 ## 完成记录
-- 当前状态：blocked，未提交正式 T52；已用 WIP 提交保存未完成改动。
-- 已完成：Dockerfile、Compose 三 profile、非 root 运行、迁移/授权脚本、授权覆盖守卫、Caddy 示例和部署文档；新增 0018 提示词正文类型迁移。
-- 已验证：SQLite 迁移/数据哈希测试 6 passed；PostgreSQL 迁移测试 5 passed、1 skipped（SQLite 专属断言）；PostgreSQL/SQLite profile 的 `/health` 和容器内 `crosserp audit verify` 均通过。
-- MySQL 结果：修复 `prompt_version.content` 后，迁移继续执行到 `llm_call.question_text` 时失败；`answer_text` 同样是超长列。MySQL 端当前未通过。
-- CI 原因：T16 的 MySQL 通过记录早于 T44 的 `0015_llm_observability` 迁移；现有 CI 会先执行迁移往返再跑测试，不会把迁移错误静默跳过。仓库没有 T44 之后 MySQL 迁移成功的可核实记录，因此之前没有拦住是覆盖范围/时点问题，不是把失败测试删掉。
-- 待决：Q4 选择 A/B/C 后继续；当前未进入 T53。
+- 完成内容：Dockerfile、Compose 三 profile、非 root 运行、迁移/授权脚本、授权覆盖守卫、Caddy 示例和部署文档；0018 将 `prompt_version.content`、0019 将 `llm_call.question_text/answer_text` 改为 `Text().with_variant(mysql.MEDIUMTEXT(), "mysql")`；新增严格 `String(n) <= 16383` 守卫；授权模板补充 `alembic_version` 最小读权限。
+- 修改文件：`Dockerfile`、`.dockerignore`、`docker-compose.yml`、`deploy/Caddyfile`、`deploy/.env.example`、`docs/deploy.md`、`scripts/docker-init.sh`、`scripts/render_grant_sql.py`、`scripts/check_grants_cover_all_tables.py`、`scripts/sql/grant_mysql.sql`、`scripts/sql/grant_pg.sql`、`src/crosserp/db/schema.py`、`src/crosserp/db/migrations/versions/0015_llm_observability.py`、`src/crosserp/db/migrations/versions/0018_prompt_content_text.py`、`src/crosserp/db/migrations/versions/0019_llm_text_columns.py`、相关测试和 `CHANGELOG.md`。
+- 数据与哈希：SQLite、PostgreSQL 18、MySQL 8.4 均实际执行升级/回退/再升级；提示词正文、`sha256`、问答正文均原样保留。MySQL 回退保留 `MEDIUMTEXT`，因为历史 `VARCHAR(100000/1000000)` 在 MySQL 8.4 本身不可创建；版本可以回退且数据库保持可用。
+- 三库迁移测试：SQLite 7 passed；PostgreSQL 18 为 6 passed、1 skipped；MySQL 8.4 为 6 passed、1 skipped。
+- Compose 验证：三个 profile 的镜像均本地构建；PostgreSQL、MySQL、SQLite 的 `/health` 返回 `status: ok`，容器内 `crosserp audit verify` 均输出“审计链完整：1 条”。MySQL profile 使用 8.4.6，迁移账号、应用账号和只读账号均可用。
+- 守卫与静态检查：授权覆盖测试 2 passed；`tests/guard` 19 passed；ruff、mypy、pre-commit 全部通过。
+- MySQL CI 原因与修复：T16 的 MySQL 通过记录早于 T44 的 `0015_llm_observability` 迁移；之后没有可核实的 T44+ MySQL 绿色记录，且本地此前只验证了 SQLite/旧迁移状态，所以 `String(100000)` 和 `String(1000000)` 未被发现。修复方式是把新建表迁移和后续增量迁移都改为 `Text + MEDIUMTEXT`，加入无例外长度守卫，并真实运行 MySQL 8.4 全量迁移和 Compose profile；同时修正 0015 回退的外键索引删除顺序。
+- 后续约定：以后同类超长 VARCHAR 改长文本的问题，直接按本次 Text + MySQL MEDIUMTEXT 方案处理，不再重复询问。

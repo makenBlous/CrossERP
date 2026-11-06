@@ -42,6 +42,7 @@ _NAMING = {
 
 # 分类字段统一 32。原因码最长的 SETTLEMENT_UNBALANCED 也放得下。
 _KIND = String(32)
+_LONG_TEXT = Text().with_variant(mysql.MEDIUMTEXT(), "mysql")
 
 
 class Base(DeclarativeBase):
@@ -490,7 +491,7 @@ class PromptVersion(Base):
     name: Mapped[str] = mapped_column(String(64))
     version: Mapped[str] = mapped_column(String(32))
     sha256: Mapped[str] = mapped_column(String(64))
-    content: Mapped[str] = mapped_column(Text().with_variant(mysql.MEDIUMTEXT(), "mysql"))
+    content: Mapped[str] = mapped_column(_LONG_TEXT)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
@@ -511,8 +512,8 @@ class LlmCall(Base):
     currency: Mapped[str] = mapped_column(String(3))
     status: Mapped[str] = mapped_column(String(16))
     refusal_reason: Mapped[str | None] = mapped_column(String(512))
-    question_text: Mapped[str | None] = mapped_column(String(1000000))
-    answer_text: Mapped[str | None] = mapped_column(String(1000000))
+    question_text: Mapped[str | None] = mapped_column(_LONG_TEXT)
+    answer_text: Mapped[str | None] = mapped_column(_LONG_TEXT)
     trace_id: Mapped[str] = mapped_column(String(32))
     request_id: Mapped[str | None] = mapped_column(String(64))
 

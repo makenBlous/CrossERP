@@ -44,8 +44,8 @@ def upgrade() -> None:
         sa.Column("currency", sa.String(3), nullable=False),
         sa.Column("status", sa.String(16), nullable=False),
         sa.Column("refusal_reason", sa.String(512), nullable=True),
-        sa.Column("question_text", sa.String(1000000), nullable=True),
-        sa.Column("answer_text", sa.String(1000000), nullable=True),
+        sa.Column("question_text", _PROMPT_CONTENT, nullable=True),
+        sa.Column("answer_text", _PROMPT_CONTENT, nullable=True),
         sa.Column("trace_id", sa.String(32), nullable=False),
         sa.Column("request_id", sa.String(64), nullable=True),
         sa.ForeignKeyConstraint(
@@ -74,7 +74,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_llm_tool_call_llm_call_id", table_name="llm_tool_call")
+    # 删除表会一并删除索引; MySQL 不允许先删被外键依赖的索引。
     op.drop_table("llm_tool_call")
     op.drop_table("llm_call")
     op.drop_table("prompt_version")
