@@ -141,7 +141,7 @@ jobs:
         run: |
           set +e
           mkdir -p .ci
-          uv run pytest --cov=crosserp --cov-fail-under=60 --junitxml=.ci/pytest.xml 2>&1 | tee .ci/pytest.log
+          uv run pytest --cov=crosserp --cov-fail-under=80 --junitxml=.ci/pytest.xml 2>&1 | tee .ci/pytest.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ] && [ -f .ci/pytest.xml ]; then
             uv run python - <<'PY'

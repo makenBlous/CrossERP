@@ -60,6 +60,7 @@
 - W9 T51：评测结果基线比较、eval_run 迁移和离线/手动模型 CI 工作流。
 - W9 T52：SQLite / PostgreSQL / MySQL Compose profiles、长文本三库迁移、授权覆盖守卫和本地镜像部署文档。
 - W10 T53：本地 wheel 三系统安装、初始化、demo、网页登录计时和 CI artifact 证据。
+- W10 T54：覆盖率门槛提高到 80%，补充质量门槛测试和严格 mypy 校验。
 
 ## [0.1.0] - 未发布
 

@@ -68,7 +68,7 @@
 | T51 | [评测记录入库 + 基线对比 + CI 离线评测（⚠ 待 maken 确认）](T51-eval-run-ci.md) | W9 | 1 天 | T50 | review |
 | T52 | [Docker Compose 部署：SQLite / PostgreSQL / MySQL 三种 profile（不推镜像）（⚠ 待 maken 确认）](T52-docker-compose.md) | W9 | 1.5 天 | T51 | review |
 | T53 | [安装矩阵计时：三系统从零到看到首页（不经 PyPI）（⚠ 待 maken 确认）](T53-install-matrix-timing.md) | W10 | 1 天 | T52 | review |
-| T54 | [质量门槛提高：覆盖率 80%、mypy 覆盖新模块（⚠ 待 maken 确认）](T54-coverage-mypy-hardening.md) | W10 | 1.5 天 | T53 | todo |
+| T54 | [质量门槛提高：覆盖率 80%、mypy 覆盖新模块（⚠ 待 maken 确认）](T54-coverage-mypy-hardening.md) | W10 | 1.5 天 | T53 | doing |
 | T55 | [文档：中英文 README、架构图、安全/可观测/数据库文档、ADR、贡献与安全说明（⚠ 待 maken 确认）](T55-docs-adr-zh.md) | W10 | 1.5 天 | T54 | todo |
 | T56 | [v0.5 内部验收：指标 1–6 + 新增验收项 A–F 证据汇总（⚠ 待 maken 确认）](T56-v05-internal-acceptance.md) | W10 | 1 天 | T55 | todo |
 

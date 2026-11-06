@@ -65,6 +65,9 @@ markers = [
     "slow: 慢速测试",
 ]
 
+[tool.coverage.report]
+fail_under = 80
+
 [dependency-groups]
 dev = [
     "httpx>=0.28",
