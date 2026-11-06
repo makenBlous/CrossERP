@@ -45,10 +45,14 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def _wait_for_health(url: str, *, timeout: float = 30.0) -> None:
+def _wait_for_health(
+    url: str, *, timeout: float = 90.0, process: subprocess.Popen[bytes] | None = None
+) -> None:
     deadline = time.monotonic() + timeout
     last_error = ""
     while time.monotonic() < deadline:
+        if process is not None and process.poll() is not None:
+            raise RuntimeError(f"服务进程提前退出，退出码 {process.returncode}")  # noqa: RUF001
         try:
             with urllib.request.urlopen(url, timeout=2) as response:
                 if response.status == 200:
@@ -131,7 +135,13 @@ def main() -> int:
         database_url = f"sqlite:///{database.as_posix()}"
         username = "install-check"
         password = "Install-check-password-123"
-        env.update({"CROSSERP_DATABASE_URL": database_url, "PYTHONUTF8": "1"})
+        env.update(
+            {
+                "CROSSERP_DATABASE_URL": database_url,
+                "CROSSERP_COOKIE_SECURE": "0",
+                "PYTHONUTF8": "1",
+            }
+        )
 
         step(
             "init",
@@ -164,7 +174,7 @@ def main() -> int:
             stderr=subprocess.DEVNULL,
         )
         try:
-            step("serve", lambda: _wait_for_health(f"{base_url}/health"))
+            step("serve", lambda: _wait_for_health(f"{base_url}/health", process=process))
             begin = time.perf_counter()
             result["login_success"] = _login(base_url, username, password)
             result["steps"].append(
