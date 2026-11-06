@@ -69,7 +69,7 @@
 | T52 | [Docker Compose 部署：SQLite / PostgreSQL / MySQL 三种 profile（不推镜像）（⚠ 待 maken 确认）](T52-docker-compose.md) | W9 | 1.5 天 | T51 | review |
 | T53 | [安装矩阵计时：三系统从零到看到首页（不经 PyPI）（⚠ 待 maken 确认）](T53-install-matrix-timing.md) | W10 | 1 天 | T52 | review |
 | T54 | [质量门槛提高：覆盖率 80%、mypy 覆盖新模块（⚠ 待 maken 确认）](T54-coverage-mypy-hardening.md) | W10 | 1.5 天 | T53 | doing |
-| T55 | [文档：中英文 README、架构图、安全/可观测/数据库文档、ADR、贡献与安全说明（⚠ 待 maken 确认）](T55-docs-adr-zh.md) | W10 | 1.5 天 | T54 | todo |
+| T55 | [文档：中英文 README、架构图、安全/可观测/数据库文档、ADR、贡献与安全说明（⚠ 待 maken 确认）](T55-docs-adr-zh.md) | W10 | 1.5 天 | T54 | review |
 | T56 | [v0.5 内部验收：指标 1–6 + 新增验收项 A–F 证据汇总（⚠ 待 maken 确认）](T56-v05-internal-acceptance.md) | W10 | 1 天 | T55 | todo |
 
 T01–T14：已合并到 main，状态 `review`（maken 本地只在 SQLite 上验收过；MySQL / PostgreSQL 由 T16 补测，T16 通过后 maken 再把 T01–T14 改成 `done`）。

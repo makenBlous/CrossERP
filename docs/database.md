@@ -157,3 +157,17 @@ python -m pytest -m db -q
 | `UtcDateTime` | `DATETIME(6)`，无时区，存 UTC | `TIMESTAMP WITH TIME ZONE` | 无时区的 UTC 时间 |
 
 读出的金额和汇率都是 `Decimal`。读出的时间都带 `UTC`。
+
+## 授权与迁移
+
+`scripts/sql/grant_pg.sql` 和 `scripts/sql/grant_mysql.sql` 创建迁移、应用和智能体账号。迁移账号负责 Alembic；应用账号只读写业务表和读取 `alembic_version`；智能体账号只授予查询权限，并排除密码、会话和 token 表。新增表后运行：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/check_grants_cover_all_tables.py
+```
+
+三库迁移必须能执行 `upgrade head → downgrade base → upgrade head`。SQLite 适合个人使用；团队部署推荐 PostgreSQL 18；已有 MySQL 运维时使用 MySQL 8.4，并保留 `charset=utf8mb4` 和严格模式。
+
+## 备份
+
+项目不自动备份。SQLite 停止服务后复制 `/data/crosserp.db`；PostgreSQL 使用 `pg_dump`；MySQL 使用 `mysqldump --single-transaction`。备份文件应放在仓库之外并按组织策略加密保存。

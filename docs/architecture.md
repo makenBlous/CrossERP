@@ -2,9 +2,9 @@
 
 ## 表清单
 
-v0.1 业务表在 `src/crosserp/db/schema.py`。字段以实施方案第 4 节为准。分类字段存 `String(32)`，不用数据库原生 ENUM。金额列是 `Money4`，汇率是 `FxRate`，时间是 `UtcDateTime`，JSON 用通用 `JSON`。主键是应用生成的 `Uuid`，`raw_row.id` 用自增 `BigInteger`。
+业务表和 W5–W10 内部功能表都在 `src/crosserp/db/schema.py`，由 Alembic 迁移管理。分类字段存 `String(32)`，不用数据库原生 ENUM。金额列是 `Money4`，汇率是 `FxRate`，时间是 `UtcDateTime`，JSON 用通用 `JSON`。主键是应用生成的 `Uuid`，`raw_row.id` 用自增 `BigInteger`。长文本使用通用 `Text`，MySQL 使用 `MEDIUMTEXT` variant。
 
-不建 v0.5 的 `voucher`、`approval`、`app_user`、`security_event`、`llm_*` 等表。
+当前实现包括审批、凭证草稿、认证、安全事件、AI 调用记录、预算和评测记录。写账仍只能从审批进入唯一写出口；AI 旁路只读。
 
 | 表 | 字段 | 说明 |
 |---|---|---|

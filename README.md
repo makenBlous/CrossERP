@@ -1,32 +1,80 @@
 # CrossERP
 
-跨境电商对账、SKU 利润与审批记账工具（v0.1 开发中）。
+CrossERP is a local-first cross-border ecommerce reconciliation tool. It imports settlement files, matches orders and payouts with deterministic rules, calculates SKU profit with `Decimal`, records issues with reason codes, and produces approval-gated voucher exports. The AI layer is read-only: it explains stored results with citations and never calculates money or writes accounting entries.
 
-当前可以导入 Amazon 结算报告、Shopify 打款 CSV，以及带 YAML 列映射的订单、成本、汇率和 SKU。对账、利润和网页报表还没做。
+Version 0.5.0 is an internal milestone. The project is not published to PyPI, GHCR, Docker Hub, or a public release channel.
 
-## 快速开始
+## What is implemented
 
-快速体验（使用独立的演示数据库）：
+- Amazon Settlement Flat File V2, Shopify Payments CSV, and YAML-mapped order, SKU, cost, fee, and FX imports.
+- Deterministic reconciliation, duplicate and failed-import handling, issue queues, SKU profit reports, CSV/XLSX exports, and a read-only web UI.
+- Approval state machine and the single `ledger/write_service.py` write path for XLSX exports.
+- User roles, Argon2 passwords, server sessions, CSRF protection, login lockout, API tokens, and security events.
+- Append-only hash-chained business and security audit logs with export and offline verification.
+- Read-only AI tools, redaction and prompt-injection guards, OpenTelemetry call records, budgets, alerts, MCP stdio service, and offline evaluation baselines.
+- SQLite, MySQL 8.4, and PostgreSQL 18 support; Docker Compose profiles for all three.
+
+## Safety rules
+
+1. Money is calculated only by deterministic code using `Decimal`/`Money4`; an LLM never computes or changes an amount.
+2. Nothing is written to a ledger without an approved request and `ledger/write_service.py`.
+3. AI tools use read-only database access and return citations to stored rows.
+4. Audit records are append-only, and the repository contains no secrets or real seller data.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    files[Settlement and mapping files] --> import[Connectors and import batches]
+    import --> recon[Deterministic reconciliation]
+    recon --> profit[SKU profit calculation]
+    recon --> issues[Issue reason codes]
+    profit --> reports[Read-only reports]
+    profit --> voucher[Voucher draft]
+    voucher --> approval[Human approval]
+    approval --> write[Single write service]
+    write --> export[XLSX export]
+    db[(SQLite / MySQL / PostgreSQL)] --- import
+    db --- recon
+    db --- profit
+    db --- approval
+    ai[Read-only AI and MCP] -. citations only .-> db
+```
+
+## Quick start with the project environment
+
+Use the repository `.venv`; do not rely on a system Python environment.
 
 ```bash
-uv sync
+uv sync --all-extras
+source .venv/bin/activate
 uv run crosserp demo --check --no-browser
-uv run crosserp demo --no-browser
 ```
 
-正式库操作仍可使用 `uv run crosserp init`。演示数据来自包内固定样本，不会写入正式数据库。
+On Windows PowerShell:
 
-`init` 会在本机创建 SQLite 数据库。默认路径是 `%USERPROFILE%\.crosserp\data.db`。要换 MySQL 或 PostgreSQL，只改配置文件里的 `CROSSERP_DATABASE_URL`，不改代码。
+```powershell
+uv sync --all-extras
+.\.venv\Scripts\Activate.ps1
+uv run crosserp demo --check --no-browser
+```
 
-`demo-import` 按 sku 映射、成本、汇率、订单、结算/打款的顺序导入 `samples/synthetic/`。再跑一次会提示每个文件已导入过，并跳过。
-
-导入自己的文件：
+The demo uses a separate SQLite database and fixed synthetic samples. For a new application database:
 
 ```bash
-uv run crosserp import path/to/settlement.tsv
-uv run crosserp import path/to/orders.xlsx --type mapped --mapping path/to/mapping.yaml
-uv run crosserp import path/to/payout.csv --type shopify --currency USD --store shopify-main
-uv run crosserp issues list --kind SETTLEMENT_UNBALANCED
+uv run crosserp init --admin-username admin --admin-password-stdin
+uv run crosserp serve
 ```
 
-`--type` 可以是 `auto`、`amazon`、`shopify`、`mapped`。识别不了时会提示改用这几个值。一次可以传多个文件。每个文件单独一个批次。重复文件退出码是 0。其他失败退出码是 1，并且不会挡住其余文件。
+The command reads the password twice from standard input. Open `http://127.0.0.1:8000` and log in. For Docker Compose, see [docs/deploy.md](docs/deploy.md). For local wheel installation and timing, see [docs/install.md](docs/install.md).
+
+## Development
+
+```bash
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy src
+uv run pytest --cov=crosserp --cov-fail-under=80 -q
+```
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md), [docs/security.md](docs/security.md), [docs/database.md](docs/database.md), and [docs/architecture.md](docs/architecture.md) before changing the system. Architectural decisions are in [docs/adr/](docs/adr/).

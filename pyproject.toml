@@ -1,6 +1,6 @@
 [project]
 name = "crosserp"
-version = "0.0.1"
+version = "0.5.0"
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.20",
