@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import AgentListPage from '@/views/agent/AgentListPage.vue'
+const router = useRouter()
+
+onMounted(() => router.replace('/kb'))
 </script>
 
 <template>
-  <AgentListPage mode="knowledge" />
+  <VProgressCircular
+    indeterminate
+    color="primary"
+  />
 </template>

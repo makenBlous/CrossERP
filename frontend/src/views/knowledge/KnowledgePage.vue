@@ -1,0 +1,691 @@
+<script setup lang="ts">
+/* eslint-disable max-statements-per-line */
+import { askOnboarding, createKbDocument, createKbVersion, decideKbReview, downloadEmployeeFile, fetchEmployeeFiles, fetchKbAccessLogs, fetchKbDocument, fetchKbDocuments, fetchKbExpiring, fetchKbQa, fetchKbReviews, fetchKbSpace, fetchKbSpaces, fetchKbVersions, fetchOnboarding, rebuildKbIndex, saveOnboarding, searchKb, setKbSpaceFinanceOnly, submitKbDocument, suggestKbQa } from '@/api/gap-e'
+import DetailPage from '@/components/biz/DetailPage.vue'
+import FormPage from '@/components/biz/FormPage.vue'
+import ListPage from '@/components/biz/ListPage.vue'
+import PermissionGate from '@/components/biz/PermissionGate.vue'
+import StatusChip from '@/components/biz/StatusChip.vue'
+import { useAiModeStore } from '@/stores/ai-mode'
+import { useSessionStore } from '@/stores/session'
+import type { EmployeeFile, KbAccessLog, KbDocument, KbExpiryItem, KbQaItem, KbReviewItem, KbSearchResult, KbSpace, KbVersion, OnboardingChecklistItem } from '@/types/gap-e'
+
+type Mode = 'home' | 'doc' | 'space' | 'edit' | 'review' | 'qa' | 'expiring' | 'index' | 'access' | 'employee' | 'onboarding' | 'onboarding-admin'
+const props = defineProps<{ mode: Mode }>()
+const route = useRoute()
+const router = useRouter()
+const session = useSessionStore()
+const aiMode = useAiModeStore()
+const showAi = computed(() => aiMode.isEnabled)
+const busy = ref(false)
+const error = ref('')
+const message = ref('')
+const spaces = ref<KbSpace[]>([])
+const documents = ref<KbDocument[]>([])
+const document = ref<KbDocument | null>(null)
+const space = ref<KbSpace | null>(null)
+const versions = ref<KbVersion[]>([])
+const reviews = ref<KbReviewItem[]>([])
+const qa = ref<KbQaItem[]>([])
+const expiring = ref<KbExpiryItem[]>([])
+const results = ref<KbSearchResult[]>([])
+const logs = ref<KbAccessLog[]>([])
+const files = ref<EmployeeFile[]>([])
+const onboarding = ref<OnboardingChecklistItem[]>([])
+const indexVersion = ref(1)
+const query = ref('')
+const answer = ref<{ answer: string; citations: Array<{ label: string; href: string; docId: string; version: number }> } | null>(null)
+const title = ref('')
+const content = ref('')
+const kind = ref('policy')
+const tags = ref('')
+const expiresOn = ref('')
+const selectedSpace = ref('space-company')
+const reviewReason = ref('')
+
+const id = computed(() => String((route.params as Record<string, unknown>).id ?? ''))
+const employeeId = computed(() => id.value || session.userId)
+
+async function run(action: () => Promise<void>) {
+  busy.value = true; error.value = ''; try { await action() }
+  catch (e) { error.value = e instanceof Error ? e.message : '操作失败' }
+  finally { busy.value = false }
+}
+async function load() {
+  await run(async () => {
+    if (props.mode === 'home' || props.mode === 'edit') { spaces.value = await fetchKbSpaces(); documents.value = await fetchKbDocuments() }
+    if (props.mode === 'doc') {
+      document.value = await fetchKbDocument(id.value); if (document.value)
+        versions.value = await fetchKbVersions(id.value)
+    }
+    if (props.mode === 'edit' && id.value && id.value !== 'new') { document.value = await fetchKbDocument(id.value); if (document.value) { title.value = document.value.title; content.value = document.value.content; tags.value = document.value.tags.join(', '); kind.value = document.value.kind; expiresOn.value = document.value.expiresOn ?? ''; selectedSpace.value = document.value.spaceId } }
+    if (props.mode === 'space') { space.value = await fetchKbSpace(id.value); documents.value = await fetchKbDocuments(id.value) }
+    if (props.mode === 'review')
+      reviews.value = await fetchKbReviews()
+    if (props.mode === 'qa')
+      qa.value = await fetchKbQa()
+    if (props.mode === 'expiring')
+      expiring.value = await fetchKbExpiring()
+    if (props.mode === 'access')
+      logs.value = await fetchKbAccessLogs()
+    if (props.mode === 'employee')
+      files.value = await fetchEmployeeFiles(employeeId.value)
+    if (props.mode === 'onboarding')
+      onboarding.value = await fetchOnboarding(session.role)
+    if (props.mode === 'onboarding-admin')
+      onboarding.value = await fetchOnboarding('purchaser')
+  })
+}
+onMounted(load)
+watch(() => props.mode, load)
+
+async function search() {
+  await run(async () => {
+    results.value = await searchKb(query.value); if (!results.value.length)
+      message.value = '当前权限范围内没有匹配的文档。'
+  })
+}
+async function saveDraft() {
+  await run(async () => {
+    const created = await createKbDocument({ title: title.value, content: content.value, kind: kind.value as KbDocument['kind'], spaceId: selectedSpace.value, tags: tags.value.split(',').map(item => item.trim()).filter(Boolean), expiresOn: expiresOn.value || null })
+
+    message.value = '草稿已保存，可提交审核。'; await router.push(`/kb/docs/${created.id}/edit`)
+  })
+}
+async function submit() {
+  if (!document.value)
+    return; await run(async () => { document.value = await submitKbDocument(document.value!.id); message.value = '已提交空间管理员审核。' })
+}
+async function saveVersion() {
+  if (!document.value)
+    return; await run(async () => { document.value = await createKbVersion(document.value!.id, content.value); versions.value = await fetchKbVersions(document.value!.id); message.value = `第 ${document.value.currentVersion} 版已保存，请重新提交审核。` })
+}
+async function review(item: KbReviewItem, decision: 'approve' | 'reject') { await run(async () => { await decideKbReview(item.id, decision, reviewReason.value); reviews.value = await fetchKbReviews(); message.value = decision === 'approve' ? '已批准并发布。' : '已驳回并记录原因。' }) }
+async function suggest() { await run(async () => { await suggestKbQa('ticket-1007'); message.value = '已生成建议问答并送入审核队列。' }) }
+async function rebuild() { await run(async () => { indexVersion.value = await rebuildKbIndex(); message.value = `索引已重建（v${indexVersion.value}）。` }) }
+async function searchIndex() { await run(async () => { results.value = await searchKb(query.value) }) }
+async function toggleSpace() {
+  if (!space.value)
+    return; await run(async () => { space.value = await setKbSpaceFinanceOnly(space.value!.id, !space.value!.financeOnly); message.value = space.value?.financeOnly ? '已限制为仅财务可见。' : '已恢复空间成员可见。' })
+}
+async function download(file: EmployeeFile) { await run(async () => { await downloadEmployeeFile(employeeId.value, file.id); message.value = '下载记录已写入敏感文档访问日志。' }) }
+async function ask() { await run(async () => { answer.value = await askOnboarding(query.value) }) }
+async function saveItem(item: OnboardingChecklistItem) { await run(async () => { await saveOnboarding({ ...item }); message.value = '上手清单已保存。' }) }
+function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
+</script>
+
+<template>
+  <div>
+    <VAlert
+      v-if="showAi && ['home', 'doc', 'qa', 'index', 'onboarding'].includes(mode)"
+      type="info"
+      variant="tonal"
+      class="mb-6"
+    >
+      AI 只提供带出处的建议或检索解释，不会修改金额或直接发布内容。建议动作仍需人工审核。
+    </VAlert>
+    <VAlert
+      v-if="!showAi && ['home', 'doc', 'qa', 'index', 'onboarding'].includes(mode)"
+      type="info"
+      variant="tonal"
+      class="mb-6"
+    >
+      AI 已关闭，页面仍可通过人工路径完成文档编辑、审核、检索和上手清单操作。
+    </VAlert>
+    <VAlert
+      v-if="error"
+      type="error"
+      variant="tonal"
+      class="mb-6"
+    >
+      {{ error }}
+    </VAlert>
+    <VAlert
+      v-if="message"
+      type="success"
+      variant="tonal"
+      closable
+      class="mb-6"
+      @click:close="message = ''"
+    >
+      {{ message }}
+    </VAlert>
+
+    <template v-if="mode === 'home'">
+      <div class="d-flex justify-end mb-4">
+        <VBtn
+          to="/kb/docs/new/edit"
+          prepend-icon="tabler-plus"
+        >
+          新建制度文档
+        </VBtn>
+      </div>
+      <ListPage
+        storage-key="kb-home"
+        title="知识库"
+        subtitle="按空间权限检索制度、SOP 和经验。"
+        :items="spaces"
+        :columns="[{ key: 'name', title: '空间' }, { key: 'description', title: '说明' }, { key: 'memberCount', title: '成员数' }, { key: 'updatedAt', title: '最近更新' }]"
+        @open="row => router.push(`/kb/spaces/${row.id}`)"
+      >
+        <template #widgets>
+          <VRow class="mb-2">
+            <VCol
+              cols="12"
+              md="4"
+            >
+              <KpiCard
+                title="可访问空间"
+                :value="String(spaces.length)"
+                icon="tabler-books"
+              />
+            </VCol><VCol
+              cols="12"
+              md="4"
+            >
+              <KpiCard
+                title="可检索文档"
+                :value="String(documents.length)"
+                icon="tabler-file-text"
+              />
+            </VCol><VCol
+              cols="12"
+              md="4"
+            >
+              <KpiCard
+                title="索引状态"
+                value="正常"
+                icon="tabler-search"
+              />
+            </VCol>
+          </VRow>
+        </template>
+      </ListPage>
+      <VCard
+        class="mt-6"
+        title="全文搜索"
+      >
+        <VCardText>
+          <div class="d-flex gap-3">
+            <AppTextField
+              v-model="query"
+              label="搜索制度、SOP 或问答"
+              class="flex-grow-1"
+              @keyup.enter="search"
+            /><VBtn
+              :loading="busy"
+              @click="search"
+            >
+              搜索
+            </VBtn>
+          </div><VList
+            v-if="results.length"
+            class="mt-4"
+          >
+            <VListItem
+              v-for="item in results"
+              :key="item.id"
+              :title="item.title"
+              :subtitle="`${item.spaceName} · v${item.version} · ${item.excerpt}`"
+              @click="openDoc(item.docId)"
+            />
+          </VList>
+        </VCardText>
+      </VCard>
+    </template>
+
+    <template v-else-if="mode === 'doc'">
+      <DetailPage
+        v-if="document"
+        :title="document.title"
+        :subtitle="`${document.kind} · 版本 ${document.currentVersion}`"
+        status="published"
+        domain="approval"
+      >
+        <template #actions>
+          <VBtn
+            v-if="document.status === 'draft'"
+            :to="`/kb/docs/${document.id}/edit`"
+            variant="tonal"
+          >
+            编辑
+          </VBtn><VBtn
+            v-if="document.status === 'draft'"
+            :loading="busy"
+            @click="submit"
+          >
+            提交审核
+          </VBtn>
+        </template>
+        <VCard title="正文">
+          <VCardText
+            class="text-body-1"
+            style="white-space: pre-wrap;"
+          >
+            {{ document.content }}
+          </VCardText>
+        </VCard>
+        <VCard
+          class="mt-6"
+          title="标签与有效期"
+        >
+          <VCardText>
+            <VChip
+              v-for="tag in document.tags"
+              :key="tag"
+              class="me-2"
+              color="primary"
+              variant="tonal"
+            >
+              {{ tag }}
+            </VChip><span
+              v-if="document.expiresOn"
+              class="ms-4"
+            >有效期至 {{ document.expiresOn }}</span>
+          </VCardText>
+        </VCard>
+        <VCard
+          class="mt-6"
+          title="版本历史"
+        >
+          <VTable>
+            <thead><tr><th>版本</th><th>状态</th><th>作者</th><th>时间</th></tr></thead><tbody>
+              <tr
+                v-for="version in versions"
+                :key="version.id"
+              >
+                <td>v{{ version.version }}</td><td>
+                  <StatusChip
+                    domain="approval"
+                    :value="version.status"
+                  />
+                </td><td>{{ version.author }}</td><td>{{ version.createdAt }}</td>
+              </tr>
+            </tbody>
+          </VTable>
+        </VCard>
+      </DetailPage>
+    </template>
+
+    <template v-else-if="mode === 'space'">
+      <DetailPage
+        v-if="space"
+        :title="space.name"
+        :subtitle="space.description"
+      >
+        <template #actions>
+          <PermissionGate action="update">
+            <VSwitch
+              v-model="space.financeOnly"
+              label="仅财务可见"
+              color="primary"
+              hide-details
+              @update:model-value="toggleSpace"
+            />
+          </PermissionGate>
+        </template><VCard title="空间权限">
+          <VCardText>
+            <VAlert
+              :type="space.financeOnly ? 'warning' : 'info'"
+              variant="tonal"
+            >
+              {{ space.financeOnly ? '运营和普通员工的搜索与 AI 引用都会被过滤。' : '当前空间对有权限的成员开放。' }}
+            </VAlert>
+          </VCardText>
+        </VCard><VCard
+          class="mt-6"
+          title="文档"
+        >
+          <VList>
+            <VListItem
+              v-for="doc in documents"
+              :key="doc.id"
+              :title="doc.title"
+              :subtitle="`${doc.status} · v${doc.currentVersion}`"
+              @click="openDoc(doc.id)"
+            />
+          </VList>
+        </VCard>
+      </DetailPage>
+    </template>
+
+    <template v-else-if="mode === 'edit'">
+      <FormPage
+        :title="document ? `编辑：${document.title}` : '新建制度文档'"
+        subtitle="保存后提交空间管理员审核；发布动作始终需要人工确认。"
+        :saving="busy"
+        @save="document ? saveVersion() : saveDraft()"
+        @cancel="router.push(document ? `/kb/docs/${document.id}` : '/kb')"
+      >
+        <template #default>
+          <VAlert
+            v-if="showAi"
+            type="info"
+            variant="tonal"
+            class="mb-4"
+          >
+            AI 预填：可在右侧助手中请求摘要或标签建议，提交前请人工核对。
+          </VAlert><AppTextField
+            v-model="title"
+            label="文档标题"
+            :rules="[requiredValidator]"
+            class="mb-4"
+          /><AppSelect
+            v-model="kind"
+            label="文档类型"
+            :items="[{ title: '制度', value: 'policy' }, { title: 'SOP', value: 'sop' }, { title: '帮助', value: 'help' }]"
+            class="mb-4"
+          /><AppSelect
+            v-if="!document"
+            v-model="selectedSpace"
+            label="所属空间"
+            :items="spaces.map(item => ({ title: item.name, value: item.id }))"
+            class="mb-4"
+          /><AppTextField
+            v-model="tags"
+            label="标签（逗号分隔）"
+            class="mb-4"
+          /><AppTextField
+            v-model="expiresOn"
+            label="有效期（可选）"
+            placeholder="YYYY-MM-DD"
+            class="mb-4"
+          /><VTextarea
+            v-model="content"
+            label="正文"
+            rows="10"
+            :rules="[requiredValidator]"
+          />
+        </template><template #aside>
+          <VCard title="人工发布检查">
+            <VCardText>
+              <VCheckbox label="内容已核对" /><VCheckbox label="引用和附件已核对" /><VAlert
+                type="warning"
+                variant="tonal"
+                class="mt-2"
+              >
+                保存只产生草稿，发布必须经过审核。
+              </VAlert>
+            </VCardText>
+          </VCard>
+        </template>
+      </FormPage>
+    </template>
+
+    <template v-else-if="mode === 'review'">
+      <ListPage
+        storage-key="kb-review"
+        title="发布审核"
+        subtitle="文档和 AI 建议问答统一进入审核队列。"
+        :items="reviews"
+        :columns="[{ key: 'title', title: '待审内容' }, { key: 'type', title: '类型' }, { key: 'submittedBy', title: '提交人' }, { key: 'submittedAt', title: '提交时间' }, { key: 'status', title: '状态' }]"
+      >
+        <template #item.status="{ item }">
+          <StatusChip
+            domain="approval"
+            :value="item.status"
+          />
+        </template><template #item.type="{ item }">
+          <VChip
+            size="small"
+            variant="tonal"
+          >
+            {{ item.type === 'document' ? '文档' : '建议问答' }}
+          </VChip>
+        </template><template #item.title="{ item }">
+          <div class="d-flex align-center gap-2">
+            <span>{{ item.title }}</span><VBtn
+              size="small"
+              variant="text"
+              @click.stop="review(item, 'approve')"
+            >
+              批准
+            </VBtn><VBtn
+              size="small"
+              color="error"
+              variant="text"
+              @click.stop="review(item, 'reject')"
+            >
+              驳回
+            </VBtn>
+          </div>
+        </template>
+      </ListPage><VCard
+        class="mt-6"
+        title="驳回原因"
+      >
+        <VCardText>
+          <AppTextField
+            v-model="reviewReason"
+            placeholder="驳回时填写原因（可选）"
+          />
+        </VCardText>
+      </VCard>
+    </template>
+
+    <template v-else-if="mode === 'qa'">
+      <ListPage
+        storage-key="kb-qa"
+        title="沉淀问答与经验"
+        subtitle="已解决工单可以生成建议问答，批准后才会进入知识库。"
+        :items="qa"
+        :columns="[{ key: 'question', title: '问题' }, { key: 'answer', title: '答案' }, { key: 'citationLabel', title: '出处' }, { key: 'sourceRef', title: '来源工单' }]"
+      /><PermissionGate action="suggest">
+        <VBtn
+          class="mt-4"
+          :loading="busy"
+          @click="suggest"
+        >
+          从已解决工单生成建议问答
+        </VBtn>
+      </PermissionGate>
+    </template>
+
+    <template v-else-if="mode === 'expiring'">
+      <ListPage
+        storage-key="kb-expiring"
+        title="到期提醒"
+        subtitle="证书、合同和资质的到期日由代码计算。"
+        :items="expiring"
+        :columns="[{ key: 'title', title: '文档' }, { key: 'kind', title: '类型' }, { key: 'expiresOn', title: '到期日' }, { key: 'daysRemaining', title: '剩余天数' }, { key: 'owner', title: '负责人' }]"
+      >
+        <template #item.daysRemaining="{ item }">
+          <StatusChip
+            domain="issue"
+            :value="item.daysRemaining <= 30 ? 'open' : 'resolved'"
+          /><span class="ms-2">{{ item.daysRemaining }} 天</span>
+        </template>
+      </ListPage>
+    </template>
+
+    <template v-else-if="mode === 'index'">
+      <DetailPage
+        title="检索与索引"
+        subtitle="重建索引后，检索结果仍引用同一份文档版本。"
+      >
+        <VCard title="索引状态">
+          <VCardText>
+            <VAlert
+              type="success"
+              variant="tonal"
+            >
+              当前索引版本：v{{ indexVersion }}
+            </VAlert><VBtn
+              :loading="busy"
+              class="mt-4"
+              @click="rebuild"
+            >
+              重建索引
+            </VBtn>
+          </VCardText>
+        </VCard><VCard
+          class="mt-6"
+          title="检索测试"
+        >
+          <VCardText>
+            <div class="d-flex gap-3">
+              <AppTextField
+                v-model="query"
+                label="输入问题或关键词"
+                class="flex-grow-1"
+                @keyup.enter="searchIndex"
+              /><VBtn @click="searchIndex">
+                检索
+              </VBtn>
+            </div><VList
+              v-if="results.length"
+              class="mt-4"
+            >
+              <VListItem
+                v-for="item in results"
+                :key="item.id"
+                :title="item.title"
+                :subtitle="`v${item.version} · ${item.paragraph}`"
+                @click="openDoc(item.docId)"
+              />
+            </VList>
+          </VCardText>
+        </VCard>
+      </DetailPage>
+    </template>
+
+    <template v-else-if="mode === 'access'">
+      <ListPage
+        storage-key="kb-access"
+        title="敏感文档访问记录"
+        subtitle="包含人和 AI 的查看、下载记录。"
+        :items="logs"
+        :columns="[{ key: 'title', title: '文档' }, { key: 'actor', title: '访问人' }, { key: 'action', title: '动作' }, { key: 'origin', title: '来源' }, { key: 'at', title: '时间' }]"
+      />
+    </template>
+
+    <template v-else-if="mode === 'employee'">
+      <DetailPage
+        title="员工个人档案"
+        :subtitle="`员工：${employeeId}`"
+      >
+        <VAlert
+          type="warning"
+          variant="tonal"
+          class="mb-6"
+        >
+          合同、证件和证书属于敏感资料。每次下载都会写入访问审计。
+        </VAlert><VCard title="档案文件">
+          <VList>
+            <VListItem
+              v-for="file in files"
+              :key="file.id"
+              :title="file.name"
+              :subtitle="`${file.kind} · ${file.size}${file.expiresOn ? ` · 到期 ${file.expiresOn}` : ''}`"
+            >
+              <template #append>
+                <VBtn
+                  size="small"
+                  variant="tonal"
+                  @click="download(file)"
+                >
+                  下载
+                </VBtn>
+              </template>
+            </VListItem>
+          </VList>
+        </VCard>
+      </DetailPage>
+    </template>
+
+    <template v-else-if="mode === 'onboarding'">
+      <DetailPage
+        title="新人上手"
+        subtitle="按当前角色显示任务清单，并提供带出处的只读问答。"
+      >
+        <VCard title="我的上手清单">
+          <VList>
+            <VListItem
+              v-for="item in onboarding"
+              :key="item.id"
+              :title="item.title"
+              :subtitle="item.description"
+            >
+              <template #prepend>
+                <VCheckbox
+                  v-model="item.done"
+                  hide-details
+                  @update:model-value="saveItem(item)"
+                />
+              </template><template #append>
+                <VBtn
+                  size="small"
+                  variant="tonal"
+                  :to="item.route"
+                >
+                  带我去做
+                </VBtn>
+              </template>
+            </VListItem>
+          </VList>
+        </VCard><VCard
+          v-if="showAi"
+          class="mt-6"
+          title="上手助手（带出处）"
+        >
+          <VCardText>
+            <div class="d-flex gap-3">
+              <AppTextField
+                v-model="query"
+                label="例如：怎么提交采购单？"
+                class="flex-grow-1"
+                @keyup.enter="ask"
+              /><VBtn
+                :loading="busy"
+                @click="ask"
+              >
+                提问
+              </VBtn>
+            </div><VAlert
+              v-if="answer"
+              type="info"
+              variant="tonal"
+              class="mt-4"
+            >
+              {{ answer.answer }}<VList density="compact">
+                <VListItem
+                  v-for="citation in answer.citations"
+                  :key="citation.docId"
+                  :title="citation.label"
+                  :to="citation.href"
+                  prepend-icon="tabler-link"
+                />
+              </VList>
+            </VAlert>
+          </VCardText>
+        </VCard>
+      </DetailPage>
+    </template>
+
+    <template v-else-if="mode === 'onboarding-admin'">
+      <ListPage
+        storage-key="onboarding-admin"
+        title="上手清单与引导配置"
+        subtitle="按角色模板维护清单；修改会写审计。"
+        :items="onboarding"
+        :columns="[{ key: 'title', title: '任务' }, { key: 'roleId', title: '角色模板' }, { key: 'route', title: '引导页面' }, { key: 'description', title: '说明' }]"
+      >
+        <template #item.title="{ item }">
+          <AppTextField
+            v-model="item.title"
+            density="compact"
+            hide-details
+            @blur="saveItem(item)"
+          />
+        </template><template #item.description="{ item }">
+          <AppTextField
+            v-model="item.description"
+            density="compact"
+            hide-details
+            @blur="saveItem(item)"
+          />
+        </template>
+      </ListPage>
+    </template>
+  </div>
+</template>
