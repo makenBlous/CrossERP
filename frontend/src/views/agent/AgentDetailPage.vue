@@ -2,6 +2,7 @@
 import { fetchAgentDefinitions, fetchAgentRuns } from '@/api/agent'
 import { fetchAgentTask, fetchEvalCases, fetchEvalRuns, fetchKnowledgeDocuments, fetchRunSteps, fetchUsageCalls } from '@/api/agent-module'
 import DetailPage from '@/components/biz/DetailPage.vue'
+import LoadingState from '@/components/biz/LoadingState.vue'
 import type { AgentDefinition, AgentRun } from '@/types/domain'
 import type { AgentRunStep, AgentTask, EvalCase, EvalRun, KnowledgeDocument, UsageCall } from '@/types/agent-module'
 
@@ -52,10 +53,7 @@ const taskTimeline = computed(() => task.value?.steps.map((step, index) => ({ id
 </script>
 
 <template>
-  <VSkeletonLoader
-    v-if="loading"
-    type="card, table"
-  />
+  <LoadingState v-if="loading" />
   <DetailPage
     v-else-if="props.mode === 'definition' && definition"
     :title="definition.name"

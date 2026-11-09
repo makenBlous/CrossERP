@@ -2,6 +2,7 @@
 import { fetchAgentDefinitions, fetchAgentRuns, fetchChat } from '@/api/agent'
 import { fetchAgentTasks, fetchEvalRuns, fetchKnowledgeDocuments, fetchPromptVersions, fetchUsageCalls } from '@/api/agent-module'
 import ListPage from '@/components/biz/ListPage.vue'
+import LoadingState from '@/components/biz/LoadingState.vue'
 import type { AgentDefinition, AgentRun, ChatThread } from '@/types/domain'
 import type { AgentTask, EvalRun, KnowledgeDocument, PromptVersion, UsageCall } from '@/types/agent-module'
 
@@ -110,10 +111,7 @@ const promptColumns = computed(() => [{ key: 'version', title: t('agentModule.ve
     >
       {{ t('agentModule.writeBoundary') }}
     </VAlert>
-    <VSkeletonLoader
-      v-if="loading"
-      type="card, table"
-    />
+    <LoadingState v-if="loading" />
 
     <template v-else-if="props.mode === 'definitions'">
       <VRow>
