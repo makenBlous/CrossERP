@@ -590,6 +590,7 @@ export function submitGapDLeave(input: { employeeId?: string; startDate: string;
 }
 
 export function approveGapDLeave(id: string, actor: Actor, origin: GapDWriteOrigin = 'human') {
+  assertHumanActor(origin)
   const request = gapDLeaveRequests.find(row => row.id === id)
   if (!request)
     throw new Error('请假申请不存在')
