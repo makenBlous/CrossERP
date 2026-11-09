@@ -10,6 +10,11 @@ const employee = listScopedExpenses(roleSubject('employee', 'demo-employee'))
 
 assert.deepEqual(employee.map(item => item.ownerId), ['demo-employee'])
 
+const employeeRecord = listScopedEmployees(roleSubject('employee', 'demo-employee'))
+
+assert.deepEqual(employeeRecord.map(item => item.ownerId), ['demo-employee'])
+assert.equal('salary' in employeeRecord[0]!, false)
+
 assert.deepEqual(listScopedOrders(roleSubject('external_viewer', 'demo-external-viewer')), [])
 assert.deepEqual(listScopedEmployees(roleSubject('external_viewer', 'demo-external-viewer')), [])
 

@@ -6,13 +6,23 @@ import type { FieldAccess } from '@/types/gap-c'
 
 const templateById = new Map(roleTemplates.map(item => [item.id, item]))
 const legacyRoles = ['admin', 'operator', 'finance', 'viewer', 'auditor'] as const
+type LegacyRole = typeof legacyRoles[number]
 
-const legacyDefaultDataScopes: Record<typeof legacyRoles[number], DataScopeRuleType[]> = {
+const legacyDefaultDataScopes: Record<LegacyRole, DataScopeRuleType[]> = {
   admin: ['all'],
   operator: ['store', 'owner'],
   finance: ['all'],
   viewer: ['store'],
   auditor: ['all'],
+}
+
+// 依据 02 设计：老板/总经理无字段限制；财务覆盖全部财务数据，但员工薪资、证件和银行卡仍隐藏。
+const legacySensitiveFieldPermissions: Record<LegacyRole, string[]> = {
+  admin: ['sku.cost:read', 'sku.margin:read', 'employee.salary:read', 'salary_slip:read_all', 'employee.id_number:read', 'employee.bank_account:read'],
+  operator: [],
+  finance: ['sku.cost:read', 'sku.margin:read'],
+  viewer: [],
+  auditor: [],
 }
 
 /** 敏感字段的唯一登记表；新增敏感字段必须先登记权限点。 */
@@ -80,11 +90,11 @@ export function computeEffectivePermissions(subject: PermissionSubject, now = Da
   for (const roleId of collectRoleIds(subject.roleIds)) {
     const role = templateById.get(roleId)
 
-    const rolePermissions: RolePermission[] = role?.permissions ?? (legacyRoles.includes(roleId as typeof legacyRoles[number])
+    const rolePermissions: RolePermission[] = role?.permissions ?? (legacyRoles.includes(roleId as LegacyRole)
       ? [
-          ...legacyRoleActions[roleId as typeof legacyRoles[number]].map(action => ({ permissionKey: legacyPermissionKeys[action], effect: 'allow' as const, source: `旧角色 ${roleId}` })),
+          ...legacyRoleActions[roleId as LegacyRole].map(action => ({ permissionKey: legacyPermissionKeys[action], effect: 'allow' as const, source: `旧角色 ${roleId}` })),
           ...permissionCatalog
-            .filter(point => (!point.sensitive && point.kind !== 'field' && point.key.endsWith(':read')) || (roleId === 'admin' && point.sensitive && point.kind !== 'field') || (roleId === 'operator' && point.key === 'permission:read') || (roleId === 'admin' && ['salary_slip:read_own', 'employee_record:read_own'].includes(point.key)) || legacyAllowsAction(roleId as typeof legacyRoles[number], point.key.split(':')[1] ?? ''))
+            .filter(point => (!point.sensitive && point.kind !== 'field' && point.key.endsWith(':read')) || legacySensitiveFieldPermissions[roleId as LegacyRole].includes(point.key) || (roleId === 'admin' && point.sensitive && point.kind !== 'field') || (roleId === 'operator' && point.key === 'permission:read') || (roleId === 'admin' && ['salary_slip:read_own', 'employee_record:read_own'].includes(point.key)) || legacyAllowsAction(roleId as LegacyRole, point.key.split(':')[1] ?? ''))
             .map(point => ({ permissionKey: point.key, effect: 'allow' as const, source: `旧角色 ${roleId}` })),
         ]
       : [])
@@ -99,7 +109,7 @@ export function computeEffectivePermissions(subject: PermissionSubject, now = Da
       }
       else {
         target.allows.push(source)
-        for (const scope of permission.dataScopes ?? role?.defaultDataScopes ?? legacyDefaultDataScopes[roleId as typeof legacyRoles[number]] ?? [])
+        for (const scope of permission.dataScopes ?? role?.defaultDataScopes ?? legacyDefaultDataScopes[roleId as LegacyRole] ?? [])
           target.scopes.add(scope)
       }
     }

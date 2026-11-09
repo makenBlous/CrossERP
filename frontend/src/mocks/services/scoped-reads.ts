@@ -1,5 +1,6 @@
 import { projectGapCField, scopeAllows } from '@/mocks/services/gap-c'
 import type { PermissionSubject } from '@/types/foundation'
+import { effectivePermission } from '@/utils/permission-engine'
 
 export interface ScopedOrder {
   id: string
@@ -44,23 +45,8 @@ const employees: ScopedEmployee[] = [
   { id: 'scoped-employee-002', name: '演示财务', ownerId: 'demo-finance', department: '财务部', salary: 1800000, idCard: '110101198801010022', bankAccount: '6222000000000022' },
 ]
 
-const departmentOf: Record<string, string> = {
-  'demo-department-manager': '运营部',
-  'demo-employee': '运营部',
-  'demo-operator': '运营部',
-  'demo-finance': '财务部',
-  'demo-purchaser': '供应链部',
-}
-
 function inScope(subject: PermissionSubject, permissionKey: string, ownerId: string, department: string) {
-  const permission = permissionKey === 'employee_record:read' ? 'employee_record:read' : permissionKey
-  if (!scopeAllows(subject, permission, ownerId, department))
-    return false
-  const scopes = subject.roleIds.includes('department_manager') ? ['department'] : []
-  if (scopes.includes('department'))
-    return department === departmentOf[subject.userId]
-
-  return true
+  return scopeAllows(subject, permissionKey, ownerId, department)
 }
 
 export function listScopedOrders(subject: PermissionSubject): ScopedOrder[] {
@@ -72,7 +58,12 @@ export function listScopedExpenses(subject: PermissionSubject): ScopedExpense[] 
 }
 
 export function listScopedEmployees(subject: PermissionSubject): Array<Partial<ScopedEmployee>> {
+  const readAll = effectivePermission(subject, 'employee_record:read')
+  if (readAll.deniedBy.length > 0)
+    return []
+  const permissionKey = readAll.allowed ? 'employee_record:read' : 'employee_record:read_own'
+
   return employees
-    .filter(item => inScope(subject, 'employee_record:read', item.ownerId, item.department))
+    .filter(item => inScope(subject, permissionKey, item.ownerId, item.department))
     .map(item => projectGapCField(subject, { ...item } as Record<string, unknown>) as Partial<ScopedEmployee>)
 }

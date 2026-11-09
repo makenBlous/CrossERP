@@ -1,6 +1,6 @@
 import { assertPermission, delay } from '@/api/mock-client'
 import { listScopedEmployees, listScopedExpenses, listScopedOrders } from '@/mocks/services/scoped-reads'
-import { roleSubject } from '@/utils/permission-engine'
+import { effectivePermission, roleSubject } from '@/utils/permission-engine'
 import { useSessionStore } from '@/stores/session'
 
 function subject() {
@@ -25,7 +25,12 @@ export async function fetchScopedExpenses() {
 
 export async function fetchScopedEmployees() {
   await delay()
-  assertPermission('employee_record:read')
 
-  return listScopedEmployees(subject())
+  const current = subject()
+  const readAll = effectivePermission(current, 'employee_record:read')
+
+  if (readAll.deniedBy.length > 0 || (!readAll.allowed && !effectivePermission(current, 'employee_record:read_own').allowed))
+    assertPermission('employee_record:read')
+
+  return listScopedEmployees(current)
 }
