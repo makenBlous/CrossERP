@@ -33,5 +33,7 @@ export const channelPlugins: ChannelPlugin[] = [
   fakeChannel('webhook', 'Webhook', 'Webhook'),
 ]
 
+export const channelPluginRegistry = Object.fromEntries(channelPlugins.map(plugin => [plugin.id, plugin])) as Record<string, ChannelPlugin>
+
 export { approvalTypes, autonomyPolicies, departments, documentLinks, suggestions }
 export const modules: ModuleSwitch[] = [...moduleRegistry]

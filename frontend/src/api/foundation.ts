@@ -1,6 +1,7 @@
 import { delay } from '@/api/mock-client'
 import { approvalTypes, autonomyPolicies, channelPlugins, departments, documentLinks, modules, suggestions } from '@/mocks/services/foundation'
 import type { AgentAutonomyPolicy, AgentSuggestion, AiModeState, ApprovalTypeDefinition, ChannelPlugin, Department, DocumentLink, ModuleSwitch } from '@/types/foundation'
+import { updateAutonomyPolicy } from '@/utils/autonomy'
 
 // 未来: GET /api/v1/approvals/types
 export async function listApprovalTypes(): Promise<ApprovalTypeDefinition[]> {
@@ -21,6 +22,13 @@ export async function listAutonomyPolicies(): Promise<AgentAutonomyPolicy[]> {
   await delay()
 
   return structuredClone(autonomyPolicies)
+}
+
+// 未来: PUT /api/v1/agent/autonomy-policies/{id}
+export async function saveAutonomyPolicy(policy: AgentAutonomyPolicy, level: AgentAutonomyPolicy['level']): Promise<AgentAutonomyPolicy> {
+  await delay()
+
+  return updateAutonomyPolicy(policy, level)
 }
 
 // 未来: GET /api/v1/org/departments

@@ -21,6 +21,7 @@ declare global {
   const betweenValidator: typeof import('./src/@core/utils/validators')['betweenValidator']
   const can: typeof import('./src/utils/permission')['can']
   const canAi: typeof import('./src/utils/permission')['canAi']
+  const canApprove: typeof import('./src/utils/duties')['canApprove']
   const canField: typeof import('./src/utils/permission')['canField']
   const canPermission: typeof import('./src/utils/permission-engine')['canPermission']
   const computeEffectivePermissions: typeof import('./src/utils/permission-engine')['computeEffectivePermissions']
@@ -71,6 +72,7 @@ declare global {
   const getCurrentInstance: typeof import('vue')['getCurrentInstance']
   const getCurrentScope: typeof import('vue')['getCurrentScope']
   const h: typeof import('vue')['h']
+  const hardMaxForAction: typeof import('./src/utils/autonomy')['hardMaxForAction']
   const hexToRgb: typeof import('./src/@core/utils/colorConverter')['hexToRgb']
   const ignorableWatch: typeof import('@vueuse/core')['ignorableWatch']
   const inject: typeof import('vue')['inject']
@@ -186,6 +188,7 @@ declare global {
   const unref: typeof import('vue')['unref']
   const unrefElement: typeof import('@vueuse/core')['unrefElement']
   const until: typeof import('@vueuse/core')['until']
+  const updateAutonomyPolicy: typeof import('./src/utils/autonomy')['updateAutonomyPolicy']
   const urlValidator: typeof import('./src/@core/utils/validators')['urlValidator']
   const useAbility: typeof import('./src/plugins/casl/composables/useAbility')['useAbility']
   const useAbs: typeof import('@vueuse/math')['useAbs']
@@ -377,6 +380,7 @@ declare global {
   const useWindowScroll: typeof import('@vueuse/core')['useWindowScroll']
   const useWindowSize: typeof import('@vueuse/core')['useWindowSize']
   const usecreateUrl: typeof import('./src/@core/composable/usecreateUrl')['usecreateUrl']
+  const validateAutonomyLevel: typeof import('./src/utils/autonomy')['validateAutonomyLevel']
   const watch: typeof import('vue')['watch']
   const watchArray: typeof import('@vueuse/core')['watchArray']
   const watchAtMost: typeof import('@vueuse/core')['watchAtMost']
@@ -420,6 +424,7 @@ declare module 'vue' {
     readonly betweenValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['betweenValidator']>
     readonly can: UnwrapRef<typeof import('./src/utils/permission')['can']>
     readonly canAi: UnwrapRef<typeof import('./src/utils/permission')['canAi']>
+    readonly canApprove: UnwrapRef<typeof import('./src/utils/duties')['canApprove']>
     readonly canField: UnwrapRef<typeof import('./src/utils/permission')['canField']>
     readonly canPermission: UnwrapRef<typeof import('./src/utils/permission-engine')['canPermission']>
     readonly computeEffectivePermissions: UnwrapRef<typeof import('./src/utils/permission-engine')['computeEffectivePermissions']>
@@ -469,6 +474,7 @@ declare module 'vue' {
     readonly getCurrentInstance: UnwrapRef<typeof import('vue')['getCurrentInstance']>
     readonly getCurrentScope: UnwrapRef<typeof import('vue')['getCurrentScope']>
     readonly h: UnwrapRef<typeof import('vue')['h']>
+    readonly hardMaxForAction: UnwrapRef<typeof import('./src/utils/autonomy')['hardMaxForAction']>
     readonly hexToRgb: UnwrapRef<typeof import('./src/@core/utils/colorConverter')['hexToRgb']>
     readonly ignorableWatch: UnwrapRef<typeof import('@vueuse/core')['ignorableWatch']>
     readonly inject: UnwrapRef<typeof import('vue')['inject']>
@@ -582,6 +588,7 @@ declare module 'vue' {
     readonly unref: UnwrapRef<typeof import('vue')['unref']>
     readonly unrefElement: UnwrapRef<typeof import('@vueuse/core')['unrefElement']>
     readonly until: UnwrapRef<typeof import('@vueuse/core')['until']>
+    readonly updateAutonomyPolicy: UnwrapRef<typeof import('./src/utils/autonomy')['updateAutonomyPolicy']>
     readonly urlValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['urlValidator']>
     readonly useAbs: UnwrapRef<typeof import('@vueuse/math')['useAbs']>
     readonly useActiveElement: UnwrapRef<typeof import('@vueuse/core')['useActiveElement']>
@@ -767,6 +774,7 @@ declare module 'vue' {
     readonly useWindowFocus: UnwrapRef<typeof import('@vueuse/core')['useWindowFocus']>
     readonly useWindowScroll: UnwrapRef<typeof import('@vueuse/core')['useWindowScroll']>
     readonly useWindowSize: UnwrapRef<typeof import('@vueuse/core')['useWindowSize']>
+    readonly validateAutonomyLevel: UnwrapRef<typeof import('./src/utils/autonomy')['validateAutonomyLevel']>
     readonly watch: UnwrapRef<typeof import('vue')['watch']>
     readonly watchArray: UnwrapRef<typeof import('@vueuse/core')['watchArray']>
     readonly watchAtMost: UnwrapRef<typeof import('@vueuse/core')['watchAtMost']>
