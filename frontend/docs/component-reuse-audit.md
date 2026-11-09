@@ -74,6 +74,23 @@
 - 保留的组件只承载状态字典、金额格式化、五角色权限、只读智能助手和业务字段等 CrossERP 特有职责，没有复制一套通用 UI。
 - 本次实际替换：六个目录/订单/采购/物流详情页的错误提示改为共享 `ErrorState`；其余页面中已存在的 Vuexy/Vuetify 复用按上表核对，未改变路由、数据中心、流转、权限、i18n 或 `data-test`。
 
+## 补齐批次 0 复用审计
+
+审计范围：相对 `a6f81ae` 的所有未提交 `frontend/` 新增/修改文件（24 个）。Vuexy 参考目录为 `D:/make/write/vue/vuexy-10.11.1/vuexy-admin-v10.11.1/vue-version/typescript-version/full-version`；同时核对 Vuetify 3 组件。批次 0 只补权限、类型、适配器和占位页元数据，未新增业务页面。
+
+| 自写组件/UI 块 | 位置 | 现成等价物（路径） | 处理（已替换/保留） | 原因 |
+| --- | --- | --- | --- | --- |
+| 助手抽屉及滚动到底部行为 | `src/components/biz/AssistantDrawer.vue` | Vuexy `src/pages/apps/chat.vue`、`src/views/apps/chat/ChatLog.vue`；Vuetify `VNavigationDrawer`；`vue3-perfect-scrollbar` | 保留（改编） | 抽屉、聊天消息和输入条已经复用 Vuexy；滚动监听只服务 CrossERP 的只读智能体卡片，不重复实现聊天 UI。 |
+| 权限门 | `src/components/biz/PermissionGate.vue` | Vuexy `src/@layouts/plugins/casl.ts` | 保留（业务薄封装） | Vuexy CASL 只提供通用能力，CrossERP 还要合并五角色、临时授权和 AI 收窄权限；模板仅保留 slot 显示控制。 |
+| 角色切换器 | `src/layouts/components/RoleSwitcher.vue` | Vuetify `VBtn`、`VMenu`、`VList`；Vuexy vertical layout role/menu pattern | 保留（直接复用） | 结构全由 Vuetify 提供，只将角色目录名称接入 `roleTemplates`，没有新增菜单组件。 |
+| 校验错误文案适配 | `src/@core/utils/validators.ts` | Vuexy `@core/utils/validators.ts`；Vue I18n | 保留（改编） | 校验规则沿用 Vuexy，新增 `configureValidatorI18n` 仅替换文案来源，避免页面各自手写错误提示。 |
+| 智能体卡片适配器 | `src/agent/adapter.ts` | Vuexy `src/views/apps/chat/ChatLog.vue`（消息渲染） | 保留（确无等价物） | `AgentCard` 的证据、置信度、自主等级和建议 ID 是 CrossERP 只读业务协议，Vuexy 没有对应数据模型；文件不渲染 UI。 |
+| 权限计算、自治等级和职责分离纯函数 | `src/utils/permission-engine.ts`、`src/utils/autonomy.ts`、`src/utils/duties.ts` | Vuexy CASL 插件；Vuetify 无业务等价物 | 保留（确无等价物） | 角色继承、临时授权、金额动作硬上限和审批职责分离是业务规则，不能用展示组件替代；均为纯逻辑，无自写 UI。 |
+| 批次 0 占位页元数据 | `src/config/pages.ts` | `src/components/PlaceholderPage.vue`；Vuetify `VCard`、`VChip` | 保留（直接复用） | 仅修正 98 个占位页的英文名、图标和权限 key；渲染仍走既有 `PlaceholderPage`，路由、`to: { path }`、角色、i18n 和 `data-test` 不变。 |
+| 权限目录扩展 | `src/config/permissions.ts`、`src/types/foundation.ts`、`src/stores/permissions.ts`、`src/api/foundation.ts`、`src/mocks/services/foundation*.ts` | Vuexy CASL 类型/插件 | 保留（确无等价物） | 这些是权限点、审批快照和只读 API 的数据契约，不包含页面结构；新增 DocType key 与 ERPNext/Odoo 命名对齐。 |
+
+处理结果：本批次发现的 UI 块均已使用 Vuexy/Vuetify 或现有 CrossERP 薄封装，没有需要再复制替换的通用结构；保留项均有上述业务差异理由。
+
 ---
 
 # 第 2 批（财务/审批/广告）组件复用审计

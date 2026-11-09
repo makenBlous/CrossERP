@@ -67,6 +67,25 @@ const docTypes: Array<[string, string, string, string]> = [
   ['document', '知识文档', 'Knowledge', 'Document'],
   ['employee_record', '员工档案', 'HR', 'Employee'],
   ['permission', '权限', 'Identity', 'Role Permission'],
+
+  // 补齐批次 A–E 占位页使用的 ERPNext DocType / Odoo 模型权限点。
+  ['travel_request', '差旅申请', 'HR', 'Travel Request'],
+  ['expense_claim_type', '费用标准', 'HR', 'Expense Claim Type'],
+  ['period_closing_voucher', '期末结账', 'Accounts', 'Period Closing Voucher'],
+  ['stock_ledger', '库存流水', 'Stock', 'Stock Ledger'],
+  ['budget', '预算', 'Accounts', 'Budget'],
+  ['exchange_rate_revaluation', '汇兑重估', 'Accounts', 'Exchange Rate Revaluation'],
+  ['vat_return', 'VAT 申报', 'Accounts', 'VAT Return'],
+  ['export_tax_rebate', '出口退税', 'Accounts', 'Export Tax Rebate'],
+  ['contract', '合同', 'Buying', 'Contract'],
+  ['supplier_scorecard', '供应商评估', 'Buying', 'Supplier Scorecard'],
+  ['batch', '批次', 'Stock', 'Batch'],
+  ['stock_reconciliation', '库存盘点', 'Stock', 'Stock Reconciliation'],
+  ['audit_log', '审计日志', 'Platform', 'Audit Log'],
+  ['attendance', '考勤', 'HR', 'Attendance'],
+  ['salary_structure', '薪资规则', 'Payroll', 'Salary Structure'],
+  ['employee_tax_exemption_declaration', '专项附加扣除', 'Payroll', 'Employee Tax Exemption Declaration'],
+  ['office_supply', '办公用品', 'Stock', 'Office Supply'],
 ]
 
 export const permissionCatalog: PermissionPoint[] = docTypes.flatMap(([docType, label, module, erpnextRef]) =>
