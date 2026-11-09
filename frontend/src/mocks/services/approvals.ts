@@ -50,6 +50,10 @@ export function decideApproval(db: MockDatabase, id: string, status: 'approved' 
   if (approval.status !== 'pending')
     throw new FlowError('这张审批已经处理过')
 
+  // 防自审：提交人不能审批自己提交的单据（服务层强制，页面按钮只是提示）。
+  if (approval.submitter === actor.name)
+    throw new FlowError('不能审批自己提交的单据，请换另一位有审批权限的用户处理')
+
   approval.status = status
   approval.comment = comment.trim()
   if (approval.targetType === 'purchase_order') {
