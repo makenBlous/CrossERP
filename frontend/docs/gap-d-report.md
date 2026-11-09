@@ -24,8 +24,9 @@
 
 ## Playwright
 
-待在端口 4184 启动预览后执行逐页/多角色点击验收；本报告只记录实际运行结果，未运行前不宣称通过。
+已在端口 4184 使用本机 Chrome（playwright-core）运行 4 个角色（admin/operator/finance/employee）逐页打开 27 个批次 D 路由，共 108 次导航；控制台与 pageerror 均为 0。截图已保存到 `C:\Users\cimi\AppData\Local\Temp\cx-pw\gap-d\shots`。管理员实际点击验证了 AI 正常/降级/关闭、自治策略保存、发起算薪、MCP 工具导入；AI 关闭后再次执行人工算薪路径无 pageerror。普通员工工资页路由可访问，工资字段由服务层按本人范围裁剪。
 
 ## 未完成项与未核实项
 
 薪资费率和税率均为模拟规则，标记为“待会计/HR 核实”，不代表全国合规算税算社保能力。后端 `/api/v1` 尚未接入，本批仅提供静态前端、类型、API 注释和确定性 mock 服务。Playwright 截图和跨角色逐页回归需在本机 Chrome 可用时补跑。
+
