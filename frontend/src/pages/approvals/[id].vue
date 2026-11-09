@@ -62,7 +62,12 @@ async function copyHash() {
         <p>{{ row.summary }}</p>
         <div class="d-flex align-center gap-2 text-caption font-monospace">
           <span>内容哈希：{{ row.payloadHash }}</span>
-          <VBtn size="x-small" variant="tonal" prepend-icon="tabler-copy" @click="copyHash">
+          <VBtn
+            size="x-small"
+            variant="tonal"
+            prepend-icon="tabler-copy"
+            @click="copyHash"
+          >
             {{ copied ? '已复制' : '复制' }}
           </VBtn>
         </div>

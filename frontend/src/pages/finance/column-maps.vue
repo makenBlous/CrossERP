@@ -34,12 +34,26 @@ async function save() {
 
 <template>
   <div>
-    <div class="mb-6"><h4 class="text-h4">列映射模板</h4><p class="text-body-1 text-medium-emphasis mb-0">选择模板后逐列确认来源字段与标准字段。</p></div>
+    <div class="mb-6">
+      <h4 class="text-h4">
+        列映射模板
+      </h4><p class="text-body-1 text-medium-emphasis mb-0">
+        选择模板后逐列确认来源字段与标准字段。
+      </p>
+    </div>
     <VRow>
-      <VCol cols="12" md="4">
+      <VCol
+        cols="12"
+        md="4"
+      >
         <VCard title="模板列表">
           <VList v-if="templates.length">
-            <VListItem v-for="item in templates" :key="item.id" :active="item.id === selectedId" @click="selectedId = item.id; loadSelected()">
+            <VListItem
+              v-for="item in templates"
+              :key="item.id"
+              :active="item.id === selectedId"
+              @click="selectedId = item.id; loadSelected()"
+            >
               <VListItemTitle>{{ item.name }}</VListItemTitle>
               <VListItemSubtitle>{{ item.connector }} · {{ item.status }}</VListItemSubtitle>
             </VListItem>
@@ -47,22 +61,44 @@ async function save() {
           <EmptyState v-else />
         </VCard>
       </VCol>
-      <VCol cols="12" md="8">
-        <VCard v-if="selected" :title="selected.name">
+      <VCol
+        cols="12"
+        md="8"
+      >
+        <VCard
+          v-if="selected"
+          :title="selected.name"
+        >
           <VCardText>
             <VTable density="compact">
               <thead><tr><th>来源列</th><th>标准字段</th></tr></thead>
               <tbody>
-                <tr v-for="(mapping, index) in mappings" :key="`${mapping.source}-${index}`">
+                <tr
+                  v-for="(mapping, index) in mappings"
+                  :key="`${mapping.source}-${index}`"
+                >
                   <td>{{ mapping.source }}</td>
-                  <td><AppSelect v-model="mapping.field" :items="standardFields" hide-details /></td>
+                  <td>
+                    <AppSelect
+                      v-model="mapping.field"
+                      :items="standardFields"
+                      hide-details
+                    />
+                  </td>
                 </tr>
               </tbody>
             </VTable>
-            <div class="d-flex justify-end mt-4"><VBtn @click="save">保存映射</VBtn></div>
+            <div class="d-flex justify-end mt-4">
+              <VBtn @click="save">
+                保存映射
+              </VBtn>
+            </div>
           </VCardText>
         </VCard>
-        <EmptyState v-else title="未选择模板" />
+        <EmptyState
+          v-else
+          title="未选择模板"
+        />
       </VCol>
     </VRow>
   </div>

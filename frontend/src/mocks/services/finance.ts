@@ -67,6 +67,7 @@ export function settlementDetail(db: MockDatabase, id: string) {
     ...row,
     storeName: db.stores.find(store => store.id === row.storeId)?.name ?? row.storeId,
     totalDisplay: toDisplay(row.total, row.currency),
+    rawRowId: `${row.id}-row-1`,
     lines: [
       { id: `${row.id}-1`, type: 'Order', description: 'Principal', amount: Math.round(row.total * 86 / 100) },
       { id: `${row.id}-2`, type: 'Fee', description: 'Commission', amount: -Math.round(row.total * 9 / 100) },
@@ -173,6 +174,7 @@ function agingSummary(rows: Array<{ amount: number; currency: CurrencyCode; dueA
   return keys.map(key => {
     const grouped = new Map<CurrencyCode, number>()
     const matching = rows.filter(row => agingBucket(row.dueAt) === key)
+
     matching.forEach(row => grouped.set(row.currency, (grouped.get(row.currency) ?? 0) + row.amount))
 
     return { key, count: matching.length, amounts: [...grouped.entries()].map(([currency, amount]) => ({ currency, amount })) }

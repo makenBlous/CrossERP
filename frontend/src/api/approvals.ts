@@ -1,6 +1,6 @@
 import { assertCan, database, delay } from '@/api/mock-client'
 import { projectApprovals } from '@/mocks/project'
-import { approvalPayloadHash, auditWorkflowEdit, type ApprovalWorkflowStep } from '@/mocks/services/approvals'
+import { type ApprovalWorkflowStep, approvalPayloadHash, auditWorkflowEdit } from '@/mocks/services/approvals'
 import type { ApprovalStatus } from '@/types/domain'
 
 async function withPayloadHashes() {
@@ -9,7 +9,7 @@ async function withPayloadHashes() {
 
   return Promise.all(projected.map(async item => ({
     ...item,
-    payloadHash: await approvalPayloadHash(db.approvals.find(approval => approval.id === item.id)! ),
+    payloadHash: await approvalPayloadHash(db.approvals.find(approval => approval.id === item.id)!),
   })))
 }
 

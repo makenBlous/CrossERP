@@ -110,12 +110,15 @@ export async function fetchColumnMaps() {
 }
 export async function fetchColumnMap(id: string) {
   await delay()
+
   return readMock(columnMapDetail(database().db, id))
 }
 export async function saveColumnMapEntry(id: string, mappings: Array<{ source: string; field: string }>) {
   const actor = assertCan('update')
   const row = saveColumnMap(database().db, id, mappings, actor)
+
   database().persist()
+
   return readMock(row)
 }
 export async function fetchAr() {
@@ -130,10 +133,12 @@ export async function fetchAp() {
 }
 export async function fetchArAging() {
   await delay()
+
   return readMock(arAging(database().db))
 }
 export async function fetchApAging() {
   await delay()
+
   return readMock(apAging(database().db))
 }
 export async function fetchClearing() {

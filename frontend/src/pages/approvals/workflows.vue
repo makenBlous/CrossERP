@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { auditApprovalWorkflowEdit } from '@/api/approvals'
 import FormDrawer from '@/components/biz/FormDrawer.vue'
-import { approvalWorkflowTemplates, type ApprovalWorkflowStep } from '@/mocks/services/approvals'
+import { type ApprovalWorkflowStep, approvalWorkflowTemplates } from '@/mocks/services/approvals'
 import { useSessionStore } from '@/stores/session'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -21,6 +21,7 @@ function edit(type: string, index: number) {
   if (!admin.value)
     return
   const step = workflows[type][index]
+
   editType.value = type
   editIndex.value = index
   editRole.value = step.role
@@ -32,6 +33,7 @@ async function saveEdit() {
   const steps = workflows[editType.value]
   const step = { ...steps[editIndex.value], role: editRole.value }
   const target = Math.min(Math.max(editOrder.value - 1, 0), steps.length - 1)
+
   steps.splice(editIndex.value, 1)
   steps.splice(target, 0, step)
   await auditApprovalWorkflowEdit(editType.value, step)
@@ -42,25 +44,61 @@ async function saveEdit() {
 <template>
   <div>
     <div class="mb-6">
-      <h4 class="text-h4">{{ t('approvals.workflows') }}</h4>
-      <p class="text-body-1 text-medium-emphasis mb-0">{{ t('approvals.workflowSubtitle') }}</p>
+      <h4 class="text-h4">
+        {{ t('approvals.workflows') }}
+      </h4>
+      <p class="text-body-1 text-medium-emphasis mb-0">
+        {{ t('approvals.workflowSubtitle') }}
+      </p>
     </div>
-    <VAlert type="info" variant="tonal" class="mb-6">{{ t('approvals.later') }}</VAlert>
+    <VAlert
+      type="info"
+      variant="tonal"
+      class="mb-6"
+    >
+      {{ t('approvals.later') }}
+    </VAlert>
     <VRow>
-      <VCol v-for="type in documentTypes" :key="type" cols="12" lg="6">
+      <VCol
+        v-for="type in documentTypes"
+        :key="type"
+        cols="12"
+        lg="6"
+      >
         <VCard :title="labels[type]">
           <VCardText>
             <VRow>
-              <VCol cols="12" md="4">
-                <AppStepper :items="workflows[type].map(step => ({ title: step.title, subtitle: step.role, icon: 'tabler-check' }))" direction="vertical" icon-size="22" class="stepper-icon-step-bg" />
+              <VCol
+                cols="12"
+                md="4"
+              >
+                <AppStepper
+                  :items="workflows[type].map(step => ({ title: step.title, subtitle: step.role, icon: 'tabler-check' }))"
+                  direction="vertical"
+                  icon-size="22"
+                  class="stepper-icon-step-bg"
+                />
               </VCol>
-              <VCol cols="12" md="8">
+              <VCol
+                cols="12"
+                md="8"
+              >
                 <VList density="compact">
-                  <VListItem v-for="(step, index) in workflows[type]" :key="step.id">
+                  <VListItem
+                    v-for="(step, index) in workflows[type]"
+                    :key="step.id"
+                  >
                     <VListItemTitle>{{ index + 1 }}. {{ step.title }}</VListItemTitle>
                     <VListItemSubtitle>{{ t('approvals.approverRole') }}：{{ step.role }} · {{ t('approvals.ownRule') }}</VListItemSubtitle>
                     <template #append>
-                      <VBtn v-if="admin" size="small" variant="text" @click="edit(type, index)">{{ t('common.edit') }}</VBtn>
+                      <VBtn
+                        v-if="admin"
+                        size="small"
+                        variant="text"
+                        @click="edit(type, index)"
+                      >
+                        {{ t('common.edit') }}
+                      </VBtn>
                     </template>
                   </VListItem>
                 </VList>
@@ -70,9 +108,23 @@ async function saveEdit() {
         </VCard>
       </VCol>
     </VRow>
-    <FormDrawer v-model="editOpen" :title="t('approvals.editWorkflow')" @save="saveEdit">
-      <AppSelect v-model="editRole" :items="roles" :label="t('approvals.approverRole')" />
-      <AppTextField v-model.number="editOrder" type="number" min="1" :label="t('approvals.stepOrder')" class="mt-4" />
+    <FormDrawer
+      v-model="editOpen"
+      :title="t('approvals.editWorkflow')"
+      @save="saveEdit"
+    >
+      <AppSelect
+        v-model="editRole"
+        :items="roles"
+        :label="t('approvals.approverRole')"
+      />
+      <AppTextField
+        v-model.number="editOrder"
+        type="number"
+        min="1"
+        :label="t('approvals.stepOrder')"
+        class="mt-4"
+      />
     </FormDrawer>
   </div>
 </template>

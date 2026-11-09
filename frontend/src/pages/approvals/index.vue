@@ -127,7 +127,10 @@ async function decide(status: ApprovalStatus) {
         />
       </template>
       <template #item.title="{ item }">
-        <RouterLink :to="`/approvals/${item.id}`" class="text-primary font-weight-medium">
+        <RouterLink
+          :to="`/approvals/${item.id}`"
+          class="text-primary font-weight-medium"
+        >
           {{ item.title }}
         </RouterLink>
       </template>
