@@ -27,6 +27,7 @@ import {
   markGapCNotificationRead,
   resolveGapCAlert,
   runGapCReport,
+  saveGapCApprovalRule,
   saveGapCDataScope,
   saveGapCFieldPolicy,
   saveGapCMatrix,
@@ -35,13 +36,17 @@ import {
   saveGapCSubscriptions,
 } from '@/api/gap-c'
 import DetailPage from '@/components/biz/DetailPage.vue'
+import FormDrawer from '@/components/biz/FormDrawer.vue'
+import FormPage from '@/components/biz/FormPage.vue'
 import ListPage, { type ListColumn } from '@/components/biz/ListPage.vue'
 import MoneyText from '@/components/biz/MoneyText.vue'
 import PermissionGate from '@/components/biz/PermissionGate.vue'
+import RecordDrawer from '@/components/biz/RecordDrawer.vue'
+import StatusChip from '@/components/biz/StatusChip.vue'
+import KpiCard from '@/components/KpiCard.vue'
 import { findPageById } from '@/config/pages'
 import { useAiModeStore } from '@/stores/ai-mode'
-import type { FieldAccess } from '@/types/gap-c'
-import type { GapCAccessReview, GapCAgentTrace, GapCAlert, GapCApprovalRow, GapCApprovalRule, GapCAuditRow, GapCDataScope, GapCFieldPolicy, GapCMatrixCell, GapCNotification, GapCPermissionChange, GapCReport, GapCReportResult, GapCRetention, GapCRoleView, GapCSodRule, GapCSubscription, GapCTemporaryGrant } from '@/types/gap-c'
+import type { FieldAccess, GapCAccessReview, GapCAgentTrace, GapCAlert, GapCApprovalRow, GapCApprovalRule, GapCAuditRow, GapCDataScope, GapCFieldPolicy, GapCMatrixCell, GapCNotification, GapCPermissionChange, GapCReport, GapCReportResult, GapCRetention, GapCRoleView, GapCSodRule, GapCSubscription, GapCTemporaryGrant } from '@/types/gap-c'
 
 interface RowRecord { id: string; [key: string]: unknown }
 
@@ -75,6 +80,7 @@ const changes = ref<GapCPermissionChange[]>([])
 const sodRules = ref<GapCSodRule[]>([])
 const selectedUser = ref('demo-operator')
 const period = ref('2026-11')
+const reportQuery = ref('')
 const confirmer = ref('')
 const reportName = ref('')
 const reportDescription = ref('')
@@ -82,9 +88,14 @@ const grantUser = ref('demo-operator')
 const grantPermission = ref('sku_cost:read')
 const grantReason = ref('')
 const grantExpires = ref('2026-11-17T00:00:00Z')
+const grantDrawer = ref(false)
+const ruleDrawer = ref(false)
+const selectedRecord = ref<RowRecord | null>(null)
+const recordDrawer = ref(false)
+const selectedRule = ref<GapCApprovalRule | null>(null)
 
 const title = computed(() => page.value?.name['zh-CN'] ?? props.pageId)
-const listPageIds = new Set(['W05', 'W06', 'W07', 'N01', 'RP01', 'U05', 'U07', 'SYS14', 'SYS15', 'SYS17', 'SYS18', 'SYS24'])
+const listPageIds = new Set(['W05', 'W06', 'W07', 'N01', 'RP01', 'U05', 'U07', 'SYS14', 'SYS15', 'SYS16', 'SYS17', 'SYS18', 'SYS22', 'SYS24'])
 const isList = computed(() => listPageIds.has(props.pageId))
 
 function row(value: object): RowRecord {
@@ -131,6 +142,34 @@ const columns = computed<ListColumn[]>(() => {
   }
 })
 
+const listFilters = computed(() => {
+  if (['W05', 'W06'].includes(props.pageId))
+    return [{ key: 'status', label: '状态', items: [{ title: '待审批', value: 'pending' }, { title: '已通过', value: 'approved' }, { title: '已驳回', value: 'rejected' }, { title: '抄送', value: 'cc' }] }]
+  if (props.pageId === 'N01')
+    return [{ key: 'read', label: '阅读状态', items: [{ title: '未读', value: 'false' }, { title: '已读', value: 'true' }] }]
+  if (props.pageId === 'U07')
+    return [{ key: 'severity', label: '级别', items: [{ title: '高', value: 'high' }, { title: '中', value: 'medium' }, { title: '低', value: 'low' }] }]
+  if (props.pageId === 'SYS16')
+    return [{ key: 'status', label: '状态', items: [{ title: '有效', value: 'active' }, { title: '已过期', value: 'expired' }] }]
+  if (props.pageId === 'SYS17')
+    return [{ key: 'status', label: '状态', items: [{ title: '待复核', value: 'pending' }, { title: '已确认', value: 'confirmed' }, { title: '已撤销', value: 'revoked' }] }]
+
+  return []
+})
+
+const listDateKey = computed(() => {
+  if (['W05', 'W06'].includes(props.pageId))
+    return 'submittedAt'
+  if (props.pageId === 'N01')
+    return 'createdAt'
+  if (['U05', 'U07', 'SYS24'].includes(props.pageId))
+    return 'at'
+  if (props.pageId === 'SYS17')
+    return 'dueAt'
+
+  return ''
+})
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -173,14 +212,55 @@ function openRow(item: RowRecord) {
     router.push(`/audit/ai/${String(item.agentSuggestionId)}`)
   if (props.pageId === 'RP01')
     router.push(`/reports/${String(item.id)}`)
+  if (['W05', 'W06', 'U07', 'SYS17'].includes(props.pageId)) {
+    selectedRecord.value = item
+    recordDrawer.value = true
+  }
+}
+
+function editRule(item: RowRecord) {
+  selectedRule.value = item as unknown as GapCApprovalRule
+  ruleDrawer.value = true
 }
 
 async function saveSubscriptions() { await runAction(() => saveGapCSubscriptions(subscriptions.value), '订阅已保存') }
 async function saveReport() { await runAction(async () => { await createGapCReport({ name: reportName.value, description: reportDescription.value, permissionKey: 'report:read' }); reportName.value = ''; reportDescription.value = '' }, '自定义报表已保存') }
-async function saveGrant() { await runAction(() => createGapCTemporaryGrant({ userId: grantUser.value, userName: grantUser.value === 'demo-operator' ? '演示运营' : '演示员工', permissionKey: grantPermission.value, effect: 'allow', reason: grantReason.value, startsAt: new Date().toISOString(), expiresAt: grantExpires.value }), '临时授权已创建') }
+async function saveGrant() {
+  await runAction(() => createGapCTemporaryGrant({ userId: grantUser.value, userName: grantUser.value === 'demo-operator' ? '演示运营' : '演示员工', permissionKey: grantPermission.value, effect: 'allow', reason: grantReason.value, startsAt: new Date().toISOString(), expiresAt: grantExpires.value }), '临时授权已创建')
+  grantDrawer.value = false
+}
+async function saveRule() {
+  if (!selectedRule.value)
+    return
+  await runAction(() => saveGapCApprovalRule(selectedRule.value!), '审批规则已保存')
+  ruleDrawer.value = false
+}
+
 async function runReport() {
-  const selected = reports.value[0]; if (!selected)
+  const routeId = typeof routeParams.id === 'string' ? routeParams.id : ''
+  const selected = reports.value.find(item => item.id === routeId) ?? reports.value[0]; if (!selected)
     return; await runAction(async () => { reportResult.value = await runGapCReport(selected.id, period.value) }, '报表已生成')
+}
+
+const reportRows = computed(() => {
+  const query = reportQuery.value.trim().toLowerCase()
+
+  return (reportResult.value?.rows ?? []).filter(item => !query || Object.values(item).some(value => String(value).toLowerCase().includes(query)))
+})
+
+function exportReport() {
+  if (!reportResult.value)
+    return
+  const rowsToExport = reportRows.value
+  const keys = Object.keys(rowsToExport[0] ?? {})
+  const csv = [keys.join(','), ...rowsToExport.map(item => keys.map(key => JSON.stringify(item[key] ?? '')).join(','))].join('\n')
+  const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }))
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = `${reportResult.value.id}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
 }
 async function saveRetention() {
   if (retention.value)
@@ -220,9 +300,53 @@ onMounted(load)
       :subtitle="page?.purpose['zh-CN']"
       :items="rows"
       :columns="columns"
+      :filters="listFilters"
+      :date-key="listDateKey"
       :loading="loading"
+      :error="error"
+      @retry="load"
       @open="openRow"
     >
+      <template #widgets>
+        <div
+          v-if="props.pageId === 'SYS16'"
+          class="d-flex justify-end mb-4"
+        >
+          <PermissionGate action="create">
+            <VBtn
+              color="primary"
+              @click="grantDrawer = true"
+            >
+              新增临时授权
+            </VBtn>
+          </PermissionGate>
+        </div>
+        <VAlert
+          v-if="props.pageId === 'SYS22'"
+          type="warning"
+          variant="tonal"
+          class="mb-4"
+        >
+          敏感权限保存前必须填写另一位管理员的确认身份；拒绝优先。
+        </VAlert>
+        <div
+          v-if="props.pageId === 'SYS22'"
+          class="d-flex gap-4 align-center mb-4"
+        >
+          <AppTextField
+            v-model="confirmer"
+            label="另一位管理员确认人"
+          />
+          <PermissionGate action="update">
+            <VBtn
+              color="primary"
+              @click="saveMatrix"
+            >
+              保存矩阵
+            </VBtn>
+          </PermissionGate>
+        </div>
+      </template>
       <template #item.amount="{ item }">
         <MoneyText
           v-if="typeof item.amount === 'number'"
@@ -232,13 +356,10 @@ onMounted(load)
         />
       </template>
       <template #item.status="{ item }">
-        <VChip
-          size="small"
-          :color="item.status === 'approved' || item.status === 'confirmed' || item.status === 'read' ? 'success' : item.status === 'rejected' || item.status === 'expired' ? 'error' : 'warning'"
-          variant="tonal"
-        >
-          {{ item.status === 'pending' ? '待处理' : item.status === 'cc' ? '抄送' : item.status === 'read' ? '已读' : item.status === 'active' ? '有效' : String(item.status) }}
-        </VChip>
+        <StatusChip
+          :domain="['W05', 'W06'].includes(props.pageId) ? 'approval' : 'generic'"
+          :value="String(item.status)"
+        />
       </template>
       <template #item.actions="{ item }">
         <VBtn
@@ -246,9 +367,17 @@ onMounted(load)
           size="small"
           color="primary"
           variant="tonal"
-          @click="runAction(() => decideGapCApproval(String(item.id), 'approved'), '建议已批准')"
+          @click="openRow(item)"
         >
-          批准
+          查看并处理
+        </VBtn>
+        <VBtn
+          v-else-if="props.pageId === 'W07'"
+          size="small"
+          variant="text"
+          @click="editRule(item)"
+        >
+          编辑
         </VBtn>
         <VBtn
           v-else-if="props.pageId === 'N01' && !item.read"
@@ -301,13 +430,25 @@ onMounted(load)
           @update:model-value="runAction(() => saveGapCSodRule(String(item.id), Boolean($event)), '职责分离规则已保存')"
         />
       </template>
+      <template #item.effect="{ item }">
+        <AppSelect
+          :model-value="item.effect"
+          :items="['allow', 'inherit', 'deny', 'none']"
+          density="compact"
+          hide-details
+          @update:model-value="item.effect = $event"
+        />
+      </template>
     </ListPage>
 
-    <VCard
+    <FormPage
       v-else-if="props.pageId === 'N02'"
       :title="title"
+      :subtitle="page?.purpose['zh-CN']"
+      @save="saveSubscriptions"
+      @cancel="load"
     >
-      <VCardText>
+      <template #default>
         <VTable>
           <thead><tr><th>事件</th><th>说明</th><th>站内</th><th>飞书</th><th>企业微信</th><th>邮件</th></tr></thead>
           <tbody>
@@ -339,33 +480,57 @@ onMounted(load)
             </tr>
           </tbody>
         </VTable>
-        <VBtn
-          class="mt-4"
-          color="primary"
-          @click="saveSubscriptions"
-        >
-          保存订阅
-        </VBtn>
-      </VCardText>
-    </VCard>
+      </template>
+    </FormPage>
 
-    <VCard
+    <DetailPage
       v-else-if="props.pageId === 'RP02'"
       :title="title"
+      :subtitle="page?.purpose['zh-CN']"
     >
-      <VCardText>
-        <div class="d-flex gap-4 align-center">
-          <AppSelect
-            v-model="period"
-            label="期间"
-            :items="['2026-09', '2026-10', '2026-11']"
-          /><VBtn
-            color="primary"
-            @click="runReport"
+      <template #actions>
+        <AppSelect
+          v-model="period"
+          label="期间"
+          :items="['2026-09', '2026-10', '2026-11']"
+        />
+        <VBtn
+          color="primary"
+          @click="runReport"
+        >
+          运行报表
+        </VBtn>
+        <AppTextField
+          v-if="reportResult"
+          v-model="reportQuery"
+          label="筛选结果"
+          density="compact"
+        />
+        <VBtn
+          v-if="reportResult"
+          variant="tonal"
+          prepend-icon="tabler-download"
+          @click="exportReport"
+        >
+          导出 CSV
+        </VBtn>
+      </template>
+      <template #default>
+        <VRow v-if="reportResult">
+          <VCol
+            v-for="(value, key) in reportResult.totals"
+            :key="key"
+            cols="12"
+            sm="4"
           >
-            运行报表
-          </VBtn>
-        </div><VTable
+            <KpiCard
+              :title="String(key)"
+              :value="String(value)"
+              icon="tabler-report-analytics"
+            />
+          </VCol>
+        </VRow>
+        <VTable
           v-if="reportResult"
           class="mt-6"
         >
@@ -378,9 +543,10 @@ onMounted(load)
                 {{ key }}
               </th>
             </tr>
-          </thead><tbody>
+          </thead>
+          <tbody>
             <tr
-              v-for="(item, index) in reportResult.rows"
+              v-for="(item, index) in reportRows"
               :key="index"
             >
               <td
@@ -392,30 +558,33 @@ onMounted(load)
             </tr>
           </tbody>
         </VTable>
-      </VCardText>
-    </VCard>
+        <EmptyState
+          v-else
+          text="选择期间并运行报表后查看结果。"
+        />
+      </template>
+    </DetailPage>
 
-    <VCard
+    <FormPage
       v-else-if="props.pageId === 'RP03'"
       :title="title"
+      :subtitle="page?.purpose['zh-CN']"
+      @save="saveReport"
+      @cancel="() => { reportName = ''; reportDescription = '' }"
     >
-      <VCardText>
+      <template #default>
         <AppTextField
           v-model="reportName"
           label="报表名称"
           class="mb-4"
+          :rules="[requiredValidator]"
         /><AppTextarea
           v-model="reportDescription"
           label="说明"
           class="mb-4"
-        /><VBtn
-          color="primary"
-          @click="saveReport"
-        >
-          保存报表
-        </VBtn>
-      </VCardText>
-    </VCard>
+        />
+      </template>
+    </FormPage>
 
     <DetailPage
       v-else-if="props.pageId === 'U06' && trace"
@@ -453,11 +622,14 @@ onMounted(load)
       </template>
     </DetailPage>
 
-    <VCard
+    <FormPage
       v-else-if="props.pageId === 'U08' && retention"
       :title="title"
+      :subtitle="page?.purpose['zh-CN']"
+      @save="saveRetention"
+      @cancel="load"
     >
-      <VCardText>
+      <template #default>
         <VAlert
           type="info"
           variant="tonal"
@@ -493,75 +665,28 @@ onMounted(load)
               label="归档等待天数"
             />
           </VCol>
-        </VRow><VBtn
-          color="primary"
-          class="mt-4"
-          @click="saveRetention"
-        >
-          保存策略
-        </VBtn>
-      </VCardText>
-    </VCard>
+        </VRow>
+      </template>
+    </FormPage>
 
-    <VCard
-      v-else-if="props.pageId === 'SYS16'"
-      title="新增临时授权"
-      class="mb-6"
-    >
-      <VCardText>
-        <VRow>
-          <VCol
-            cols="12"
-            md="3"
-          >
-            <AppSelect
-              v-model="grantUser"
-              label="用户"
-              :items="[{ title: '演示运营', value: 'demo-operator' }, { title: '演示员工', value: 'demo-employee' }]"
-            />
-          </VCol><VCol
-            cols="12"
-            md="3"
-          >
-            <AppTextField
-              v-model="grantPermission"
-              label="权限点"
-            />
-          </VCol><VCol
-            cols="12"
-            md="3"
-          >
-            <AppTextField
-              v-model="grantExpires"
-              label="到期时间"
-            />
-          </VCol><VCol
-            cols="12"
-            md="3"
-          >
-            <AppTextField
-              v-model="grantReason"
-              label="原因"
-            />
-          </VCol>
-        </VRow><VBtn
-          color="primary"
-          @click="saveGrant"
-        >
-          创建授权
-        </VBtn>
-        <VTable class="mt-6">
-          <thead><tr><th>用户</th><th>权限点</th><th>原因</th><th>到期</th><th>状态</th></tr></thead>
-          <tbody><tr v-for="item in temporaryGrants" :key="item.id"><td>{{ item.userName }}</td><td>{{ item.permissionKey }}</td><td>{{ item.reason }}</td><td>{{ item.expiresAt }}</td><td>{{ item.status }}</td></tr></tbody>
-        </VTable>
-      </VCardText>
-    </VCard>
-
-    <VCard
+    <DetailPage
       v-else-if="props.pageId === 'SYS21' && selectedRole"
       :title="selectedRole.nameZh"
+      :subtitle="`角色 ${selectedRole.id} · 成员 ${selectedRole.memberCount} 人`"
+      domain="generic"
+      :status="selectedRole.status"
     >
-      <VCardText>
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            variant="tonal"
+            @click="notice = '复制角色会创建新角色草稿，需管理员确认后保存。'"
+          >
+            复制为新角色
+          </VBtn>
+        </PermissionGate>
+      </template>
+      <template #default>
         <div class="d-flex gap-2 mb-4">
           <VChip
             color="primary"
@@ -581,33 +706,30 @@ onMounted(load)
           variant="tonal"
         >
           {{ item.permissionKey }} · {{ item.effect === 'allow' ? '允许' : '拒绝' }}
-        </VChip><VBtn
-          class="mt-4"
-          variant="tonal"
-          @click="notice = '复制角色会创建新角色草稿，需管理员确认后保存。'"
-        >
-          复制为新角色
-        </VBtn>
-      </VCardText>
-    </VCard>
+        </VChip>
+      </template>
+    </DetailPage>
 
-    <VCard
+    <DetailPage
       v-else-if="props.pageId === 'SYS23'"
       :title="title"
+      :subtitle="page?.purpose['zh-CN']"
     >
-      <VCardText>
-        <div class="d-flex gap-4 align-center mb-4">
+      <template #actions>
           <AppSelect
             v-model="selectedUser"
             label="用户"
             :items="[{ title: '演示运营', value: 'demo-operator' }, { title: '演示财务', value: 'demo-finance' }, { title: '演示员工', value: 'demo-employee' }]"
-          /><VBtn
+          />
+          <VBtn
             color="primary"
             @click="changeEffectiveUser"
           >
             查看有效权限
           </VBtn>
-        </div><VTable>
+      </template>
+      <template #default>
+        <VTable>
           <thead><tr><th>权限点</th><th>模块</th><th>结果</th><th>来源</th><th>拒绝原因</th></tr></thead><tbody>
             <tr
               v-for="item in effective"
@@ -623,59 +745,154 @@ onMounted(load)
                   敏感
                 </VChip>
               </td><td>{{ item.module }}</td><td>
-                <VChip
-                  size="small"
-                  :color="item.allowed ? 'success' : 'error'"
-                >
-                  {{ item.allowed ? '允许' : '拒绝' }}
-                </VChip>
+                <StatusChip
+                  domain="generic"
+                  :value="item.allowed ? 'active' : 'disabled'"
+                />
               </td><td>{{ item.sources.join('；') || '—' }}</td><td>{{ item.deniedBy.join('；') || '—' }}</td>
             </tr>
           </tbody>
         </VTable>
-      </VCardText>
-    </VCard>
+      </template>
+    </DetailPage>
 
-    <VCard
-      v-else-if="props.pageId === 'SYS22'"
-      :title="title"
+    <RecordDrawer
+      v-model="recordDrawer"
+      :title="String(selectedRecord?.title || selectedRecord?.userName || selectedRecord?.id || title)"
     >
-      <VCardText>
-        <VAlert
-          type="warning"
-          variant="tonal"
-          class="mb-4"
-        >
-          敏感权限保存前必须填写另一位管理员的确认身份；拒绝优先。
-        </VAlert><VTable>
-          <thead><tr><th>角色</th><th>权限点</th><th>效果</th><th>敏感</th></tr></thead><tbody>
-            <tr
-              v-for="item in matrix.slice(0, 24)"
-              :key="`${item.roleId}-${item.permissionKey}`"
-            >
-              <td>{{ item.roleId }}</td><td>{{ item.permissionKey }}</td><td>
-                <AppSelect
-                  v-model="item.effect"
-                  :items="['allow', 'inherit', 'deny', 'none']"
-                  density="compact"
-                  hide-details
-                />
-              </td><td>{{ item.sensitive ? '是' : '否' }}</td>
-            </tr>
-          </tbody>
-        </VTable><div class="d-flex gap-4 align-center mt-4">
-          <AppTextField
-            v-model="confirmer"
-            label="另一位管理员确认人"
-          /><VBtn
-            color="primary"
-            @click="saveMatrix"
-          >
-            保存矩阵
-          </VBtn>
+      <template v-if="selectedRecord">
+        <div class="d-flex align-center gap-2 mb-4">
+          <StatusChip
+            v-if="selectedRecord.status"
+            :domain="['W05', 'W06'].includes(props.pageId) ? 'approval' : 'generic'"
+            :value="String(selectedRecord.status)"
+          />
+          <span v-if="selectedRecord.severity">级别：{{ selectedRecord.severity }}</span>
         </div>
-      </VCardText>
-    </VCard>
+        <p v-if="selectedRecord.summary">{{ selectedRecord.summary }}</p>
+        <p v-if="selectedRecord.detail">{{ selectedRecord.detail }}</p>
+        <p v-if="selectedRecord.userName">用户：{{ selectedRecord.userName }}</p>
+        <p v-if="selectedRecord.reviewer">复核人：{{ selectedRecord.reviewer }}</p>
+        <MoneyText
+          v-if="typeof selectedRecord.amount === 'number'"
+          :amount="selectedRecord.amount"
+          :currency="typeof selectedRecord.currency === 'string' ? selectedRecord.currency as 'CNY' : 'CNY'"
+          minor
+        />
+        <div class="d-flex gap-3 mt-4">
+          <PermissionGate
+            v-if="props.pageId === 'W05'"
+            action="approve"
+          >
+            <VBtn
+              color="success"
+              :disabled="selectedRecord.status !== 'pending'"
+              @click="runAction(() => decideGapCApproval(String(selectedRecord?.id), 'approved'), '建议已批准').then(() => { recordDrawer = false })"
+            >
+              批准
+            </VBtn>
+            <VBtn
+              color="error"
+              variant="tonal"
+              :disabled="selectedRecord.status !== 'pending'"
+              @click="runAction(() => decideGapCApproval(String(selectedRecord?.id), 'rejected'), '建议已驳回').then(() => { recordDrawer = false })"
+            >
+              驳回
+            </VBtn>
+          </PermissionGate>
+          <PermissionGate
+            v-if="props.pageId === 'U07' && !selectedRecord.resolved"
+            action="update"
+          >
+            <VBtn
+              color="primary"
+              @click="runAction(() => resolveGapCAlert(String(selectedRecord?.id)), '告警已处理').then(() => { recordDrawer = false })"
+            >
+              标记已处理
+            </VBtn>
+          </PermissionGate>
+          <PermissionGate
+            v-if="props.pageId === 'SYS17' && selectedRecord.status === 'pending'"
+            action="approve"
+          >
+            <VBtn
+              color="primary"
+              @click="runAction(() => confirmGapCAccessReview(String(selectedRecord?.id)), '权限复核已确认').then(() => { recordDrawer = false })"
+            >
+              确认复核
+            </VBtn>
+          </PermissionGate>
+        </div>
+      </template>
+    </RecordDrawer>
+
+    <FormDrawer
+      v-model="grantDrawer"
+      title="新增临时授权"
+      @save="saveGrant"
+    >
+      <AppSelect
+        v-model="grantUser"
+        label="用户"
+        :items="[{ title: '演示运营', value: 'demo-operator' }, { title: '演示员工', value: 'demo-employee' }]"
+        class="mb-4"
+      />
+      <AppTextField
+        v-model="grantPermission"
+        label="权限点"
+        class="mb-4"
+      />
+      <AppTextField
+        v-model="grantExpires"
+        label="到期时间"
+        class="mb-4"
+      />
+      <AppTextField
+        v-model="grantReason"
+        label="原因"
+      />
+    </FormDrawer>
+
+    <FormDrawer
+      v-model="ruleDrawer"
+      title="编辑审批规则"
+      @save="saveRule"
+    >
+      <template v-if="selectedRule">
+        <AppTextField
+          v-model="selectedRule.type"
+          label="单据类型"
+          class="mb-4"
+        />
+        <AppTextField
+          v-model.number="selectedRule.level"
+          type="number"
+          label="审批级别"
+          class="mb-4"
+        />
+        <AppTextField
+          v-model.number="selectedRule.minAmount"
+          type="number"
+          label="起始金额"
+          class="mb-4"
+        />
+        <AppTextField
+          v-model.number="selectedRule.maxAmount"
+          type="number"
+          label="结束金额"
+          class="mb-4"
+        />
+        <AppTextField
+          v-model="selectedRule.approver"
+          label="审批人"
+          class="mb-4"
+        />
+        <VSwitch
+          v-model="selectedRule.imEnabled"
+          label="允许 IM 审批"
+        />
+      </template>
+    </FormDrawer>
 
     <VAlert
       v-if="props.pageId === 'W05' && aiMode.isEnabled"

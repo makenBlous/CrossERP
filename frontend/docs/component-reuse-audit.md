@@ -243,18 +243,48 @@
 
 批次 0 没有新增业务页面组件，98 条新路由统一复用现有 `components/PlaceholderPage.vue`。权限、AI 状态、渠道和校验属于共享地基，分别复用 Pinia、现有 `PermissionGate`、`AssistantDrawer`、`ChatLog` 与 `vue-i18n`；没有重复实现 Vuexy 页面或聊天卡片。
 
-## 补齐批次 C
+## 补齐批次 C 独立复用审计
 
-审计范围：`frontend/src/views/gap-c/GapCPage.vue`、21 个批次 C 路由壳、`src/api/gap-c.ts`、`src/mocks/services/gap-c.ts`。
+审计范围来自 git diff 3f325c0 --stat 的 frontend 文件：src/views/gap-c/GapCPage.vue、21 个批次 C 路由壳、src/api/gap-c.ts、src/mocks/services/gap-c.ts、src/types/gap-c.ts、页面/权限/导航/i18n 配置及本审计文档。参考了项目 src/components/biz/*、Vuexy full-version 的 src/views/** / src/pages/** / src/components/dialogs/**，以及 Vuetify 3.10。未读取 .env、密码文件或密钥。
 
-| 页面区块 | 复用组件 | 处理 | 原因 |
-| --- | --- | --- | --- |
-| 统一审批、通知、报表、权限与日志列表 | `components/biz/ListPage.vue`、`StatusChip`、`MoneyText` | 保留 | 列表筛选、分页、列设置和金额展示已由地基统一处理。 |
-| 建议追溯、日志保留、角色详情 | `components/biz/DetailPage.vue`、Vuetify `VTimeline`/`VTable` | 保留 | 详情轨迹和只读快照符合现有详情壳；时间线字段是业务专属。 |
-| 订阅、报表构建、临时授权、权限矩阵 | Vuetify `VCard`、`AppSelect`、`AppTextField`、`VSwitch` | 保留 | 这些是短表单或矩阵编辑，已有 Vuetify 控件与 Vuexy 表单模式直接匹配。 |
-| AI 建议页 | `AssistantDrawer`、页面顶部 `VAlert`、`PermissionGate` | 保留 | 遵循 AI 区统一规则；AI 关闭时抽屉与提示条隐藏。 |
-| 权限计算、字段裁剪、职责分离 | `utils/permission-engine.ts`、`PermissionGate` | 保留 | 属于权限和审计业务协议，Vuexy 没有等价实现；mock 服务在返回数据前裁剪字段。 |
+### 自写组件和大段 UI 块
 
-本批未新增通用 UI 组件；`GapCPage.vue` 只作为 21 个路由的页面编排壳，业务数据均通过 `src/api/gap-c.ts` 获取。
+| 组件/UI 块 | 位置 | 现成等价物 | 处理 | 原因 | 业务操作是否满足 |
+| --- | --- | --- | --- | --- | --- |
+| 批次 C 通用编排视图 | src/views/gap-c/GapCPage.vue | 项目 ListPage/DetailPage/FormPage/FormDrawer/RecordDrawer；Vuexy src/pages/apps/user/list/index.vue、src/pages/apps/user/view/[id].vue | 已替换为薄编排 | 页面只保留 pageId 到数据/API 的编排；列表、详情、表单、抽屉由现成组件承载。 | 21 页均按设计入口提供列表、详情或编辑动作；AI 关闭后人工路径保留。 |
+| 状态标签 | GapCPage.vue 的列表状态、详情结果 | 项目 src/components/biz/StatusChip.vue；Vuetify VChip 仅作无业务语义的敏感标记 | 已替换 | 统一状态字典和中英文颜色；原先按字符串手写颜色的 VChip 已删除。 | W05/W06 审批、SYS16 授权、SYS17 复核和 SYS23 有效权限均可读。 |
+| 金额展示 | GapCPage.vue 审批/记录抽屉 | 项目 src/components/biz/MoneyText.vue | 保留并复用 | 金额来自 API 的 minor 单位，显示必须统一走 MoneyText，页面不计算金额。 | W05 建议金额和详情抽屉可读，人工批准/驳回可用。 |
+| 权限显隐和写操作 | GapCPage.vue 的保存、审批、复核、临时授权按钮 | 项目 src/components/biz/PermissionGate.vue；utils/permission-engine.ts | 保留并补齐 | Vuexy/CASL 没有 CrossERP 的角色继承、拒绝优先和职责分离语义；服务层仍是最终拦截。 | 写按钮按 create/update/approve 显隐，AI 建议仍只能真人处理。 |
+| AI 建议卡片/入口 | App.vue 的 AssistantDrawer 与 W05 顶部提示 | 项目 src/components/biz/AssistantDrawer.vue、AgentCard 类型和 Vuexy src/views/apps/chat/ChatLog.vue | 保留，不在 GapCPage 重写 | AgentCard 是全局助手的统一消息卡片协议；W05 业务审批详情用 RecordDrawer，避免复制聊天卡片。 | AI 开启可见建议摘要；AI 关闭时助手隐藏，W05 人工列表和审批抽屉仍可用。 |
+| 列表、筛选、分页、列设置、CSV | GapCPage.vue 的 W05/W06/W07/N01/RP01/U05/U07/SYS14–18/SYS22/SYS24 | 项目 src/components/biz/ListPage.vue；Vuexy src/pages/apps/ecommerce/product/list/index.vue、src/pages/apps/user/list/index.vue；Vuetify VDataTableServer | 已替换/保留 | 所有列表统一接入关键字、状态/级别筛选、日期筛选、分页、列设置、CSV 和错误重试。 | 列表页操作满足；SYS22 还能编辑矩阵格并在保存前填写二次确认人。 |
+| W05 智能体建议 | src/pages/approvals/agent-suggestions.vue → GapCPage page-id=W05 | ListPage + StatusChip + MoneyText + RecordDrawer；Vuexy KanbanCard.vue 仅作卡片参考 | 已替换并补齐 | 行点击和“查看并处理”打开只读建议快照；批准/驳回走 PermissionGate 和 API。 | 满足筛选、详情、批准/驳回、真人路径；AI 关闭仍可操作。 |
+| W06 抄送我的 | src/pages/approvals/cc.vue → W06 | ListPage + RecordDrawer + StatusChip；Vuexy tables/data-table.vue | 已替换并补齐 | 抄送是只读列表，使用同一列表/详情壳，不复制表格。 | 满足状态/日期筛选、详情只读；不提供写操作符合设计。 |
+| W07 审批规则与额度 | src/pages/approvals/rules.vue → W07 | ListPage + FormDrawer；Vuexy src/components/dialogs/AddEditPermissionDialog.vue / AppStepper.vue | 已替换并补齐 | 原列表没有编辑入口；现在每行可打开 FormDrawer 编辑级别、金额、审批人和 IM 开关。 | 满足列表筛选、编辑和保存；保存接口记录审计。 |
+| N01 消息中心 | src/pages/notifications/index.vue → N01 | ListPage + StatusChip；Vuexy @core/components/Notifications.vue、src/apps/email/index.vue | 保留并补齐 | 通知专属已读动作保留为列表插槽，不另造消息表。 | 满足关键字/阅读状态/日期筛选、标为已读；AI 提醒可汇总。 |
+| N02 我的订阅 | src/pages/notifications/subscriptions.vue → N02 | FormPage；Vuexy src/views/apps/ecommerce/settings/SettingsNotifications.vue、UserTabNotifications.vue | 已替换 | 原 VCard 表单改由 FormPage 统一标题、校验、保存/取消操作。 | 满足四渠道开关编辑和保存；不依赖 AI。 |
+| RP01 报表中心 | src/pages/reports/index.vue → RP01 | ListPage；Vuexy src/pages/cards/card-advance.vue、apps/academy/dashboard.vue | 保留并复用 | 报表目录使用统一列表，行点击进入具体报表。 | 满足搜索/分页/CSV 和进入详情。 |
+| RP02 报表查看 | src/pages/reports/[id].vue → RP02 | DetailPage + KpiCard + Vuetify VTable；Vuexy src/pages/components/expansion-panel.vue、charts/apex-chart.vue | 已替换并补齐 | 原 VCard 改为详情壳；增加汇总 KPI、期间运行、结果筛选和 CSV 导出。 | 满足运行、筛选、导出；数字只展示 API 结果。 |
+| RP03 自定义报表 | src/pages/reports/builder.vue → RP03 | FormPage；Vuexy src/forms/form-wizard-icons.vue、AppSelect/AppAutocomplete | 已替换 | 原短表单改为 FormPage，报表名有必填校验，保存/取消统一。 | 满足新建/保存；数据源字段仍由批次 C mock/API 协议提供。 |
+| U05 AI 操作日志 | src/pages/audit/ai/index.vue → U05 | ListPage + StatusChip；Vuexy src/tables/data-table.vue | 保留并复用 | 审计表字段是专属数据，列表壳统一。 | 满足筛选、日期、CSV、点击进入 U06；审计行来自 fetchGapCAudit。 |
+| U06 建议追溯 | src/pages/audit/ai/[id].vue → U06 | DetailPage + VTimeline；Vuexy src/pages/components/timeline.vue、expansion-panel.vue | 保留并复用 | 时间线字段是建议追溯的业务专属内容，详情壳和时间线已复用。 | 满足问题→步骤→结果详情；只读，无写动作。 |
+| U07 敏感操作告警 | src/pages/audit/alerts.vue → U07 | ListPage + RecordDrawer + PermissionGate；Vuexy src/tables/data-table.vue、pages/components/alert.vue | 已替换并补齐 | 原列表处理按钮之外增加行详情抽屉，解决“只展示不查看详情”。 | 满足级别/日期筛选、详情、标记已处理和审计记录。 |
+| U08 日志保留与归档 | src/pages/audit/retention.vue → U08 | FormPage；Vuexy src/views/apps/ecommerce/settings/SettingsCheckout.vue | 已替换 | 原 VCard 表单改由 FormPage 承载保存/取消。 | 满足保留年数、归档等待天数编辑和保存；追加不可删除提示保留。 |
+| SYS14 字段权限 | src/pages/admin/field-permissions.vue → SYS14 | ListPage + AppSelect；Vuexy src/apps/permissions/index.vue、forms/checkbox.vue | 保留并复用 | 字段级四态访问值使用现成列表插槽；服务层负责字段裁剪。 | 满足筛选、逐行编辑和保存，权限点不变。 |
+| SYS15 数据范围 | src/pages/admin/data-scopes.vue → SYS15 | ListPage + AppSelect；Vuexy src/apps/roles/index.vue、views/apps/roles/UserList.vue | 保留并复用 | 范围枚举是业务专属，控件通过列表插槽复用。 | 满足关键字、逐行范围编辑和保存。 |
+| SYS16 临时授权 | src/pages/admin/temp-grants.vue → SYS16 | ListPage + FormDrawer；Vuexy src/tables/data-table.vue、src/views/apps/user/list/AddNewUserDrawer.vue | 已替换 | 删除原手写 VTable/VCard；列表、状态筛选和新增表单分别由共享组件承载。 | 满足列表筛选、新建、到期状态显示；服务层自动收回并记录审计。 |
+| SYS17 权限复核 | src/pages/admin/access-reviews.vue → SYS17 | ListPage + RecordDrawer + StatusChip；Vuexy src/apps/user/list/index.vue | 已替换并补齐 | 行详情和确认复核集中在记录抽屉，列表不复制详情布局。 | 满足状态/截止日期筛选、详情、确认复核和审计。 |
+| SYS18 职责分离 | src/pages/admin/sod-rules.vue → SYS18 | ListPage + Vuetify VSwitch；Vuexy src/tables/simple-table.vue | 保留并复用 | 只有逐行启停这一项业务动作，列表插槽足够。 | 满足筛选、启停保存；职责分离由服务层拦截审批。 |
+| SYS21 角色详情 | src/pages/admin/roles/[id].vue → SYS21 | DetailPage + StatusChip + Vuexy roles 视图 | 已替换 | 原 VCard 改为 DetailPage；复制动作放到详情 actions 槽。 | 满足角色详情、继承/权限快照和复制草稿入口；实际落库仍待后续权限 API。 |
+| SYS22 权限矩阵 | src/pages/admin/permission-matrix.vue → SYS22 | ListPage + AppSelect + PermissionGate；Vuexy src/apps/permissions/index.vue、src/tables/data-table.vue | 已替换并修复分支 | 原可编辑 VTable 分支被 isList 遮住；现在由 ListPage 正常渲染 effect 插槽、批量保存和二次确认。 | 满足矩阵筛选/编辑、保存前确认、保存后权限变更记录。 |
+| SYS23 有效权限查看 | src/pages/admin/effective-permissions.vue → SYS23 | DetailPage + StatusChip；Vuexy src/pages/apps/user/view/[id].vue、pages/components/expansion-panel.vue | 已替换 | 原 VCard 改为详情壳，用户选择和结果状态复用业务组件。 | 满足选择用户、查看来源/拒绝原因；只读符合设计。 |
+| SYS24 权限变更记录 | src/pages/admin/permission-changes.vue → SYS24 | ListPage；Vuexy src/tables/data-table.vue、timeline.vue | 保留并复用 | 改前/改后/确认人是审计专属列，列表壳统一。 | 满足关键字、日期、CSV 和审计记录查看。 |
+| 21 个路由壳 | src/pages/admin/**、approvals/**、audit/**、notifications/**、reports/** | GapCPage + Vue Router 文件路由；Vuexy 页面路由结构 | 保留为薄壳 | 路由文件只传固定 pageId，不重复写页面 UI、API 或权限逻辑。 | 路由、权限点、data-test 和 i18n 入口保持不变。 |
+| API、mock、类型、配置支撑 | src/api/gap-c.ts、src/mocks/services/gap-c.ts、src/types/gap-c.ts、config/pages.ts、config/permissions.ts、navigation/build-nav.ts、plugins/i18n/ui.ts、声明文件 | 无可替换 UI；沿用现有 src/api/Pinia/权限引擎协议 | 保留 | 这些文件不是组件；替换会破坏路由、权限、数据中心、审计和 i18n 约束。 | API/mock 写操作继续做权限校验并写审计；前端只消费类型化数据。 |
 
+### 独立结论
 
+- 本批没有新增通用组件；所有新增业务 UI 都集中在已有 GapCPage.vue 编排，并已接入项目业务地基。
+- 已实际替换的重复实现：状态字符串 VChip → StatusChip；N02/RP03/U08 的 VCard 表单 → FormPage；RP02 的 VCard → DetailPage + KpiCard；SYS16 的 VCard/VTable → ListPage + FormDrawer；SYS21/SYS23 的 VCard → DetailPage；SYS22 遮挡的手写矩阵 → ListPage 编辑插槽；W05/W06/U07/SYS17 补上 RecordDrawer 详情和动作。
+- 保留的 Vuetify VTable 只出现在订阅渠道开关、报表结果、AI 追溯和有效权限等字段专属块；它们被 FormPage/DetailPage 包住，没有重新实现通用筛选、分页或抽屉。
+- AI 关闭时 App.vue 隐藏 AssistantDrawer，但 W05 的 ListPage、RecordDrawer、PermissionGate 和人工批准/驳回 API 路径仍可用。
+- 真实后端 /api/v1、真实数据库审计链和真实角色数据仍未接入；本批只验证静态前端与 mock 服务，相关事实标为“未验证”。
