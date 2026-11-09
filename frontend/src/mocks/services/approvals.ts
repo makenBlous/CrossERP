@@ -5,6 +5,24 @@ import { FlowError } from '@/mocks/services/errors'
 import { mustFind, nextId } from '@/mocks/services/ids'
 import { minorFromDecimal } from '@/utils/money'
 
+export interface ApprovalWorkflowStep {
+  id: string
+  title: string
+  role: string
+}
+
+export const approvalWorkflowTemplates: Record<string, ApprovalWorkflowStep[]> = {
+  voucher: [{ id: 'submit', title: '提交', role: '运营' }, { id: 'finance', title: '财务审核', role: '财务' }, { id: 'admin', title: '管理员复核', role: '管理员' }],
+  purchase_order: [{ id: 'submit', title: '提交', role: '采购' }, { id: 'finance', title: '财务审核', role: '财务' }, { id: 'admin', title: '管理员复核', role: '管理员' }],
+  clearing: [{ id: 'submit', title: '提交', role: '财务' }, { id: 'review', title: '核销审核', role: '财务' }],
+  allocation: [{ id: 'submit', title: '提交', role: '运营' }, { id: 'review', title: '分摊审核', role: '财务' }],
+  agent_suggestion: [{ id: 'submit', title: '提交建议', role: '智能体' }, { id: 'review', title: '人工审核', role: '财务' }, { id: 'admin', title: '管理员复核', role: '管理员' }],
+}
+
+export function auditWorkflowEdit(db: MockDatabase, actor: Actor, documentType: string, step: ApprovalWorkflowStep) {
+  writeAudit(db, actor, 'update_workflow', 'approval_workflow', documentType, `调整 ${documentType} 流程步骤 ${step.title}，审批角色改为 ${step.role}。`)
+}
+
 export function approvalPayload(approval: ApprovalEntity) {
   return {
     id: approval.id,

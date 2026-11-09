@@ -1,6 +1,6 @@
 import { assertCan, database, delay } from '@/api/mock-client'
 import { projectApprovals } from '@/mocks/project'
-import { approvalPayloadHash } from '@/mocks/services/approvals'
+import { approvalPayloadHash, auditWorkflowEdit, type ApprovalWorkflowStep } from '@/mocks/services/approvals'
 import type { ApprovalStatus } from '@/types/domain'
 
 async function withPayloadHashes() {
@@ -41,4 +41,14 @@ export async function decideApproval(id: string, status: Extract<ApprovalStatus,
   database().decide(id, status, actor, comment)
 
   return (await withPayloadHashes()).find(item => item.id === id) ?? null
+}
+
+export async function auditApprovalWorkflowEdit(documentType: string, step: ApprovalWorkflowStep) {
+  const actor = assertCan('update')
+
+  if (actor.role !== 'admin')
+    throw new Error('只有管理员可以编辑审批流程')
+
+  auditWorkflowEdit(database().db, actor, documentType, step)
+  database().persist()
 }
