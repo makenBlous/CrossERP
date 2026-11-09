@@ -1,0 +1,166 @@
+<script setup lang="ts">
+import type { ApexOptions } from 'apexcharts'
+import { fetchProfit } from '@/api/finance'
+import { useChartTheme } from '@/composables/useChartTheme'
+import type { ProfitRow, StoreProfit } from '@/types/domain'
+import { formatMoney } from '@/utils/format'
+
+const { t } = useI18n({ useScope: 'global' })
+const chart = useChartTheme()
+const rows = ref<ProfitRow[]>([])
+const stores = ref<StoreProfit[]>([])
+
+onMounted(async () => {
+  const payload = await fetchProfit()
+
+  rows.value = payload.rows
+  stores.value = payload.stores
+})
+
+const chartOptions = computed<ApexOptions>(() => ({
+  chart: { toolbar: { show: false }, fontFamily: 'inherit' },
+  plotOptions: { bar: { borderRadius: 6, columnWidth: '42%' } },
+  colors: [chart.success.value],
+  dataLabels: { enabled: false },
+  xaxis: {
+    categories: stores.value.map(item => item.storeName),
+    labels: { style: { colors: chart.label.value } },
+  },
+  yaxis: { labels: { style: { colors: chart.label.value } } },
+  grid: { borderColor: chart.grid.value },
+}))
+
+const chartSeries = computed(() => [
+  { name: t('profit.profit'), data: stores.value.map(item => item.profit) },
+])
+
+const skuHeaders = computed(() => [
+  { title: t('orders.sku'), key: 'sku' },
+  { title: t('common.store'), key: 'storeName' },
+  { title: t('profit.revenue'), key: 'revenue', align: 'end' as const },
+  { title: t('profit.platformFee'), key: 'platformFee', align: 'end' as const },
+  { title: t('profit.ads'), key: 'ads', align: 'end' as const },
+  { title: t('profit.firstMile'), key: 'firstMile', align: 'end' as const },
+  { title: t('profit.cost'), key: 'cost', align: 'end' as const },
+  { title: t('profit.profit'), key: 'profit', align: 'end' as const },
+])
+</script>
+
+<template>
+  <div>
+    <div class="mb-6">
+      <h4 class="text-h4">
+        {{ t('profit.title') }}
+      </h4>
+      <p class="text-body-1 text-medium-emphasis mb-0">
+        {{ t('profit.subtitle') }}
+      </p>
+    </div>
+    <VAlert
+      type="info"
+      variant="tonal"
+      class="mb-6"
+    >
+      {{ t('profit.formula') }}
+    </VAlert>
+    <VCard class="mb-6">
+      <VCardItem>
+        <VCardTitle>{{ t('profit.chart') }}</VCardTitle>
+        <VCardSubtitle>{{ t('profit.byStore') }}</VCardSubtitle>
+      </VCardItem>
+      <VCardText>
+        <VueApexCharts
+          type="bar"
+          height="300"
+          :options="chartOptions"
+          :series="chartSeries"
+        />
+      </VCardText>
+    </VCard>
+    <VCard class="mb-6">
+      <VCardItem>
+        <VCardTitle>{{ t('profit.byStore') }}</VCardTitle>
+      </VCardItem>
+      <VTable>
+        <thead>
+          <tr>
+            <th>{{ t('common.store') }}</th>
+            <th class="text-end">
+              {{ t('profit.revenue') }}
+            </th>
+            <th class="text-end">
+              {{ t('profit.platformFee') }}
+            </th>
+            <th class="text-end">
+              {{ t('profit.ads') }}
+            </th>
+            <th class="text-end">
+              {{ t('profit.firstMile') }}
+            </th>
+            <th class="text-end">
+              {{ t('profit.cost') }}
+            </th>
+            <th class="text-end">
+              {{ t('profit.profit') }}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="store in stores"
+            :key="store.storeId"
+          >
+            <td>{{ store.storeName }}</td>
+            <td class="text-end">
+              {{ formatMoney(store.revenue, store.currency) }}
+            </td>
+            <td class="text-end">
+              {{ formatMoney(store.platformFee, store.currency) }}
+            </td>
+            <td class="text-end">
+              {{ formatMoney(store.ads, store.currency) }}
+            </td>
+            <td class="text-end">
+              {{ formatMoney(store.firstMile, store.currency) }}
+            </td>
+            <td class="text-end">
+              {{ formatMoney(store.cost, store.currency) }}
+            </td>
+            <td class="text-end font-weight-medium">
+              {{ formatMoney(store.profit, store.currency) }}
+            </td>
+          </tr>
+        </tbody>
+      </VTable>
+    </VCard>
+    <VCard>
+      <VCardItem>
+        <VCardTitle>{{ t('profit.bySku') }}</VCardTitle>
+      </VCardItem>
+      <VDataTable
+        :headers="skuHeaders"
+        :items="rows"
+        :items-per-page="10"
+      >
+        <template #item.revenue="{ item }">
+          {{ formatMoney(item.revenue, item.currency) }}
+        </template>
+        <template #item.platformFee="{ item }">
+          {{ formatMoney(item.platformFee, item.currency) }}
+        </template>
+        <template #item.ads="{ item }">
+          {{ formatMoney(item.ads, item.currency) }}
+        </template>
+        <template #item.firstMile="{ item }">
+          {{ formatMoney(item.firstMile, item.currency) }}
+        </template>
+        <template #item.cost="{ item }">
+          {{ formatMoney(item.cost, item.currency) }}
+        </template>
+        <template #item.profit="{ item }">
+          {{ formatMoney(item.profit, item.currency) }}
+        </template>
+      </VDataTable>
+    </VCard>
+  </div>
+</template>
