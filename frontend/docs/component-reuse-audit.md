@@ -243,4 +243,17 @@
 
 批次 0 没有新增业务页面组件，98 条新路由统一复用现有 `components/PlaceholderPage.vue`。权限、AI 状态、渠道和校验属于共享地基，分别复用 Pinia、现有 `PermissionGate`、`AssistantDrawer`、`ChatLog` 与 `vue-i18n`；没有重复实现 Vuexy 页面或聊天卡片。
 
+## 补齐批次 B
+
+审计范围：`src/views/gap-b/GapBPage.vue`、`src/pages/{procurement,inventory,dashboard,integrations,approvals,account,admin}` 下的批次 B 路由薄壳，以及批次 B 专用 API、类型和 mock 服务。
+
+| 页面块 | 复用组件 | 处理与原因 |
+| --- | --- | --- |
+| 询价、合同、供应商、库存、同步、渠道列表 | `components/biz/ListPage`、`StatusChip`、`MoneyText` | 保留共享列表筛选、列管理、状态字典和金额展示；页面只提供业务列与动作。 |
+| 询价比价、合同详情、调拨、盘点 | `components/biz/DetailPage`、Vuetify `VStepper`/`VCard` | 详情轨迹和关联单据使用共享详情壳；报价并排卡片属于业务专属比较交互。 |
+| 导入、金蝶、ERPNext、IM 设置、新增渠道 | `components/biz/FormPage`、Vuetify `VStepper`/`VFileInput` | 向导和配置表单沿用 Vuexy/Vuetify 表单模式；文件类型和渠道能力没有安全的一对一现成业务组件。 |
+| AI 建议与 IM 卡片 | 页面 `VAlert`、全局 `AssistantDrawer`/`AgentCard` 协议 | AI 只显示建议，写操作仍走人工按钮和 mock 服务层；关闭 AI 后人工路径保留。 |
+
+本批未新增通用 UI 组件；20 个路由均为薄壳，业务结构集中在一个批次专用视图，避免重复实现列表、详情和表单布局。
+
 

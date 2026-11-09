@@ -179,3 +179,12 @@ export const moduleRegistry = [
   { id: 'collaboration', nameZh: '协作', nameEn: 'Collaboration', enabled: true, defaultPhase: 'now' as const },
   { id: 'expense', nameZh: '费用', nameEn: 'Expenses', enabled: true, defaultPhase: 'now' as const },
 ] as const
+
+// ---- 补齐批次 B ----
+// 批次 B 页面专用权限目录，后端接入时保持这些 key 与 API 路径一致。
+export const gapBPermissionKeys = [
+  'request_for_quotation:read', 'request_for_quotation:create', 'request_for_quotation:select',
+  'contract:read', 'supplier_scorecard:read', 'batch:read', 'material_request:read', 'material_request:create',
+  'stock_entry:read', 'stock_reconciliation:read', 'report:read', 'integration:import', 'integration:read', 'integration:write',
+  'approval:approve', 'notification:read', 'notification:write', 'notification:create', 'im_binding:write',
+] as const

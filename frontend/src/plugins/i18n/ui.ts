@@ -1209,3 +1209,10 @@ export const uiMessages = {
   'zh-CN': zhCN,
   en,
 } as unknown as Record<AppLocale, typeof zhCN>
+
+// ---- 补齐批次 B ----
+// 页面主体使用中文业务文案；保留这组可复用标签供后端接口接入后的英文切换使用。
+export const gapBUiLabels = {
+  'zh-CN': { rfq: '询价单', comparison: '询价比价', replenishment: '补货建议', chain: '业务链追溯', importWizard: '导入向导', channel: '通知渠道' },
+  en: { rfq: 'Request for Quotation', comparison: 'Quotation Comparison', replenishment: 'Replenishment', chain: 'Business Chain Trace', importWizard: 'Import Wizard', channel: 'Notification Channels' },
+} as const
