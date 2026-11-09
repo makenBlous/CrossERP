@@ -295,3 +295,7 @@
 | AM01–AM05 | `ListPage`/`DetailPage`/`RecordDrawer`/`FormPage` | 合同、资产、公告、用品可查看并登记人工记录；领用归还、折旧、发布状态待 API。 |
 
 本轮没有改动 `types/foundation.ts`、`utils/permission-engine.ts`、`stores/permissions.ts`，没有删测试，也没有修改后端或其他工作树。
+
+## 批次 D 最新补齐记录
+
+继续复用 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer`、`MoneyText`、`StatusChip` 与 Vuetify 组件；新增操作通过既有页面壳组合，服务层负责权限、稳定主体、状态机、幂等与审计，AI 关闭时保留完整人工路径。
