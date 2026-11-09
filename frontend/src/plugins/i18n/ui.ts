@@ -27,6 +27,7 @@ const zhCN = {
     office: '行政',
     collaboration: '协作',
     integrations: '集成',
+    knowledge: '知识库',
   },
   role: {
     admin: '管理员',
@@ -627,6 +628,7 @@ const en = {
     office: 'Administration',
     collaboration: 'Collaboration',
     integrations: 'Integrations',
+    knowledge: 'Knowledge',
   },
   role: {
     admin: 'Admin',
