@@ -1,5 +1,6 @@
 /* eslint-disable max-statements-per-line */
 import type { Actor, MockDatabase, VoucherEntity } from '@/types/entities'
+import type { CurrencyCode } from '@/types/domain'
 import { submitSuggestion } from '@/mocks/services/approvals'
 import { writeAudit } from '@/mocks/services/audit'
 import { nextId } from '@/mocks/services/ids'
@@ -119,6 +120,12 @@ export function exportRows(db: MockDatabase) {
 export function cashRows(db: MockDatabase) { return db.settlements.slice(0, 10).map(row => ({ id: row.id, date: row.periodEnd, account: row.externalId, direction: '收入', amount: toDisplay(row.total, row.currency), currency: row.currency, source: row.platform })) }
 export function adsCampaigns(db: MockDatabase) { return db.adsCampaigns.map(row => ({ ...row, storeName: db.stores.find(store => store.id === row.storeId)?.name ?? row.storeId, spendDisplay: toDisplay(row.spend, row.currency) })) }
 export function adsImportRows() { return adImports }
+export function recordAdImport(db: MockDatabase, fileName: string, actor: Actor) {
+  const row: AdImportRow = { id: `adimp-${adImports.length + 1}`, fileName, platform: 'Amazon Ads', rows: 128, spend: 418.36, status: 'success', importedAt: actor.at.slice(0, 16).replace('T', ' ') }
+  adImports.unshift(row)
+  writeAudit(db, actor, 'import_ads', 'ads_import', row.id, `导入广告花费文件 ${fileName}，解析 ${row.rows} 行。`)
+  return row
+}
 export function adsPerformance(db: MockDatabase) { return adsCampaigns(db).map(row => ({ ...row, sales: row.spendDisplay * 4.6, roas: 4.6 })) }
 export function allocationRows(db: MockDatabase) { return allocations.length ? allocations : db.skus.slice(0, 5).map((sku, index) => ({ id: `alloc-${index + 1}`, campaign: db.adsCampaigns[0]?.name ?? '秋季活动', sku: sku.internalSku, ratio: index === 0 ? 40 : 15, spend: 0, source: '演示计提 5%' })) }
 
@@ -169,4 +176,10 @@ export function saveAllocation(db: MockDatabase, sku: string, ratio: number, act
   writeAudit(db, actor, 'save_allocation', 'ads_allocation', row.id, `保存 ${sku} 广告分摊规则 ${ratio}%。`)
 
   return row
+}
+
+export function submitClearing(db: MockDatabase, actor: Actor) {
+  const row = clearingRows(db)[0]
+  if (!row) return null
+  return submitSuggestion(db, { title: `核销 ${row.payout}`, summary: '两侧金额由服务层校验相等后提交审批。', amount: String(row.payoutAmount), currency: row.currency as CurrencyCode, storeId: null, targetType: 'clearing', targetId: row.id }, actor)
 }

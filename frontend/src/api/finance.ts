@@ -1,7 +1,7 @@
 /* eslint-disable max-statements-per-line */
 import { assertCan, database, delay, readMock } from '@/api/mock-client'
 import { projectIssues, projectProfit, projectRecon, projectVouchers } from '@/mocks/project'
-import { accounts, apRows, arRows, cashRows, clearingRows, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, settlementDetail, settlements, sourceRow, voucherDetail } from '@/mocks/services/finance'
+import { accounts, apRows, arRows, cashRows, clearingRows, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, settlementDetail, settlements, sourceRow, submitClearing, voucherDetail } from '@/mocks/services/finance'
 
 // 未来: GET /api/v1/finance/profit
 export async function fetchProfit() {
@@ -139,6 +139,14 @@ export async function draftVoucherFromIssue(id: string) {
 }
 export async function draftVoucherFromProfit() {
   const actor = assertCan('create'); const row = createVoucherFromProfit(database().db, actor)
+
+  database().persist()
+
+  return row
+}
+export async function submitClearingApproval() {
+  const actor = assertCan('create')
+  const row = submitClearing(database().db, actor)
 
   database().persist()
 
