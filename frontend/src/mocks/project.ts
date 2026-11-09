@@ -395,6 +395,9 @@ export function projectApprovals(db: MockDatabase): ApprovalItem[] {
       debit: money(line.debit, item.currency),
       credit: money(line.credit, item.currency),
     })),
+    comment: item.comment,
+    payloadHash: item.payloadHash,
+    timeline: db.audit.filter(event => event.refId === item.id).map(event => ({ at: utcLabel(event.at), title: event.action, detail: event.summary, actor: event.actor })),
   }))
 }
 

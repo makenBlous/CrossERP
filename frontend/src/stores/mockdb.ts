@@ -136,8 +136,8 @@ export const useMockDbStore = defineStore('mockdb', {
 
       return result
     },
-    decide(id: string, status: 'approved' | 'rejected', actor: Actor) {
-      const result = decideApproval(this.db, id, status, actor)
+    decide(id: string, status: 'approved' | 'rejected', actor: Actor, comment = '') {
+      const result = decideApproval(this.db, id, status, actor, comment)
 
       this.persist()
 

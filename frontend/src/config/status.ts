@@ -13,6 +13,19 @@ export type StatusDomain =
   | 'generic'
   | 'return'
   | 'mapping'
+  | 'import_batch'
+  | 'settlement'
+  | 'recon_run'
+  | 'fee_map'
+  | 'column_map'
+  | 'export_artifact'
+  | 'clearing'
+  | 'ad_campaign'
+  | 'ad_import'
+  | 'allocation'
+  | 'workflow'
+  | 'ar_item'
+  | 'ap_item'
 
 export interface StatusDef {
   value: string
@@ -65,7 +78,9 @@ export const statusDictionary: Record<StatusDomain, StatusDef[]> = {
   voucher: [
     row('draft', '草稿', 'Draft', 'secondary'),
     row('pending', '待审批', 'Pending', 'warning'),
+    row('approved', '已批准', 'Approved', 'success'),
     row('posted', '已过账', 'Posted', 'success'),
+    row('rejected', '已驳回', 'Rejected', 'error'),
   ],
   stock_alert: [
     row('ok', '正常', 'OK', 'success'),
@@ -96,6 +111,19 @@ export const statusDictionary: Record<StatusDomain, StatusDef[]> = {
     row('confirmed', '已确认', 'Confirmed', 'success'),
     row('suggested', '待确认', 'Suggested', 'warning'),
   ],
+  import_batch: [row('success', '成功', 'Success', 'success'), row('failed', '失败', 'Failed', 'error'), row('processing', '解析中', 'Processing', 'info')],
+  settlement: [row('imported', '已导入', 'Imported', 'info'), row('matched', '已匹配', 'Matched', 'success'), row('unbalanced', '不平衡', 'Unbalanced', 'error')],
+  recon_run: [row('done', '已完成', 'Done', 'success'), row('running', '进行中', 'Running', 'info')],
+  fee_map: [row('confirmed', '已确认', 'Confirmed', 'success'), row('unmapped', '未识别', 'Unmapped', 'warning')],
+  column_map: [row('confirmed', '已确认', 'Confirmed', 'success'), row('draft', '草稿', 'Draft', 'secondary')],
+  export_artifact: [row('available', '可下载', 'Available', 'success')],
+  clearing: [row('pending', '待核销', 'Pending', 'warning'), row('candidate', '候选', 'Candidate', 'info'), row('cleared', '已核销', 'Cleared', 'success')],
+  ad_campaign: [row('active', '投放中', 'Active', 'success'), row('paused', '已暂停', 'Paused', 'warning')],
+  ad_import: [row('success', '成功', 'Success', 'success'), row('failed', '失败', 'Failed', 'error')],
+  allocation: [row('draft', '草稿', 'Draft', 'secondary'), row('active', '已启用', 'Active', 'success')],
+  workflow: [row('active', '启用', 'Active', 'success'), row('draft', '草稿', 'Draft', 'secondary')],
+  ar_item: [row('open', '未结清', 'Open', 'warning'), row('cleared', '已核销', 'Cleared', 'success')],
+  ap_item: [row('open', '未结清', 'Open', 'warning'), row('paid', '已支付', 'Paid', 'success')],
 }
 
 const fallback: StatusDef = { value: '', zh: '', en: '', color: 'secondary' }

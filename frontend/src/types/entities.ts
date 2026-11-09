@@ -367,7 +367,7 @@ export interface VoucherEntity {
   id: string
   no: string
   period: string
-  status: 'draft' | 'pending' | 'posted' | 'rejected'
+  status: 'draft' | 'pending' | 'approved' | 'posted' | 'rejected'
   debit: Minor
   credit: Minor
   currency: 'CNY'
@@ -405,6 +405,8 @@ export interface ApprovalEntity {
   summary: string
   storeId: string | null
   lines: Array<{ account: string; debit: Minor; credit: Minor }>
+  comment?: string
+  payloadHash?: string
 }
 
 export interface CrmAccountEntity {
@@ -521,6 +523,88 @@ export interface AdsCampaign {
   currency: CurrencyCode
 }
 
+export interface FinanceImportBatch {
+  id: string
+  fileName: string
+  connector: string
+  status: string
+  rows: number
+  errors: number
+  importedAt: string
+  failure?: string
+}
+
+export interface FinanceFeeMap {
+  id: string
+  platform: string
+  description: string
+  category: string
+  status: 'confirmed' | 'unmapped'
+  suggestion: string
+}
+
+export interface FinanceColumnMap {
+  id: string
+  connector: string
+  name: string
+  fields: number
+  status: string
+  updatedAt: string
+}
+
+export interface FinanceExportArtifact {
+  id: string
+  fileName: string
+  approvalId: string
+  target: string
+  sha256: string
+  createdAt: string
+  status: string
+}
+
+export interface FinanceClearingCandidate {
+  id: string
+  payout: string
+  ar: string
+  currency: CurrencyCode
+  payoutAmount: Minor
+  arAmount: Minor
+  difference: Minor
+  status: string
+}
+
+export interface AdsImportBatch {
+  id: string
+  fileName: string
+  platform: string
+  rows: number
+  spend: Minor
+  status: string
+  importedAt: string
+}
+
+export interface AdsAllocation {
+  id: string
+  campaign: string
+  sku: string
+  ratio: number
+  spend: Minor
+  source: string
+}
+
+export interface Finance2Data {
+  imports: FinanceImportBatch[]
+  feeMaps: FinanceFeeMap[]
+  columnMaps: FinanceColumnMap[]
+  exports: FinanceExportArtifact[]
+  clearing: FinanceClearingCandidate[]
+}
+
+export interface AdsData {
+  imports: AdsImportBatch[]
+  allocations: AdsAllocation[]
+}
+
 export interface ArInvoice {
   id: string
   storeId: string
@@ -620,4 +704,6 @@ export interface MockDatabase {
   apInvoices: ApInvoice[]
   knowledgeBases: KnowledgeBase[]
   deerflow: DeerflowConnection
+  finance2: Finance2Data
+  ads: AdsData
 }

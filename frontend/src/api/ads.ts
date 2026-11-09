@@ -10,7 +10,7 @@ export async function fetchAdCampaigns() {
 export async function fetchAdImports() {
   await delay()
 
-  return readMock(adsImportRows())
+  return readMock(adsImportRows(database().db))
 }
 export async function fetchAdPerformance() {
   await delay()
@@ -27,7 +27,7 @@ export async function saveAdAllocation(sku: string, ratio: number) {
 
   database().persist()
 
-  return readMock(row)
+  return readMock(row ? allocationRows(database().db).find(item => item.id === row.id) ?? null : null)
 }
 export async function uploadAdImport(fileName: string) {
   const actor = assertCan('create')
@@ -35,5 +35,12 @@ export async function uploadAdImport(fileName: string) {
 
   database().persist()
 
-  return readMock(row)
+  if (!row)
+    throw new Error('广告导入未创建')
+
+  const projected = adsImportRows(database().db).find(item => item.id === row.id)
+  if (!projected)
+    throw new Error('广告导入记录未找到')
+
+  return readMock(projected)
 }

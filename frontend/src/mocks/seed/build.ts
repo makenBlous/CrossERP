@@ -7,10 +7,12 @@ import { arriveShipment, departShipment } from '@/mocks/services/logistics'
 import { shipSalesOrder } from '@/mocks/services/orders'
 import { approvePurchaseOrder, receivePurchaseOrder, submitPurchaseOrder } from '@/mocks/services/procurement'
 import { rebuildProfit } from '@/mocks/services/profit'
+import { seedAds } from '@/mocks/seed/ads'
+import { seedFinance } from '@/mocks/seed/finance'
 import { type Minor, addMinor, convertMinor, minorFromDecimal, mulQty } from '@/utils/money'
 
 const SEED = 20261109
-const VERSION = 1
+const VERSION = 2
 
 function actor(name: string, role: Actor['role'], at: string): Actor {
   return { name, role, at }
@@ -86,6 +88,8 @@ function emptyDb(): MockDatabase {
       lastError: '',
       configRef: 'local-vault:deerflow',
     },
+    finance2: { imports: [], feeMaps: [], columnMaps: [], exports: [], clearing: [] },
+    ads: { imports: [], allocations: [] },
   }
 }
 
@@ -837,6 +841,8 @@ export function buildSeed(): MockDatabase {
   addShipments(db)
   addOrders(db)
   addFinance(db)
+  seedFinance(db)
+  seedAds(db)
   addCrm(db)
   addAgents(db)
   addDraftStockDocs(db)

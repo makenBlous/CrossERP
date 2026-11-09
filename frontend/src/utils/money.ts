@@ -29,6 +29,16 @@ export function minorFromDecimal(text: string): Minor {
   return negative ? -value : value
 }
 
+/** 将万分位整数序列化为可再次精确解析的十进制字符串。 */
+export function minorToDecimal(minor: Minor): string {
+  const sign = minor < 0 ? '-' : ''
+  const absolute = Math.abs(minor)
+  const whole = Math.floor(absolute / SCALE)
+  const fraction = String(absolute % SCALE).padStart(4, '0').replace(/0+$/, '')
+
+  return `${sign}${whole}${fraction ? `.${fraction}` : ''}`
+}
+
 export function addMinor(left: Minor, right: Minor): Minor {
   return left + right
 }

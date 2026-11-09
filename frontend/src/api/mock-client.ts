@@ -7,6 +7,7 @@ import { useMockDbStore } from '@/stores/mockdb'
 import { useSessionStore } from '@/stores/session'
 import type { Actor } from '@/types/entities'
 import { type AppAction, can } from '@/utils/permission'
+import { toRaw } from 'vue'
 
 export function delay(ms = 160) {
   return new Promise<void>(resolve => {
@@ -15,7 +16,7 @@ export function delay(ms = 160) {
 }
 
 export function readMock<T>(data: T): Promise<T> {
-  return delay().then(() => structuredClone(data))
+  return delay().then(() => JSON.parse(JSON.stringify(toRaw(data))) as T)
 }
 
 export function currentActor(): Actor {

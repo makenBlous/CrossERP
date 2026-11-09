@@ -181,7 +181,7 @@ export interface IssueRow {
   summary: string
 }
 
-export type VoucherStatus = 'draft' | 'pending' | 'posted' | 'rejected'
+export type VoucherStatus = 'draft' | 'pending' | 'approved' | 'posted' | 'rejected'
 
 export interface VoucherRow {
   id: string
@@ -214,6 +214,9 @@ export interface ApprovalItem {
   status: ApprovalStatus
   summary: string
   lines: ApprovalLine[]
+  comment?: string
+  payloadHash?: string
+  timeline?: Array<{ at: string; title: string; detail: string; actor?: string }>
 }
 
 export interface CrmAccount {

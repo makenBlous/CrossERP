@@ -22,12 +22,12 @@ export async function fetchSubmittedApprovals() {
 }
 
 // 未来: POST /api/v1/approvals/{id}/decide
-export async function decideApproval(id: string, status: Extract<ApprovalStatus, 'approved' | 'rejected'>) {
+export async function decideApproval(id: string, status: Extract<ApprovalStatus, 'approved' | 'rejected'>, comment = '') {
   await delay()
 
   const actor = assertCan('approve')
 
-  database().decide(id, status, actor)
+  database().decide(id, status, actor, comment)
 
   return projectApprovals(database().db).find(item => item.id === id) ?? null
 }

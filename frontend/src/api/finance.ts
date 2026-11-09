@@ -1,7 +1,7 @@
 /* eslint-disable max-statements-per-line */
 import { assertCan, database, delay, readMock } from '@/api/mock-client'
 import { projectIssues, projectProfit, projectRecon, projectVouchers } from '@/mocks/project'
-import { accounts, apRows, arRows, cashRows, clearingRows, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, settlementDetail, settlements, sourceRow, submitClearing, voucherDetail } from '@/mocks/services/finance'
+import { accounts, apRows, arRows, cashRows, clearingRows, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, settlementDetail, settlements, sourceRow, submitClearing, submitVoucher, voucherDetail } from '@/mocks/services/finance'
 
 // 未来: GET /api/v1/finance/profit
 export async function fetchProfit() {
@@ -34,12 +34,12 @@ export async function fetchVouchers() {
 export async function fetchImports() {
   await delay()
 
-  return readMock(listImports())
+  return readMock(listImports(database().db))
 }
 export async function fetchImport(id: string) {
   await delay()
 
-  return readMock(importDetail(id))
+  return readMock(importDetail(database().db, id))
 }
 export async function fetchSourceRow(table: string, id: string) {
   await delay()
@@ -84,12 +84,12 @@ export async function fetchFxRates() {
 export async function fetchFeeMap() {
   await delay()
 
-  return readMock(feeMapRows())
+  return readMock(feeMapRows(database().db))
 }
 export async function fetchColumnMaps() {
   await delay()
 
-  return readMock(columnMapRows())
+  return readMock(columnMapRows(database().db))
 }
 export async function fetchAr() {
   await delay()
@@ -144,9 +144,19 @@ export async function draftVoucherFromProfit() {
 
   return row
 }
-export async function submitClearingApproval() {
+export async function submitClearingApproval(ids: string[] = []) {
   const actor = assertCan('create')
-  const row = submitClearing(database().db, actor)
+  const selected = ids.length ? ids : database().db.finance2?.clearing.slice(0, 1).map(item => item.id) ?? []
+  const row = submitClearing(database().db, selected, actor)
+
+  database().persist()
+
+  return row
+}
+
+export async function submitVoucherApproval(id: string) {
+  const actor = assertCan('update')
+  const row = submitVoucher(database().db, id, actor)
 
   database().persist()
 
