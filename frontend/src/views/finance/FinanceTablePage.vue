@@ -42,14 +42,7 @@ function amountKey(key: string) {
 }
 
 const summary = computed(() => {
-  const amount = props.rows.reduce((sum, row) => {
-    const values = Object.entries(row as Record<string, unknown>)
-    const found = values.find(([key, value]) => amountKey(key) && typeof value === 'number')
-
-    return sum + (typeof found?.[1] === 'number' ? Number(found[1]) : 0)
-  }, 0)
-
-  return { count: props.rows.length, amount: amount.toLocaleString() }
+  return { count: props.rows.length, amount: props.rows.filter(row => Object.keys(row).some(amountKey)).length }
 })
 
 function open(row: FinanceRow) {
@@ -94,9 +87,9 @@ function open(row: FinanceRow) {
             sm="4"
           >
             <KpiCard
-              title="金额/花费"
-              :value="summary.amount"
-              icon="tabler-cash"
+              title="含金额字段"
+              :value="String(summary.amount)"
+              icon="tabler-columns"
               color="success"
               hint="服务层已存储结果"
             />

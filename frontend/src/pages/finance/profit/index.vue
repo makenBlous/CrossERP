@@ -165,42 +165,36 @@ const skuColumns = computed(() => [
               <MoneyText
                 :amount="store.revenue"
                 :currency="store.currency"
-                minor
               />
             </td>
             <td class="text-end">
               <MoneyText
                 :amount="store.platformFee"
                 :currency="store.currency"
-                minor
               />
             </td>
             <td class="text-end">
               <MoneyText
                 :amount="store.ads"
                 :currency="store.currency"
-                minor
               />
             </td>
             <td class="text-end">
               <MoneyText
                 :amount="store.firstMile"
                 :currency="store.currency"
-                minor
               />
             </td>
             <td class="text-end">
               <MoneyText
                 :amount="store.cost"
                 :currency="store.currency"
-                minor
               />
             </td>
             <td class="text-end font-weight-medium">
               <MoneyText
                 :amount="store.profit"
                 :currency="store.currency"
-                minor
               />
             </td>
           </tr>
@@ -219,42 +213,36 @@ const skuColumns = computed(() => [
         <MoneyText
           :amount="item.revenue"
           :currency="item.currency"
-          minor
         />
       </template>
       <template #item.platformFee="{ item }">
         <MoneyText
           :amount="item.platformFee"
           :currency="item.currency"
-          minor
         />
       </template>
       <template #item.ads="{ item }">
         <MoneyText
           :amount="item.ads"
           :currency="item.currency"
-          minor
         />
       </template>
       <template #item.firstMile="{ item }">
         <MoneyText
           :amount="item.firstMile"
           :currency="item.currency"
-          minor
         />
       </template>
       <template #item.cost="{ item }">
         <MoneyText
           :amount="item.cost"
           :currency="item.currency"
-          minor
         />
       </template>
       <template #item.profit="{ item }">
         <MoneyText
           :amount="item.profit"
           :currency="item.currency"
-          minor
         />
       </template>
     </ListPage>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { fetchSettlements } from '@/api/finance'
+import MoneyText from '@/components/biz/MoneyText.vue'
 import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchSettlements>>>([])
@@ -19,5 +20,9 @@ const columns = [{ key: 'externalId', title: '结算编号' }, { key: 'storeName
     detail-base="/finance/settlements"
     :rows="rows as unknown as FinanceRow[]"
     :columns="columns"
-  />
+  >
+    <template #item.totalDisplay="{ item }">
+      <MoneyText :amount="item.total" :currency="item.currency" minor />
+    </template>
+  </FinanceTablePage>
 </template>
