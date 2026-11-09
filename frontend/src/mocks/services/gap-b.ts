@@ -60,6 +60,7 @@ const state: Record<string, GapBRow[]> = {
   INT05: [{ id: 'log-001', operation: '领星导入', target: 'import-001', status: 'succeeded', rows: 248, at: now }, { id: 'log-002', operation: 'Shopify 同步', target: 'sync-002', status: 'running', rows: 96, at: now }],
   W08: [{ id: 'im-3000', channel: '飞书', title: '费用报销 EX-2026-018', amount: 300000, currency: 'CNY', contentHash: 'sha256:8c7a…1b2e', threshold: '可在 IM 批准', status: 'pending' }, { id: 'im-80000', channel: '飞书', title: '付款申请 PAY-2026-004', amount: 8000000, currency: 'CNY', contentHash: 'sha256:9fd1…aa91', threshold: '超过 ¥50,000，去网页确认', status: 'web_required' }],
   SYS19: [{ id: 'binding-feishu', channel: '飞书', account: 'linxia@example.com', boundAt: '2026-10-01', status: 'bound' }, { id: 'binding-wecom', channel: '企业微信', account: '未绑定', boundAt: '-', status: 'unbound' }, { id: 'binding-dingtalk', channel: '钉钉', account: '未绑定', boundAt: '-', status: 'unbound' }],
+  SYS20: [{ id: 'im-feishu', channel: '飞书', enabled: true, approvalTypes: '报销 / 采购 / 付款', threshold: 50000, callback: 'https://example.invalid/feishu/callback', signature: '已配置', status: 'active' }, { id: 'im-wecom', channel: '企业微信', enabled: false, approvalTypes: '报销', threshold: 50000, callback: '未配置', signature: '未配置', status: 'inactive' }],
   SYS25: [{ id: 'channel-feishu', channel: '飞书', capabilities: '消息 / 审批卡片 / 回调 / 身份绑定', enabled: true, configured: true, lastResult: '成功 · 2 分钟前' }, { id: 'channel-wecom', channel: '企业微信', capabilities: '消息 / 审批卡片 / 回调 / 身份绑定', enabled: true, configured: true, lastResult: '成功 · 1 小时前' }, { id: 'channel-dingtalk', channel: '钉钉', capabilities: '消息 / 审批卡片 / 回调 / 身份绑定', enabled: false, configured: false, lastResult: '未配置' }, { id: 'channel-email', channel: '邮件', capabilities: '消息', enabled: true, configured: true, lastResult: '成功 · 昨天' }],
 }
 
@@ -77,12 +78,12 @@ const columns: Record<GapBKey, Array<{ key: string; title: string }>> = {
   INT05: [{ key: 'operation', title: '操作' }, { key: 'target', title: '目标' }, { key: 'rows', title: '行数' }, { key: 'status', title: '状态' }, { key: 'at', title: '时间' }],
   W08: [{ key: 'channel', title: '渠道' }, { key: 'title', title: '审批事项' }, { key: 'amount', title: '金额' }, { key: 'threshold', title: '门槛' }, { key: 'status', title: '状态' }],
   SYS19: [{ key: 'channel', title: '渠道' }, { key: 'account', title: '外部账号' }, { key: 'boundAt', title: '绑定时间' }, { key: 'status', title: '状态' }],
+  SYS20: [{ key: 'channel', title: '渠道' }, { key: 'approvalTypes', title: '可审批类型' }, { key: 'threshold', title: '网页确认门槛（分）' }, { key: 'signature', title: '签名配置' }, { key: 'status', title: '状态' }],
   SYS25: [{ key: 'channel', title: '渠道' }, { key: 'capabilities', title: '能力' }, { key: 'enabled', title: '启用' }, { key: 'configured', title: '配置' }, { key: 'lastResult', title: '最近结果' }],
   D05: [],
   S12: [],
   INT03: [],
   INT04: [],
-  SYS20: [],
   SYS26: [],
 }
 
@@ -91,10 +92,16 @@ function detailFor(key: GapBKey, id: string): GapBDetail | undefined {
     return { id, title: 'RFQ-2026-001 报价比较', status: 'open', summary: '三家供应商报价已收齐，选择后会生成采购单草稿。', fields: [{ label: '采购需求', value: 'CN-1001 × 20' }, { label: '历史最低价', value: '¥115.00 / 件（2026-09）' }], steps: [{ id: 's1', title: '发布询价', detail: '已向 3 家供应商发送', status: 'done' }, { id: 's2', title: '比较报价', detail: '代码已计算含税总额与交期', status: 'open' }, { id: 's3', title: '转采购单', detail: '必须由人选择供应商', status: 'blocked' }], related: [{ id: 'rfq-001', type: '询价单', label: 'RFQ-2026-001', to: '/procurement/rfqs' }] }
   if (key === 'S12')
     return { id, title: 'CON-2026-001 采购合同', status: 'active', summary: '框架采购合同，关键条款由人工确认后生效。', fields: [{ label: '供应商', value: '宁波星海供应链' }, { label: '有效期', value: '2026-01-01 至 2026-12-31' }, { label: '付款条件', value: '月结 30 天' }], steps: [{ id: 's1', title: '上传合同', detail: '合同原件已归档', status: 'done' }, { id: 's2', title: '人工确认条款', detail: 'AI 仅提供摘要，不改变条款', status: 'open' }], related: [{ id: 'po-1001', type: '采购单', label: 'PO-2026-001', to: '/procurement/orders/po-1001' }] }
-  if (key === 'I14')
-    return { id, title: 'TR-2026-001 调拨详情', status: 'in_transit', summary: '调拨确认会产生调出和调入两条库存流水。', fields: [{ label: '调出仓', value: '华东 FBA' }, { label: '调入仓', value: '广州海外仓' }, { label: 'SKU / 数量', value: 'CN-1001 / 80' }], steps: [{ id: 's1', title: '创建调拨', detail: '草稿已保存', status: 'done' }, { id: 's2', title: '确认调出', detail: '库存流水 -80', status: 'open' }, { id: 's3', title: '确认调入', detail: '在途入库后完成', status: 'blocked' }], related: [{ id: 'mov-001', type: '库存流水', label: '查看调拨流水', to: '/inventory/movements' }] }
-  if (key === 'I15')
-    return { id, title: 'CT-2026-001 盘点详情', status: 'pending', summary: '差异过账前需提交盘点差异审批。', fields: [{ label: '仓库', value: '华东 FBA' }, { label: 'SKU', value: 'CN-1001' }, { label: '账面 / 实盘', value: '320 / 317（差异 -3）' }], steps: [{ id: 's1', title: '录入实盘', detail: '实盘数由人填写', status: 'done' }, { id: 's2', title: '提交差异审批', detail: '审批通过后才更新库存', status: 'open' }, { id: 's3', title: '过账', detail: '写入库存流水', status: 'blocked' }], related: [{ id: 'approval-count-001', type: '审批', label: '盘点差异审批', to: '/approvals' }] }
+  if (key === 'I14') {
+    const row = state.I14.find(item => item.id === id)
+
+    return { id, title: 'TR-2026-001 调拨详情', status: String(row?.status ?? 'in_transit'), summary: '调拨确认会产生调出和调入两条库存流水。', fields: [{ label: '调出仓', value: '华东 FBA' }, { label: '调入仓', value: '广州海外仓' }, { label: 'SKU / 数量', value: 'CN-1001 / 80' }], steps: [{ id: 's1', title: '创建调拨', detail: '草稿已保存', status: 'done' }, { id: 's2', title: '确认调出', detail: '库存流水 -80', status: row?.status === 'posted' ? 'done' : 'open' }, { id: 's3', title: '确认调入', detail: '在途入库后完成', status: row?.status === 'posted' ? 'done' : 'blocked' }], related: [{ id: 'mov-001', type: '库存流水', label: '查看调拨流水', to: '/inventory/movements' }] }
+  }
+  if (key === 'I15') {
+    const row = state.I15.find(item => item.id === id)
+
+    return { id, title: 'CT-2026-001 盘点详情', status: String(row?.status ?? 'pending'), summary: '差异过账前需提交盘点差异审批。', fields: [{ label: '仓库', value: '华东 FBA' }, { label: 'SKU', value: 'CN-1001' }, { label: '账面 / 实盘', value: '320 / 317（差异 -3）' }], steps: [{ id: 's1', title: '录入实盘', detail: '实盘数由人填写', status: 'done' }, { id: 's2', title: '提交差异审批', detail: '审批通过后才更新库存', status: row?.status === 'submitted' ? 'done' : 'open' }, { id: 's3', title: '过账', detail: '写入库存流水', status: 'blocked' }], related: [{ id: 'approval-count-001', type: '审批', label: '盘点差异审批', to: '/approvals' }] }
+  }
 
   return undefined
 }
@@ -122,12 +129,16 @@ export function applyGapBAction(key: GapBKey, action: string, payload: Record<st
   if (action === 'draft-replenishment')
     return '已按代码计算建议数量并生成采购单草稿，等待批准。'
   if (action === 'confirm-transfer') {
-    state.I14[0].status = 'posted'
+    const row = state.I14.find(item => item.id === String(payload.id))
+    if (row)
+      row.status = 'posted'
 
     return '调拨已确认，调出和调入库存流水均已记录。'
   }
   if (action === 'submit-count') {
-    state.I15[0].status = 'submitted'
+    const row = state.I15.find(item => item.id === String(payload.id))
+    if (row)
+      row.status = 'submitted'
 
     return '盘点差异已提交审批，审批通过前不会改变库存。'
   }
@@ -140,6 +151,11 @@ export function applyGapBAction(key: GapBKey, action: string, payload: Record<st
     state.INT01[0].status = 'imported'
 
     return '列映射已确认，导入完成并写入集成日志。'
+  }
+  if (action === 'preview-import') {
+    state.INT01[0].status = 'previewed'
+
+    return '预览已生成，请人工确认后导入。'
   }
   if (action === 'start-sync') {
     state.INT02.unshift({ id: `sync-${Date.now()}`, platform: String(payload.platform || 'Amazon US'), type: '订单与库存', progress: '0%', status: 'running', startedAt: now, message: '任务已创建' })
@@ -157,6 +173,13 @@ export function applyGapBAction(key: GapBKey, action: string, payload: Record<st
     row.status = 'approved'
 
     return '已通过 IM 审批，审计渠道记录为飞书。'
+  }
+  if (action === 'reject-im') {
+    const row = state.W08.find(item => item.id === String(payload.id))
+    if (row)
+      row.status = 'rejected'
+
+    return '已驳回 IM 审批卡片，审计渠道记录为飞书。'
   }
   if (action === 'tamper-im') {
     const row = state.W08.find(item => item.id === String(payload.id))
@@ -187,6 +210,15 @@ export function applyGapBAction(key: GapBKey, action: string, payload: Record<st
   }
   if (action === 'test-channel')
     return '测试消息已发送，返回成功。'
+  if (action === 'toggle-channel') {
+    const row = state.SYS25.find(item => item.id === String(payload.id))
+    if (row) {
+      row.enabled = Boolean(payload.enabled)
+      row.lastResult = row.enabled ? '已启用，等待下一次发送' : '已停用'
+    }
+
+    return row?.enabled ? '渠道已启用。' : '渠道已停用。'
+  }
   if (action === 'create-channel') {
     state.SYS25.push({ id: `channel-${Date.now()}`, channel: String(payload.channel || '钉钉'), capabilities: '消息 / 审批卡片', enabled: false, configured: true, lastResult: '已配置，默认停用' })
 

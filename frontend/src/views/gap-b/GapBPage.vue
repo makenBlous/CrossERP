@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { fetchGapBPage, submitGapBAction } from '@/api/gap-b'
 import DetailPage from '@/components/biz/DetailPage.vue'
+import FormDrawer from '@/components/biz/FormDrawer.vue'
 import FormPage from '@/components/biz/FormPage.vue'
 import ListPage from '@/components/biz/ListPage.vue'
+import LoadingState from '@/components/biz/LoadingState.vue'
 import MoneyText from '@/components/biz/MoneyText.vue'
+import PermissionGate from '@/components/biz/PermissionGate.vue'
+import RecordDrawer from '@/components/biz/RecordDrawer.vue'
 import StatusChip from '@/components/biz/StatusChip.vue'
+import KpiCard from '@/components/KpiCard.vue'
 import { useAiModeStore } from '@/stores/ai-mode'
 import type { GapBColumn, GapBKey, GapBPageData, GapBRow } from '@/types/gap-b'
 
@@ -18,8 +23,23 @@ const error = ref('')
 const message = ref('')
 const search = ref('')
 const uploadFile = ref<File | null>(null)
-const form = reactive({ source: '领星', fileName: '', subject: '', supplierCount: '2', amount: '120000', channel: '钉钉', account: '', endpoint: '', threshold: '50000' })
+const form = reactive({ source: '领星', fileName: '', subject: '', supplierCount: '2', amount: '120000', channel: '钉钉', account: '', endpoint: '', threshold: '50000', ledgerAccount: '', voucherType: '记', exportFormat: 'xlsx', erpnextSite: '', pushMode: '审批后可选推送' })
 const wizardStep = ref(1)
+const mapping = reactive<Record<string, string>>({ order_no: 'order_no', internal_sku: 'internal_sku', qty: 'qty', amount: 'amount' })
+const imChannelEnabled = reactive<Record<string, boolean>>({ 飞书: true, 企业微信: false })
+const createRfqOpen = ref(false)
+const saving = ref(false)
+const selectedImRow = ref<GapBRow | null>(null)
+const imDrawerOpen = ref(false)
+const actualQty = ref('317')
+
+const chainItems = [
+  { title: '客户 / 商机', detail: 'Acme Europe · 赢单' },
+  { title: '销售订单', detail: 'SO-2026-001 · 客户和商机已关联' },
+  { title: 'SKU → 采购 → 入库', detail: 'CN-1001 · PO-2026-001 · 华东 FBA' },
+  { title: '头程 / 出库 / 发货', detail: 'FBA 批次 FM-2026-004 · 运单已关联' },
+  { title: '凭证', detail: 'VCH-2026-018 · 可回溯来源单据' },
+]
 
 const id = computed(() => {
   const value = (route.params as Record<string, string | string[] | undefined>).id
@@ -31,6 +51,12 @@ const showAi = computed(() => ai.isEnabled)
 const isDegraded = computed(() => ai.isReadOnly)
 const isDetail = computed(() => Boolean(data.value?.detail))
 const isForm = computed(() => data.value?.kind === 'form')
+
+const scoreAverage = computed(() => {
+  const values = (data.value?.rows ?? []).map(row => Number(row.score)).filter(value => Number.isFinite(value))
+
+  return values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '—'
+})
 
 async function load() {
   loading.value = true
@@ -92,25 +118,69 @@ async function act(action: string, payload: Record<string, string | number | boo
   }
 }
 
+async function saveRfq() {
+  saving.value = true
+  try {
+    await act('create-rfq', { subject: form.subject || '新建补货询价', supplierCount: form.supplierCount, amount: form.amount })
+    createRfqOpen.value = false
+  }
+  finally {
+    saving.value = false
+  }
+}
+
 async function saveForm() {
-  if (props.pageKey === 'INT01') {
-    if (wizardStep.value === 1) {
-      await act('upload-import')
-      wizardStep.value = 2
+  saving.value = true
+  try {
+    if (props.pageKey === 'INT01') {
+      if (wizardStep.value === 1) {
+        await act('upload-import')
+        wizardStep.value = 2
+
+        return
+      }
+      if (wizardStep.value === 2) {
+        await act('preview-import')
+        wizardStep.value = 3
+
+        return
+      }
+      await act('confirm-import')
+      wizardStep.value = 4
 
       return
     }
-    await act('confirm-import')
-    wizardStep.value = 3
+    if (props.pageKey === 'SYS26') {
+      await act('create-channel', { channel: form.channel })
 
-    return
+      return
+    }
+    await act('save-settings', { endpoint: form.endpoint, threshold: form.threshold, ledgerAccount: form.ledgerAccount, voucherType: form.voucherType, exportFormat: form.exportFormat, erpnextSite: form.erpnextSite, pushMode: form.pushMode })
   }
-  if (props.pageKey === 'SYS26') {
-    await act('create-channel', { channel: form.channel })
+  finally {
+    saving.value = false
+  }
+}
 
-    return
-  }
-  await act('save-settings')
+async function confirmTransfer() {
+  await act('confirm-transfer', { id: id.value || data.value?.detail?.id || '' })
+}
+
+async function submitCount() {
+  await act('submit-count', { id: id.value || data.value?.detail?.id || '', actualQty: actualQty.value })
+}
+
+async function openIm(row: GapBRow) {
+  selectedImRow.value = row
+  imDrawerOpen.value = true
+}
+
+async function toggleChannel(row: GapBRow) {
+  await act('toggle-channel', { id: row.id, enabled: !row.enabled })
+}
+
+async function testChannel(row?: GapBRow) {
+  await act('test-channel', { id: row?.id ?? '', channel: row && typeof row.channel === 'string' ? row.channel : form.channel })
 }
 
 function rowStatus(row: GapBRow) {
@@ -150,7 +220,7 @@ function rowStatus(row: GapBRow) {
     </VAlert>
 
     <template v-if="loading">
-      <VCard><VSkeletonLoader type="heading, paragraph, table-row@5" /></VCard>
+      <LoadingState />
     </template>
 
     <template v-else-if="data && isDetail && data.detail">
@@ -162,6 +232,32 @@ function rowStatus(row: GapBRow) {
         :timeline="data.detail.steps.map(step => ({ id: step.id, at: step.status === 'done' ? '已完成' : '当前', title: step.title, detail: step.detail }))"
         :related="data.detail.related"
       >
+        <template #actions>
+          <PermissionGate
+            v-if="props.pageKey === 'I14'"
+            action="update"
+          >
+            <VBtn
+              :disabled="data.detail.status === 'posted'"
+              data-test="confirm-transfer"
+              @click="confirmTransfer"
+            >
+              {{ data.detail.status === 'posted' ? '已确认调拨' : '确认调拨' }}
+            </VBtn>
+          </PermissionGate>
+          <PermissionGate
+            v-if="props.pageKey === 'I15'"
+            action="update"
+          >
+            <VBtn
+              :disabled="data.detail.status !== 'pending'"
+              data-test="submit-count"
+              @click="submitCount"
+            >
+              {{ data.detail.status === 'pending' ? '提交差异审批' : '已提交审批' }}
+            </VBtn>
+          </PermissionGate>
+        </template>
         <VCard class="mb-6">
           <VCardText>
             <VRow>
@@ -179,6 +275,47 @@ function rowStatus(row: GapBRow) {
                 </div>
               </VCol>
             </VRow>
+          </VCardText>
+        </VCard>
+        <VCard
+          v-if="props.pageKey === 'S12'"
+          title="合同价格表与附件"
+          class="mb-6"
+        >
+          <VTable density="compact">
+            <thead><tr><th>SKU</th><th>含税单价</th><th>生效期</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>CN-1001</td><td>
+                  <MoneyText
+                    :amount="11500"
+                    currency="CNY"
+                    minor
+                  />
+                </td><td>2026-01-01 起</td>
+              </tr>
+            </tbody>
+          </VTable>
+          <VCardText>
+            <VFileInput
+              label="追加合同附件（可选）"
+              accept=".pdf,.doc,.docx,.xlsx"
+              prepend-icon="tabler-paperclip"
+              multiple
+            />
+          </VCardText>
+        </VCard>
+        <VCard
+          v-if="props.pageKey === 'I15'"
+          title="实盘录入"
+          class="mb-6"
+        >
+          <VCardText>
+            <AppTextField
+              v-model="actualQty"
+              label="实盘数量"
+              :disabled="data.detail.status !== 'pending'"
+            />
           </VCardText>
         </VCard>
         <VCard :title="props.pageKey === 'S10' ? '供应商报价' : '流程节点'">
@@ -247,6 +384,7 @@ function rowStatus(row: GapBRow) {
       <FormPage
         :title="data.title"
         :subtitle="data.subtitle"
+        :saving="saving"
         @save="saveForm"
         @cancel="router.back()"
       >
@@ -263,6 +401,9 @@ function rowStatus(row: GapBRow) {
               title="确认列映射"
             /><VStepperItem
               :value="3"
+              title="预览"
+            /><VStepperItem
+              :value="4"
               title="导入完成"
             />
           </VStepper>
@@ -296,7 +437,7 @@ function rowStatus(row: GapBRow) {
                 >
                   <td>{{ item[0] }}</td><td>
                     <AppSelect
-                      :model-value="item[1]"
+                      v-model="mapping[item[1]]"
                       :items="[item[1], '忽略']"
                     />
                   </td><td>
@@ -309,6 +450,19 @@ function rowStatus(row: GapBRow) {
               </tbody>
             </VTable>
           </template>
+          <template v-else-if="wizardStep === 3">
+            <VAlert
+              type="info"
+              variant="tonal"
+              class="mb-4"
+            >
+              预览显示 248 行，金额和 SKU 字段将按已确认映射写入；确认后才会导入。
+            </VAlert>
+            <VTable density="compact">
+              <thead><tr><th>订单号</th><th>SKU</th><th>数量</th><th>金额</th></tr></thead>
+              <tbody><tr><td>SO-2026-001</td><td>CN-1001</td><td>20</td><td>¥ 2,400.00</td></tr></tbody>
+            </VTable>
+          </template>
           <VAlert
             v-else
             type="success"
@@ -316,6 +470,82 @@ function rowStatus(row: GapBRow) {
           >
             导入完成。原始文件、映射版本和行数已写入集成日志。
           </VAlert>
+        </template>
+        <template v-else-if="props.pageKey === 'INT03'">
+          <AppTextField
+            v-model="form.ledgerAccount"
+            label="金蝶账套"
+            class="mb-4"
+          />
+          <AppTextField
+            v-model="form.voucherType"
+            label="凭证字"
+            class="mb-4"
+          />
+          <AppSelect
+            v-model="form.exportFormat"
+            :items="['xlsx', 'csv']"
+            label="导出格式"
+            class="mb-4"
+          />
+          <AppTextField
+            v-model="form.endpoint"
+            label="科目对照版本"
+          />
+        </template>
+        <template v-else-if="props.pageKey === 'INT04'">
+          <AppTextField
+            v-model="form.erpnextSite"
+            label="ERPNext 站点"
+            class="mb-4"
+          />
+          <AppTextField
+            v-model="form.endpoint"
+            label="服务地址"
+            class="mb-4"
+          />
+          <AppSelect
+            v-model="form.pushMode"
+            :items="['审批后可选推送', '仅导出不推送']"
+            label="推送策略"
+          />
+        </template>
+        <template v-else-if="props.pageKey === 'SYS20'">
+          <VAlert
+            type="info"
+            variant="tonal"
+            class="mb-4"
+          >
+            签名密钥仅保存服务端引用，页面只显示配置状态。
+          </VAlert>
+          <VCheckbox
+            v-for="channel in ['飞书', '企业微信']"
+            :key="channel"
+            v-model="imChannelEnabled[channel]"
+            :label="`启用 ${channel} 通道`"
+          />
+          <AppSelect
+            v-model="form.channel"
+            :items="['报销', '采购', '付款', '盘点差异']"
+            label="可在 IM 审批的类型"
+            class="mb-4"
+          />
+          <AppTextField
+            v-model="form.threshold"
+            label="超过金额必须回网页确认（元）"
+            class="mb-4"
+          />
+          <AppTextField
+            v-model="form.endpoint"
+            label="回调地址"
+            class="mb-4"
+          />
+          <VChip
+            color="success"
+            size="small"
+          >
+            签名密钥：已配置
+          </VChip>
         </template>
         <template v-else-if="props.pageKey === 'SYS26'">
           <AppSelect
@@ -336,16 +566,23 @@ function rowStatus(row: GapBRow) {
             hint="密钥只保存服务端引用，页面不会回显"
             persistent-hint
           />
+          <VSwitch
+            v-model="form.pushMode"
+            true-value="启用"
+            false-value="停用"
+            label="创建后启用渠道"
+            class="mt-4"
+          />
+          <VBtn
+            variant="tonal"
+            class="mt-4"
+            data-test="test-new-channel"
+            @click="testChannel"
+          >
+            测试发送
+          </VBtn>
         </template>
         <template v-else>
-          <VAlert
-            v-if="props.pageKey === 'SYS20'"
-            type="info"
-            variant="tonal"
-            class="mb-4"
-          >
-            超过门槛的付款卡片只能去网页确认；签名密钥只显示配置状态。
-          </VAlert>
           <AppTextField
             v-model="form.endpoint"
             label="账套 / 服务地址"
@@ -362,6 +599,22 @@ function rowStatus(row: GapBRow) {
           />
         </template>
         <template #aside>
+          <ListPage
+            v-if="props.pageKey === 'SYS20'"
+            storage-key="gap-b-sys20-channels"
+            title="已配置通道"
+            :items="data.rows"
+            :columns="data.columns"
+            embedded
+            class="mb-6"
+          >
+            <template #item.status="{ item }">
+              <StatusChip
+                domain="generic"
+                :value="rowStatus(item)"
+              />
+            </template>
+          </ListPage>
           <VCard
             title="人工确认"
             variant="tonal"
@@ -373,86 +626,71 @@ function rowStatus(row: GapBRow) {
     </template>
 
     <template v-else-if="data && props.pageKey === 'D05'">
-      <VCard
+      <DetailPage
         :title="data.title"
         :subtitle="data.subtitle"
+        domain="generic"
+        :timeline="chainItems.map((item, index) => ({ id: String(index), at: '已接通', ...item }))"
       >
-        <VCardText>
-          <div class="d-flex gap-3 mb-6">
-            <AppTextField
-              v-model="search"
-              label="订单号 / 单据号"
-              placeholder="例如 SO-2026-001"
-              data-test="chain-search"
-            /><VBtn
-              color="primary"
-              class="mt-1"
-              data-test="chain-search-submit"
-              @click="act('search-chain', { query: search })"
-            >
-              追溯
-            </VBtn>
-          </div>
-          <VAlert
-            v-if="message"
-            type="success"
-            variant="tonal"
-            class="mb-4"
-          >
-            {{ message }}
-          </VAlert>
-          <VTimeline
-            side="end"
-            align="start"
-            line-color="success"
-          >
-            <VTimelineItem
-              v-for="item in [{ title: '客户 / 商机', detail: 'Acme Europe · 赢单', ok: true }, { title: '销售订单', detail: 'SO-2026-001 · 客户和商机已关联', ok: true }, { title: 'SKU → 采购 → 入库', detail: 'CN-1001 · PO-2026-001 · 华东 FBA', ok: true }, { title: '头程 / 出库 / 发货', detail: 'FBA 批次 FM-2026-004 · 运单已关联', ok: true }, { title: '凭证', detail: 'VCH-2026-018 · 可回溯来源单据', ok: true }]"
-              :key="item.title"
-              dot-color="success"
-            >
-              <div class="font-weight-medium">
-                {{ item.title }}
-              </div><div class="text-body-2">
-                {{ item.detail }}
-              </div><VChip
-                color="success"
-                size="small"
-                class="mt-2"
+        <VCard>
+          <VCardText>
+            <div class="d-flex gap-3 mb-6">
+              <AppTextField
+                v-model="search"
+                label="订单号 / 单据号"
+                placeholder="例如 SO-2026-001"
+                data-test="chain-search"
+              /><VBtn
+                color="primary"
+                class="mt-1"
+                data-test="chain-search-submit"
+                @click="act('search-chain', { query: search })"
               >
-                已接通
-              </VChip>
-            </VTimelineItem>
-          </VTimeline>
-        </VCardText>
-      </VCard>
+                追溯
+              </VBtn>
+            </div>
+          </VCardText>
+        </VCard>
+      </DetailPage>
     </template>
 
     <template v-else-if="data">
       <div class="d-flex justify-end gap-3 mb-4">
-        <VBtn
+        <PermissionGate
           v-if="props.pageKey === 'S09'"
-          color="primary"
-          data-test="create-rfq"
-          @click="act('create-rfq', { subject: form.subject || '新建补货询价', supplierCount: form.supplierCount, amount: form.amount })"
+          action="create"
         >
-          新建询价单
-        </VBtn>
-        <VBtn
+          <VBtn
+            color="primary"
+            data-test="create-rfq"
+            @click="createRfqOpen = true"
+          >
+            新建询价单
+          </VBtn>
+        </PermissionGate>
+        <PermissionGate
           v-if="props.pageKey === 'I13'"
-          color="primary"
-          data-test="manual-replenishment"
-          @click="act('draft-replenishment', { mode: 'manual' })"
+          action="create"
         >
-          手动新建采购单
-        </VBtn>
-        <VBtn
+          <VBtn
+            color="primary"
+            data-test="manual-replenishment"
+            @click="act('draft-replenishment', { mode: 'manual' })"
+          >
+            手动新建采购单
+          </VBtn>
+        </PermissionGate>
+        <PermissionGate
           v-if="props.pageKey === 'INT02'"
-          color="primary"
-          @click="act('start-sync', { platform: 'Amazon US' })"
+          action="update"
         >
-          立即同步
-        </VBtn>
+          <VBtn
+            color="primary"
+            @click="act('start-sync', { platform: 'Amazon US' })"
+          >
+            立即同步
+          </VBtn>
+        </PermissionGate>
         <VBtn
           v-if="props.pageKey === 'SYS25'"
           to="/admin/channels/new"
@@ -461,21 +699,52 @@ function rowStatus(row: GapBRow) {
           新增渠道
         </VBtn>
       </div>
-      <VCard
-        v-if="props.pageKey === 'S09'"
-        class="mb-4"
+      <DetailPage
+        v-if="props.pageKey === 'SYS19'"
+        :title="data.title"
+        :subtitle="data.subtitle"
+        domain="generic"
       >
-        <VCardText class="d-flex gap-3">
-          <AppTextField
-            v-model="form.subject"
-            label="询价主题"
-          /><AppTextField
-            v-model="form.amount"
-            label="预计金额（分）"
-          />
-        </VCardText>
-      </VCard>
+        <ListPage
+          :storage-key="`gap-b-${props.pageKey}`"
+          :title="data.title"
+          :subtitle="data.subtitle"
+          :items="data.rows"
+          :columns="displayColumns"
+          :loading="loading"
+          embedded
+          @open="openRow"
+        >
+          <template #item.status="{ item }">
+            <StatusChip
+              domain="generic"
+              :value="rowStatus(item)"
+            />
+          </template>
+          <template #item.actions="{ item }">
+            <PermissionGate action="update">
+              <VBtn
+                v-if="rowStatus(item) === 'unbound'"
+                size="small"
+                variant="text"
+                @click="act('bind-channel', { id: item.id, account: 'demo@example.com' })"
+              >
+                绑定
+              </VBtn>
+              <VBtn
+                v-else
+                size="small"
+                variant="text"
+                @click="act('unbind-channel', { id: item.id })"
+              >
+                解绑
+              </VBtn>
+            </PermissionGate>
+          </template>
+        </ListPage>
+      </DetailPage>
       <ListPage
+        v-else
         :storage-key="`gap-b-${props.pageKey}`"
         :title="data.title"
         :subtitle="data.subtitle"
@@ -484,6 +753,22 @@ function rowStatus(row: GapBRow) {
         :loading="loading"
         @open="openRow"
       >
+        <template #widgets>
+          <VRow v-if="props.pageKey === 'S13'">
+            <VCol
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <KpiCard
+                title="平均评分"
+                :value="scoreAverage"
+                icon="tabler-chart-arcs"
+                hint="评分由确定性代码计算"
+              />
+            </VCol>
+          </VRow>
+        </template>
         <template #item.status="{ item }">
           <StatusChip
             :domain="props.pageKey === 'W08' ? 'approval' : props.pageKey === 'SYS25' ? 'generic' : 'generic'"
@@ -503,6 +788,7 @@ function rowStatus(row: GapBRow) {
             :model-value="Boolean(item.enabled)"
             hide-details
             density="compact"
+            @update:model-value="toggleChannel(item)"
           />
         </template>
         <template #item.configured="{ item }">
@@ -552,6 +838,15 @@ function rowStatus(row: GapBRow) {
             批准
           </VBtn>
           <VBtn
+            v-if="props.pageKey === 'W08' && Number(item.amount) <= 5000000"
+            size="small"
+            variant="text"
+            :disabled="rowStatus(item) !== 'pending'"
+            @click="act('reject-im', { id: item.id })"
+          >
+            驳回
+          </VBtn>
+          <VBtn
             v-if="props.pageKey === 'W08' && Number(item.amount) > 5000000"
             size="small"
             variant="text"
@@ -568,20 +863,12 @@ function rowStatus(row: GapBRow) {
             模拟内容变化
           </VBtn>
           <VBtn
-            v-if="props.pageKey === 'SYS19' && rowStatus(item) === 'unbound'"
+            v-if="props.pageKey === 'W08'"
             size="small"
             variant="text"
-            @click="act('bind-channel', { id: item.id, account: 'demo@example.com' })"
+            @click="openIm(item)"
           >
-            绑定
-          </VBtn>
-          <VBtn
-            v-if="props.pageKey === 'SYS19' && rowStatus(item) === 'bound'"
-            size="small"
-            variant="text"
-            @click="act('unbind-channel', { id: item.id })"
-          >
-            解绑
+            查看卡片
           </VBtn>
           <VBtn
             v-if="props.pageKey === 'SYS25'"
@@ -591,8 +878,78 @@ function rowStatus(row: GapBRow) {
           >
             测试发送
           </VBtn>
+          <VBtn
+            v-if="props.pageKey === 'SYS25'"
+            size="small"
+            variant="text"
+            @click="toggleChannel(item)"
+          >
+            {{ item.enabled ? '停用' : '启用' }}
+          </VBtn>
         </template>
       </ListPage>
+      <FormDrawer
+        v-if="props.pageKey === 'S09'"
+        v-model="createRfqOpen"
+        title="新建询价单"
+        :saving="saving"
+        @save="saveRfq"
+      >
+        <AppTextField
+          v-model="form.subject"
+          label="询价主题"
+          class="mb-4"
+        />
+        <AppTextField
+          v-model="form.supplierCount"
+          label="供应商数量"
+          class="mb-4"
+        />
+        <AppTextField
+          v-model="form.amount"
+          label="预计金额（分）"
+        />
+      </FormDrawer>
+      <RecordDrawer
+        v-if="props.pageKey === 'W08'"
+        v-model="imDrawerOpen"
+        :title="selectedImRow?.title ? String(selectedImRow.title) : '审批卡片'"
+      >
+        <template v-if="selectedImRow">
+          <VChip
+            :color="rowStatus(selectedImRow) === 'tampered' ? 'error' : 'success'"
+            size="small"
+            class="mb-4"
+          >
+            {{ rowStatus(selectedImRow) === 'tampered' ? '内容已变化' : '内容哈希已校验' }}
+          </VChip>
+          <MoneyText
+            :amount="Number(selectedImRow.amount)"
+            currency="CNY"
+            minor
+            class="d-block text-h5 mb-4"
+          />
+          <div class="text-body-2 mb-4">
+            {{ selectedImRow.contentHash }}
+          </div>
+          <PermissionGate action="approve">
+            <VBtn
+              v-if="Number(selectedImRow.amount) <= 5000000 && rowStatus(selectedImRow) === 'pending'"
+              class="me-2"
+              @click="act('approve-im', { id: selectedImRow.id })"
+            >
+              批准
+            </VBtn>
+            <VBtn
+              v-if="Number(selectedImRow.amount) <= 5000000 && rowStatus(selectedImRow) === 'pending'"
+              variant="tonal"
+              @click="act('reject-im', { id: selectedImRow.id })"
+            >
+              驳回
+            </VBtn>
+          </PermissionGate>
+        </template>
+      </RecordDrawer>
     </template>
   </div>
 </template>

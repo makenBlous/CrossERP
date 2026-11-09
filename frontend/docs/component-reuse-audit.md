@@ -243,17 +243,37 @@
 
 批次 0 没有新增业务页面组件，98 条新路由统一复用现有 `components/PlaceholderPage.vue`。权限、AI 状态、渠道和校验属于共享地基，分别复用 Pinia、现有 `PermissionGate`、`AssistantDrawer`、`ChatLog` 与 `vue-i18n`；没有重复实现 Vuexy 页面或聊天卡片。
 
-## 补齐批次 B
+## 补齐批次 B 独立复用审计
 
-审计范围：`src/views/gap-b/GapBPage.vue`、`src/pages/{procurement,inventory,dashboard,integrations,approvals,account,admin}` 下的批次 B 路由薄壳，以及批次 B 专用 API、类型和 mock 服务。
+审计范围：相对 `3f325c0` 的全部 `frontend` 变更，重点为 `src/views/gap-b/GapBPage.vue`、批次 B 路由薄壳、`src/api/gap-b.ts`、`src/types/gap-b.ts` 和 `src/mocks/services/gap-b.ts`。对照项目 `src/components/biz/*`、Vuexy full-version 的 `src/@core/components`、`src/components/dialogs`、`src/views/**`、`src/pages/**`，以及 Vuetify 组件。
 
-| 页面块 | 复用组件 | 处理与原因 |
-| --- | --- | --- |
-| 询价、合同、供应商、库存、同步、渠道列表 | `components/biz/ListPage`、`StatusChip`、`MoneyText` | 保留共享列表筛选、列管理、状态字典和金额展示；页面只提供业务列与动作。 |
-| 询价比价、合同详情、调拨、盘点 | `components/biz/DetailPage`、Vuetify `VStepper`/`VCard` | 详情轨迹和关联单据使用共享详情壳；报价并排卡片属于业务专属比较交互。 |
-| 导入、金蝶、ERPNext、IM 设置、新增渠道 | `components/biz/FormPage`、Vuetify `VStepper`/`VFileInput` | 向导和配置表单沿用 Vuexy/Vuetify 表单模式；文件类型和渠道能力没有安全的一对一现成业务组件。 |
-| AI 建议与 IM 卡片 | 页面 `VAlert`、全局 `AssistantDrawer`/`AgentCard` 协议 | AI 只显示建议，写操作仍走人工按钮和 mock 服务层；关闭 AI 后人工路径保留。 |
+| 组件 / UI 块 | 位置 | 现成等价物 | 处理 | 原因 | 业务操作是否满足 |
+| --- | --- | --- | --- | --- | --- |
+| 批次 B 通用页面壳 | `src/views/gap-b/GapBPage.vue` | `ListPage`、`DetailPage`、`FormPage` | 保留为薄组合 | 只负责根据 `pageKey` 选择 API 数据和业务插槽，列表、详情、表单外壳均来自项目共享组件。 | 是，已逐页补齐创建、详情和提交动作 |
+| 加载状态 | `GapBPage.vue` | `components/biz/LoadingState.vue`、Vuexy skeleton | 已替换 | 删除页面内重复的 `VSkeletonLoader`，统一加载文案和骨架。 | 是 |
+| S09 询价列表与新建 | `pages/procurement/rfqs.vue`、`GapBPage.vue` | `ListPage`、`FormDrawer`、`PermissionGate` | 已替换并补齐 | 新建询价改为现成抽屉和创建权限门禁；列表仍复用筛选、分页、导出。 | 是：列表、新建询价、人工发送前草稿 |
+| S10 询价比价 | `pages/procurement/rfqs/[id].vue`、`GapBPage.vue` | `DetailPage`、`MoneyText`；Vuexy invoice editable / `VCard` | 保留业务专属报价卡 | 并排报价、含税总额和人工选定供应商是比价专属结构，`AppPricing.vue` 是订阅套餐数据，不能直接套用。 | 是：查看报价、人工选定并生成采购单草稿 |
+| S11 采购合同列表 | `pages/procurement/contracts.vue` | `ListPage`、`StatusChip` | 保留 | 仅提供合同筛选、状态和详情入口，没有另写表格。 | 是：列表、筛选、进入详情 |
+| S12 合同详情 | `pages/procurement/contracts/[id].vue` | `DetailPage`、`VTable`、`VFileInput` | 已补齐 | 复用详情时间线和关联采购单；价格表与附件是合同字段专属，使用 Vuetify 直接组件。 | 是：条款、价格表、附件入口、关联采购单 |
+| S13 供应商评估 | `pages/procurement/supplier-scores.vue` | `ListPage`、`KpiCard`、`StatusChip` | 已补齐 | 通过 `ListPage#widgets` 接入项目 KPI 薄封装，评分仍由代码提供。 | 是：列表、筛选、平均评分 |
+| I12 批次与效期 | `pages/inventory/batches.vue` | `ListPage`、`StatusChip` | 保留 | 直接复用共享列表和状态字典，临期状态来自服务层。 | 是：列表、筛选、状态查看 |
+| I13 补货建议 | `pages/inventory/replenishment.vue` | `ListPage`、`PermissionGate` | 保留并补齐人工路径 | AI 起草按钮受 AI 开关控制；AI 关闭时保留手动新建采购单入口。 | 是：建议列表、AI 起草、人工起草 |
+| I14 调拨详情 | `pages/inventory/transfers/[id].vue` | `DetailPage`、`PermissionGate`、`VStepper` | 已补齐 | 在详情页新增确认调拨动作，库存流水说明继续使用步骤条。 | 是：调出 / 在途 / 调入确认 |
+| I15 盘点详情 | `pages/inventory/counts/[id].vue` | `DetailPage`、`PermissionGate`、`AppTextField` | 已补齐 | 增加实盘数量录入和差异审批提交，过账状态仍由 mock 服务层更新。 | 是：逐行录入、查看差异、提交审批 |
+| D05 业务链追溯 | `pages/dashboard/chain.vue` | `DetailPage`、Vuexy timeline | 已替换 | 删除页面内自写 `VTimeline`，改用 `DetailPage` 右栏时间线；搜索和断点数据保持原动作。 | 是：输入单号、查看 5 段链路和 4 个已接通断点 |
+| INT01 导入向导 | `pages/integrations/import-wizard.vue` | `FormPage`、Vuetify `VStepper`/`VFileInput`/`VTable` | 保留并补齐 | Vuexy `DropZone.vue` 限定图片预览，不适合 CSV/XLSX；映射表和导入预览需要逐行选择 / 展示，Vuetify 表格是直接等价物。 | 是：来源、上传、映射确认、预览、导入 |
+| INT02 平台同步 | `pages/integrations/sync-jobs.vue` | `ListPage`、`StatusChip`、`PermissionGate` | 保留并补齐 | 同步任务表和立即同步按钮分别复用列表与更新权限门禁。 | 是：任务状态、失败信息、立即同步 |
+| INT03 金蝶设置 | `pages/integrations/kingdee.vue` | `FormPage`、`AppTextField`、`AppSelect` | 已补齐 | 将账套、凭证字、导出格式和科目对照字段拆为现成表单控件。 | 是：配置并保存 |
+| INT04 ERPNext 账套 | `pages/integrations/erpnext.vue` | `FormPage`、`AppTextField`、`AppSelect` | 已补齐 | 使用现成表单控件表达站点、服务地址和审批后推送策略。 | 是：配置并保存 |
+| INT05 集成日志 | `pages/integrations/logs.vue` | `ListPage`、`StatusChip`、`MoneyText` | 保留 | 日志是只读列表，通用列表已覆盖筛选、分页和导出。 | 是：查看导入、同步、导出结果 |
+| W08 IM 审批卡片 | `pages/approvals/im-preview.vue` | `ListPage`、`RecordDrawer`、`StatusChip`、`MoneyText`、Vuexy card pattern | 已替换并补齐 | 增加只读卡片抽屉、批准 / 驳回；超过门槛继续只显示网页确认，保留内容变化校验。 | 是：查看、批准、驳回、网页确认、篡改提示 |
+| SYS19 渠道绑定 | `pages/account/channel-bindings.vue` | `DetailPage`、`ListPage`、`PermissionGate` | 已替换 | 用详情壳承载绑定列表，绑定和解绑由权限门禁包裹。 | 是：查看、绑定、解绑 |
+| SYS20 IM 审批设置 | `pages/admin/im-approval.vue` | `FormPage`、`ListPage`、`StatusChip` | 已补齐 | 表单覆盖通道、审批类型、金额门槛、回调和签名状态，侧栏列表展示全员通道配置。 | 是：启停配置、门槛、回调、签名状态、绑定概览 |
+| SYS25 通知渠道 | `pages/admin/channels.vue` | `ListPage`、`StatusChip`、Vuexy notification settings | 已补齐 | 启用开关改为可操作更新，保留测试发送和新增渠道入口。 | 是：查看、启用 / 停用、测试发送、新增 |
+| SYS26 新增渠道 | `pages/admin/channels/new.vue` | `FormPage`、`AppSelect`、`AppTextField`、`VSwitch` | 已补齐 | 增加测试发送和创建后启用开关；密钥只显示配置提示，不回显值。 | 是：选择插件、填写配置、测试发送、启停 |
+| AI 建议块 | `GapBPage.vue` 的 I13 操作区 | 全局 `AssistantDrawer` 的 `AgentCard` 协议、`PermissionGate` | 保留薄按钮入口 | 当前仓库没有独立 `AgentCard.vue`；AI 只提交建议，写操作仍由人工确认，关闭 AI 时人工入口可用。 | 是，AI 关闭后人工路径可用 |
+| 权限、数据、审计与 i18n 契约 | `src/config/permissions.ts`、`src/types/gap-b.ts`、`src/api/gap-b.ts`、`src/mocks/services/gap-b.ts` | 项目权限引擎、API mock 出口、Vuexy i18n | 保留 | 这些是数据契约和权限点，不是可替换 UI；未改权限地基。 | 是，动作仍经统一服务出口 |
 
-本批未新增通用 UI 组件；20 个路由均为薄壳，业务结构集中在一个批次专用视图，避免重复实现列表、详情和表单布局。
+审计结论：本批没有新增通用 UI 组件。`GapBPage.vue` 保留为业务差异的薄组合；列表、详情、表单、抽屉、状态、金额、权限门禁和 KPI 均接入现成实现。补齐前发现的缺口（盘点提交、调拨确认、IM 驳回、渠道启停 / 测试、合同价格表 / 附件、金蝶 / ERPNext 字段）已在本批补上；未保留只展示而无对应设计动作的页面。
 
 
