@@ -590,8 +590,6 @@ export function submitGapDLeave(input: { employeeId?: string; startDate: string;
 }
 
 export function approveGapDLeave(id: string, actor: Actor, origin: GapDWriteOrigin = 'human') {
-  writeGuard(actor, gapDPermissionKeys.leaveApprove, origin)
-
   const request = gapDLeaveRequests.find(row => row.id === id)
   if (!request)
     throw new Error('请假申请不存在')
@@ -600,6 +598,7 @@ export function approveGapDLeave(id: string, actor: Actor, origin: GapDWriteOrig
     throw new Error('申请员工不存在')
   if (actor.userId === employee.userId)
     throw new Error('不能审批自己提交的请假')
+  writeGuard(actor, gapDPermissionKeys.leaveApprove, origin)
   if (request.status === '待主管审批') {
     if (actor.role !== 'department_manager' && actor.role !== 'admin' && actor.role !== 'owner_manager')
       throw new Error('请先由部门主管审批，财务不能跳过主管')

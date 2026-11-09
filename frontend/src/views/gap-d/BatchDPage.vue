@@ -38,6 +38,7 @@ const inboxFile = ref<File | null>(null)
 const recordDrawerOpen = ref(false)
 const drawerRecord = ref<GapDRecord | null>(null)
 const operationDrawerOpen = ref(false)
+const toolDrawerOpen = ref(false)
 const operationTitle = ref('')
 const operationLabel = ref('')
 const operationDraft = ref({ title: '', detail: '' })
@@ -90,7 +91,6 @@ const columns = computed<ListColumn[]>(() => {
 
 async function load() {
   loading.value = true
-  message.value = ''
   try {
     records.value = await fetchGapDRecords(props.pageId)
     if (props.pageId === 'G18') {
@@ -138,6 +138,7 @@ async function createTool() {
   saving.value = true
   try {
     await createGapDTool({ name: toolName.value, kind: 'http', endpoint: toolEndpoint.value, frequencyLimit: toolFrequency.value, secretConfigured: toolSecret.value })
+    toolDrawerOpen.value = false
     message.value = '工具已登记，默认停用且只读；密钥只保存“已配置”状态。'
     await load()
   }
@@ -288,6 +289,7 @@ async function checkoutSelectedAsset() {
     return
   try {
     await checkoutAsset(record.id, 'demo-employee')
+    drawerRecord.value = { ...record, status: '已领用', owner: 'demo-employee' }
     message.value = '资产已领用，库存/持有人由模拟服务更新。'
     await load()
   }
@@ -300,6 +302,7 @@ async function returnSelectedAsset() {
     return
   try {
     await returnAsset(record.id)
+    drawerRecord.value = { ...record, status: '已归还', owner: undefined }
     message.value = '资产已归还并写入审计。'
     await load()
   }
@@ -591,14 +594,15 @@ onMounted(load)
             v-model="period"
             type="month"
             label="算薪期间"
-          /><PermissionGate action="approve">
+          />
+          <div>
             <VBtn
               :loading="saving"
               @click="calculatePayroll"
             >
               发起算薪
             </VBtn>
-          </PermissionGate>
+          </div>
           <VBtn
             v-if="payrollRun?.status === '待审批'"
             variant="tonal"
@@ -698,14 +702,14 @@ onMounted(load)
           </template>
         </ListPage>
         <VCardActions v-if="props.pageId === 'HR09'">
-          <PermissionGate action="approve">
+          <div>
             <VBtn
               :disabled="!payrollRun"
               @click="openReview"
             >
               填写复核原因并提交审批
             </VBtn>
-          </PermissionGate>
+          </div>
           <VBtn
             v-if="payrollRun?.status === '待审批'"
             variant="tonal"
@@ -1017,6 +1021,14 @@ onMounted(load)
           >
             推进请假审批
           </VBtn>
+          <VBtn
+            v-if="props.pageId === 'HR06'"
+            class="mt-3"
+            variant="tonal"
+            @click="saveFormDraft"
+          >
+            提交请假
+          </VBtn>
         </template>
       </FormPage>
     </template>
@@ -1033,7 +1045,7 @@ onMounted(load)
       >
         <template #widgets>
           <div
-            v-if="canAddOperation"
+            v-if="canAddOperation || props.pageId === 'G04'"
             class="d-flex flex-wrap justify-end align-end gap-3 mb-4"
           >
             <AppTextField
@@ -1061,6 +1073,13 @@ onMounted(load)
             >
               办理离职
             </VBtn>
+            <VBtn
+              v-if="props.pageId === 'G04'"
+              variant="tonal"
+              @click="toolDrawerOpen = true"
+            >
+              新增工具
+            </VBtn>
             <PermissionGate action="create">
               <VBtn
                 v-if="props.pageId !== 'HR05' && props.pageId !== 'HR04'"
@@ -1076,6 +1095,29 @@ onMounted(load)
             domain="generic"
             :value="String(item.status)"
           />
+          <template v-if="props.pageId === 'G04'">
+            <VBtn
+              size="small"
+              variant="text"
+              @click="toggleTool(item.id, item.status !== '已启用')"
+            >
+              {{ item.status === '已启用' ? '停用工具' : '启用工具' }}
+            </VBtn>
+            <VBtn
+              size="small"
+              variant="text"
+              @click="configureTool(item.id)"
+            >
+              配置密钥与频率
+            </VBtn>
+            <VBtn
+              size="small"
+              variant="text"
+              @click="testTool(item.id)"
+            >
+              测试调用
+            </VBtn>
+          </template>
         </template>
         <template #item.amount="{ item }">
           <MoneyText
@@ -1169,6 +1211,39 @@ onMounted(load)
       />
     </FormDrawer>
 
+    <FormDrawer
+      v-model="toolDrawerOpen"
+      title="新增工具"
+      @save="createTool"
+    >
+      <AppTextField
+        v-model="toolName"
+        label="工具名称"
+      />
+      <AppTextField
+        v-model="toolEndpoint"
+        class="mt-4"
+        label="只读 HTTP 地址"
+      />
+      <AppTextField
+        v-model.number="toolFrequency"
+        class="mt-4"
+        type="number"
+        label="频率上限 / 日"
+      />
+      <VSwitch
+        v-model="toolSecret"
+        class="mt-4"
+        label="模拟配置密钥（只显示已配置）"
+      />
+      <VBtn
+        class="mt-4"
+        @click="createTool"
+      >
+        保存工具
+      </VBtn>
+    </FormDrawer>
+
     <RecordDrawer
       v-model="payslipDrawerOpen"
       title="工资计算明细"
@@ -1246,6 +1321,12 @@ onMounted(load)
         :rules="[requiredValidator]"
         rows="5"
       />
+      <VBtn
+        class="mt-3"
+        @click="submitReview"
+      >
+        提交复核
+      </VBtn>
     </FormDrawer>
 
     <FormDrawer
