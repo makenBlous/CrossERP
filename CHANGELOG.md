@@ -4,6 +4,7 @@
 
 ## [Unreleased]
 
+- fix(frontend): 批次 B 金额口径统一、防自审与审计 actorId，恢复共享种子口径
 - fix(frontend): 修复批次 B 利润种子缺少 10 月 SKU 详情数据，列表行与详情链接恢复一致
 
 - feat(frontend): 补齐批次 B 供应链、业务链、集成与渠道页面（静态 mock 流程）

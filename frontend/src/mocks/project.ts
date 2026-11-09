@@ -15,6 +15,7 @@ import type {
   OrderFee,
   OrderSummary,
   ProfitRow,
+  ProfitSkuDetail,
   ReconRun,
   StockAlert,
   Store,
@@ -338,6 +339,60 @@ export function projectProfit(db: MockDatabase): { rows: ProfitRow[]; stores: St
   })
 
   return { rows, stores }
+}
+
+export function projectProfitSku(db: MockDatabase, internalSku: string, currentPeriod = '2026-10'): ProfitSkuDetail | null {
+  const snapshots = db.profitSnapshots.filter(item => item.internalSku === internalSku)
+
+  const period = snapshots.some(item => item.period === currentPeriod)
+    ? currentPeriod
+    : snapshots.map(item => item.period).sort().at(-1)
+
+  if (!period)
+    return null
+
+  const snapshot = snapshots.find(item => item.period === period)
+
+  if (!snapshot)
+    return null
+
+  const sku = db.skus.find(item => item.internalSku === snapshot.internalSku)
+  const store = storeOf(db, snapshot.storeId)
+
+  const row: ProfitRow = {
+    sku: snapshot.internalSku,
+    name: sku?.title ?? snapshot.internalSku,
+    storeId: snapshot.storeId,
+    storeName: store?.name ?? snapshot.storeId,
+    currency: snapshot.currency,
+    revenue: money(snapshot.revenue, snapshot.currency),
+    platformFee: money(snapshot.fees, snapshot.currency),
+    ads: money(snapshot.ads, snapshot.currency),
+    firstMile: money(snapshot.freight, snapshot.currency),
+    cost: money(snapshot.cogs, snapshot.currency),
+    profit: money(snapshot.profit, snapshot.currency),
+  }
+
+  const sourceOrders = db.orderLines
+    .filter(line => line.internalSku === internalSku)
+    .map(line => {
+      const order = db.orders.find(item => item.id === line.orderId)
+
+      if (!order || monthKey(order.orderedAt) !== period)
+        return null
+
+      return {
+        id: order.id,
+        orderNo: order.orderNo,
+        orderedAt: order.orderedAt.slice(0, 10),
+        qty: line.qty,
+        storeName: storeOf(db, order.storeId)?.name ?? order.storeId,
+        status: order.status,
+      }
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+
+  return { row, period, exampleData: period !== currentPeriod, sourceOrders }
 }
 
 export function projectRecon(db: MockDatabase): ReconRun[] {

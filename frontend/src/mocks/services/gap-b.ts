@@ -4,7 +4,8 @@ import { FlowError } from '@/mocks/services/errors'
 import { applyMovement } from '@/mocks/services/inventory'
 import { createPurchaseOrder } from '@/mocks/services/procurement'
 import { useSessionStore } from '@/stores/session'
-import { minorToDecimal } from '@/utils/money'
+import { type AppAction, can } from '@/utils/permission'
+import { minorFromDecimal, minorToDecimal } from '@/utils/money'
 import type { GapBAuditEvent, GapBChainNode, GapBDetail, GapBKey, GapBPageData, GapBRow } from '@/types/gap-b'
 
 const now = '2026-11-10 10:00'
@@ -22,7 +23,7 @@ function record(action: string, refType: string, refId: string, summary: string,
 
   const id = `gap-aud-${Date.now()}-${gapAudit.length}`
 
-  gapAudit.unshift({ id, at: actor.at, actor: actor.name, action, refType, refId, summary, channel })
+  gapAudit.unshift({ id, at: actor.at, actorId: actor.userId, actor: actor.name, action, refType, refId, summary, channel })
 }
 
 const titles: Record<GapBKey, [string, string]> = {
@@ -81,7 +82,7 @@ let state: Record<string, GapBRow[]> = {
   INT01: [{ id: 'import-001', source: '领星', fileName: 'lingxing-2026-11.csv', rows: 248, mapped: '12/12', status: 'ready', importedAt: now }],
   INT02: [{ id: 'sync-001', platform: 'Amazon US', type: '订单与库存', progress: '100%', status: 'succeeded', startedAt: now, message: '同步完成 248 行' }, { id: 'sync-002', platform: 'Shopify', type: '打款', progress: '42%', status: 'running', startedAt: now, message: '正在读取分页 3/7' }],
   INT05: [{ id: 'log-001', operation: '领星导入', target: 'import-001', status: 'succeeded', rows: 248, at: now }, { id: 'log-002', operation: 'Shopify 同步', target: 'sync-002', status: 'running', rows: 96, at: now }],
-  W08: [{ id: 'im-3000', channel: '飞书', title: '费用报销 EX-2026-018', amount: 300000, currency: 'CNY', contentHash: 'sha256:8c7a…1b2e', threshold: '可在 IM 批准', status: 'pending' }, { id: 'im-80000', channel: '飞书', title: '付款申请 PAY-2026-004', amount: 8000000, currency: 'CNY', contentHash: 'sha256:9fd1…aa91', threshold: '超过 ¥50,000，去网页确认', status: 'web_required' }],
+  W08: [{ id: 'im-3000', channel: '飞书', title: '费用报销 EX-2026-018', amount: minorFromDecimal('3000'), currency: 'CNY', contentHash: 'sha256:8c7a…1b2e', submitterId: 'demo-operator', threshold: '可在 IM 批准', status: 'pending' }, { id: 'im-80000', channel: '飞书', title: '付款申请 PAY-2026-004', amount: minorFromDecimal('80000'), currency: 'CNY', contentHash: 'sha256:9fd1…aa91', submitterId: 'demo-operator', threshold: '超过 ¥50,000，去网页确认', status: 'web_required' }],
   SYS19: [{ id: 'binding-feishu', channel: '飞书', account: 'linxia@example.com', boundAt: '2026-10-01', status: 'bound' }, { id: 'binding-wecom', channel: '企业微信', account: '未绑定', boundAt: '-', status: 'unbound' }, { id: 'binding-dingtalk', channel: '钉钉', account: '未绑定', boundAt: '-', status: 'unbound' }],
   SYS20: [{ id: 'im-feishu', channel: '飞书', enabled: true, approvalTypes: '报销 / 采购 / 付款', threshold: 50000, callback: 'https://example.invalid/feishu/callback', signature: '已配置', status: 'active' }, { id: 'im-wecom', channel: '企业微信', enabled: false, approvalTypes: '报销', threshold: 50000, callback: '未配置', signature: '未配置', status: 'inactive' }],
   SYS25: [{ id: 'channel-feishu', channel: '飞书', capabilities: '消息 / 审批卡片 / 回调 / 身份绑定', enabled: true, configured: true, lastResult: '成功 · 2 分钟前' }, { id: 'channel-wecom', channel: '企业微信', capabilities: '消息 / 审批卡片 / 回调 / 身份绑定', enabled: true, configured: true, lastResult: '成功 · 1 小时前' }, { id: 'channel-dingtalk', channel: '钉钉', capabilities: '消息 / 审批卡片 / 回调 / 身份绑定', enabled: false, configured: false, lastResult: '未配置' }, { id: 'channel-email', channel: '邮件', capabilities: '消息', enabled: true, configured: true, lastResult: '成功 · 昨天' }],
@@ -127,12 +128,17 @@ function resolveSku(db: ReturnType<typeof database>['db'], requested: string) {
 
 function imThresholdMinor(channel: string) {
   const setting = state.SYS20.find(item => item.channel === channel && item.enabled !== false) ?? state.SYS20[0]
-  const threshold = Number(setting?.threshold)
+  const threshold = String(setting?.threshold ?? '')
 
-  if (!Number.isFinite(threshold) || threshold <= 0)
+  if (!threshold.trim())
     throw new FlowError('IM 审批门槛必须是正数')
 
-  return threshold * 100
+  const thresholdMinor = minorFromDecimal(threshold)
+
+  if (thresholdMinor <= 0)
+    throw new FlowError('IM 审批门槛必须是正数')
+
+  return thresholdMinor
 }
 
 const columns: Record<GapBKey, Array<{ key: string; title: string }>> = {
@@ -149,7 +155,7 @@ const columns: Record<GapBKey, Array<{ key: string; title: string }>> = {
   INT05: [{ key: 'operation', title: '操作' }, { key: 'target', title: '目标' }, { key: 'rows', title: '行数' }, { key: 'status', title: '状态' }, { key: 'at', title: '时间' }],
   W08: [{ key: 'channel', title: '渠道' }, { key: 'title', title: '审批事项' }, { key: 'amount', title: '金额' }, { key: 'threshold', title: '门槛' }, { key: 'status', title: '状态' }],
   SYS19: [{ key: 'channel', title: '渠道' }, { key: 'account', title: '外部账号' }, { key: 'boundAt', title: '绑定时间' }, { key: 'status', title: '状态' }],
-  SYS20: [{ key: 'channel', title: '渠道' }, { key: 'approvalTypes', title: '可审批类型' }, { key: 'threshold', title: '网页确认门槛（分）' }, { key: 'signature', title: '签名配置' }, { key: 'status', title: '状态' }],
+  SYS20: [{ key: 'channel', title: '渠道' }, { key: 'approvalTypes', title: '可审批类型' }, { key: 'threshold', title: '网页确认门槛（元）' }, { key: 'signature', title: '签名配置' }, { key: 'status', title: '状态' }],
   SYS25: [{ key: 'channel', title: '渠道' }, { key: 'capabilities', title: '能力' }, { key: 'enabled', title: '启用' }, { key: 'configured', title: '配置' }, { key: 'lastResult', title: '最近结果' }],
   D05: [],
   S12: [],
@@ -195,7 +201,42 @@ export function getGapBPage(key: GapBKey, id?: string): GapBPageData {
   return { key, title, subtitle, kind: detailKeys.includes(key) ? 'detail' : ['INT01', 'INT03', 'INT04', 'SYS20', 'SYS26'].includes(key) ? 'form' : 'list', columns: columns[key], rows: pageRows, detail, audit: gapAudit.slice(0, 20), chain: key === 'D05' ? chain : undefined }
 }
 
+const actionPermissions: Record<string, AppAction> = {
+  'create-rfq': 'create',
+  'award-rfq': 'update',
+  'draft-replenishment': 'create',
+  'confirm-transfer': 'update',
+  'submit-count': 'update',
+  'approve-count': 'approve',
+  'upload-import': 'update',
+  'preview-import': 'update',
+  'confirm-import': 'update',
+  'start-sync': 'update',
+  'save-settings': 'update',
+  'save-attachment': 'update',
+  'approve-im': 'approve',
+  'reject-im': 'approve',
+  'tamper-im': 'update',
+  'bind-channel': 'update',
+  'unbind-channel': 'update',
+  'test-channel': 'update',
+  'toggle-channel': 'update',
+  'create-channel': 'create',
+  'search-chain': 'update',
+  'win-opportunity': 'create',
+}
+
 export function applyGapBAction(key: GapBKey, action: string, payload: Record<string, string | number | boolean> = {}): string {
+  const permission = actionPermissions[action]
+
+  if (!permission)
+    throw new FlowError(`未知操作: ${action}`)
+
+  const actor = currentActor()
+
+  if (!can(actor.role, permission))
+    throw new FlowError('当前角色不能执行这个操作')
+
   if (action === 'create-rfq') {
     const subject = String(payload.subject ?? '').trim()
 
@@ -203,7 +244,7 @@ export function applyGapBAction(key: GapBKey, action: string, payload: Record<st
       throw new FlowError('询价主题不能为空')
 
     const supplierCount = Number(payload.supplierCount ?? 0)
-    const amount = Number(payload.amount ?? 0)
+    const amount = minorFromDecimal(String(payload.amount ?? ''))
 
     if (!Number.isInteger(supplierCount) || supplierCount <= 0)
       throw new FlowError('供应商数量必须是正整数')
@@ -292,10 +333,10 @@ export function applyGapBAction(key: GapBKey, action: string, payload: Record<st
     if (!Number.isInteger(qty) || qty <= 0 || !fromWarehouseId || !toWarehouseId || !sku)
       throw new FlowError('调拨单缺少有效仓库、SKU 或数量')
 
-    const actor = currentActor()
+    const movementActor = currentActor()
 
-    applyMovement(db.db, { warehouseId: fromWarehouseId, internalSku: sku.internalSku, onHandDelta: -qty, inTransitDelta: 0, reason: 'transfer_out', refType: 'stock_transfer', refId: String(row.id), actor })
-    applyMovement(db.db, { warehouseId: toWarehouseId, internalSku: sku.internalSku, onHandDelta: qty, inTransitDelta: 0, reason: 'transfer_in', refType: 'stock_transfer', refId: String(row.id), actor })
+    applyMovement(db.db, { warehouseId: fromWarehouseId, internalSku: sku.internalSku, onHandDelta: -qty, inTransitDelta: 0, reason: 'transfer_out', refType: 'stock_transfer', refId: String(row.id), actor: movementActor })
+    applyMovement(db.db, { warehouseId: toWarehouseId, internalSku: sku.internalSku, onHandDelta: qty, inTransitDelta: 0, reason: 'transfer_in', refType: 'stock_transfer', refId: String(row.id), actor: movementActor })
     row.status = 'posted'
     row.movement = `调出 -${qty}；调入 +${qty}`
     db.persist()
@@ -343,9 +384,9 @@ export function applyGapBAction(key: GapBKey, action: string, payload: Record<st
     if (!sku || !warehouseId)
       throw new FlowError('盘点单缺少有效仓库或 SKU')
 
-    const actor = currentActor()
+    const movementActor = currentActor()
 
-    applyMovement(db.db, { warehouseId, internalSku: sku.internalSku, onHandDelta: Number(row.variance), inTransitDelta: 0, reason: 'count_adjustment', refType: 'stock_count', refId: String(row.id), actor })
+    applyMovement(db.db, { warehouseId, internalSku: sku.internalSku, onHandDelta: Number(row.variance), inTransitDelta: 0, reason: 'count_adjustment', refType: 'stock_count', refId: String(row.id), actor: movementActor })
     row.status = 'posted'
     row.approval = '已批准并过账'
     row.approverId = session.userId
@@ -401,12 +442,12 @@ export function applyGapBAction(key: GapBKey, action: string, payload: Record<st
       if (typeof rawThreshold === 'boolean' || String(rawThreshold).trim() === '')
         throw new FlowError('IM 审批门槛不能为空')
 
-      const threshold = Number(rawThreshold)
+      const thresholdMinor = minorFromDecimal(String(rawThreshold))
 
-      if (!Number.isFinite(threshold) || threshold <= 0)
+      if (thresholdMinor <= 0)
         throw new FlowError('IM 审批门槛必须是正数')
 
-      row.threshold = threshold
+      row.threshold = Number(minorToDecimal(thresholdMinor))
       if (payload.endpoint !== undefined)
         row.callback = String(payload.endpoint).trim() || row.callback
     }
@@ -449,6 +490,9 @@ export function applyGapBAction(key: GapBKey, action: string, payload: Record<st
     if (Number(row.amount) > imThresholdMinor(String(row.channel ?? '飞书')))
       throw new FlowError('金额超过 IM 门槛，只能去网页确认')
 
+    if (row.submitterId === actor.userId)
+      throw new FlowError('IM 卡片提交人不能批准自己的事项')
+
     row.status = 'approved'
     record('approve', 'im_approval', String(row.id), '通过 IM 审批，内容哈希校验通过', '飞书')
 
@@ -462,6 +506,9 @@ export function applyGapBAction(key: GapBKey, action: string, payload: Record<st
 
     if (Number(row.amount) > imThresholdMinor(String(row.channel ?? '飞书')))
       throw new FlowError('金额超过 IM 门槛，只能去网页确认')
+
+    if (row.submitterId === actor.userId)
+      throw new FlowError('IM 卡片提交人不能驳回自己的事项')
 
     row.status = 'rejected'
     record('reject', 'im_approval', String(row.id), '驳回 IM 审批卡片', '飞书')

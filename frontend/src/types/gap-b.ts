@@ -42,6 +42,7 @@ export interface GapBPageData {
 export interface GapBAuditEvent {
   id: string
   at: string
+  actorId: string
   actor: string
   action: string
   refType: string

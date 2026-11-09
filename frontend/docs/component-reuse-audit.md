@@ -305,22 +305,22 @@
 
 | 检查项 | 结论 |
 | --- | --- |
-| 稳定 userId | `useSessionStore().userId` 按演示角色映射到稳定 ID，盘点提交和审批用该 ID 做提交人比较；这部分有效。 |
-| 防自审 | I15 盘点审批检查 `submitterId !== session.userId`，状态也限制为 `submitted`；但 W08 IM 审批行没有提交人/审批人 ID，`approve-im`/`reject-im` 只检查状态和门槛，采购单 `approvePurchaseOrder` 也没有提交人比较，防自审覆盖不完整。 |
-| 防跳级 | API 动作映射使用 `assertCan('approve'/'create'/'update')`，状态流限制了部分顺序；但 `applyGapBAction` 可被绕过 API 直接调用，真实服务需要在唯一写入口再次校验角色和状态。 |
+| 稳定 userId | `useSessionStore().userId` 按演示角色映射到稳定 ID；当前 actor 会保留该 ID，盘点、IM 和采购审批均按 ID 判断。 |
+| 防自审 | I15、W08 IM 和采购单服务层均记录提交人 ID，并拒绝提交人批准/驳回自己的事项；另一身份可以继续审批。 |
+| 防跳级 | API 动作映射和 `applyGapBAction` 服务入口都按有效权限与动作白名单校验，未知动作和直接绕过 API 的越权调用均被拒绝。 |
 | 幂等 | 调拨、盘点、导入、IM 审批等状态迁移重复调用会被状态检查拦截；询价、同步、渠道创建、附件保存、测试发送、链路查询和绑定/解绑没有请求幂等键，重复请求会新增记录或重复审计，不能判定为完整幂等。 |
-| actorId 审计 | `currentActor()` 丢弃了 `session.userId`，`Actor`/`AuditEvent`/`writeAudit` 只保存 `actor` 名称和角色；`record()`、库存流水和采购服务均没有写入稳定 `actorId`。同名或角色切换时无法可靠追溯，未满足审计带 actorId 的要求。 |
+| actorId 审计 | `Actor`、`AuditEvent`、`writeAudit`、批次 B `record()`、库存流水和采购服务均写入稳定 `actorId`；同名或角色切换仍可按 ID 追溯。 |
 
 ### 金额检查
 
 金额计算路径总体使用 `utils/money` 的整数 `Minor`、`minorFromDecimal`、`addMinor`、`mulQty`，采购退货金额由采购行单价乘数量确定性计算，未发现使用 `float` 算钱的新增代码。
 
-发现一处口径不一致：`utils/money` 的 `Minor` 是万分位整数（scale 10000），但批次 B 的 IM 门槛 `imThresholdMinor()` 使用 `threshold * 100`，表单又标为“元”，询价表单标为“分”，页面统一将这些数交给 `MoneyText minor` 按万分位展示。这样会使门槛比较和展示相差两个数量级；通用 `Number(payload.amount)` 也没有经过 `minorFromDecimal()`。这属于金额口径问题，已记录，未在本轮扩大修复。
+本轮已统一金额口径：IM 卡片、IM 门槛和询价金额均以“元”录入并通过 `minorFromDecimal()` 转为万分位 `Minor`；`MoneyText minor` 按同一单位展示，服务层不再使用 `threshold * 100` 或裸 `Number(payload.amount)`。
 
-### 共享种子 VERSION 4 复核
+### 共享种子 VERSION 5 复核
 
-对当前 `buildSeed()` 与 `3e88c5a` 父版本用同一组 `projectDashboard()`/`projectProfit()` 读取并比较：订单总数仍为 100，版本由 3 变为 4，但 10 月订单由 28 增至 32，10 月利润快照行由 19 增至 22。共享页面统计随之变化：仪表盘销售额 `1975.68 → 2538.14 USD`、费用 `322.77 → 840.76 USD`、净利润 `639.64 → 421.41 USD`、匹配率 `76.92% → 80%`；`openIssues=9` 和 `pendingApprovals=5` 未变。结算金额也发生变化，例如 `amz-us 2456160 → 5580960`、`amz-jp 18555224 → 205110448`（均为存储最小单位），利润页 `amz-us` 利润 `80.45 → -235.52`、`amz-jp` `611 → 6822`。因此该种子改动确实对其他页面数据和金额口径有副作用，不能宣称已保持旧基线；后续应由产品确认新的基线或恢复原月份分布。本轮保留现有种子数据，没有擅自改回。
+已恢复 `3e88c5a` 父版本的月份分布并递增种子版本到 5 清理旧缓存。订单总数为 100，10 月利润快照行恢复为 19；独立断言复核仪表盘销售额 `1975.68 USD`、净利润 `639.64 USD`，未再发生共享金额漂移。旧基线 `NW-TENT-2P-OLV` 详情改为回退到最近有数据的 `2026-06`，页面明确标注“示例数据”并列出 4 个来源订单。
 
 ### 本轮结论
 
-组件复用符合现有 Vuexy/Vuetify 薄封装约定，页面层没有发现适合安全一对一替换的重复通用组件。写入链路的权限入口和部分状态幂等有效，但 actorId、W08/采购单防自审、完整幂等及金额 scale 仍是未闭合问题；共享种子 VERSION 4 的统计变化已用实际构建数据核实并记录。
+组件复用符合现有 Vuexy/Vuetify 薄封装约定，页面层没有发现适合安全一对一替换的重复通用组件。actorId、W08/采购单防自审、服务入口权限、金额 scale 和共享种子基线已闭合；建议类请求幂等键按本轮范围外保留。

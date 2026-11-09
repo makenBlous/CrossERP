@@ -48,6 +48,7 @@ export function applyMovement(db: MockDatabase, input: MovementInput) {
     refType: input.refType,
     refId: input.refId,
     occurredAt: input.actor.at,
+    actorId: input.actor.userId,
     createdBy: input.actor.name,
   })
 }

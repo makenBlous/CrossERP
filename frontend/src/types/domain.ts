@@ -155,6 +155,22 @@ export interface ProfitRow {
   profit: number
 }
 
+export interface ProfitSkuSourceOrder {
+  id: string
+  orderNo: string
+  orderedAt: string
+  qty: number
+  storeName: string
+  status: string
+}
+
+export interface ProfitSkuDetail {
+  row: ProfitRow
+  period: string
+  exampleData: boolean
+  sourceOrders: ProfitSkuSourceOrder[]
+}
+
 export interface StoreProfit {
   storeId: string
   storeName: string

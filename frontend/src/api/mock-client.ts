@@ -33,6 +33,7 @@ export function currentActor(): Actor {
   const session = useSessionStore()
 
   return {
+    userId: session.userId,
     name: session.displayName,
     role: session.role,
     at: new Date().toISOString(),

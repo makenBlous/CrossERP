@@ -1,5 +1,5 @@
 import { assertCan, database, delay, readMock } from '@/api/mock-client'
-import { projectIssues, projectProfit, projectRecon, projectVouchers } from '@/mocks/project'
+import { projectIssues, projectProfit, projectProfitSku, projectRecon, projectVouchers } from '@/mocks/project'
 import { accounts, addFxRate, apAging, apRows, arAging, arRows, cashRows, clearingRows, columnMapDetail, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, recordImport, saveColumnMap, settlementDetail, settlements, sourceRow, submitClearing, submitVoucher, voucherDetail } from '@/mocks/services/finance'
 
 // 未来: GET /api/v1/finance/profit
@@ -7,6 +7,12 @@ export async function fetchProfit() {
   await delay()
 
   return projectProfit(database().db)
+}
+
+export async function fetchProfitSku(internalSku: string) {
+  await delay()
+
+  return projectProfitSku(database().db, internalSku)
 }
 
 // 未来: GET /api/v1/finance/recon-runs

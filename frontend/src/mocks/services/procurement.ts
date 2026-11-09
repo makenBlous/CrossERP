@@ -22,6 +22,7 @@ export function submitPurchaseOrder(db: MockDatabase, id: string, actor: Actor):
     throw new FlowError('只有草稿采购单可以提交')
 
   po.status = 'submitted'
+  po.submittedById = actor.userId
 
   const lines = db.purchaseOrderLines.filter(line => line.purchaseOrderId === po.id)
   const amount = lines.reduce((sum, line) => addMinor(sum, mulQty(line.unitCost, line.qty)), 0)
@@ -54,6 +55,9 @@ export function approvePurchaseOrder(db: MockDatabase, id: string, actor: Actor)
 
   if (po.status !== 'submitted')
     throw new FlowError('只有待审批采购单可以通过')
+
+  if (po.submittedById === actor.userId)
+    throw new FlowError('采购单提交人不能批准自己的采购单')
 
   po.status = 'approved'
 

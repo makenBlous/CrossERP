@@ -8,6 +8,7 @@ export type WarehouseKind = 'fba' | 'overseas' | 'domestic'
 export type DocType = 'inbound' | 'outbound' | 'transfer' | 'count'
 
 export interface Actor {
+  userId: string
   name: string
   role: Role
   at: string
@@ -170,6 +171,7 @@ export interface StockMovement {
   refType: string
   refId: string
   occurredAt: string
+  actorId: string
   createdBy: string
 }
 
@@ -229,6 +231,7 @@ export interface PurchaseOrder {
   expectedAt: string
   createdBy: string
   createdAt: string
+  submittedById?: string
 }
 
 export interface PurchaseOrderLine {
@@ -520,6 +523,7 @@ export interface MessageEntity {
 export interface AuditEvent {
   id: string
   at: string
+  actorId: string
   actor: string
   actorRole: Role
   action: string

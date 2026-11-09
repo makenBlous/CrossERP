@@ -993,7 +993,7 @@ function rowStatus(row: GapBRow) {
         />
         <AppTextField
           v-model="form.amount"
-          label="预计金额（分）"
+          label="预计金额（元）"
         />
       </FormDrawer>
       <RecordDrawer
