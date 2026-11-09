@@ -550,6 +550,7 @@ export interface FinanceColumnMap {
   fields: number
   status: string
   updatedAt: string
+  mappings?: Array<{ source: string; field: string }>
 }
 
 export interface FinanceExportArtifact {

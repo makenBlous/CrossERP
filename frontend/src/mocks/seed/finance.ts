@@ -25,9 +25,9 @@ export function seedFinance(db: MockDatabase) {
       { id: 'fee-4', platform: 'Amazon', description: 'Promo rebate adjustment', category: '—', status: 'unmapped', suggestion: '促销折扣' },
     ],
     columnMaps: [
-      { id: 'map-lx-order', connector: 'lingxing', name: '领星订单导出', fields: 14, status: 'confirmed', updatedAt: '2026-10-31' },
-      { id: 'map-lx-cost', connector: 'lingxing', name: '领星成本导出', fields: 8, status: 'confirmed', updatedAt: '2026-10-31' },
-      { id: 'map-sf-order', connector: 'sellfox', name: '赛狐订单导出', fields: 12, status: 'draft', updatedAt: '2026-10-28' },
+      { id: 'map-lx-order', connector: 'lingxing', name: '领星订单导出', fields: 14, status: 'confirmed', updatedAt: '2026-10-31', mappings: [{ source: '订单号', field: 'order_no' }, { source: 'SKU', field: 'platform_sku' }, { source: '金额', field: 'amount' }] },
+      { id: 'map-lx-cost', connector: 'lingxing', name: '领星成本导出', fields: 8, status: 'confirmed', updatedAt: '2026-10-31', mappings: [{ source: 'SKU', field: 'internal_sku' }, { source: '成本', field: 'unit_cost' }, { source: '生效日期', field: 'valid_from' }] },
+      { id: 'map-sf-order', connector: 'sellfox', name: '赛狐订单导出', fields: 12, status: 'draft', updatedAt: '2026-10-28', mappings: [{ source: '订单编号', field: 'order_no' }, { source: '平台 SKU', field: 'platform_sku' }, { source: '销售额', field: 'amount' }] },
     ],
     exports: [],
     clearing: db.settlements.slice(0, 6).map((row, index) => {

@@ -1,6 +1,6 @@
 import { assertCan, database, delay, readMock } from '@/api/mock-client'
 import { projectIssues, projectProfit, projectRecon, projectVouchers } from '@/mocks/project'
-import { accounts, addFxRate, apRows, arRows, cashRows, clearingRows, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, recordImport, settlementDetail, settlements, sourceRow, submitClearing, submitVoucher, voucherDetail } from '@/mocks/services/finance'
+import { accounts, addFxRate, apAging, apRows, arAging, arRows, cashRows, clearingRows, columnMapDetail, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, recordImport, saveColumnMap, settlementDetail, settlements, sourceRow, submitClearing, submitVoucher, voucherDetail } from '@/mocks/services/finance'
 
 // 未来: GET /api/v1/finance/profit
 export async function fetchProfit() {
@@ -108,6 +108,16 @@ export async function fetchColumnMaps() {
 
   return readMock(columnMapRows(database().db))
 }
+export async function fetchColumnMap(id: string) {
+  await delay()
+  return readMock(columnMapDetail(database().db, id))
+}
+export async function saveColumnMapEntry(id: string, mappings: Array<{ source: string; field: string }>) {
+  const actor = assertCan('update')
+  const row = saveColumnMap(database().db, id, mappings, actor)
+  database().persist()
+  return readMock(row)
+}
 export async function fetchAr() {
   await delay()
 
@@ -117,6 +127,14 @@ export async function fetchAp() {
   await delay()
 
   return readMock(apRows(database().db))
+}
+export async function fetchArAging() {
+  await delay()
+  return readMock(arAging(database().db))
+}
+export async function fetchApAging() {
+  await delay()
+  return readMock(apAging(database().db))
 }
 export async function fetchClearing() {
   await delay()
