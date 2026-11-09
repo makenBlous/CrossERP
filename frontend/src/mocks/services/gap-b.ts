@@ -231,6 +231,11 @@ export function applyGapBAction(key: GapBKey, action: string, payload: Record<st
 
     return '设置已保存，敏感配置只显示「已配置」。已写入审计记录。'
   }
+  if (action === 'save-attachment') {
+    record('attach', 'purchase_contract', key, `合同附件 ${String(payload.fileName || '未命名文件')} 已保存到静态原型引用`)
+
+    return '合同附件已保存，文件引用已写入审计记录。'
+  }
   if (action === 'approve-im') {
     const row = state.W08.find(item => item.id === String(payload.id))
     if (!row)

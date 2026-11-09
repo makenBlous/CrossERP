@@ -188,6 +188,12 @@ async function testChannel(row?: GapBRow) {
   await act('test-channel', { id: row?.id ?? '', channel: row && typeof row.channel === 'string' ? row.channel : form.channel })
 }
 
+async function saveAttachment(value: File | File[] | null) {
+  const file = Array.isArray(value) ? value[0] : value
+  if (file)
+    await act('save-attachment', { fileName: file.name })
+}
+
 function rowStatus(row: GapBRow) {
   const value = row.status
 
@@ -330,6 +336,8 @@ function rowStatus(row: GapBRow) {
               accept=".pdf,.doc,.docx,.xlsx"
               prepend-icon="tabler-paperclip"
               multiple
+              data-test="contract-attachment"
+              @update:model-value="saveAttachment"
             />
           </VCardText>
         </VCard>
