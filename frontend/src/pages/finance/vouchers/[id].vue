@@ -39,6 +39,7 @@ async function submit() {
     :subtitle="`${row.period} · ${row.submitter}`"
     domain="voucher"
     :status="row.status"
+    :timeline="row.timeline"
     :related="row.approvalId ? [{ id: row.approvalId, type: '审批', label: '查看审批记录', to: `/approvals/${row.approvalId}` }] : []"
   >
     <template #actions>
