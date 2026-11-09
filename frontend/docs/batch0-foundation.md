@@ -146,3 +146,8 @@
 - 金额只由确定性代码计算，`MoneyText` 只展示；涉及钱、凭证、付款、薪资的智能体动作最高 L2，L3 仅限白名单低风险动作。
 - `/agent/knowledge` 跳转到 `/kb` 留给批次 E。
 
+
+## 验证记录（2026-11-10 01:57，Asia/Shanghai）
+- pnpm run typecheck 通过；eslint 0 错误（23 条既有警告）；pnpm run build 通过；pytest 296 通过、7 跳过。
+- Playwright：127 个现有路由 × 5 个旧角色（admin/finance/operator/viewer/auditor），可访问/被拦截与改动前基线（57d1414）完全一致，控制台 0 报错；/finance/profit/sku/:internalSku 内容偏短的判定与基线相同，属既有问题。
+- 98 个占位路由：admin 全部可打开，finance 可打开 27 个，控制台 0 报错。
