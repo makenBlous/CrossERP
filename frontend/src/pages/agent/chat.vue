@@ -30,6 +30,17 @@ const canSuggest = computed(() => can(session.role, 'suggest'))
 const activeThread = computed(() => threads.value.find(item => item.id === activeId.value))
 const visibleThreads = computed(() => threads.value.filter(item => item.title.toLowerCase().includes(query.value.trim().toLowerCase())))
 
+// 改编自 Vuexy apps/chat.vue 的 scrollToBottomInChatLog：新消息和建议卡出现后滚到底部。
+const chatLogPS = ref()
+
+function scrollToBottomInChatLog() {
+  const scrollEl = chatLogPS.value?.$el || chatLogPS.value
+  if (scrollEl)
+    scrollEl.scrollTop = scrollEl.scrollHeight
+}
+
+watch(() => [bubbles.value.length, bubbles.value[bubbles.value.length - 1]?.text, sending.value], () => nextTick(scrollToBottomInChatLog))
+
 onMounted(async () => {
   const payload = await fetchChat()
 
@@ -69,7 +80,7 @@ async function send() {
 }
 
 async function submitSuggestion(message: Bubble) {
-  if (!message.card?.draft || !canSuggest)
+  if (!message.card?.draft || !canSuggest.value)
     return
   const approval = await submitAgentSuggestion(message.card.draft)
 
@@ -164,6 +175,7 @@ async function submitSuggestion(message: Bubble) {
           {{ t('common.aiNoLedger') }}
         </VAlert>
         <PerfectScrollbar
+          ref="chatLogPS"
           :options="{ wheelPropagation: false }"
           class="flex-grow-1"
         >

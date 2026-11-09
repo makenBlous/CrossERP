@@ -78,7 +78,7 @@ const { t } = useI18n({ useScope: 'global' })
       >
         <VCard title="角色">
           <VList
-            v-model:selected="selected"
+            :selected="[selected]"
             mandatory
           >
             <VListItem

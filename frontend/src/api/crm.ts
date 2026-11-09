@@ -50,7 +50,9 @@ export async function fetchCrmActivities() {
 export async function fetchCrmTickets() {
   await delay()
 
-  return database().db.crmTickets
+  const db = database().db
+
+  return db.crmTickets.map(item => ({ ...item, accountName: db.crmAccounts.find(account => account.id === item.accountId)?.name ?? item.accountId }))
 }
 
 // 未来: GET /api/v1/crm/reviews

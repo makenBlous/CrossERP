@@ -34,7 +34,7 @@ async function save() {
   form.orderNo = ''
   await load()
 }
-const columns = [{ key: 'subject', title: '主题' }, { key: 'accountId', title: '客户' }, { key: 'orderNo', title: '关联订单' }, { key: 'status', title: '状态' }]
+const columns = [{ key: 'subject', title: '主题' }, { key: 'accountName', title: '客户' }, { key: 'orderNo', title: '关联订单' }, { key: 'status', title: '状态' }]
 </script>
 
 <template>
@@ -75,6 +75,7 @@ const columns = [{ key: 'subject', title: '主题' }, { key: 'accountId', title:
     >
       <AppSelect
         v-model="form.accountId"
+        :rules="[requiredValidator]"
         label="客户"
         :items="accounts.map(item => ({ title: item.name, value: item.id }))"
       /><AppAutocomplete
@@ -84,6 +85,7 @@ const columns = [{ key: 'subject', title: '主题' }, { key: 'accountId', title:
         :items="orders.map(item => ({ title: item.orderNo, value: item.orderNo }))"
       /><AppTextField
         v-model="form.subject"
+        :rules="[requiredValidator]"
         label="问题主题"
       />
     </FormDrawer>

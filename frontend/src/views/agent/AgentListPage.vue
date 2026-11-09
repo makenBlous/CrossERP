@@ -81,7 +81,10 @@ const promptColumns = computed(() => [{ key: 'version', title: t('agentModule.ve
 
 <template>
   <div>
-    <div class="d-flex align-center justify-space-between mb-6 flex-wrap gap-3">
+    <div
+      v-if="props.mode === 'definitions' || props.mode === 'tools'"
+      class="d-flex align-center justify-space-between mb-6 flex-wrap gap-3"
+    >
       <div>
         <h4 class="text-h4">
           {{ title }}
