@@ -32,3 +32,28 @@
 ## 未核实项
 
 ERPNext `frappe/wiki`、Odoo `knowledge`/`website_slides` 的具体功能仍按设计文档标注为「未核实」；本批只实现静态前端和确定性 mock，真实后端接口、真实文件存储、向量检索和通知渠道待后续接入。
+
+## 批次 E 补齐修订（2026-11-10）
+
+本轮把审计中标记为「待后端」但属于静态原型范围的缺口补为可演示 mock：
+
+- 附件与员工档案：文档和个人档案均支持真实文件选择后的元数据登记（文件名、类型、大小、上传人、时间），页面明确「模拟存储」；查看/下载/上传都会追加访问审计，真实文件不落盘。
+- 知识空间：空间详情新增文件夹树（新增、重命名）和成员/范围编辑；保存写审计，并用 `visibleRoles` 过滤空间文档、全文检索与问答引用。仅财务空间会在运营角色下消失。
+- 消息中心：到期文档和待审核文档在 mock 服务中幂等写入 `/notifications`，消息可点击跳转、标记已读并写审计；`/admin/notifications` 开关保存也写审计。推送渠道仍为模拟。
+- 新人上手：管理员可按角色模板新增/编辑清单步骤和页面地址，普通用户清单勾选可保存，「带我去做」真实导航；AI 关闭时清单和导航仍可用。
+- `/kb/index` 增加可访问的索引检索路由别名，避免与知识库首页文件路由冲突。
+
+### 本批 Playwright 结果
+
+`flows.js` 位于 `%TEMP%\cx-pw\gap-e-flows\flows.js`，使用本机 Chrome、`BASE=http://127.0.0.1:4185`。最终结果写入 `%TEMP%\cx-pw\gap-e-flows\result.json`，每条流程在 AI 正常与关闭各跑一次；截图在同目录 `shots/`。真实最终结果以该 JSON 为准，未验证的项目不写通过。
+
+### 仍是模拟/未接入
+
+真实文件存储、外部通知渠道、向量索引、后端 `/api/v1` 和生产级分步 tour 引擎仍未接入；本轮只登记元数据并保留审计轨迹。
+
+## 最终验证记录（2026-11-10）
+
+- `pnpm run typecheck`：通过。
+- `cmd /c "pnpm exec eslint . -c .eslintrc.cjs --ext .ts,.js,.cjs,.vue,.tsx,.jsx"`：0 error，仓库既有 23 条 warning。
+- `pnpm run build`：通过。
+- `%TEMP%\cx-pw\gap-e-flows\result.json`：14/14 通过（7 条流程 × AI normal/off），每条均使用真实点击/填表；截图保存在 `%TEMP%\cx-pw\gap-e-flows\shots\`。

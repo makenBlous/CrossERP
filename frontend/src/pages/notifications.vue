@@ -21,6 +21,7 @@ async function openNotification(item: InboxNotification) {
   try {
     if (!item.isRead) {
       const updated = await markInboxNotificationRead(item.id)
+
       item.isRead = updated.isRead
       message.value = '消息已读，操作已写入审计。'
     }
@@ -49,13 +50,17 @@ onMounted(load)
       type="success"
       variant="tonal"
       class="mb-4"
-    >{{ message }}</VAlert>
+    >
+      {{ message }}
+    </VAlert>
     <VAlert
       v-if="error"
       type="error"
       variant="tonal"
       class="mb-4"
-    >{{ error }}</VAlert>
+    >
+      {{ error }}
+    </VAlert>
     <ListPage
       storage-key="notifications-inbox"
       title="消息中心"
@@ -72,7 +77,9 @@ onMounted(load)
           size="small"
           :color="item.isRead ? 'default' : 'primary'"
           variant="tonal"
-        >{{ item.isRead ? '已读' : '未读' }}</VChip>
+        >
+          {{ item.isRead ? '已读' : '未读' }}
+        </VChip>
       </template>
     </ListPage>
   </div>

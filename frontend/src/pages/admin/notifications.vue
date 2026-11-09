@@ -4,6 +4,7 @@ import ListPage from '@/components/biz/ListPage.vue'
 
 const rows = ref<Array<{ id: string
   [key: string]: unknown }>>([])
+
 const error = ref('')
 const message = ref('')
 
@@ -17,6 +18,7 @@ async function saveRule(item: { id: string; enabled?: unknown }, value: unknown)
   error.value = ''
   try {
     const saved = await updateNotification(item.id, Boolean(value))
+
     item.enabled = saved.enabled
     message.value = '通知规则已保存，并写入操作审计。'
   }
@@ -40,13 +42,17 @@ async function saveRule(item: { id: string; enabled?: unknown }, value: unknown)
         type="success"
         variant="tonal"
         class="mb-4"
-      >{{ message }}</VAlert>
+      >
+        {{ message }}
+      </VAlert>
       <VAlert
         v-if="error"
         type="error"
         variant="tonal"
         class="mb-4"
-      >{{ error }}</VAlert>
+      >
+        {{ error }}
+      </VAlert>
     </template>
     <template #item.enabled="{ item }">
       <VSwitch

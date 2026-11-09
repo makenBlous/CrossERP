@@ -43,6 +43,7 @@ function canReadSpace(space: KbSpace, actor: Actor) {
     return true
   if (space.financeOnly && !['finance', 'finance_manager', 'accountant'].includes(actor.role))
     return false
+
   return !space.visibleRoles?.length || space.visibleRoles.includes(actor.role)
 }
 
@@ -66,6 +67,7 @@ export function getDocument(db: MockDatabase, id: string, actor: Actor) {
     collections(db).kbAccessLogs.unshift({ id: nextId(db, 'kba'), docId: doc.id, title: doc.title, actor: actor.name, actorRole: actor.role, action: 'view', at: actor.at, origin: 'human' })
     writeAudit(db, actor, 'kb.document.viewed', 'kb_doc', doc.id, `查看敏感文档 ${doc.title}`)
   }
+
   return doc
 }
 export function search(db: MockDatabase, query: string, actor: Actor): KbSearchResult[] {
@@ -152,9 +154,12 @@ export function downloadEmployeeFile(db: MockDatabase, id: string, employeeId: s
 
 export function uploadEmployeeFile(db: MockDatabase, employeeId: string, input: { name: string; kind: EmployeeFile['kind']; size: string; contentType: string }, actor: Actor) {
   listEmployeeFiles(db, employeeId, actor)
+
   const file: EmployeeFile = { id: nextId(db, 'file'), employeeId, name: input.name, kind: input.kind, expiresOn: input.kind === 'certificate' ? '2027-01-31' : null, sensitive: true, uploadedAt: actor.at, size: input.size, contentType: input.contentType, uploadedBy: actor.name }
+
   collections(db).employeeFiles.unshift(file)
   writeAudit(db, actor, 'kb.personal.uploaded', 'employee_file', file.id, `模拟上传员工档案 ${file.name}`)
+
   return file
 }
 
@@ -163,9 +168,11 @@ export function addDocumentAttachment(db: MockDatabase, documentId: string, inpu
   if (!doc)
     throw new Error('无权上传附件或文档不存在')
   const attachment: KbAttachment = { id: nextId(db, 'kba'), ...input, uploadedBy: actor.name, uploadedAt: actor.at }
+
   doc.attachments ??= []
   doc.attachments.unshift(attachment)
   writeAudit(db, actor, 'kb.attachment.uploaded', 'kb_attachment', attachment.id, `模拟上传附件 ${attachment.fileName}`)
+
   return attachment
 }
 
@@ -174,10 +181,12 @@ export function addFolder(db: MockDatabase, spaceId: string, name: string, actor
   if (!space || actor.role !== 'admin')
     throw new Error('只有空间管理员可以管理文件夹')
   const folder: KbFolder = { id: nextId(db, 'folder'), spaceId, name: name.trim(), parentId: null }
+
   collections(db).kbFolders.push(folder)
   space.folders = [...(space.folders ?? []), folder]
   space.updatedAt = actor.at
   writeAudit(db, actor, 'kb.folder.created', 'kb_folder', folder.id, `新增文件夹 ${folder.name}`)
+
   return folder
 }
 
@@ -190,6 +199,7 @@ export function renameFolder(db: MockDatabase, folderId: string, name: string, a
   space.folders = collections(db).kbFolders.filter(item => item.spaceId === space.id)
   space.updatedAt = actor.at
   writeAudit(db, actor, 'kb.folder.renamed', 'kb_folder', folder.id, `重命名文件夹 ${folder.name}`)
+
   return folder
 }
 
@@ -199,6 +209,7 @@ export function saveSpaceMembers(db: MockDatabase, spaceId: string, members: KbS
     throw new Error('只有空间管理员可以设置成员和可见范围')
   const normalized = members.map(member => ({ ...member, spaceId, id: member.id || nextId(db, 'member') }))
   const c = collections(db)
+
   c.kbMembers = [...c.kbMembers.filter(item => item.spaceId !== spaceId), ...normalized]
   space.members = normalized
   space.memberCount = normalized.length
@@ -206,6 +217,7 @@ export function saveSpaceMembers(db: MockDatabase, spaceId: string, members: KbS
   space.financeOnly = visibleRoles?.length === 1 && visibleRoles[0] === 'finance'
   space.updatedAt = actor.at
   writeAudit(db, actor, 'kb.space.members_updated', 'kb_space', spaceId, `更新空间成员与可见范围：${normalized.length} 人`)
+
   return space
 }
 
@@ -222,6 +234,7 @@ function ensureNotifications(db: MockDatabase) {
     if (!c.notifications.some(item => item.id === id))
       c.notifications.push({ id, title: `待审核：${review.title}`, detail: review.summary, type: 'review', href: '/kb/review', at: review.submittedAt, isRead: false, role: 'finance' })
   }
+
   return c.notifications
 }
 
@@ -235,6 +248,7 @@ export function markNotificationRead(db: MockDatabase, id: string, actor: Actor)
     throw new Error('消息不存在或无权访问')
   item.isRead = true
   writeAudit(db, actor, 'notification.read', 'notification', id, `标记消息已读：${item.title}`)
+
   return item
 }
 export function listOnboarding(db: MockDatabase, roleId: string) { return collections(db).onboardingItems.filter(item => item.roleId === roleId || item.roleId === 'operator') }

@@ -252,20 +252,25 @@
 | 通用知识库页 | `src/views/knowledge/KnowledgePage.vue` | `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer` | 保留并改为薄组合 | 一个视图只负责数据加载、动作和插槽组合，表格、详情、表单、抽屉均由 biz 组件承载 | 满足列表筛选/分页、详情、新建/编辑、审批、人工路径、AI 开关和审计入口 |
 | K01 空间列表与统计 | `src/pages/kb/index.vue`（`mode=home`） | Vuexy `front-pages/help-center/index.vue`、`apps/academy/my-course.vue`；项目 `ListPage`、`KpiCard` | 替换手写表格为 `ListPage`，统计保留 `KpiCard` | 空间行需要统一列设置、关键词筛选、分页和 CSV | 满足空间打开、全文搜索、新建入口；最近更新和收藏没有独立数据源，当前以空间列表/关键词检索承载，已记录为范围限制 |
 | K01 搜索结果 | `KnowledgePage.vue` 的全文搜索块 | Vuetify `VList`（Vuexy help-center 搜索结果模式） | 保留 `VList` | 每行需要同时展示空间、版本、摘要和点击出处，非通用数据表格 | 满足检索、打开文档、AI 关闭时仍可人工检索 |
-| K02 文档详情与版本 | `mode=doc` | 项目 `DetailPage` 时间线、`ListPage`、`RecordDrawer`；Vuexy `front-pages/help-center/article/[title].vue`、`TiptapEditor.vue` | 修正状态绑定，版本表改为 `ListPage`，版本正文用 `RecordDrawer` | 版本可筛选、分页、查看正文，详情右栏复用 `DetailPage` 时间线 | 满足阅读、版本历史、编辑/提交审核、标签/有效期、审计时间线；附件数据接口本批没有，页面明确不伪造上传状态 |
-| K03 空间权限与文档 | `mode=space` | 项目 `DetailPage`、`ListPage`、`FormDrawer`；Vuexy `apps/academy/my-course.vue`、`apps/ecommerce/product/category-list.vue` | 文档 `VList` 改为 `ListPage`，权限开关改为 `FormDrawer` | 权限变更需要显式保存和审计，文档列表需要筛选/列设置 | 满足空间文档列表、打开详情、仅财务开关和审计；成员/文件夹后端模型未在本批接口提供，未伪造编辑入口 |
+| K02 文档详情与版本 | `mode=doc` | 项目 `DetailPage` 时间线、`ListPage`、`RecordDrawer`；Vuexy `front-pages/help-center/article/[title].vue`、`TiptapEditor.vue` | 修正状态绑定，版本表改为 `ListPage`，版本正文用 `RecordDrawer` | 版本可筛选、分页、查看正文，详情右栏复用 `DetailPage` 时间线 | 满足阅读、版本历史、编辑/提交审核、标签/有效期、审计时间线；附件采用元数据 mock 登记，页面明确不伪造真实文件 |
+| K03 空间权限与文档 | `mode=space` | 项目 `DetailPage`、`ListPage`、`FormDrawer`；Vuexy `apps/academy/my-course.vue`、`apps/ecommerce/product/category-list.vue` | 文档 `VList` 改为 `ListPage`，权限开关改为 `FormDrawer` | 权限变更需要显式保存和审计，文档列表需要筛选/列设置 | 满足空间文档列表、打开详情、仅财务开关和审计；成员/文件夹采用 mock 可保存编辑，并通过可见角色过滤文档与检索 |
 | K04 编辑与发布 | `mode=edit` | 项目 `FormPage`；Vuexy `forms/editors.vue`、`TiptapEditor.vue` | 保留 `FormPage`，正文改用 `@core/components/TiptapEditor.vue` | 避免重复实现富文本工具栏，保存仍只产生草稿 | 满足新建、编辑、保存草稿、提交审核和人工发布检查；AI 关闭时表单仍可用 |
 | K05 发布审核 | `mode=review` | 项目 `ListPage`、`StatusChip`、`FormDrawer`；Vuexy `tables/data-table.vue`、`components/dialogs/ConfirmDialog.vue` | 保留说明卡片，审批/驳回改为 `PermissionGate` + `FormDrawer` 显式提交 | 驳回原因和批准动作必须在明确的提交抽屉中完成并写审计 | 满足队列筛选、批准、驳回、原因记录、发布审计 |
 | K06 问答沉淀 | `mode=qa` | 项目 `ListPage`、`RecordDrawer`、`PermissionGate`；Vuexy `pages/faq.vue` | 列表统一 `ListPage`，问答正文和出处用 `RecordDrawer` | 行内摘要不足以查看完整答案和引用 | 满足已发布问答查看、出处跳转、生成建议；建议动作受权限控制，AI 关闭时仍可查看和人工沉淀 |
-| K07 到期提醒 | `mode=expiring` | 项目 `ListPage`；Vuexy `tables/data-table.vue`、`pages/components/chip.vue` | 保留 `ListPage`，状态使用 Vuetify `VChip` | `upcoming/expired` 尚未进入项目 `StatusChip` 字典，避免伪造状态含义 | 满足到期清单筛选、状态和文档详情跳转；消息中心推送由后端通知模块负责，当前未伪造 |
+| K07 到期提醒 | `mode=expiring` | 项目 `ListPage`；Vuexy `tables/data-table.vue`、`pages/components/chip.vue` | 保留 `ListPage`，状态使用 Vuetify `VChip` | `upcoming/expired` 尚未进入项目 `StatusChip` 字典，避免伪造状态含义 | 满足到期清单筛选、状态和文档详情跳转；消息中心推送由 mock 服务幂等登记，真实渠道仍待后端接入 |
 | K08 检索与索引 | `mode=index` | 项目 `DetailPage`、`ListPage`、`PermissionGate`；Vuexy `pages/components/progress-linear.vue`、`tables/data-table.vue` | 检索结果 `VList` 改为嵌入式 `ListPage`，重建按钮加权限门 | 结果需要统一分页/列设置，重建是写动作 | 满足索引状态、重建、检索测试、引用文档；重建和检索均可在 AI 关闭时人工执行并写审计 |
 | K09 敏感访问日志 | `mode=access` | 项目 `ListPage`、`RecordDrawer`；Vuexy `tables/data-table.vue` | 增加来源筛选和访问详情抽屉 | 日志需要按人工/AI 过滤并查看完整字段 | 满足查看、筛选、详情和下载/AI 访问审计记录 |
-| HR13 个人档案 | `mode=employee` | 项目 `DetailPage`、`ListPage`、`RecordDrawer`、`PermissionGate`；Vuexy `views/apps/user/view/UserTabAccount.vue` | 文件 `VList` 改为 `ListPage`，详情/下载改用 `RecordDrawer` + 权限门 | 下载动作不能只靠展示列表，必须明确写访问审计 | 满足按权限查看、详情、下载和审计；上传接口未在本批数据中心提供，未添加无后端落点的假上传控件 |
+| HR13 个人档案 | `mode=employee` | 项目 `DetailPage`、`ListPage`、`RecordDrawer`、`PermissionGate`；Vuexy `views/apps/user/view/UserTabAccount.vue` | 文件 `VList` 改为 `ListPage`，详情/下载改用 `RecordDrawer` + 权限门 | 下载动作不能只靠展示列表，必须明确写访问审计 | 满足按权限查看、详情、下载和审计；上传登记接口已在本批 mock 数据中心提供，明确标注模拟存储 |
 | ON01 新人上手 | `mode=onboarding` | 项目 `DetailPage`、全局 `AssistantDrawer`；Vuexy `apps/academy/course-details.vue`、`pages/extensions/tour.vue` | 保留清单 `VList`，增加 `VProgressLinear`；AI 区继续由全局助手和本页引用问答承载 | 清单是可勾选任务而非通用数据表，进度条复用 Vuetify | 满足按角色清单、勾选保存、带我去做、带出处问答；AI 关闭时清单和页面跳转仍可用 |
-| ON02 清单配置 | `mode=onboarding-admin` | 项目 `ListPage`、`FormDrawer`；Vuexy `apps/kanban/index.vue`、`pages/extensions/tour.vue` | 移除行内失焦保存，改为点击行打开 `FormDrawer` 后显式保存 | 防止每次失焦产生不可见写入，统一表单校验/保存体验 | 满足清单筛选、编辑任务/说明/引导地址、保存审计；分步 tour 的后端配置接口未在本批提供 |
+| ON02 清单配置 | `mode=onboarding-admin` | 项目 `ListPage`、`FormDrawer`；Vuexy `apps/kanban/index.vue`、`pages/extensions/tour.vue` | 移除行内失焦保存，改为点击行打开 `FormDrawer` 后显式保存 | 防止每次失焦产生不可见写入，统一表单校验/保存体验 | 满足清单筛选、编辑任务/说明/引导地址、保存审计；分步 tour 配置以角色模板和页面地址 mock 保存，真实引导引擎待后端接入 |
 | AI 交互与 AgentCard | `src/App.vue`、`src/components/biz/AssistantDrawer.vue` | 项目现有 `AssistantDrawer`、`ChatLog`、`ChatMessageForm`；AgentCard 渲染在助手内部 | 复用，不在知识库页新造卡片 | 批次 E 只需要带出处建议，助手已处理 AI 状态开关 | AI 关闭时助手和页面 AI 区隐藏，人工路径保留；没有金额或 AgentCard 专属业务块 |
 | 金额展示 | 批次 E 全部页面 | 项目 `MoneyText` | 不引入 | 知识库、档案、上手清单没有金额字段，使用 `MoneyText` 会制造无意义语义 | 不适用 |
 
-未实现且已明确标注的范围限制只有：附件/员工档案上传、空间文件夹树与成员管理、通知中心推送、分步 tour 配置后端；这些能力在本批 API/mock 数据结构中没有可写落点，继续保留展示会比伪造写入更安全。
+仍未接入的范围限制是：真实文件存储、外部通知渠道、向量索引和生产级 tour 引擎；本批 API/mock 已提供元数据登记、权限保存、通知写入和审计记录。
 
+
+
+## 补齐批次 E 缺口复核（2026-11-10）
+
+复核后仍沿用 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer`、`StatusChip`、`PermissionGate` 和 Vuetify `VList/VTreeview` 语义组合，没有新增通用业务组件。附件/档案上传复用原生文件 input + `FormDrawer`/详情抽屉；空间文件夹和成员区是空间专属编辑区，因需要同时展示树、角色范围和成员明细而保留在 `KnowledgePage`，数据操作全部经 `src/api/gap-e.ts`。消息中心复用 `ListPage`，管理员通知开关仍使用 Vuetify `VSwitch`。本轮已把此前「未补齐」的附件、成员/文件夹、通知推送、上手模板配置改为可保存、可校验、可追溯的 mock；真实存储和外部渠道仍明确标注为模拟。
 

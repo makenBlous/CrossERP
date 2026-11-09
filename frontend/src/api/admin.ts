@@ -64,6 +64,7 @@ export async function fetchNotifications() {
 // 未来: PATCH /api/v1/admin/notifications/{id}
 export async function updateNotification(id: string, enabled: boolean) {
   await delay()
+
   const actor = currentActor()
   if (actor.role !== 'admin')
     throw new Error('只有管理员可以修改通知规则')
@@ -73,6 +74,7 @@ export async function updateNotification(id: string, enabled: boolean) {
   item.enabled = enabled
   writeAudit(database().db, actor, 'admin.notification.updated', 'notification_rule', id, `${item.event}：${enabled ? '启用' : '停用'}`)
   database().persist()
+
   return item
 }
 

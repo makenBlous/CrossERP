@@ -179,7 +179,11 @@ async function uploadEmployee(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file)
     return
-  await run(async () => { const saved = await uploadEmployeeFile(employeeId.value, file, employeeFileKind.value); files.value.unshift(saved); message.value = '文件元数据已登记（模拟存储），上传审计已写入。' })
+  await run(async () => {
+    const saved = await uploadEmployeeFile(employeeId.value, file, employeeFileKind.value)
+
+    files.value.unshift(saved); message.value = '文件元数据已登记（模拟存储），上传审计已写入。'
+  })
   if (employeeUploadInput.value)
     employeeUploadInput.value.value = ''
 }
@@ -364,7 +368,7 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         <template #actions>
           <PermissionGate action="update">
             <VBtn
-              v-if="document.status === 'draft'"
+              v-if="['draft', 'published'].includes(document.status)"
               :to="`/kb/docs/${document.id}/edit`"
               variant="tonal"
             >
@@ -456,7 +460,9 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
             :columns="[{ key: 'version', title: '版本' }, { key: 'status', title: '状态' }, { key: 'author', title: '作者' }, { key: 'createdAt', title: '时间' }]"
             @open="openVersion"
           >
-            <template #item.version="{ item }">v{{ item.version }}</template>
+            <template #item.version="{ item }">
+              v{{ item.version }}
+            </template>
             <template #item.status="{ item }">
               <StatusChip
                 domain="approval"
@@ -467,19 +473,23 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         </VCard>
       </DetailPage>
       <RecordDrawer
+        v-if="selectedVersion"
         v-model="versionOpen"
         title="版本内容"
-        v-if="selectedVersion"
       >
         <StatusChip
           domain="approval"
           :value="selectedVersion.status"
         />
-        <p class="text-caption text-medium-emphasis mt-3">{{ selectedVersion.author }} · {{ selectedVersion.createdAt }}</p>
+        <p class="text-caption text-medium-emphasis mt-3">
+          {{ selectedVersion.author }} · {{ selectedVersion.createdAt }}
+        </p>
         <p
           class="mt-4"
           style="white-space: pre-wrap;"
-        >{{ selectedVersion.content }}</p>
+        >
+          {{ selectedVersion.content }}
+        </p>
       </RecordDrawer>
     </template>
 
@@ -544,7 +554,9 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
                     size="small"
                     color="primary"
                     variant="tonal"
-                  >已选择</VChip>
+                  >
+                    已选择
+                  </VChip>
                 </template>
               </VListItem>
             </VList>
@@ -563,7 +575,9 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
               </VBtn>
             </div>
             <VDivider class="my-4" />
-            <div class="text-subtitle-2 mb-2">成员与可见范围</div>
+            <div class="text-subtitle-2 mb-2">
+              成员与可见范围
+            </div>
             <div class="d-flex flex-wrap gap-3 align-center mb-3">
               <AppTextField
                 v-model="memberName"
@@ -613,7 +627,9 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
               :value="item.status"
             />
           </template>
-          <template #item.currentVersion="{ item }">v{{ item.currentVersion }}</template>
+          <template #item.currentVersion="{ item }">
+            v{{ item.currentVersion }}
+          </template>
         </ListPage>
       </DetailPage>
       <FormDrawer
@@ -808,12 +824,16 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         </VBtn>
       </PermissionGate>
       <RecordDrawer
+        v-if="selectedQa"
         v-model="qaOpen"
         title="问答详情"
-        v-if="selectedQa"
       >
-        <h6 class="text-h6">{{ selectedQa.question }}</h6>
-        <p class="mt-3">{{ selectedQa.answer }}</p>
+        <h6 class="text-h6">
+          {{ selectedQa.question }}
+        </h6>
+        <p class="mt-3">
+          {{ selectedQa.answer }}
+        </p>
         <VChip
           class="mt-2"
           color="primary"
@@ -899,7 +919,9 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
               :columns="[{ key: 'title', title: '文档' }, { key: 'version', title: '版本' }, { key: 'paragraph', title: '命中段落' }]"
               @open="row => openDoc(row.docId)"
             >
-              <template #item.version="{ item }">v{{ item.version }}</template>
+              <template #item.version="{ item }">
+                v{{ item.version }}
+              </template>
             </ListPage>
           </VCardText>
         </VCard>
@@ -917,16 +939,26 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         @open="openAccess"
       />
       <RecordDrawer
+        v-if="selectedAccess"
         v-model="accessOpen"
         title="敏感文档访问详情"
-        v-if="selectedAccess"
       >
         <VList density="compact">
-          <VListItem title="文档">{{ selectedAccess.title }}</VListItem>
-          <VListItem title="访问人">{{ selectedAccess.actor }}</VListItem>
-          <VListItem title="动作">{{ selectedAccess.action }}</VListItem>
-          <VListItem title="来源">{{ selectedAccess.origin }}</VListItem>
-          <VListItem title="时间">{{ selectedAccess.at }}</VListItem>
+          <VListItem title="文档">
+            {{ selectedAccess.title }}
+          </VListItem>
+          <VListItem title="访问人">
+            {{ selectedAccess.actor }}
+          </VListItem>
+          <VListItem title="动作">
+            {{ selectedAccess.action }}
+          </VListItem>
+          <VListItem title="来源">
+            {{ selectedAccess.origin }}
+          </VListItem>
+          <VListItem title="时间">
+            {{ selectedAccess.at }}
+          </VListItem>
         </VList>
       </RecordDrawer>
     </template>
@@ -995,13 +1027,19 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         </ListPage>
       </DetailPage>
       <RecordDrawer
+        v-if="selectedFile"
         v-model="fileOpen"
         title="档案文件详情"
-        v-if="selectedFile"
       >
-        <h6 class="text-h6">{{ selectedFile.name }}</h6>
-        <p class="mt-3">{{ selectedFile.kind }} · {{ selectedFile.size }}</p>
-        <p v-if="selectedFile.expiresOn">有效期至 {{ selectedFile.expiresOn }}</p>
+        <h6 class="text-h6">
+          {{ selectedFile.name }}
+        </h6>
+        <p class="mt-3">
+          {{ selectedFile.kind }} · {{ selectedFile.size }}
+        </p>
+        <p v-if="selectedFile.expiresOn">
+          有效期至 {{ selectedFile.expiresOn }}
+        </p>
         <PermissionGate action="view">
           <VBtn
             class="mt-4"
@@ -1027,7 +1065,9 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
                 height="8"
                 rounded
               />
-              <div class="text-caption text-medium-emphasis mt-2">已完成 {{ onboardingProgress }}%</div>
+              <div class="text-caption text-medium-emphasis mt-2">
+                已完成 {{ onboardingProgress }}%
+              </div>
             </VListItem>
             <VListItem
               v-for="item in onboarding"
@@ -1114,8 +1154,7 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         :items="onboarding"
         :columns="[{ key: 'title', title: '任务' }, { key: 'roleId', title: '角色模板' }, { key: 'route', title: '引导页面' }, { key: 'description', title: '说明' }]"
         @open="editOnboarding"
-      >
-      </ListPage>
+      />
       <PermissionGate action="update">
         <FormDrawer
           v-model="onboardingOpen"

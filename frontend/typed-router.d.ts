@@ -140,6 +140,7 @@ declare module 'vue-router/auto-routes' {
     'logistics-shipments-id': RouteRecordInfo<'logistics-shipments-id', '/logistics/shipments/:id', { id: ParamValue<true> }, { id: ParamValue<false> }>,
     'logistics-tracking': RouteRecordInfo<'logistics-tracking', '/logistics/tracking', Record<never, never>, Record<never, never>>,
     'not-authorized': RouteRecordInfo<'not-authorized', '/not-authorized', Record<never, never>, Record<never, never>>,
+    'notifications': RouteRecordInfo<'notifications', '/notifications', Record<never, never>, Record<never, never>>,
     'onboarding': RouteRecordInfo<'onboarding', '/onboarding', Record<never, never>, Record<never, never>>,
     'onboarding-admin': RouteRecordInfo<'onboarding-admin', '/onboarding/admin', Record<never, never>, Record<never, never>>,
     'orders': RouteRecordInfo<'orders', '/orders', Record<never, never>, Record<never, never>>,
