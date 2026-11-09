@@ -343,4 +343,32 @@
 
 本轮已修复前述科目配置、写动作审计、稳定身份、金额确定性和还款幂等问题；页面金额继续复用现有 `MoneyText`/格式化能力，未修改批次 C 的 mock-client 地基文件。AI 预填继续是只读演示建议，不写状态，因此不产生写审计；这不是写动作遗漏。
 
+### 批次 A 增量复用审计（`bc0fde0..092541b`，第二轮，2026-11-10）
+
+本轮逐项复核范围内的改动文件：`src/components/biz/GapAPage.vue`、`src/mocks/services/gap-a.ts`、`src/types/gap-a.ts`，并对照 `src/api/gap-a.ts`、权限表和金额工具。当前工作树只恢复了构建生成的 `.d.ts` 文件，没有改动功能代码。
+
+#### 1. 组件与金额复用
+
+- `GapAPage.vue` 继续复用 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`MoneyText`、`StatusChip`、`PermissionGate`；费用科目下拉直接使用 `EXPENSE_ACCOUNT_MAPPINGS` 和现成 `AppSelect`，没有新增通用表格、抽屉、确认框或金额组件。
+- 差旅匹配的 `VDialog` 仍保留为业务专用审阅弹窗：它同时展示候选报销、规则和分数并等待人工确认，现有 `useConfirm` 只提供二选一确认，不能一对一替换；弹窗内部金额仍使用 `MoneyText`。
+- 页面显示金额改由 `minorToDecimal`、`toDisplay`、`formatMoney` 或 `MoneyText` 处理；服务层预算预警使用整数万分位和 `percentOf`，未发现新增金额浮点计算。**[建议修改]** `savePolicy`、`saveBudget`、`repayLoan`、`createTrip`、`createClaim` 的服务边界仍只检查 `<= 0`，没有统一的 `Number.isFinite`/`Number.isSafeInteger` 校验；当前页面调用均先经 `minorFromDecimal`，但直接调用 API 仍可能写入非整数最小单位。
+
+#### 2. 写接口、身份、审批和幂等
+
+- `src/api/gap-a.ts` 的写函数均先调用 `assertCan` 或 `assertAny`，创建报销/差旅使用 `session.userId`，审批自审和差旅匹配按 `claimantId`/`actorId` 比较；`savePolicy` 也在服务层限制借方科目必须来自配置集合，属于有效的服务层复核。
+- 新增 `audit()` 事件带当前 `actorId`，本轮种子凭证审计也补齐了稳定 ID。
+- **[必须修复] 审批存在跳级和同人完成两级的问题。** `decideGapAClaim` 只调用通用 `assertCan('approve')`，服务层按调用者传入的 `step` 执行；没有把 `manager`/`finance` 步骤绑定到对应角色或权限，也没有禁止同一个审批人连续处理两步。因此有 `approve` 权限的财务角色可以直接请求主管步骤，再请求财务步骤，绕过职责分离。建议在 API/服务层按步骤检查角色/权限，并拒绝与前一步相同的 `actorId`。
+- **[必须修复] 旧 `localStorage` 数据没有稳定身份迁移。** `loadState()` 对旧 claims/loans/trips 只做浅复制，没有补回 `claimantId`；对 `audits` 及 voucher timeline 也没有补回 `actorId`。旧记录因此可能在 `item.claimantId` 为空时绕过自审检查，差旅匹配也无法按稳定身份过滤，历史审计仍缺操作人 ID。建议做显式版本迁移，无法确认身份时拒绝审批/匹配并标记待人工修复。
+- **[建议修改] 部分动作不是幂等的。** `suggestTripClaim()` 每次重复调用都会新增一条匹配建议审计，`validateRebate()` 每次重复校验也会新增审计；若要求重试安全，建议使用稳定动作键或已有结果直接返回。还款去重依赖新增的 `repaymentAmounts`，旧数据未迁移时仍可能重复登记同一金额。
+- **[必须修复] 页面角色与写权限不一致。** `EX07`、`F33`、`F34` 等页面把 `finance` 列为可见角色，但对应写 API 使用 `assertCan('update')`；`legacyRoleActions.finance` 没有 `update`，因此财务用户可看到编辑/申报/资料按钮却必然被接口拒绝。F23 的收入凭证生成同样使用 `create`，而财务角色没有 `create`。应统一页面可见角色、按钮门控和 API 所需权限，避免误导并确保有效权限模型一致。
+
+#### 3. 结论
+
+组件复用和金额展示方向符合现有地基，未发现可以安全一对一替换的通用 UI。科目配置约束、稳定 ID 写入和新增审计字段在新鲜状态下有效；但上述审批职责、旧状态迁移、幂等和角色权限问题会影响安全或实际写入路径，不能按“本轮全部通过”记录。按任务要求本轮只提交本审计文档，未擅自扩大功能修复。
+
+#### 4. 本轮验证
+
+- `pnpm run typecheck`：通过（退出码 0）。
+- `node_modules\\.bin\\eslint.cmd . -c .eslintrc.cjs --ext .ts,.js,.cjs,.vue,.tsx,.jsx`：通过（退出码 0，0 errors、23 个既有 warnings）。
+
 
