@@ -9,6 +9,10 @@ import StatusChip from '@/components/biz/StatusChip.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import type { StockDocDetail, StockDocRow, SupplyLookups } from '@/types/domain'
 import { numberText, requiredText } from '@core/utils/validators'
+import GapBPage from '@/views/gap-b/GapBPage.vue'
+
+const route = useRoute()
+const isGapBDetail = computed(() => route.path !== '/inventory/transfers')
 
 const { t } = useI18n({ useScope: 'global' })
 const { confirm } = useConfirm()
@@ -120,7 +124,11 @@ async function confirmRow(row: StockDocRow) {
 </script>
 
 <template>
-  <div>
+  <GapBPage
+    v-if="isGapBDetail"
+    page-key="I14"
+  />
+  <div v-else>
     <VAlert
       v-if="message"
       type="warning"

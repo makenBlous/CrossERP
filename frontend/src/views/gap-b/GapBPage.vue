@@ -37,7 +37,7 @@ const chainItems = [
   { title: '客户 / 商机', detail: 'Acme Europe · 赢单' },
   { title: '销售订单', detail: 'SO-2026-001 · 客户和商机已关联' },
   { title: 'SKU → 采购 → 入库', detail: 'CN-1001 · PO-2026-001 · 华东 FBA' },
-  { title: '头程 / 出库 / 发货', detail: 'FBA 批次 FM-2026-004 · 运单已关联' },
+  { title: '物流运单 / 头程 / 出库', detail: 'FBA 批次 FM-2026-004 · 运单已关联' },
   { title: '凭证', detail: 'VCH-2026-018 · 可回溯来源单据' },
 ]
 

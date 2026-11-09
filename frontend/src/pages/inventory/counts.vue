@@ -8,6 +8,10 @@ import RecordDrawer from '@/components/biz/RecordDrawer.vue'
 import StatusChip from '@/components/biz/StatusChip.vue'
 import type { StockDocDetail, StockDocRow, SupplyLookups } from '@/types/domain'
 import { numberText, requiredText } from '@core/utils/validators'
+import GapBPage from '@/views/gap-b/GapBPage.vue'
+
+const route = useRoute()
+const isGapBDetail = computed(() => route.path !== '/inventory/counts')
 
 const { t } = useI18n({ useScope: 'global' })
 const rows = ref<StockDocRow[]>([])
@@ -132,7 +136,11 @@ async function post(row?: StockDocRow) {
 </script>
 
 <template>
-  <div>
+  <GapBPage
+    v-if="isGapBDetail"
+    page-key="I15"
+  />
+  <div v-else>
     <VAlert
       v-if="message"
       type="warning"

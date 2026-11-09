@@ -130,7 +130,7 @@ export function getGapBPage(key: GapBKey, id?: string): GapBPageData {
     { id: 'customer', title: '客户 / 商机', detail: 'Acme Europe · 赢单', status: 'connected', to: '/crm/accounts/acc-summit' },
     { id: 'order', title: '销售订单', detail: `SO-2026-001 · 客户和商机已关联${orderDraftCreated ? ' · 草稿已保存' : ''}`, status: 'connected', to: '/orders/ord-001' },
     { id: 'sku', title: 'SKU → 采购 → 入库', detail: 'CN-1001 · PO-2026-001 · 华东 FBA', status: 'connected', to: '/procurement/orders' },
-    { id: 'logistics', title: '头程 / 出库 / 发货', detail: 'FBA 批次 FM-2026-004 · 运单已关联', status: 'connected', to: '/logistics/shipments/shp-001' },
+    { id: 'logistics', title: '物流运单 / 头程 / 出库', detail: 'FBA 批次 FM-2026-004 · 运单已关联', status: 'connected', to: '/logistics/shipments/shp-001' },
     { id: 'voucher', title: '凭证', detail: 'VCH-2026-018 · 可回溯来源单据', status: 'connected', to: '/finance/vouchers' },
   ]
 

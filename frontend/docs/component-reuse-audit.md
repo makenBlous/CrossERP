@@ -277,3 +277,16 @@
 审计结论：本批没有新增通用 UI 组件。`GapBPage.vue` 保留为业务差异的薄组合；列表、详情、表单、抽屉、状态、金额、权限门禁和 KPI 均接入现成实现。补齐前发现的缺口（盘点提交、调拨确认、IM 驳回、渠道启停 / 测试、合同价格表 / 附件、金蝶 / ERPNext 字段）已在本批补上；未保留只展示而无对应设计动作的页面。
 
 
+
+## 补齐批次 B 缺口复查（本轮）
+
+复查范围：`src/views/gap-b/GapBPage.vue`、`src/mocks/services/gap-b.ts`、采购退货 mock、订单/CRM/物流关联投影，以及批次 B 路由冲突修复。继续复用 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer`、`StatusChip`、`MoneyText`、`PermissionGate`、Vuetify `VStepper`/`VTable`，没有新增通用组件。
+
+| 缺口 | 复用与实现 | 审计/可追溯验证 |
+| --- | --- | --- |
+| 订单客户/商机双向链接 | 订单详情、CRM 客户/商机详情继续使用 `DetailPage` 的关联单据区和 Vuetify `VBtn` | `customerId`、`opportunityId` 来自 mock 数据；赢单动作写审计 |
+| 采购退货明细、负数流水、应付冲减 | 既有采购退货 `ListPage` + `RecordDrawer`；明细使用 `VAlert`/`MoneyText` | 确认动作调用库存服务，写负数 movement、更新应付并写审计 |
+| 发货运单/头程双向链接 | 订单详情复用 `DetailPage` 关联单据和 `VBtn` | 物流/头程节点可打开运单，订单关联回运单 |
+| 补货、询价、调拨、盘点、导入、渠道 | 统一批次 B 页面壳；步骤表单使用现成 `FormPage`/`VStepper`/`VFileInput` | 每个保存/审批/启停动作经 `src/api/gap-b.ts`，mock 服务追加审计 |
+
+本轮没有把静态 mock 误写成真实后端能力；真实文件、外部 IM 回调、ERPNext/金蝶连接仍按报告标为未接入。
