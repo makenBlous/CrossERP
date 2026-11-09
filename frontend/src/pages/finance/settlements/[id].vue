@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { fetchSettlement } from '@/api/finance'
+import MoneyText from '@/components/biz/MoneyText.vue'
 import FinanceDetail from '@/views/finance/FinanceDetail.vue'
 
 const route = useRoute()
@@ -34,7 +35,11 @@ onMounted(async () => {
             <div class="text-caption">
               总额
             </div><div class="text-h5">
-              {{ row.totalDisplay }} {{ row.currency }}
+              <MoneyText
+                :amount="row.total"
+                :currency="row.currency"
+                minor
+              />
             </div>
           </VCol>
         </VRow>
@@ -53,7 +58,11 @@ onMounted(async () => {
             :key="line.id"
           >
             <td>{{ line.type }}</td><td>{{ line.description }}</td><td class="text-end">
-              {{ line.amount }} {{ row.currency }}
+              <MoneyText
+                :amount="line.amount"
+                :currency="row.currency"
+                minor
+              />
             </td>
           </tr>
         </tbody>
