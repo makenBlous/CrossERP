@@ -122,8 +122,10 @@ export function adsCampaigns(db: MockDatabase) { return db.adsCampaigns.map(row 
 export function adsImportRows() { return adImports }
 export function recordAdImport(db: MockDatabase, fileName: string, actor: Actor) {
   const row: AdImportRow = { id: `adimp-${adImports.length + 1}`, fileName, platform: 'Amazon Ads', rows: 128, spend: 418.36, status: 'success', importedAt: actor.at.slice(0, 16).replace('T', ' ') }
+
   adImports.unshift(row)
   writeAudit(db, actor, 'import_ads', 'ads_import', row.id, `导入广告花费文件 ${fileName}，解析 ${row.rows} 行。`)
+
   return row
 }
 export function adsPerformance(db: MockDatabase) { return adsCampaigns(db).map(row => ({ ...row, sales: row.spendDisplay * 4.6, roas: 4.6 })) }
@@ -180,6 +182,8 @@ export function saveAllocation(db: MockDatabase, sku: string, ratio: number, act
 
 export function submitClearing(db: MockDatabase, actor: Actor) {
   const row = clearingRows(db)[0]
-  if (!row) return null
+  if (!row)
+    return null
+
   return submitSuggestion(db, { title: `核销 ${row.payout}`, summary: '两侧金额由服务层校验相等后提交审批。', amount: String(row.payoutAmount), currency: row.currency as CurrencyCode, storeId: null, targetType: 'clearing', targetId: row.id }, actor)
 }

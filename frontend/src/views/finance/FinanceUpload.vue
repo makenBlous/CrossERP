@@ -1,8 +1,8 @@
 <script setup lang="ts">
 const props = withDefaults(defineProps<{ title: string; subtitle: string; accept?: string }>(), { accept: '.csv,.txt,.xlsx' })
+const emit = defineEmits<{ uploaded: [fileName: string] }>()
 const file = ref<File | null>(null)
 const uploaded = ref(false)
-const emit = defineEmits<{ uploaded: [fileName: string] }>()
 function upload() {
   if (file.value) {
     uploaded.value = true
