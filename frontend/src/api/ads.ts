@@ -21,9 +21,9 @@ export async function fetchAllocations() {
 
   return readMock(allocationRows(database().db))
 }
-export async function saveAdAllocation(sku: string, ratio: number) {
+export async function saveAdAllocation(campaignId: string, sku: string, ratio: number) {
   const actor = assertCan('update')
-  const row = saveAllocation(database().db, sku, ratio, actor)
+  const row = saveAllocation(database().db, campaignId, sku, ratio, actor)
 
   database().persist()
 

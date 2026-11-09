@@ -38,6 +38,9 @@ onMounted(async () => {
         />
       </VCol>
     </VRow>
+    <VAlert type="info" variant="tonal">
+      来源：广告分摊（金额由服务层已计算结果提供）。
+    </VAlert>
   </FinanceDetail>
   <EmptyState
     v-else

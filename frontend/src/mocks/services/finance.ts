@@ -188,12 +188,12 @@ export function allocationRows(db: MockDatabase) {
   return adsData(db).allocations.map(row => ({ ...row, spendDisplay: toDisplay(row.spend, 'USD') }))
 }
 
-export function saveAllocation(db: MockDatabase, sku: string, ratio: number, actor: Actor) {
-  const campaign = db.adsCampaigns[0]
+export function saveAllocation(db: MockDatabase, campaignId: string, sku: string, ratio: number, actor: Actor) {
+  const campaign = db.adsCampaigns.find(item => item.id === campaignId)
   if (!campaign || !sku || !Number.isInteger(ratio) || ratio <= 0)
     return null
   const data = adsData(db)
-  const existingTotal = data.allocations.reduce((sum, row) => sum + row.ratio, 0)
+  const existingTotal = data.allocations.filter(row => row.campaign === campaign.name).reduce((sum, row) => sum + row.ratio, 0)
   if (existingTotal + ratio > 100)
     return null
   const row: AdsAllocation = { id: `alloc-${data.allocations.length + 1}`, campaign: campaign.name, sku, ratio, spend: Math.round(campaign.spend * ratio / 100), source: '广告分摊' }

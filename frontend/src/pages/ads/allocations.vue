@@ -1,14 +1,23 @@
 <script setup lang="ts">
-import { fetchAllocations, saveAdAllocation } from '@/api/ads'
+import { fetchAdCampaigns, fetchAllocations, saveAdAllocation } from '@/api/ads'
+import { fetchProfit } from '@/api/finance'
 import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchAllocations>>>([])
+const campaigns = ref<Awaited<ReturnType<typeof fetchAdCampaigns>>>([])
+const skus = ref<string[]>([])
+const campaignId = ref('')
 const sku = ref('')
 const ratio = ref(10)
 const error = ref('')
 
 onMounted(async () => {
-  rows.value = await fetchAllocations()
+  const [allocationRows, campaignRows, profit] = await Promise.all([fetchAllocations(), fetchAdCampaigns(), fetchProfit()])
+  rows.value = allocationRows
+  campaigns.value = campaignRows
+  skus.value = [...new Set(profit.rows.map(row => row.sku))]
+  campaignId.value = campaignRows[0]?.id ?? ''
+  sku.value = skus.value[0] ?? ''
 })
 
 const columns = [{ key: 'campaign', title: '活动' }, { key: 'sku', title: '内部 SKU' }, { key: 'ratio', title: '比例 %' }, { key: 'spendDisplay', title: '分摊花费' }, { key: 'source', title: '来源' }]
@@ -16,7 +25,7 @@ async function save() {
   error.value = ''
   if (!sku.value)
     sku.value = rows.value[0]?.sku ?? ''
-  const row = await saveAdAllocation(sku.value, ratio.value)
+  const row = await saveAdAllocation(campaignId.value, sku.value, ratio.value)
   if (row)
     rows.value = [...rows.value.filter(item => item.id !== row.id), row]
   else
@@ -39,11 +48,9 @@ async function save() {
             cols="12"
             md="5"
           >
-            <AppTextField
-              v-model="sku"
-              label="内部 SKU"
-              placeholder="例如 TENT-2P"
-            />
+            <AppSelect v-model="campaignId" :items="campaigns.map(item => ({ title: item.name, value: item.id }))" label="广告活动" />
+          </VCol><VCol cols="12" md="5">
+            <AppSelect v-model="sku" :items="skus" label="内部 SKU" />
           </VCol><VCol
             cols="12"
             md="3"
