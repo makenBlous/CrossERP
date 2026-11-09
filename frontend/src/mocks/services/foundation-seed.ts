@@ -72,3 +72,12 @@ export const departments: Department[] = [
   { id: 'dept-ops', code: 'OPS', name: '运营部', parentId: null, managerUserId: 'demo-operator', active: true },
   { id: 'dept-fin', code: 'FIN', name: '财务部', parentId: null, managerUserId: 'demo-finance', active: true },
 ]
+
+// ---- 补齐批次 E：知识库与新人上手演示种子 ----
+// 业务集合在 mocks/services/gap-e.ts 延迟初始化，避免改动地基 MockDatabase 类型。
+export const gapESeedInfo = {
+  space: 'space-company',
+  restrictedSpace: 'space-finance',
+  employeeId: 'demo-operator',
+  onboardingTemplate: 'purchaser',
+} as const

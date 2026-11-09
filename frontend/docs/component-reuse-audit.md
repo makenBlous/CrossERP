@@ -243,4 +243,13 @@
 
 批次 0 没有新增业务页面组件，98 条新路由统一复用现有 `components/PlaceholderPage.vue`。权限、AI 状态、渠道和校验属于共享地基，分别复用 Pinia、现有 `PermissionGate`、`AssistantDrawer`、`ChatLog` 与 `vue-i18n`；没有重复实现 Vuexy 页面或聊天卡片。
 
+## 补齐批次 E
+
+### 复用情况
+
+- 12 个页面统一复用 `views/knowledge/KnowledgePage.vue`，页面壳分别使用 `ListPage`、`DetailPage`、`FormPage`、`StatusChip`、`PermissionGate`、`KpiCard`。
+- 全局 AI 交互继续复用 `AssistantDrawer`；批次 E 只增加页面顶部 `VAlert` 和编辑页「AI 预填」提示，没有新造聊天组件或 AgentCard UI。
+- 搜索结果、版本历史、访问日志等专属行使用 Vuetify `VList`/`VTable`，因为需要引用版本、来源和敏感访问字段，通用列表的单元格语义不足。
+- 没有复制 Vuexy 页面文件；知识库布局参考 `help-center`/`academy`，通过现有业务组件承载。
+
 

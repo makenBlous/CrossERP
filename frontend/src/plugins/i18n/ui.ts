@@ -1209,3 +1209,7 @@ export const uiMessages = {
   'zh-CN': zhCN,
   en,
 } as unknown as Record<AppLocale, typeof zhCN>
+
+// ---- 补齐批次 E ----
+// 批次 E 页面优先使用页面内中文业务文案；此块为后续接入服务端翻译键预留。
+export const gapEUiKeys = ['kb.title', 'kb.search', 'kb.review', 'kb.onboarding', 'kb.aiPrefill'] as const
