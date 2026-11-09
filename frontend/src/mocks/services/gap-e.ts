@@ -133,8 +133,8 @@ export function downloadEmployeeFile(db: MockDatabase, id: string, employeeId: s
 }
 export function listOnboarding(db: MockDatabase, roleId: string) { return collections(db).onboardingItems.filter(item => item.roleId === roleId || item.roleId === 'operator') }
 export function saveOnboardingItem(db: MockDatabase, item: OnboardingChecklistItem, actor: Actor) {
-  if (actor.role !== 'admin')
-    throw new Error('只有管理员可以维护上手清单'); const rows = collections(db).onboardingItems; const existing = rows.find(row => row.id === item.id); if (existing)
+  if (actor.role !== 'admin' && item.roleId !== actor.role)
+    throw new Error('只能维护自己的上手清单'); const rows = collections(db).onboardingItems; const existing = rows.find(row => row.id === item.id); if (existing)
     Object.assign(existing, item); else rows.push({ ...item, id: nextId(db, 'onboard') }); writeAudit(db, actor, 'onboarding.checklist.updated', 'onboarding', item.id, '更新新人上手清单')
 
   return item

@@ -1,10 +1,13 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { askOnboarding, createKbDocument, createKbVersion, decideKbReview, downloadEmployeeFile, fetchEmployeeFiles, fetchKbAccessLogs, fetchKbDocument, fetchKbDocuments, fetchKbExpiring, fetchKbQa, fetchKbReviews, fetchKbSpace, fetchKbSpaces, fetchKbVersions, fetchOnboarding, rebuildKbIndex, saveOnboarding, searchKb, setKbSpaceFinanceOnly, submitKbDocument, suggestKbQa } from '@/api/gap-e'
+import TiptapEditor from '@core/components/TiptapEditor.vue'
 import DetailPage from '@/components/biz/DetailPage.vue'
+import FormDrawer from '@/components/biz/FormDrawer.vue'
 import FormPage from '@/components/biz/FormPage.vue'
 import ListPage from '@/components/biz/ListPage.vue'
 import PermissionGate from '@/components/biz/PermissionGate.vue'
+import RecordDrawer from '@/components/biz/RecordDrawer.vue'
 import StatusChip from '@/components/biz/StatusChip.vue'
 import { useAiModeStore } from '@/stores/ai-mode'
 import { useSessionStore } from '@/stores/session'
@@ -42,9 +45,25 @@ const tags = ref('')
 const expiresOn = ref('')
 const selectedSpace = ref('space-company')
 const reviewReason = ref('')
+const reviewOpen = ref(false)
+const reviewTarget = ref<KbReviewItem | null>(null)
+const reviewDecision = ref<'approve' | 'reject'>('reject')
+const versionOpen = ref(false)
+const selectedVersion = ref<KbVersion | null>(null)
+const spaceSettingsOpen = ref(false)
+const spaceFinanceOnlyDraft = ref(false)
+const qaOpen = ref(false)
+const selectedQa = ref<KbQaItem | null>(null)
+const accessOpen = ref(false)
+const selectedAccess = ref<KbAccessLog | null>(null)
+const fileOpen = ref(false)
+const selectedFile = ref<EmployeeFile | null>(null)
+const onboardingOpen = ref(false)
+const onboardingDraft = ref<OnboardingChecklistItem | null>(null)
 
 const id = computed(() => String((route.params as Record<string, unknown>).id ?? ''))
 const employeeId = computed(() => id.value || session.userId)
+const onboardingProgress = computed(() => onboarding.value.length ? Math.round(onboarding.value.filter(item => item.done).length / onboarding.value.length * 100) : 0)
 
 async function run(action: () => Promise<void>) {
   busy.value = true; error.value = ''; try { await action() }
@@ -100,17 +119,62 @@ async function saveVersion() {
   if (!document.value)
     return; await run(async () => { document.value = await createKbVersion(document.value!.id, content.value); versions.value = await fetchKbVersions(document.value!.id); message.value = `第 ${document.value.currentVersion} 版已保存，请重新提交审核。` })
 }
-async function review(item: KbReviewItem, decision: 'approve' | 'reject') { await run(async () => { await decideKbReview(item.id, decision, reviewReason.value); reviews.value = await fetchKbReviews(); message.value = decision === 'approve' ? '已批准并发布。' : '已驳回并记录原因。' }) }
+function openReview(item: KbReviewItem, decision: 'approve' | 'reject') {
+  reviewTarget.value = item
+  reviewDecision.value = decision
+  reviewReason.value = ''
+  reviewOpen.value = true
+}
+async function review() {
+  if (!reviewTarget.value)
+    return
+
+  await run(async () => {
+    await decideKbReview(reviewTarget.value!.id, reviewDecision.value, reviewReason.value)
+    reviews.value = await fetchKbReviews()
+    reviewOpen.value = false
+    message.value = reviewDecision.value === 'approve' ? '已批准并发布。' : '已驳回并记录原因。'
+  })
+}
 async function suggest() { await run(async () => { await suggestKbQa('ticket-1007'); message.value = '已生成建议问答并送入审核队列。' }) }
 async function rebuild() { await run(async () => { indexVersion.value = await rebuildKbIndex(); message.value = `索引已重建（v${indexVersion.value}）。` }) }
 async function searchIndex() { await run(async () => { results.value = await searchKb(query.value) }) }
-async function toggleSpace() {
+function openSpaceSettings() {
   if (!space.value)
-    return; await run(async () => { space.value = await setKbSpaceFinanceOnly(space.value!.id, !space.value!.financeOnly); message.value = space.value?.financeOnly ? '已限制为仅财务可见。' : '已恢复空间成员可见。' })
+    return
+
+  spaceFinanceOnlyDraft.value = space.value.financeOnly
+  spaceSettingsOpen.value = true
+}
+async function saveSpaceSettings() {
+  if (!space.value)
+    return
+
+  await run(async () => {
+    space.value = await setKbSpaceFinanceOnly(space.value!.id, spaceFinanceOnlyDraft.value)
+    spaceSettingsOpen.value = false
+    message.value = space.value?.financeOnly ? '已限制为仅财务可见。' : '已恢复空间成员可见。'
+  })
 }
 async function download(file: EmployeeFile) { await run(async () => { await downloadEmployeeFile(employeeId.value, file.id); message.value = '下载记录已写入敏感文档访问日志。' }) }
 async function ask() { await run(async () => { answer.value = await askOnboarding(query.value) }) }
 async function saveItem(item: OnboardingChecklistItem) { await run(async () => { await saveOnboarding({ ...item }); message.value = '上手清单已保存。' }) }
+function openVersion(version: KbVersion) { selectedVersion.value = version; versionOpen.value = true }
+function openQa(item: KbQaItem) { selectedQa.value = item; qaOpen.value = true }
+function openAccess(item: KbAccessLog) { selectedAccess.value = item; accessOpen.value = true }
+function openFile(item: EmployeeFile) { selectedFile.value = item; fileOpen.value = true }
+function editOnboarding(item: OnboardingChecklistItem) { onboardingDraft.value = { ...item }; onboardingOpen.value = true }
+async function saveOnboardingDraft() {
+  if (!onboardingDraft.value)
+    return
+
+  await run(async () => {
+    await saveOnboarding({ ...onboardingDraft.value! })
+    onboarding.value = await fetchOnboarding('purchaser')
+    onboardingOpen.value = false
+    message.value = '上手清单已保存。'
+  })
+}
 function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
 </script>
 
@@ -153,12 +217,14 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
 
     <template v-if="mode === 'home'">
       <div class="d-flex justify-end mb-4">
-        <VBtn
-          to="/kb/docs/new/edit"
-          prepend-icon="tabler-plus"
-        >
-          新建制度文档
-        </VBtn>
+        <PermissionGate action="create">
+          <VBtn
+            to="/kb/docs/new/edit"
+            prepend-icon="tabler-plus"
+          >
+            新建制度文档
+          </VBtn>
+        </PermissionGate>
       </div>
       <ListPage
         storage-key="kb-home"
@@ -239,23 +305,26 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         v-if="document"
         :title="document.title"
         :subtitle="`${document.kind} · 版本 ${document.currentVersion}`"
-        status="published"
+        :status="document.status"
         domain="approval"
+        :timeline="versions.map(version => ({ id: version.id, at: version.createdAt, title: `版本 v${version.version}`, detail: version.status, actor: version.author }))"
       >
         <template #actions>
-          <VBtn
-            v-if="document.status === 'draft'"
-            :to="`/kb/docs/${document.id}/edit`"
-            variant="tonal"
-          >
-            编辑
-          </VBtn><VBtn
-            v-if="document.status === 'draft'"
-            :loading="busy"
-            @click="submit"
-          >
-            提交审核
-          </VBtn>
+          <PermissionGate action="update">
+            <VBtn
+              v-if="document.status === 'draft'"
+              :to="`/kb/docs/${document.id}/edit`"
+              variant="tonal"
+            >
+              编辑
+            </VBtn><VBtn
+              v-if="document.status === 'draft'"
+              :loading="busy"
+              @click="submit"
+            >
+              提交审核
+            </VBtn>
+          </PermissionGate>
         </template>
         <VCard title="正文">
           <VCardText
@@ -288,23 +357,39 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
           class="mt-6"
           title="版本历史"
         >
-          <VTable>
-            <thead><tr><th>版本</th><th>状态</th><th>作者</th><th>时间</th></tr></thead><tbody>
-              <tr
-                v-for="version in versions"
-                :key="version.id"
-              >
-                <td>v{{ version.version }}</td><td>
-                  <StatusChip
-                    domain="approval"
-                    :value="version.status"
-                  />
-                </td><td>{{ version.author }}</td><td>{{ version.createdAt }}</td>
-              </tr>
-            </tbody>
-          </VTable>
+          <ListPage
+            embedded
+            storage-key="kb-document-versions"
+            title="版本历史"
+            :items="versions"
+            :columns="[{ key: 'version', title: '版本' }, { key: 'status', title: '状态' }, { key: 'author', title: '作者' }, { key: 'createdAt', title: '时间' }]"
+            @open="openVersion"
+          >
+            <template #item.version="{ item }">v{{ item.version }}</template>
+            <template #item.status="{ item }">
+              <StatusChip
+                domain="approval"
+                :value="item.status"
+              />
+            </template>
+          </ListPage>
         </VCard>
       </DetailPage>
+      <RecordDrawer
+        v-model="versionOpen"
+        title="版本内容"
+        v-if="selectedVersion"
+      >
+        <StatusChip
+          domain="approval"
+          :value="selectedVersion.status"
+        />
+        <p class="text-caption text-medium-emphasis mt-3">{{ selectedVersion.author }} · {{ selectedVersion.createdAt }}</p>
+        <p
+          class="mt-4"
+          style="white-space: pre-wrap;"
+        >{{ selectedVersion.content }}</p>
+      </RecordDrawer>
     </template>
 
     <template v-else-if="mode === 'space'">
@@ -315,13 +400,13 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
       >
         <template #actions>
           <PermissionGate action="update">
-            <VSwitch
-              v-model="space.financeOnly"
-              label="仅财务可见"
-              color="primary"
-              hide-details
-              @update:model-value="toggleSpace"
-            />
+            <VBtn
+              variant="tonal"
+              prepend-icon="tabler-lock"
+              @click="openSpaceSettings"
+            >
+              管理空间权限
+            </VBtn>
           </PermissionGate>
         </template><VCard title="空间权限">
           <VCardText>
@@ -332,21 +417,44 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
               {{ space.financeOnly ? '运营和普通员工的搜索与 AI 引用都会被过滤。' : '当前空间对有权限的成员开放。' }}
             </VAlert>
           </VCardText>
-        </VCard><VCard
-          class="mt-6"
-          title="文档"
-        >
-          <VList>
-            <VListItem
-              v-for="doc in documents"
-              :key="doc.id"
-              :title="doc.title"
-              :subtitle="`${doc.status} · v${doc.currentVersion}`"
-              @click="openDoc(doc.id)"
-            />
-          </VList>
         </VCard>
+        <ListPage
+          embedded
+          storage-key="kb-space-documents"
+          title="空间文档"
+          :items="documents"
+          :columns="[{ key: 'title', title: '文档' }, { key: 'kind', title: '类型' }, { key: 'status', title: '状态' }, { key: 'currentVersion', title: '版本' }, { key: 'updatedAt', title: '最近更新' }]"
+          @open="row => openDoc(row.id)"
+        >
+          <template #item.status="{ item }">
+            <StatusChip
+              domain="approval"
+              :value="item.status"
+            />
+          </template>
+          <template #item.currentVersion="{ item }">v{{ item.currentVersion }}</template>
+        </ListPage>
       </DetailPage>
+      <FormDrawer
+        v-model="spaceSettingsOpen"
+        title="管理空间权限"
+        :saving="busy"
+        @save="saveSpaceSettings"
+      >
+        <VSwitch
+          v-model="spaceFinanceOnlyDraft"
+          label="仅财务可见"
+          color="primary"
+          hide-details
+        />
+        <VAlert
+          type="info"
+          variant="tonal"
+          class="mt-4"
+        >
+          变更会记录审计，并同步影响文档列表和检索问答的权限过滤。
+        </VAlert>
+      </FormDrawer>
     </template>
 
     <template v-else-if="mode === 'edit'">
@@ -390,11 +498,9 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
             label="有效期（可选）"
             placeholder="YYYY-MM-DD"
             class="mb-4"
-          /><VTextarea
+          /><TiptapEditor
             v-model="content"
-            label="正文"
-            rows="10"
-            :rules="[requiredValidator]"
+            placeholder="请输入制度、SOP 或帮助文档正文"
           />
         </template><template #aside>
           <VCard title="人工发布检查">
@@ -434,20 +540,22 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
           </VChip>
         </template><template #item.title="{ item }">
           <div class="d-flex align-center gap-2">
-            <span>{{ item.title }}</span><VBtn
-              size="small"
-              variant="text"
-              @click.stop="review(item, 'approve')"
-            >
-              批准
-            </VBtn><VBtn
-              size="small"
-              color="error"
-              variant="text"
-              @click.stop="review(item, 'reject')"
-            >
-              驳回
-            </VBtn>
+            <span>{{ item.title }}</span><PermissionGate action="approve">
+              <VBtn
+                size="small"
+                variant="text"
+                @click.stop="openReview(item, 'approve')"
+              >
+                批准
+              </VBtn><VBtn
+                size="small"
+                color="error"
+                variant="text"
+                @click.stop="openReview(item, 'reject')"
+              >
+                驳回
+              </VBtn>
+            </PermissionGate>
           </div>
         </template>
       </ListPage><VCard
@@ -461,6 +569,25 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
           />
         </VCardText>
       </VCard>
+      <FormDrawer
+        v-model="reviewOpen"
+        :title="reviewDecision === 'approve' ? '批准发布' : '驳回审核'"
+        :saving="busy"
+        @save="review"
+      >
+        <VAlert
+          type="info"
+          variant="tonal"
+          class="mb-4"
+        >
+          {{ reviewTarget?.title }}
+        </VAlert>
+        <AppTextField
+          v-model="reviewReason"
+          label="审核意见"
+          placeholder="驳回时填写原因；批准时可填写备注"
+        />
+      </FormDrawer>
     </template>
 
     <template v-else-if="mode === 'qa'">
@@ -470,7 +597,9 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         subtitle="已解决工单可以生成建议问答，批准后才会进入知识库。"
         :items="qa"
         :columns="[{ key: 'question', title: '问题' }, { key: 'answer', title: '答案' }, { key: 'citationLabel', title: '出处' }, { key: 'sourceRef', title: '来源工单' }]"
-      /><PermissionGate action="suggest">
+        @open="openQa"
+      />
+      <PermissionGate action="suggest">
         <VBtn
           class="mt-4"
           :loading="busy"
@@ -479,6 +608,28 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
           从已解决工单生成建议问答
         </VBtn>
       </PermissionGate>
+      <RecordDrawer
+        v-model="qaOpen"
+        title="问答详情"
+        v-if="selectedQa"
+      >
+        <h6 class="text-h6">{{ selectedQa.question }}</h6>
+        <p class="mt-3">{{ selectedQa.answer }}</p>
+        <VChip
+          class="mt-2"
+          color="primary"
+          variant="tonal"
+        >
+          {{ selectedQa.citationLabel }}
+        </VChip>
+        <VBtn
+          class="mt-4"
+          variant="tonal"
+          :to="`/kb/docs/${selectedQa.citationDocId}`"
+        >
+          打开出处
+        </VBtn>
+      </RecordDrawer>
     </template>
 
     <template v-else-if="mode === 'expiring'">
@@ -488,12 +639,17 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         subtitle="证书、合同和资质的到期日由代码计算。"
         :items="expiring"
         :columns="[{ key: 'title', title: '文档' }, { key: 'kind', title: '类型' }, { key: 'expiresOn', title: '到期日' }, { key: 'daysRemaining', title: '剩余天数' }, { key: 'owner', title: '负责人' }]"
+        date-key="expiresOn"
+        @open="row => openDoc(row.docId)"
       >
         <template #item.daysRemaining="{ item }">
-          <StatusChip
-            domain="issue"
-            :value="item.daysRemaining <= 30 ? 'open' : 'resolved'"
-          /><span class="ms-2">{{ item.daysRemaining }} 天</span>
+          <VChip
+            :color="item.status === 'expired' ? 'error' : 'warning'"
+            size="small"
+            label
+          >
+            {{ item.status === 'expired' ? '已到期' : '即将到期' }}
+          </VChip><span class="ms-2">{{ item.daysRemaining }} 天</span>
         </template>
       </ListPage>
     </template>
@@ -510,13 +666,15 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
               variant="tonal"
             >
               当前索引版本：v{{ indexVersion }}
-            </VAlert><VBtn
-              :loading="busy"
-              class="mt-4"
-              @click="rebuild"
-            >
-              重建索引
-            </VBtn>
+            </VAlert><PermissionGate action="update">
+              <VBtn
+                :loading="busy"
+                class="mt-4"
+                @click="rebuild"
+              >
+                重建索引
+              </VBtn>
+            </PermissionGate>
           </VCardText>
         </VCard><VCard
           class="mt-6"
@@ -532,18 +690,18 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
               /><VBtn @click="searchIndex">
                 检索
               </VBtn>
-            </div><VList
+            </div>
+            <ListPage
               v-if="results.length"
-              class="mt-4"
+              embedded
+              storage-key="kb-index-results"
+              title="检索结果"
+              :items="results"
+              :columns="[{ key: 'title', title: '文档' }, { key: 'version', title: '版本' }, { key: 'paragraph', title: '命中段落' }]"
+              @open="row => openDoc(row.docId)"
             >
-              <VListItem
-                v-for="item in results"
-                :key="item.id"
-                :title="item.title"
-                :subtitle="`v${item.version} · ${item.paragraph}`"
-                @click="openDoc(item.docId)"
-              />
-            </VList>
+              <template #item.version="{ item }">v{{ item.version }}</template>
+            </ListPage>
           </VCardText>
         </VCard>
       </DetailPage>
@@ -556,7 +714,22 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         subtitle="包含人和 AI 的查看、下载记录。"
         :items="logs"
         :columns="[{ key: 'title', title: '文档' }, { key: 'actor', title: '访问人' }, { key: 'action', title: '动作' }, { key: 'origin', title: '来源' }, { key: 'at', title: '时间' }]"
+        :filters="[{ key: 'origin', label: '来源', items: [{ title: '人工', value: 'human' }, { title: 'AI', value: 'ai' }] }]"
+        @open="openAccess"
       />
+      <RecordDrawer
+        v-model="accessOpen"
+        title="敏感文档访问详情"
+        v-if="selectedAccess"
+      >
+        <VList density="compact">
+          <VListItem title="文档">{{ selectedAccess.title }}</VListItem>
+          <VListItem title="访问人">{{ selectedAccess.actor }}</VListItem>
+          <VListItem title="动作">{{ selectedAccess.action }}</VListItem>
+          <VListItem title="来源">{{ selectedAccess.origin }}</VListItem>
+          <VListItem title="时间">{{ selectedAccess.at }}</VListItem>
+        </VList>
+      </RecordDrawer>
     </template>
 
     <template v-else-if="mode === 'employee'">
@@ -570,27 +743,48 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
           class="mb-6"
         >
           合同、证件和证书属于敏感资料。每次下载都会写入访问审计。
-        </VAlert><VCard title="档案文件">
-          <VList>
-            <VListItem
-              v-for="file in files"
-              :key="file.id"
-              :title="file.name"
-              :subtitle="`${file.kind} · ${file.size}${file.expiresOn ? ` · 到期 ${file.expiresOn}` : ''}`"
-            >
-              <template #append>
+        </VAlert>
+        <ListPage
+          embedded
+          storage-key="employee-files"
+          title="档案文件"
+          :items="files"
+          :columns="[{ key: 'name', title: '文件' }, { key: 'kind', title: '类型' }, { key: 'size', title: '大小' }, { key: 'expiresOn', title: '有效期' }, { key: 'uploadedAt', title: '上传时间' }]"
+          @open="openFile"
+        >
+          <template #item.name="{ item }">
+            <div class="d-flex align-center gap-2">
+              <span>{{ item.name }}</span>
+              <PermissionGate action="view">
                 <VBtn
                   size="small"
                   variant="tonal"
-                  @click="download(file)"
+                  @click.stop="download(item)"
                 >
                   下载
                 </VBtn>
-              </template>
-            </VListItem>
-          </VList>
-        </VCard>
+              </PermissionGate>
+            </div>
+          </template>
+        </ListPage>
       </DetailPage>
+      <RecordDrawer
+        v-model="fileOpen"
+        title="档案文件详情"
+        v-if="selectedFile"
+      >
+        <h6 class="text-h6">{{ selectedFile.name }}</h6>
+        <p class="mt-3">{{ selectedFile.kind }} · {{ selectedFile.size }}</p>
+        <p v-if="selectedFile.expiresOn">有效期至 {{ selectedFile.expiresOn }}</p>
+        <PermissionGate action="view">
+          <VBtn
+            class="mt-4"
+            @click="download(selectedFile)"
+          >
+            下载并记录审计
+          </VBtn>
+        </PermissionGate>
+      </RecordDrawer>
     </template>
 
     <template v-else-if="mode === 'onboarding'">
@@ -600,6 +794,15 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
       >
         <VCard title="我的上手清单">
           <VList>
+            <VListItem>
+              <VProgressLinear
+                :model-value="onboardingProgress"
+                color="primary"
+                height="8"
+                rounded
+              />
+              <div class="text-caption text-medium-emphasis mt-2">已完成 {{ onboardingProgress }}%</div>
+            </VListItem>
             <VListItem
               v-for="item in onboarding"
               :key="item.id"
@@ -669,23 +872,35 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         subtitle="按角色模板维护清单；修改会写审计。"
         :items="onboarding"
         :columns="[{ key: 'title', title: '任务' }, { key: 'roleId', title: '角色模板' }, { key: 'route', title: '引导页面' }, { key: 'description', title: '说明' }]"
+        @open="editOnboarding"
       >
-        <template #item.title="{ item }">
-          <AppTextField
-            v-model="item.title"
-            density="compact"
-            hide-details
-            @blur="saveItem(item)"
-          />
-        </template><template #item.description="{ item }">
-          <AppTextField
-            v-model="item.description"
-            density="compact"
-            hide-details
-            @blur="saveItem(item)"
-          />
-        </template>
       </ListPage>
+      <PermissionGate action="update">
+        <FormDrawer
+          v-model="onboardingOpen"
+          title="编辑上手清单"
+          :saving="busy"
+          @save="saveOnboardingDraft"
+        >
+          <AppTextField
+            v-if="onboardingDraft"
+            v-model="onboardingDraft.title"
+            label="任务"
+            class="mb-4"
+          />
+          <AppTextField
+            v-if="onboardingDraft"
+            v-model="onboardingDraft.description"
+            label="说明"
+            class="mb-4"
+          />
+          <AppTextField
+            v-if="onboardingDraft"
+            v-model="onboardingDraft.route"
+            label="引导页面"
+          />
+        </FormDrawer>
+      </PermissionGate>
     </template>
   </div>
 </template>
