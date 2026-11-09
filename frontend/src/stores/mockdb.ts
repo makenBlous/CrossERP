@@ -77,6 +77,22 @@ function loadDatabase(): MockDatabase {
         parsed.accountTokens = fresh.accountTokens
       if (!Array.isArray(parsed.accountSessions))
         parsed.accountSessions = fresh.accountSessions
+      if (!Array.isArray(parsed.agentTasks))
+        parsed.agentTasks = fresh.agentTasks
+      if (!Array.isArray(parsed.knowledgeDocuments))
+        parsed.knowledgeDocuments = fresh.knowledgeDocuments
+      if (!Array.isArray(parsed.promptVersions))
+        parsed.promptVersions = fresh.promptVersions
+      if (!Array.isArray(parsed.evalRuns))
+        parsed.evalRuns = fresh.evalRuns
+      if (!Array.isArray(parsed.evalCases))
+        parsed.evalCases = fresh.evalCases
+      if (!Array.isArray(parsed.agentRunSteps))
+        parsed.agentRunSteps = fresh.agentRunSteps
+      if (!Array.isArray(parsed.usageCalls))
+        parsed.usageCalls = fresh.usageCalls
+      if (!Array.isArray(parsed.securityEvents))
+        parsed.securityEvents = fresh.securityEvents
 
       return parsed
     }

@@ -186,7 +186,7 @@ export class MockAgentAdapter implements AgentAdapter {
       }
     }
 
-    if (/建议|审批|suggest|approval/.test(ask)) {
+    if (/建议|审批|suggest|approval|安全库存|退款/.test(ask)) {
       const issue = projectIssues(db)[0]
 
       if (issue) {
@@ -200,10 +200,16 @@ export class MockAgentAdapter implements AgentAdapter {
               { label: zh ? '金额' : 'Amount', value: formatMoney(issue.amount, issue.currency) },
             ],
             draft: {
-              title: zh ? `处理异常 ${issue.id}` : `Handle ${issue.id}`,
+              title: /安全库存|退款/.test(ask)
+                ? (zh ? '业务动作待审批建议' : 'Business action approval suggestion')
+                : (zh ? `处理异常 ${issue.id}` : `Handle ${issue.id}`),
               summary: zh
-                ? `沿用已存储差额 ${formatMoney(issue.amount, issue.currency)}。不重算，不写账。`
-                : `Uses the stored difference ${formatMoney(issue.amount, issue.currency)}. No recalculation, no posting.`,
+                ? /安全库存/.test(ask)
+                  ? `已识别 SKU 安全库存调整请求。建议仅进入审批，金额沿用异常快照 ${formatMoney(issue.amount, issue.currency)}，不改库存。`
+                  : /退款/.test(ask)
+                    ? `已识别退款建议请求。金额引用已存储异常快照 ${formatMoney(issue.amount, issue.currency)}，不直接退款。`
+                    : `沿用已存储差额 ${formatMoney(issue.amount, issue.currency)}。不重算，不写账。`
+                : `Uses stored values for ${issue.id}. No recalculation or posting.`,
               amount: issue.currency === 'JPY' ? String(issue.amount) : issue.amount.toFixed(4),
               currency: issue.currency,
               storeId: null,

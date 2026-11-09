@@ -1,6 +1,7 @@
 import type { CurrencyCode, IssueCode, Role } from '@/types/domain'
 import type { Minor } from '@/utils/money'
 import type { AccountSession, AccountToken, AdminDictionary, AdminIntegration, AdminModule, AdminNotification, AdminSetting, CrmActivity, CrmLead, CrmReview, CrmTicketMessage, RoleOverride } from '@/types/crm-admin'
+import type { AgentRunStep, AgentTask, EvalCase, EvalRun, KnowledgeDocument, PromptVersion, SecurityEvent, UsageCall } from '@/types/agent-module'
 
 export type Platform = 'Amazon' | 'Shopify' | 'TikTok Shop'
 export type WarehouseKind = 'fba' | 'overseas' | 'domestic'
@@ -633,4 +634,12 @@ export interface MockDatabase {
   adminSettings?: AdminSetting[]
   accountTokens?: AccountToken[]
   accountSessions?: AccountSession[]
+  agentTasks?: AgentTask[]
+  knowledgeDocuments?: KnowledgeDocument[]
+  promptVersions?: PromptVersion[]
+  evalRuns?: EvalRun[]
+  evalCases?: EvalCase[]
+  agentRunSteps?: AgentRunStep[]
+  usageCalls?: UsageCall[]
+  securityEvents?: SecurityEvent[]
 }
