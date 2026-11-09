@@ -2,6 +2,7 @@
 import { legacyPermissionKeys, legacyRoleActions, permissionCatalog, roleTemplates } from '@/config/permissions'
 import type { Role } from '@/types/domain'
 import type { DataScopeRuleType, EffectivePermission, PermissionSubject, RolePermission } from '@/types/foundation'
+
 export type FieldAccess = 'hidden' | 'masked' | 'readonly' | 'visible'
 
 const templateById = new Map(roleTemplates.map(item => [item.id, item]))
@@ -194,4 +195,3 @@ export function fieldAccess(subject: PermissionSubject, fieldKey: string): Field
 
   return 'visible'
 }
-
