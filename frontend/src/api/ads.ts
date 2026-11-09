@@ -1,5 +1,5 @@
 import { assertCan, database, delay, readMock } from '@/api/mock-client'
-import { adsCampaigns, adsImportRows, adsPerformance, allocationRows, recordAdImport, saveAllocation } from '@/mocks/services/finance'
+import { type AllocationShare, adsCampaigns, adsImportRows, adsPerformance, allocationRows, recordAdImport, saveAllocation } from '@/mocks/services/finance'
 
 export async function fetchAdCampaigns() {
   await delay()
@@ -21,14 +21,16 @@ export async function fetchAllocations() {
 
   return readMock(allocationRows(database().db))
 }
-export async function saveAdAllocation(campaignId: string, sku: string, ratio: number) {
+export async function saveAdAllocation(campaignId: string, shares: AllocationShare[]) {
   const actor = assertCan('update')
-  const row = saveAllocation(database().db, campaignId, sku, ratio, actor)
+  const rows = saveAllocation(database().db, campaignId, shares, actor)
 
-  database().persist()
+  if (rows)
+    database().persist()
 
-  return readMock(row ? allocationRows(database().db).find(item => item.id === row.id) ?? null : null)
+  return readMock(rows ? allocationRows(database().db) : null)
 }
+
 export async function uploadAdImport(fileName: string) {
   const actor = assertCan('create')
   const row = recordAdImport(database().db, fileName, actor)

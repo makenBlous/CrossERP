@@ -138,12 +138,61 @@ export function columnMapRows(db: MockDatabase) {
   return financeData(db).columnMaps
 }
 
+export function columnMapDetail(db: MockDatabase, id: string) {
+  return financeData(db).columnMaps.find(row => row.id === id) ?? null
+}
+
+export function saveColumnMap(db: MockDatabase, id: string, mappings: Array<{ source: string; field: string }>, actor: Actor) {
+  const row = financeData(db).columnMaps.find(item => item.id === id)
+  if (!row)
+    return null
+  row.mappings = mappings.map(item => ({ ...item }))
+  row.fields = mappings.length
+  row.status = 'confirmed'
+  row.updatedAt = actor.at.slice(0, 10)
+  writeAudit(db, actor, 'update_column_map', 'column_map', id, `保存列映射 ${row.name}，共 ${mappings.length} 个字段。`)
+
+  return row
+}
+
+function agingBucket(dueAt: string) {
+  const days = Math.max(0, Math.floor((Date.parse('2026-11-09') - Date.parse(`${dueAt}T00:00:00Z`)) / 86400000))
+
+  return days <= 30 ? '0-30' : days <= 60 ? '31-60' : days <= 90 ? '61-90' : '90+'
+}
+
+export interface AgingSummary {
+  key: string
+  count: number
+  amounts: Array<{ currency: CurrencyCode; amount: number }>
+}
+
+function agingSummary(rows: Array<{ amount: number; currency: CurrencyCode; dueAt: string }>): AgingSummary[] {
+  const keys = ['0-30', '31-60', '61-90', '90+']
+
+  return keys.map(key => {
+    const grouped = new Map<CurrencyCode, number>()
+    const matching = rows.filter(row => agingBucket(row.dueAt) === key)
+    matching.forEach(row => grouped.set(row.currency, (grouped.get(row.currency) ?? 0) + row.amount))
+
+    return { key, count: matching.length, amounts: [...grouped.entries()].map(([currency, amount]) => ({ currency, amount })) }
+  })
+}
+
 export function arRows(db: MockDatabase) {
-  return db.arInvoices.map(row => ({ ...row, storeName: db.stores.find(store => store.id === row.storeId)?.name ?? row.storeId, amountDisplay: toDisplay(row.amount, row.currency), bucket: '0–30 天' }))
+  return db.arInvoices.map(row => ({ ...row, storeName: db.stores.find(store => store.id === row.storeId)?.name ?? row.storeId, amountDisplay: toDisplay(row.amount, row.currency), bucket: agingBucket(row.dueAt) }))
 }
 
 export function apRows(db: MockDatabase) {
-  return db.apInvoices.map(row => ({ ...row, supplier: db.suppliers.find(supplier => supplier.id === row.supplierId)?.name ?? row.supplierId, amountDisplay: toDisplay(row.amount, row.currency), bucket: '0–30 天' }))
+  return db.apInvoices.map(row => ({ ...row, supplier: db.suppliers.find(supplier => supplier.id === row.supplierId)?.name ?? row.supplierId, amountDisplay: toDisplay(row.amount, row.currency), bucket: agingBucket(row.dueAt) }))
+}
+
+export function arAging(db: MockDatabase) {
+  return agingSummary(db.arInvoices)
+}
+
+export function apAging(db: MockDatabase) {
+  return agingSummary(db.apInvoices)
 }
 
 export function clearingRows(db: MockDatabase) {
@@ -202,26 +251,58 @@ export function allocationRows(db: MockDatabase) {
   })
 }
 
-export function saveAllocation(db: MockDatabase, campaignId: string, sku: string, ratio: number, actor: Actor) {
+export interface AllocationShare { sku: string; ratio: number }
+
+/**
+ * 保存一个广告活动的完整分摊规则（替换该活动原有规则）。
+ * 比例必须是正整数、SKU 不重复、合计恰好 100%；花费按整数万分位分摊，尾差给最后一行，保证合计等于活动花费。
+ */
+export function saveAllocation(db: MockDatabase, campaignId: string, shares: AllocationShare[], actor: Actor) {
   const campaign = db.adsCampaigns.find(item => item.id === campaignId)
-  if (!campaign || !sku || !Number.isInteger(ratio) || ratio <= 0)
+  if (!campaign || !shares.length)
     return null
+  if (shares.some(item => !item.sku || !Number.isInteger(item.ratio) || item.ratio <= 0))
+    return null
+  if (new Set(shares.map(item => item.sku)).size !== shares.length)
+    return null
+  if (shares.reduce((sum, item) => sum + item.ratio, 0) !== 100)
+    return null
+
   const data = adsData(db)
-  const existingTotal = data.allocations.filter(row => row.campaign === campaign.name).reduce((sum, row) => sum + row.ratio, 0)
-  if (existingTotal + ratio !== 100)
-    return null
-  const row: AdsAllocation = { id: `alloc-${data.allocations.length + 1}`, campaign: campaign.name, sku, ratio, spend: Math.round(campaign.spend * ratio / 100), source: '广告分摊' }
+  const period = '2026-10'
 
-  data.allocations.push(row)
-
-  const snapshot = db.profitSnapshots.find(item => item.internalSku === sku && item.period === '2026-10')
-  if (snapshot) {
-    snapshot.ads += row.spend
-    snapshot.profit -= row.spend
+  // 先撤回该活动旧规则对利润快照的影响，再写入新规则。
+  for (const old of data.allocations.filter(row => row.campaign === campaign.name)) {
+    const snapshot = db.profitSnapshots.find(item => item.internalSku === old.sku && item.storeId === campaign.storeId && item.period === period)
+    if (snapshot) {
+      snapshot.ads -= old.spend
+      snapshot.profit += old.spend
+    }
   }
-  writeAudit(db, actor, 'save_allocation', 'ads_allocation', row.id, `保存 ${sku} 广告分摊规则 ${ratio}%。`)
+  data.allocations = data.allocations.filter(row => row.campaign !== campaign.name)
 
-  return row
+  let allocated = 0
+
+  const rows: AdsAllocation[] = shares.map((share, index) => {
+    const spend = index === shares.length - 1 ? campaign.spend - allocated : Math.round(campaign.spend * share.ratio / 100)
+
+    allocated += spend
+
+    return { id: `alloc-${campaign.id}-${share.sku}`, campaign: campaign.name, sku: share.sku, ratio: share.ratio, spend, source: '广告分摊' }
+  })
+
+  for (const row of rows) {
+    data.allocations.push(row)
+
+    const snapshot = db.profitSnapshots.find(item => item.internalSku === row.sku && item.storeId === campaign.storeId && item.period === period)
+    if (snapshot) {
+      snapshot.ads += row.spend
+      snapshot.profit -= row.spend
+    }
+  }
+  writeAudit(db, actor, 'save_allocation', 'ads_allocation', campaign.id, `保存 ${campaign.name} 广告分摊规则：${rows.map(row => `${row.sku} ${row.ratio}%`).join('，')}。`)
+
+  return rows
 }
 
 export function confirmFeeMap(db: MockDatabase, id: string, category: string, actor: Actor) {
