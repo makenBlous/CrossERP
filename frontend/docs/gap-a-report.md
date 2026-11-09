@@ -44,3 +44,15 @@
 - 本批按钮核对：差旅、VAT、出口退税新增按钮均调用 `src/api/gap-a.ts`；原有批次 A 操作继续调用 API 或路由。未发现需要删除的无反应按钮。
 
 以上仍是浏览器 mock，未接真实文件存储、税务外部接口或 `/api/v1`；真实文件内容、真实税务数据和 MySQL/PostgreSQL 未验证。
+
+### 本轮最终验收证据
+
+`%TEMP%\cx-pw\gap-a-flows\result.json` 最后一次运行结果为 6/6 通过：
+
+| 流程 | AI normal | AI off |
+|---|---|---|
+| EX06 差旅申请 → 提交 → 规则匹配 → 人工确认关联报销 | 通过 | 通过 |
+| F33 VAT 期间筛选 → 保存模拟申报 → 状态/审计提示 | 通过 | 通过 |
+| F34 三类资料选择 → 模拟登记元数据 → 齐全校验为 `ready` → 审计提示 | 通过 | 通过 |
+
+实际运行：`pnpm run typecheck` 通过；`cmd /c "pnpm exec eslint . -c .eslintrc.cjs --ext .ts,.js,.cjs,.vue,.tsx,.jsx"` 0 error（23 个既有格式 warning）；`pnpm run build` 通过。预览只使用 4181 端口，流程完成后已停止本轮启动的进程。
