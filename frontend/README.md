@@ -218,6 +218,8 @@ sendMessage(context, message, emit) => Promise<void>
 
 新页面先找 Vuexy 现成页面或组件，再考虑自写。只读参考在 `D:\make\write\vue\vuexy-10.11.1\vuexy-admin-v10.11.1\vue-version\typescript-version\full-version`。不要改那个目录。
 
+完整的逐组件审计见 [`docs/component-reuse-audit.md`](docs/component-reuse-audit.md)。本表记录页面级复用关系；通用 UI 优先落到 Vuexy/Vuetify，业务组件只保留领域数据和权限适配。
+
 | 已实现页面 | 改编自 |
 |---|---|
 | `/dashboard` | dashboards/ecommerce 的统计卡（`CardStatisticsHorizontal`）+ Apex 图表 |
@@ -248,6 +250,15 @@ sendMessage(context, message, emit) => Promise<void>
 | `/agent/definitions` | roles 卡片：`VCard` + `VAvatar` + `VChip` |
 | `/agent/runs` | `ListPage` |
 | 全局智能助手抽屉 | chat 气泡和输入条，套在 `VNavigationDrawer` 里 |
+
+| 复用规则 | 当前实现 |
+|---|---|
+| 列表、筛选、分页、列设置、批量操作 | `ListPage`（内部复用 `VDataTableServer`、`TablePagination` 和 Vuexy App form elements） |
+| 详情、审计轨迹、关联单据 | `DetailPage`（Vuexy order/invoice detail + Vuetify `VTimeline`） |
+| 表单抽屉和只读记录抽屉 | `FormDrawer` / `RecordDrawer`（Vuexy `AddNewUserDrawer`、`AppDrawerHeaderSection`、`PerfectScrollbar`） |
+| 统计卡 | `KpiCard` → Vuexy `CardStatisticsHorizontal` |
+| 步骤导航 | Vuexy `AppStepper`；采购新建页不再手写步骤条 |
+| 状态、金额、权限、智能助手 | `StatusChip`、`MoneyText`、`PermissionGate`、`AgentAdapter`，因业务语义无模板等价物而保留薄封装 |
 
 `ListPage` 是 product list / user list / invoice list 的薄封装：可选统计卡插槽、筛选 `VCard`、`AppTextField` / `AppSelect` / `AppDateTimePicker`、`VDataTableServer`、`TablePagination`、批量操作。店铺筛选（`store` / `storeId` / `storeName`，或 `store: true`）的「全部」是「全部店铺」，其他筛选是「全部」。
 

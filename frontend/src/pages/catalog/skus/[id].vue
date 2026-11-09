@@ -106,14 +106,12 @@ async function saveCost() {
     >
       {{ t('catalog.skuTitle') }}
     </VBtn>
-    <VAlert
+    <ErrorState
       v-if="error"
-      type="error"
-      variant="tonal"
       class="mb-4"
-    >
-      {{ error }}
-    </VAlert>
+      :text="error"
+      @retry="load"
+    />
     <LoadingState v-if="!loaded" />
     <VAlert
       v-else-if="!sku"
