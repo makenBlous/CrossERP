@@ -105,8 +105,10 @@ export const legacyRoleActions: Record<'admin' | 'operator' | 'finance' | 'viewe
 
 const basePermissions = (role: 'admin' | 'operator' | 'finance' | 'viewer' | 'auditor'): RolePermission[] => [
   ...legacyRoleActions[role].map(action => ({ permissionKey: legacyPermissionKeys[action], effect: 'allow' as const, source: `旧角色 ${role}` })),
-  ...permissionCatalog.filter(point => point.key.endsWith(':read')).map(point => ({ permissionKey: point.key, effect: role === 'viewer' || role === 'auditor' ? 'allow' as const : 'allow' as const, source: `模板 ${role}` })),
+  ...permissionCatalog.filter(point => point.key.endsWith(':read')).map(point => ({ permissionKey: point.key, effect: 'allow' as const, source: `模板 ${role}` })),
 ]
+
+const isLegacyRole = (role: Role): role is 'admin' | 'operator' | 'finance' | 'viewer' | 'auditor' => ['admin', 'operator', 'finance', 'viewer', 'auditor'].includes(role)
 
 const template = (
   id: string,
@@ -124,7 +126,7 @@ const template = (
   nameEn,
   parentIds,
   legacyRole,
-  permissions: [...(legacyRole && ['admin', 'operator', 'finance', 'viewer', 'auditor'].includes(legacyRole) ? basePermissions(legacyRole) : basePermissions('viewer')), ...extra],
+  permissions: [...(legacyRole && isLegacyRole(legacyRole) ? basePermissions(legacyRole) : basePermissions('viewer')), ...extra],
   defaultDataScopes,
   fieldRestrictions: {},
   erpnextRefs,
@@ -158,4 +160,3 @@ export const moduleRegistry = [
   { id: 'collaboration', nameZh: '协作', nameEn: 'Collaboration', enabled: true, defaultPhase: 'now' as const },
   { id: 'expense', nameZh: '费用', nameEn: 'Expenses', enabled: true, defaultPhase: 'now' as const },
 ] as const
-

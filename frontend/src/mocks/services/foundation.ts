@@ -7,10 +7,14 @@ const fakeChannel = (id: string, nameZh: string, nameEn: string): ChannelPlugin 
   nameZh,
   nameEn,
   capabilities: { sendMessage: true, approvalCard: id !== 'email', verifyCallback: id !== 'email', bindIdentity: id !== 'webhook' },
-  async sendMessage(_message: ChannelMessage) {
+  async sendMessage(message: ChannelMessage) {
+    void message
+
     return { ok: true, messageId: `${id}-msg-001` }
   },
-  async sendApprovalCard(_card: ApprovalCardPayload) {
+  async sendApprovalCard(card: ApprovalCardPayload) {
+    void card
+
     return { ok: true, messageId: `${id}-approval-001` }
   },
   verifyCallback(payload: string, signature: string) {
@@ -31,4 +35,3 @@ export const channelPlugins: ChannelPlugin[] = [
 
 export { approvalTypes, autonomyPolicies, departments, documentLinks, suggestions }
 export const modules: ModuleSwitch[] = [...moduleRegistry]
-

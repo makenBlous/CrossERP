@@ -5,12 +5,7 @@ import type { DataScopeRuleType, EffectivePermission, PermissionSubject, RolePer
 const templateById = new Map(roleTemplates.map(item => [item.id, item]))
 
 function activeAt(startsAt?: string, expiresAt?: string, now = Date.now()) {
-  if (startsAt && Date.parse(startsAt) > now)
-    return false
-  if (expiresAt && Date.parse(expiresAt) <= now)
-    return false
-
-  return true
+  return !(startsAt && Date.parse(startsAt) > now) && !(expiresAt && Date.parse(expiresAt) <= now)
 }
 
 function collectRoleIds(roleIds: string[], seen = new Set<string>()): string[] {
@@ -18,6 +13,7 @@ function collectRoleIds(roleIds: string[], seen = new Set<string>()): string[] {
     if (seen.has(id))
       continue
     seen.add(id)
+
     const role = templateById.get(id)
     if (role)
       collectRoleIds(role.parentIds, seen)
@@ -32,12 +28,15 @@ function normalizePermissionSource(permission: RolePermission, roleId: string) {
 
 export function computeEffectivePermissions(subject: PermissionSubject, now = Date.now()): EffectivePermission[] {
   const permissions = new Map<string, { allows: string[]; denies: string[]; scopes: Set<DataScopeRuleType>; deniedScopes: Set<DataScopeRuleType> }>()
+
   const ensure = (key: string) => {
     const current = permissions.get(key)
     if (current)
       return current
     const created = { allows: [], denies: [], scopes: new Set<DataScopeRuleType>(), deniedScopes: new Set<DataScopeRuleType>() }
+
     permissions.set(key, created)
+
     return created
   }
 
@@ -65,16 +64,15 @@ export function computeEffectivePermissions(subject: PermissionSubject, now = Da
     if (override.userId !== subject.userId || !activeAt(override.startsAt, override.expiresAt, now))
       continue
     const target = ensure(override.permissionKey)
-    const source = override.grantType === 'temporary' ? `临时授权：${override.reason}` : `用户例外：${override.reason}`
+    const source = 'grantType' in override && override.grantType === 'temporary' ? `临时授权：${override.reason}` : `用户例外：${override.reason}`
     if (override.effect === 'deny')
       target.denies.push(source)
     else
       target.allows.push(source)
   }
 
-  for (const point of permissionCatalog) {
+  for (const point of permissionCatalog)
     ensure(point.key)
-  }
 
   return [...permissions.entries()].map(([permissionKey, result]) => ({
     permissionKey,
@@ -110,7 +108,7 @@ export function narrowAiPermissions(effective: EffectivePermission[], allowedKey
 
 export function roleSubject(role: Role, userId = `demo-${role}`): PermissionSubject {
   const mapped = legacyRoleMap[role] ?? role
-  const template = roleTemplates.find(item => item.legacyRole === mapped) ?? roleTemplates.find(item => item.id === role)
+  const template = roleTemplates.find(item => item.id === role) ?? roleTemplates.find(item => item.legacyRole === mapped)
 
   return { userId, roleIds: [template?.id ?? role] }
 }
@@ -118,4 +116,3 @@ export function roleSubject(role: Role, userId = `demo-${role}`): PermissionSubj
 export function canPermission(subject: PermissionSubject, permissionKey: string) {
   return effectivePermission(subject, permissionKey).allowed
 }
-

@@ -1,21 +1,21 @@
 import { isEmpty, isEmptyArray, isNullOrUndefined } from './helpers'
 
 type ValidatorTranslator = (key: string, params?: Record<string, unknown>) => string
-let translate: ValidatorTranslator = key => ({
+let translate: ValidatorTranslator = (key, params = {}) => ({
   'validation.required': '此字段为必填项',
   'validation.email': '请输入有效的邮箱地址',
   'validation.password': '密码至少 8 位，并包含大小写字母、数字和特殊字符',
   'validation.confirmed': '两次输入的内容不一致',
-  'validation.between': '请输入 ${min} 到 ${max} 之间的数字',
+  'validation.between': '请输入范围内的数字',
   'validation.integer': '请输入整数',
   'validation.regex': '字段格式不正确',
   'validation.alpha': '只能包含英文字母',
   'validation.url': '请输入有效的网址',
-  'validation.length': '字段长度必须为 ${length} 个字符',
+  'validation.length': '字段长度不符合要求',
   'validation.alphaDash': '只能包含字母、数字、下划线或连字符',
   'validation.number': '请输入数字',
   'validation.money': '请输入最多 4 位小数的金额',
-}[key] ?? key).replace(/\$\{(\w+)\}/g, (_, name) => String(params?.[name] ?? ''))
+}[key] ?? key).replace(/\$\{(\w+)\}/g, (_, name) => String(params[name] ?? ''))
 
 export function configureValidatorI18n(fn: ValidatorTranslator) {
   translate = fn

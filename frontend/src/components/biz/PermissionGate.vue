@@ -12,6 +12,7 @@ const props = defineProps<{
 
 const session = useSessionStore()
 const permissions = usePermissionStore()
+
 const allowed = computed(() => {
   if (props.permission)
     return permissions.effective(roleSubject(session.role, session.userId)).some(item => item.permissionKey === props.permission && item.allowed)

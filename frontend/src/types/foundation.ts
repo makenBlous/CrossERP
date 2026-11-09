@@ -205,4 +205,3 @@ export interface ModuleSwitch {
   enabled: boolean
   defaultPhase: 'now' | 'v1' | 'later'
 }
-

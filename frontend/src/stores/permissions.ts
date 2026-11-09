@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computeEffectivePermissions, narrowAiPermissions } from '@/utils/permission-engine'
-import type { PermissionSubject, EffectivePermission, UserPermissionOverride, TemporaryGrant } from '@/types/foundation'
+import type { EffectivePermission, PermissionSubject, TemporaryGrant, UserPermissionOverride } from '@/types/foundation'
 
 const OVERRIDE_KEY = 'crosserp-permission-overrides'
 
@@ -42,4 +42,3 @@ export const usePermissionStore = defineStore('permissions', {
     },
   },
 })
-
