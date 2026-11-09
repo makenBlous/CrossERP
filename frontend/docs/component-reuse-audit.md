@@ -275,4 +275,14 @@
 | AgentCard、RecordDrawer、AssistantDrawer | 批次 A 全部页面 | 项目现成组件 | 未引入；AI 仅使用现有 `useAiModeStore` 提示/预填，审计记录放入 `DetailPage` 时间线 | 设计对批次 A 的 AI 是 L1/L2 建议，不能增加独立对话或写入口；详情记录不适合只读抽屉 | AI 关闭时人工路径仍可用，AI 不绕过审批 |
 | 凭证列表/详情与利润页 | `pages/finance/vouchers/*`、`pages/finance/profit/*` | `ListPage`、`DetailPage`、`MoneyText`、`StatusChip` | 保留领域专属分录/来源追溯，期间选择和审批动作接 `api/gap-a` | 凭证分录、借贷平衡和来源链接不是通用 CRUD 字段 | 草稿→审批→批准护栏、来源追溯和利润期间选择可用 |
 
+### Gap A 补齐复查（2026-11-10）
+
+| 新增交互 | 复用组件/来源 | 保留专用代码的原因 | 追溯与状态 |
+|---|---|---|---|
+| EX06 差旅匹配 | `GapAPage` + `ListPage` + `FormPage` + `MoneyText` + `VDialog` | 匹配候选需要展示代码规则、分数和人工确认，无法由通用列表列渲染表达 | `src/api/gap-a.ts` 调用 mock；提交、建议、确认均追加审计 |
+| F34 资料登记 | `FormDrawer` + Vuetify `VFileInput`/`AppSelect` + `StatusChip` | 只登记元数据且按三种资料类型做齐全校验，业务字段是退税专属 | 不保存文件内容；上传和校验状态写审计 |
+| F33 模拟申报 | `ListPage` + `AppSelect` + `StatusChip` | 期间筛选由通用列表外的页面级查询条件驱动，申报动作是行级税务专属行为 | 期间作为 API 参数；保存模拟申报追加审计 |
+
+批次 A 页面仍通过 `src/api/*.ts` 访问服务层，金额继续使用 `MoneyText` 展示；未新增 AI 对话界面，AI 关闭时上述人工路径完整可用。
+
 

@@ -31,6 +31,7 @@ const session = useSessionStore()
 const aiMode = useAiModeStore()
 const loading = ref(true)
 const errorMessage = ref('')
+const successMessage = ref('')
 const rows = ref<TableRow[]>([])
 const detail = ref<unknown>(null)
 const auditEvents = ref<Array<{ id: string; at: string; actor: string; action: string; detail: string }>>([])
@@ -119,7 +120,7 @@ function navigate(id: string) {
 function statusDomain() {
   if (props.pageKey === 'F23')
     return 'voucher' as const
-  if (['F25', 'F26', 'F27'].includes(props.pageKey))
+  if (['F25', 'F26', 'F27', 'F33'].includes(props.pageKey))
     return 'statement' as const
   if (['EX01', 'EX04', 'EX06'].includes(props.pageKey))
     return 'approval' as const
@@ -197,7 +198,7 @@ async function saveTrip() {
     tripCreateMode.value = false
   })
 }
-async function submitTrip(id: string) { await run(async () => { await submitGapATrip(id) }) }
+async function submitTrip(id: string) { await run(async () => { await submitGapATrip(id); successMessage.value = '差旅申请已提交，审计记录已追加。' }) }
 async function suggestTripMatch(id: string) {
   await run(async () => {
     const result = await suggestGapATripClaim(id)
@@ -209,9 +210,9 @@ async function suggestTripMatch(id: string) {
 async function confirmTripMatch() {
   if (!selectedTripId.value || !tripMatch.value)
     return
-  await run(async () => { await confirmGapATripClaim(selectedTripId.value, tripMatch.value!.claim.id); tripMatch.value = null; selectedTripId.value = '' })
+  await run(async () => { await confirmGapATripClaim(selectedTripId.value, tripMatch.value!.claim.id); successMessage.value = '差旅匹配已人工确认，审计记录已追加。'; tripMatch.value = null; selectedTripId.value = '' })
 }
-async function submitVat(id: string) { await run(async () => { await submitGapAVat(id) }) }
+async function submitVat(id: string) { await run(async () => { await submitGapAVat(id); successMessage.value = 'VAT 模拟申报已保存，审计记录已追加。' }) }
 function openRebateUpload(id: string) {
   selectedRebateId.value = id
   rebateDocumentType.value = '报关单'
@@ -227,13 +228,16 @@ async function uploadRebateDocument() {
   }
   await run(async () => {
     await uploadGapARebateDocument(selectedRebateId.value, { fileName: rebateFile.value!.name, documentType: rebateDocumentType.value, size: rebateFile.value!.size })
+    successMessage.value = '退税资料元数据已登记，审计记录已追加。'
     rebateFile.value = null
+    rebateDrawerOpen.value = false
   })
 }
 async function validateRebate(id: string) {
   await run(async () => {
     const result = await validateGapARebate(id)
     rebateValidation.value = result?.missing ?? []
+    successMessage.value = rebateValidation.value.length ? '退税资料校验完成，结果已写入审计记录。' : '退税资料齐全，状态已更新为待申报，审计记录已追加。'
     selectedRebateId.value = id
   })
 }
@@ -393,6 +397,15 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
       class="mb-4"
     >
       {{ errorMessage }}
+    </VAlert>
+    <VAlert
+      v-if="successMessage"
+      type="success"
+      variant="tonal"
+      class="mb-4"
+      data-test="success-message"
+    >
+      {{ successMessage }}
     </VAlert>
     <VAlert
       v-if="aiMode.isEnabled && ['EX01', 'EX02', 'EX03', 'EX04', 'EX06', 'F23', 'F28', 'F29', 'F30', 'F32', 'F33', 'F34'].includes(pageKey)"
