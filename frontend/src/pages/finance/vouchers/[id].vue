@@ -119,7 +119,18 @@ async function submit() {
           :color="row.balanced ? 'success' : 'error'"
           size="small"
         >
-          {{ row.balanced ? '借贷平衡' : `差额 ${row.difference}` }}
+          <template v-if="row.balanced">
+            借贷平衡
+          </template>
+          <template v-else>
+            差额
+            <MoneyText
+              :amount="row.difference"
+              minor
+              currency="CNY"
+              class="ms-1"
+            />
+          </template>
         </VChip>
         <span class="text-body-2">借方合计：<MoneyText
           :amount="row.debit"
