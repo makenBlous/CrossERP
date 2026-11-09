@@ -130,6 +130,7 @@ async function register(disposition: 'restock' | 'scrap') {
           <VBtn
             v-if="order.statusCode === 'paid'"
             color="primary"
+            data-test="order-ship"
             :loading="acting"
             @click="ship"
           >

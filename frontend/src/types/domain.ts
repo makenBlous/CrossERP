@@ -479,3 +479,269 @@ export interface LookupOption {
   id: string
   label: string
 }
+
+export interface TimelineItem {
+  id: string
+  at: string
+  title: string
+  detail: string
+  actor: string
+}
+
+export interface RelatedDoc {
+  id: string
+  type: string
+  label: string
+  to?: string
+}
+
+export interface WarehouseRow {
+  id: string
+  code: string
+  name: string
+  kind: string
+  country: string
+  status: string
+}
+
+export interface BalanceRow {
+  id: string
+  warehouseId: string
+  warehouseName: string
+  kind: string
+  internalSku: string
+  title: string
+  onHand: number
+  reserved: number
+  inTransit: number
+  unfulfillable: number
+  available: number
+}
+
+export interface MovementRow {
+  id: string
+  occurredAt: string
+  warehouseName: string
+  internalSku: string
+  qtyDelta: number
+  inTransitDelta: number
+  reason: string
+  refType: string
+  refId: string
+  createdBy: string
+}
+
+export interface StockDocLineView {
+  id: string
+  internalSku: string
+  qtyExpected: number
+  qtyActual: number
+  variance: number
+  bookQty: number
+}
+
+export interface StockDocRow {
+  id: string
+  docNo: string
+  docType: string
+  warehouseId: string
+  warehouseName: string
+  toWarehouseId: string
+  toWarehouseName: string
+  status: string
+  remark: string
+  createdBy: string
+  createdAt: string
+  lineSummary: string
+}
+
+export interface StockDocDetail extends StockDocRow {
+  lines: StockDocLineView[]
+  timeline: TimelineItem[]
+  related: RelatedDoc[]
+}
+
+export interface AlertRow {
+  id: string
+  warehouseId: string
+  warehouseName: string
+  internalSku: string
+  kind: string
+  threshold: number
+  onHand: number
+  triggeredAt: string
+  status: string
+}
+
+export interface SupplierRow {
+  id: string
+  name: string
+  country: string
+  currency: CurrencyCode
+  status: string
+  contact: string
+  openPo: number
+}
+
+export interface SupplierOrderView {
+  id: string
+  no: string
+  status: string
+  expectedAt: string
+  amount: number
+  currency: CurrencyCode
+}
+
+export interface SupplierDetailView {
+  id: string
+  name: string
+  country: string
+  currency: CurrencyCode
+  status: string
+  remark: string
+  contacts: Array<{ id: string; name: string; email: string; phone: string }>
+  orders: SupplierOrderView[]
+  apBalance: number
+  apCurrency: CurrencyCode
+  timeline: TimelineItem[]
+}
+
+export interface PurchaseOrderRow {
+  id: string
+  no: string
+  supplierId: string
+  supplierName: string
+  status: string
+  currency: CurrencyCode
+  expectedAt: string
+  amount: number
+  createdAt: string
+}
+
+export interface PurchaseLineView {
+  id: string
+  internalSku: string
+  qty: number
+  receivedQty: number
+  unitCost: number
+  currency: CurrencyCode
+  amount: number
+}
+
+export interface PurchaseOrderDetailView extends PurchaseOrderRow {
+  lines: PurchaseLineView[]
+  receipts: Array<{ id: string; no: string; warehouseName: string; receivedAt: string; qty: number; status: string }>
+  timeline: TimelineItem[]
+  related: RelatedDoc[]
+}
+
+export interface ReceiptRow {
+  id: string
+  no: string
+  purchaseOrderId: string
+  purchaseOrderNo: string
+  warehouseName: string
+  receivedAt: string
+  status: string
+  qty: number
+  orderedQty: number
+  variance: number
+}
+
+export interface PurchaseReturnRow {
+  id: string
+  no: string
+  supplierId: string
+  supplierName: string
+  purchaseOrderId: string
+  purchaseOrderNo: string
+  status: string
+  currency: CurrencyCode
+  amount: number
+}
+
+export interface StatementRow {
+  id: string
+  no: string
+  supplierId: string
+  supplierName: string
+  period: string
+  status: string
+  currency: CurrencyCode
+  amount: number
+  receivedAmount: number
+  paidAmount: number
+  variance: number
+}
+
+export interface ShipmentRow {
+  id: string
+  no: string
+  carrierId: string
+  carrierName: string
+  fromName: string
+  toName: string
+  status: string
+  departedAt: string
+  arrivedAt: string
+  skuSummary: string
+  containerNo: string
+}
+
+export interface ShipmentDetailView extends ShipmentRow {
+  warehouseFrom: string
+  warehouseTo: string
+  volumetricKg: string
+  lines: Array<{ id: string; internalSku: string; qty: number }>
+  charges: Array<{ id: string; chargeType: string; amount: number; currency: CurrencyCode }>
+  tracking: Array<{ id: string; occurredAt: string; description: string }>
+  timeline: TimelineItem[]
+  related: RelatedDoc[]
+}
+
+export interface CarrierRow {
+  id: string
+  name: string
+  status: string
+  rateCount: number
+}
+
+export interface RateCardRow {
+  id: string
+  carrierId: string
+  carrierName: string
+  dest: string
+  unit: string
+  price: number
+  currency: CurrencyCode
+  validFrom: string
+  validTo: string
+}
+
+export interface TrackingRow {
+  id: string
+  shipmentId: string
+  shipmentNo: string
+  occurredAt: string
+  description: string
+  status: string
+}
+
+export interface FreightCheckRow {
+  id: string
+  shipmentId: string
+  shipmentNo: string
+  billAmount: number
+  estimateAmount: number
+  currency: CurrencyCode
+  variance: number
+  status: string
+}
+
+export interface SupplyLookups {
+  skus: LookupOption[]
+  suppliers: LookupOption[]
+  warehouses: LookupOption[]
+  carriers: LookupOption[]
+  purchaseOrders: LookupOption[]
+}

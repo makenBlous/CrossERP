@@ -100,6 +100,57 @@ async function answerSelected(
     return
   }
 
+  const shipment = db.shipments.find(item => item.id === id)
+
+  if (shipment) {
+    const from = db.warehouses.find(item => item.id === shipment.warehouseFrom)?.name ?? shipment.warehouseFrom
+    const to = db.warehouses.find(item => item.id === shipment.warehouseTo)?.name ?? shipment.warehouseTo
+
+    emit({
+      kind: 'card',
+      card: {
+        kind: 'query',
+        title: zh ? '只读头程' : 'Read-only shipment',
+        lines: [
+          { label: zh ? '运单' : 'Shipment', value: shipment.no },
+          { label: zh ? '状态' : 'Status', value: shipment.status },
+          { label: zh ? '发运' : 'Departed', value: shipment.departedAt?.slice(0, 10) || (zh ? '尚未发运' : 'Not departed') },
+          { label: zh ? '签收' : 'Arrived', value: shipment.arrivedAt?.slice(0, 10) || (zh ? '尚未签收' : 'Not arrived') },
+        ],
+      },
+    })
+    if (/到货|签收|什么时候|when|arriv/.test(ask)) {
+      await emitText(
+        zh
+          ? `这单从 ${from} 到 ${to}。发运日 ${shipment.departedAt?.slice(0, 10) || '尚未发运'}，签收日 ${shipment.arrivedAt?.slice(0, 10) || '尚未签收'}。这些日期来自单据，我没有重算。`
+          : `This shipment runs ${from} to ${to}. Departed ${shipment.departedAt?.slice(0, 10) || 'not yet'}, arrived ${shipment.arrivedAt?.slice(0, 10) || 'not yet'}. I did not recalculate the dates.`,
+        emit,
+      )
+    }
+
+    return
+  }
+
+  const supplier = db.suppliers.find(item => item.id === id)
+
+  if (supplier) {
+    emit({
+      kind: 'card',
+      card: {
+        kind: 'query',
+        title: zh ? '只读供应商' : 'Read-only supplier',
+        lines: [
+          { label: zh ? '名称' : 'Name', value: supplier.name },
+          { label: zh ? '国家' : 'Country', value: supplier.country },
+          { label: zh ? '币种' : 'Currency', value: supplier.currency },
+          { label: zh ? '状态' : 'Status', value: supplier.status },
+        ],
+      },
+    })
+
+    return
+  }
+
   const listing = db.listings.find(item => item.id === id)
 
   if (listing) {

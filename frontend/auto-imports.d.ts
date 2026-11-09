@@ -94,11 +94,11 @@ declare global {
   const mapWritableState: typeof import('pinia')['mapWritableState']
   const markRaw: typeof import('vue')['markRaw']
   const minorFromDecimal: typeof import('./src/utils/money')['minorFromDecimal']
-  const moneyText: typeof import('./src/utils/form-rules')['moneyText']
+  const moneyText: typeof import('./src/@core/utils/validators')['moneyText']
   const moneyValidator: typeof import('./src/@core/utils/validators')['moneyValidator']
   const mulQty: typeof import('./src/utils/money')['mulQty']
   const nextTick: typeof import('vue')['nextTick']
-  const numberText: typeof import('./src/utils/form-rules')['numberText']
+  const numberText: typeof import('./src/@core/utils/validators')['numberText']
   const onActivated: typeof import('vue')['onActivated']
   const onBeforeMount: typeof import('vue')['onBeforeMount']
   const onBeforeRouteLeave: typeof import('vue-router/auto')['onBeforeRouteLeave']
@@ -144,7 +144,7 @@ declare global {
   const regexValidator: typeof import('./src/@core/utils/validators')['regexValidator']
   const registerPlugins: typeof import('./src/@core/utils/plugins')['registerPlugins']
   const registerPlugins_: typeof import('./src/@core/utils/plugins')['registerPlugins_']
-  const requiredText: typeof import('./src/utils/form-rules')['requiredText']
+  const requiredText: typeof import('./src/@core/utils/validators')['requiredText']
   const requiredValidator: typeof import('./src/@core/utils/validators')['requiredValidator']
   const resolveComponent: typeof import('vue')['resolveComponent']
   const resolveRef: typeof import('@vueuse/core')['resolveRef']
@@ -483,10 +483,10 @@ declare module 'vue' {
     readonly markRaw: UnwrapRef<typeof import('vue')['markRaw']>
     readonly minorFromDecimal: UnwrapRef<typeof import('./src/utils/money')['minorFromDecimal']>
     readonly moneyText: UnwrapRef<typeof import('./src/@core/utils/validators')['moneyText']>
-    readonly moneyText: UnwrapRef<typeof import('./src/utils/form-rules')['moneyText']>
+    readonly moneyValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['moneyValidator']>
     readonly mulQty: UnwrapRef<typeof import('./src/utils/money')['mulQty']>
     readonly nextTick: UnwrapRef<typeof import('vue')['nextTick']>
-    readonly numberText: UnwrapRef<typeof import('./src/utils/form-rules')['numberText']>
+    readonly numberText: UnwrapRef<typeof import('./src/@core/utils/validators')['numberText']>
     readonly onActivated: UnwrapRef<typeof import('vue')['onActivated']>
     readonly onBeforeMount: UnwrapRef<typeof import('vue')['onBeforeMount']>
     readonly onBeforeRouteLeave: UnwrapRef<typeof import('vue-router/auto')['onBeforeRouteLeave']>
@@ -531,7 +531,7 @@ declare module 'vue' {
     readonly refWithControl: UnwrapRef<typeof import('@vueuse/core')['refWithControl']>
     readonly regexValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['regexValidator']>
     readonly registerPlugins: UnwrapRef<typeof import('./src/@core/utils/plugins')['registerPlugins']>
-    readonly requiredText: UnwrapRef<typeof import('./src/utils/form-rules')['requiredText']>
+    readonly requiredText: UnwrapRef<typeof import('./src/@core/utils/validators')['requiredText']>
     readonly requiredValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['requiredValidator']>
     readonly resolveComponent: UnwrapRef<typeof import('vue')['resolveComponent']>
     readonly resolveRef: UnwrapRef<typeof import('@vueuse/core')['resolveRef']>

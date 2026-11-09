@@ -295,6 +295,12 @@ export interface Shipment {
   status: string
   departedAt: string | null
   arrivedAt: string | null
+
+  /** 人填写。种子里没有柜号时为空。 */
+  containerNo?: string
+
+  /** 人填写的体积重，千克文本，不算运费。 */
+  volumetricKg?: string
 }
 
 export interface ShipmentLine {

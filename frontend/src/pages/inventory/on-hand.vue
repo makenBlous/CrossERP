@@ -7,13 +7,37 @@ import { formatInteger } from '@/utils/format'
 const { t } = useI18n({ useScope: 'global' })
 const rows = ref<OnHandRow[]>([])
 const totals = ref<InventoryTotals | null>(null)
+const loading = ref(true)
+const error = ref('')
 
-onMounted(async () => {
-  const payload = await fetchOnHand()
+async function load() {
+  loading.value = true
+  error.value = ''
+  try {
+    const payload = await fetchOnHand()
 
-  rows.value = payload.rows
-  totals.value = payload.totals
-})
+    rows.value = payload.rows
+    totals.value = payload.totals
+  }
+  catch (err) {
+    error.value = err instanceof Error ? err.message : t('foundation.errorTitle')
+  }
+  finally {
+    loading.value = false
+  }
+}
+
+onMounted(load)
+
+const filters = computed(() => [{
+  key: 'alert',
+  label: t('inventory.alert'),
+  items: [
+    { title: t('inventory.ok'), value: 'ok' },
+    { title: t('inventory.lowTag'), value: 'low' },
+    { title: t('inventory.stockoutTag'), value: 'stockout' },
+  ],
+}])
 
 const items = computed(() => rows.value.map(row => ({ ...row, id: row.sku })))
 
@@ -35,6 +59,10 @@ const columns = computed(() => [
     :subtitle="t('inventory.subtitle')"
     :items="items"
     :columns="columns"
+    :filters="filters"
+    :loading="loading"
+    :error="error"
+    @retry="load"
   >
     <template #widgets>
       <VRow

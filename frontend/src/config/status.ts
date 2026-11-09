@@ -13,6 +13,9 @@ export type StatusDomain =
   | 'generic'
   | 'return'
   | 'mapping'
+  | 'purchase_return'
+  | 'statement'
+  | 'freight'
 
 export interface StatusDef {
   value: string
@@ -38,6 +41,7 @@ export const statusDictionary: Record<StatusDomain, StatusDef[]> = {
     row('partial', '部分收货', 'Partial', 'primary'),
     row('received', '已收货', 'Received', 'success'),
     row('rejected', '已驳回', 'Rejected', 'error'),
+    row('cancelled', '已作废', 'Cancelled', 'secondary'),
   ],
   receipt: [
     row('posted', '已入账', 'Posted', 'success'),
@@ -95,6 +99,19 @@ export const statusDictionary: Record<StatusDomain, StatusDef[]> = {
   mapping: [
     row('confirmed', '已确认', 'Confirmed', 'success'),
     row('suggested', '待确认', 'Suggested', 'warning'),
+  ],
+  purchase_return: [
+    row('draft', '草稿', 'Draft', 'secondary'),
+    row('confirmed', '已确认', 'Confirmed', 'success'),
+  ],
+  statement: [
+    row('draft', '草稿', 'Draft', 'secondary'),
+    row('submitted', '已提交', 'Submitted', 'info'),
+  ],
+  freight: [
+    row('matched', '一致', 'Matched', 'success'),
+    row('variance', '有差异', 'Variance', 'warning'),
+    row('submitted', '已送审', 'Submitted', 'info'),
   ],
 }
 

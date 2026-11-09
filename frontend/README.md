@@ -229,6 +229,16 @@ sendMessage(context, message, emit) => Promise<void>
 | `/orders`、`/orders/exceptions`、`/orders/fulfillment`、`/orders/returns`、`/orders/channels` | `ListPage`；渠道页顶部统计卡用 `CardStatisticsHorizontal` |
 | `/orders/:id` | order details 头部与时间线；页内 `VTabs` 用 user view 的 `v-tabs-pill` |
 | `/inventory/on-hand` | user list 统计卡 + `ListPage` |
+| `/inventory/warehouses`、`/inventory/movements`、`/inventory/alerts` | `ListPage` + `FormDrawer`（仓库档案） |
+| `/inventory/fba`、`/inventory/overseas`、`/inventory/domestic` | logistics/dashboard 的数字卡 + `ListPage`。同步按钮未做，因为原型没有平台拉数 |
+| `/inventory/inbound`、`/inventory/outbound`、`/inventory/transfers`、`/inventory/counts` | invoice list + 明细行编辑；详情用审批页同款抽屉。盘点过账自写差异计算，Vuexy 没有盘盈盘亏 |
+| `/procurement/suppliers` | ecommerce customer list / `ListPage` + `FormDrawer` |
+| `/procurement/suppliers/:id` | user view：`DetailPage` + `v-tabs-pill` |
+| `/procurement/orders`、`/procurement/receipts`、`/procurement/returns`、`/procurement/statements` | invoice list / `ListPage` |
+| `/procurement/orders/new` | `AppStepper` + form-wizard-numbered。保存/提交按钮放在页头，三步都能填 |
+| `/procurement/orders/:id` | invoice preview：`DetailPage` 头、行、收货、附件空态 |
+| `/logistics/first-mile`、`/logistics/carriers`、`/logistics/rate-cards`、`/logistics/tracking`、`/logistics/fee-check` | logistics dashboard 的列表形态 + `ListPage`。轨迹页不放地图：种子没有坐标 |
+| `/logistics/shipments/:id` | fleet/invoice preview：`DetailPage` 路线、货箱、费用、轨迹 |
 | `/finance/recon`、`/finance/issues`、`/finance/vouchers` | `ListPage`；对账页顶部统计卡 |
 | `/finance/profit` | dashboards 柱状图 + 嵌入式 `ListPage` |
 | `/approvals` | `ListPage`；右侧抽屉用 `AppDrawerHeaderSection` + `PerfectScrollbar`（同 AddNewUserDrawer 外壳，不是表单） |

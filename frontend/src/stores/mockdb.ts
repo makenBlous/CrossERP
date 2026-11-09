@@ -21,9 +21,49 @@ import {
   setListingStatus,
   setSkuActive,
 } from '@/mocks/services/catalog'
-import { arriveShipment, departShipment } from '@/mocks/services/logistics'
+import {
+  type CountActual,
+  type StockDocDraft,
+  type WarehouseDraft,
+  createStockDoc,
+  postDraftStockDoc,
+  postStockCount,
+  postTransfer,
+  saveWarehouse,
+  setWarehouseActive,
+} from '@/mocks/services/inventory'
+import {
+  type CarrierDraft,
+  type RateDraft,
+  type ShipmentDraft,
+  type ShipmentFeeDraft,
+  arriveShipment,
+  createShipment,
+  departShipment,
+  saveCarrier,
+  saveRateCard,
+  saveShipmentFee,
+  setCarrierActive,
+  submitFreightCheck,
+} from '@/mocks/services/logistics'
 import { disposeReturn, registerReturn, shipSalesOrder } from '@/mocks/services/orders'
-import { approvePurchaseOrder, receivePurchaseOrder, rejectPurchaseOrder, submitPurchaseOrder } from '@/mocks/services/procurement'
+import {
+  type PurchaseDraft,
+  type PurchaseReturnDraft,
+  type SupplierDraft,
+  approvePurchaseOrder,
+  cancelPurchaseOrder,
+  confirmPurchaseReturn,
+  createPurchaseOrder,
+  createPurchaseReturn,
+  generateStatement,
+  receivePurchaseOrder,
+  rejectPurchaseOrder,
+  saveSupplier,
+  setSupplierStatus,
+  submitPurchaseOrder,
+  submitStatement,
+} from '@/mocks/services/procurement'
 import { MOCK_DB_VERSION, buildSeed } from '@/mocks/seed/build'
 import type { Actor, MockDatabase } from '@/types/entities'
 
@@ -225,6 +265,137 @@ export const useMockDbStore = defineStore('mockdb', {
     },
     registerReturn(orderId: string, disposition: 'restock' | 'scrap', actor: Actor) {
       const result = registerReturn(this.db, orderId, disposition, actor)
+
+      this.persist()
+
+      return result
+    },
+    createPurchase(input: PurchaseDraft, actor: Actor) {
+      const result = createPurchaseOrder(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    cancelPurchase(id: string, actor: Actor) {
+      const result = cancelPurchaseOrder(this.db, id, actor)
+
+      this.persist()
+
+      return result
+    },
+    saveSupplier(input: SupplierDraft, actor: Actor) {
+      const result = saveSupplier(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    setSupplierStatus(ids: string[], status: 'active' | 'paused', actor: Actor) {
+      setSupplierStatus(this.db, ids, status, actor)
+      this.persist()
+    },
+    createPurchaseReturn(input: PurchaseReturnDraft, actor: Actor) {
+      const result = createPurchaseReturn(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    confirmPurchaseReturn(id: string, actor: Actor) {
+      const result = confirmPurchaseReturn(this.db, id, actor)
+
+      this.persist()
+
+      return result
+    },
+    generateStatement(supplierId: string, period: string, actor: Actor) {
+      const result = generateStatement(this.db, supplierId, period, actor)
+
+      this.persist()
+
+      return result
+    },
+    submitStatement(id: string, actor: Actor) {
+      const result = submitStatement(this.db, id, actor)
+
+      this.persist()
+
+      return result
+    },
+    createShipment(input: ShipmentDraft, actor: Actor) {
+      const result = createShipment(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    saveShipmentFee(input: ShipmentFeeDraft, actor: Actor) {
+      const result = saveShipmentFee(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    saveCarrier(input: CarrierDraft, actor: Actor) {
+      const result = saveCarrier(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    setCarrierActive(ids: string[], active: boolean, actor: Actor) {
+      setCarrierActive(this.db, ids, active, actor)
+      this.persist()
+    },
+    saveRateCard(input: RateDraft, actor: Actor) {
+      const result = saveRateCard(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    submitFreightCheck(id: string, actor: Actor) {
+      const result = submitFreightCheck(this.db, id, actor)
+
+      this.persist()
+
+      return result
+    },
+    saveWarehouse(input: WarehouseDraft, actor: Actor) {
+      const result = saveWarehouse(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    setWarehouseActive(ids: string[], active: boolean, actor: Actor) {
+      setWarehouseActive(this.db, ids, active, actor)
+      this.persist()
+    },
+    createStockDoc(input: StockDocDraft, actor: Actor) {
+      const result = createStockDoc(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    postDraftDoc(id: string, actor: Actor) {
+      const result = postDraftStockDoc(this.db, id, actor)
+
+      this.persist()
+
+      return result
+    },
+    postTransfer(id: string, actor: Actor) {
+      const result = postTransfer(this.db, id, actor)
+
+      this.persist()
+
+      return result
+    },
+    postCount(id: string, actuals: CountActual[], actor: Actor) {
+      const result = postStockCount(this.db, id, actuals, actor)
 
       this.persist()
 
