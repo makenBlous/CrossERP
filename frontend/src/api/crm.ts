@@ -1,5 +1,6 @@
 import { projectAccount, projectAccounts } from '@/mocks/project'
 import { assertCan, currentActor, database, delay } from '@/api/mock-client'
+import { addMinor, convertMinor, toDisplay } from '@/utils/money'
 
 import type { LeadStage } from '@/types/crm-admin'
 
@@ -28,7 +29,7 @@ export async function fetchCrmLeads() {
 export async function fetchCrmOpportunities() {
   await delay()
 
-  return database().db.crmOpportunities.map(item => ({ ...item, accountName: database().db.crmAccounts.find(account => account.id === item.accountId)?.name ?? item.accountId }))
+  return database().db.crmOpportunities.map(item => ({ ...item, amount: toDisplay(item.amount, item.currency), accountName: database().db.crmAccounts.find(account => account.id === item.accountId)?.name ?? item.accountId }))
 }
 
 // 未来: GET /api/v1/crm/contacts
@@ -65,7 +66,7 @@ export async function fetchCrmDashboard() {
 
   const db = database().db
 
-  return { leads: db.crmLeads?.length ?? 0, openTickets: db.crmTickets.filter(item => item.status !== 'resolved').length, opportunities: db.crmOpportunities.length, pipeline: db.crmOpportunities.reduce((sum, item) => sum + item.amount, 0) }
+  return { leads: db.crmLeads?.length ?? 0, openTickets: db.crmTickets.filter(item => item.status !== 'resolved').length, opportunities: db.crmOpportunities.length, pipeline: toDisplay(db.crmOpportunities.reduce((sum, item) => addMinor(sum, convertMinor(item.amount, item.currency, 'USD')), 0), 'USD') }
 }
 
 // 未来: GET /api/v1/crm/leads/{id}
@@ -82,7 +83,7 @@ export async function fetchOpportunity(id: string) {
   const db = database().db
   const item = db.crmOpportunities.find(row => row.id === id)
 
-  return item ? { ...item, accountName: db.crmAccounts.find(account => account.id === item.accountId)?.name ?? item.accountId } : null
+  return item ? { ...item, amount: toDisplay(item.amount, item.currency), accountName: db.crmAccounts.find(account => account.id === item.accountId)?.name ?? item.accountId } : null
 }
 
 // 未来: GET /api/v1/crm/contacts/{id}
@@ -92,7 +93,7 @@ export async function fetchContact(id: string) {
   const db = database().db
   const item = db.crmContacts.find(row => row.id === id)
 
-  return item ? { ...item, accountName: db.crmAccounts.find(account => account.id === item.accountId)?.name ?? item.accountId } : null
+  return item ? { ...item, amount: toDisplay(item.amount, item.currency), accountName: db.crmAccounts.find(account => account.id === item.accountId)?.name ?? item.accountId } : null
 }
 
 // 未来: GET /api/v1/crm/tickets/{id}

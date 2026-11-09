@@ -58,7 +58,7 @@ onMounted(async () => {
       >
         <KpiCard
           title="管道金额"
-          :value="`${((data?.pipeline ?? 0) / 10000).toLocaleString()} USD`"
+          :value="`${(data?.pipeline ?? 0).toLocaleString()} USD`"
           hint="系统存储金额"
           icon="tabler-chart-dots"
         />
