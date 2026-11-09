@@ -258,3 +258,40 @@
 | AI 辅助区 | 顶部 `VAlert`；全局 `AssistantDrawer` | 仅在 AI 开启时显示 AI 状态提示，关闭时隐藏 AI 区；页面没有新造聊天或建议卡。 |
 
 本批没有新增通用 UI 组件。`BatchDPage` 是批次专用页面编排器，原因是 26 个页面共享同一套静态 API、权限提示、工资字段裁剪和人工流程状态；路由文件保持薄壳，避免复制列表/详情/表单结构。Vuexy 对照采用 `apps/permissions`、`apps/user/view`、`apps/invoice/list` 和 `forms/form-wizard` 的布局语义，未复制其源码。
+
+## 补齐批次 D 独立复用审计
+
+审计基线：`git diff 3f325c0 --stat` 列出的本批 43 个 `frontend` 文件。逐页对照项目 `src/components/biz/*`、Vuexy full-version 的 `src/@core/components`、`src/components/dialogs`、`src/views/**`、`src/pages/**` 与 Vuetify 3.10。薪资/员工字段仍由 `src/mocks/services/gap-d.ts` 在接口层按有效权限裁剪，本审计没有改动该过滤。
+
+| 组件/UI 块 | 位置 | 现成等价物 | 处理 | 原因 | 业务操作是否满足 |
+| --- | --- | --- | --- | --- | --- |
+| 批次 D 通用编排器 | `src/views/gap-d/BatchDPage.vue` | `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer` | 保留为薄组合并补齐抽屉 | 26 个路由只保留参数和 API 边界；页面分支只组合现成壳，不复制筛选/分页/详情/表单外框。 | 各分支有对应列表、详情或表单入口；写操作保留人工路径。 |
+| 批次 D 路由薄壳 | `src/pages/agent/**`、`src/pages/hr/**`、`src/pages/office/**` | Vuexy 文件路由页面模式 | 保留 | 仅传入 `page-id`，没有重复 UI；路由、权限点和 `data-test` 不变。 | 满足路由进入与页面级权限守卫。 |
+| 智能体/员工/行政列表 | `BatchDPage.vue` 的 G18/G20/G21/G22/G23/G26、HR01/02/04/05/12、AM01/02/05 | 项目 `ListPage`（内部 `VDataTableServer`、`TablePagination`） | 已替换/保留 | 所有列表统一筛选、分页、列设置、CSV；状态和金额继续用 `StatusChip`/`MoneyText`。 | 列表可筛选、分页、导出；可打开记录抽屉或进入详情。 |
+| 可信度指标卡 | `BatchDPage.vue` 的 G22 | 项目 `KpiCard`；Vuexy `CardStatisticsHorizontal` | 已替换 | 补上采纳率、基线、降级次数三项指标，避免只展示一行静态文本。 | 满足指标查看与记录追溯；指标为演示数据。 |
+| AI 总开关动作 | `BatchDPage.vue` 的 G19 | `DetailPage`、Vuetify `VCard/VAlert/VBtn`、`PermissionGate` | 保留并加权限门 | 状态切换是业务专属动作；按钮由现有角色动作权限控制，切换仍写审计。 | 正常/降级/关闭可用；AI 关闭后人工路径仍显示。 |
+| 自治等级编辑 | `BatchDPage.vue` 的 G18 | `ListPage`、`StatusChip`、Vuetify `VSelect` | 保留并加权限门 | 每行等级和硬上限是业务字段，列表外壳交给 `ListPage`，硬上限仍由服务层校验。 | 可逐行保存；凭证/付款/薪资 L3 仍被硬上限拦截。 |
+| 工具新增、配置与 MCP 导入 | `BatchDPage.vue` 的 G24/G25/G26 | `FormPage`、`RecordDrawer`、`PermissionGate`；Vuexy `AddNewUserDrawer` 模式 | 保留/补权限门 | 工具参数、只读标志、密钥“已配置”提示是业务内容，抽屉和表单外壳复用现成组件。 | 可新增默认停用只读工具、启停工具、导入 MCP；密钥不显示明文。 |
+| 票据收件 | `BatchDPage.vue` 的 G20 | Vuetify `VFileInput`；Vuexy `forms/file-input.vue` | 保留 | 文件类型与收件动作需要业务 API，`VFileInput` 已是直接等价物。 | 可上传并进入待识别列表；AI 关闭时仍可人工收件。 |
+| 薪资批次发起 | `BatchDPage.vue` 的 HR07 | `ListPage`、`MoneyText`、`StatusChip`、`PermissionGate` | 保留并加权限门 | 期间选择和确定性算薪是业务字段，列表与状态交给共享组件。 | 可按月发起算薪并进入复核；权限仍由服务层再次校验。 |
+| 薪资明细表 | `BatchDPage.vue` 的 HR08/HR09 | 项目 `ListPage` + `RecordDrawer`；Vuexy invoice list/detail | 已替换 | 删除页面手写 `VTable`，统一分页/筛选；点员工打开抽屉查看规则版本和每个计算数字。 | HR08 满足逐人明细与规则查看；HR09 另有复核原因抽屉并提交审批。 |
+| 薪资字段与工资条 | `BatchDPage.vue` 的 HR02/HR08/HR09/HR12 | `MoneyText`、`PermissionGate`；服务层字段裁剪 | 保留 | 金额只展示服务层提供的字段；无权字段继续显示“无权查看”或空列表。 | 员工/财务/人事范围由 07cd6ba 的接口过滤决定，未弱化。 |
+| 社保/个税规则维护 | `BatchDPage.vue` 的 HR10 | `ListPage`、`FormDrawer`、`AppTextField`、`StatusChip` | 已替换 | 列表保留核实状态，新增/编辑改用共享表单抽屉，避免空泛展示页。 | 可新增/编辑版本；保存后标记待核实，不直接宣称合规。 |
+| 请假、专项扣除、公告表单 | `BatchDPage.vue` 的 HR06/HR11/AM04 | `FormPage`、`AppTextField`、`AppTextarea` | 保留并补字段 | 全页表单适合这些路由；字段绑定草稿，保存后进入人工审批提示。 | 有标题/说明人工提交路径；具体后端接口接入前为演示草稿。 |
+| HR03/AM03 详情 | `BatchDPage.vue` 的 HR03/AM03 | `DetailPage`、`RecordDrawer`、Vuexy user/order detail | 保留并补记录抽屉 | 详情双栏和时间线由 `DetailPage`，列表记录由 `RecordDrawer`；合同/资产等字段保持业务专属。 | 可查看详情与时间线；编辑/领用归还待后端接口接入。 |
+| 通用记录详情与新增人工记录 | `BatchDPage.vue` 的 HR01/04/05、G21/23、AM01/02/05 | `RecordDrawer`、`FormDrawer`、`PermissionGate` | 已替换 | 原通用页只有展示；现在可打开记录详情，允许有权限用户新增人工待处理记录。 | 满足查看、人工登记和 AI 关闭时继续处理；状态流转待后端接口。 |
+| 状态、金额、权限、AI 辅助区 | `BatchDPage.vue` 全部页面 | `StatusChip`、`MoneyText`、`PermissionGate`、全局 `AssistantDrawer` | 保留 | 这些组件承载项目状态字典、金额格式、五角色权限和只读助手语义，Vuexy/CASL 没有直接等价物；没有另造 `AgentCard`。 | 状态/金额/权限边界保持；AI 关闭时页面人工路径不依赖助手。 |
+
+### 逐页操作复核
+
+| 页面 | 复用 | 操作结论 |
+| --- | --- | --- |
+| G18/G19 | `ListPage`/`DetailPage` + `PermissionGate` | 自治等级保存、AI 三态切换满足；均保留审计提示。 |
+| G20/G21/G22/G23 | `ListPage`、`KpiCard`、`RecordDrawer`、`FormDrawer` | 收件、提醒记录查看、可信度指标、范围登记满足；指标/范围数据为演示 mock。 |
+| G24/G25/G26 | `DetailPage`、`FormPage`、`RecordDrawer`、`PermissionGate` | 工具启停、新增、MCP 导入满足；角色/参数高级配置待 API。 |
+| HR01–HR06 | `ListPage`/`RecordDrawer`/`FormPage`/`FormDrawer` | 组织、员工、入离职、考勤查看与人工登记满足；审批/导入接口待接入。 |
+| HR07–HR09 | `ListPage`、`DetailPage`、`RecordDrawer`、`FormDrawer`、`MoneyText` | 算薪、逐人明细、规则展开、复核原因和提交审批满足；金额继续由确定性 mock 服务提供。 |
+| HR10–HR12 | `ListPage`、`FormDrawer`、`FormPage`、`MoneyText` | 规则版本新增/编辑、扣除草稿、本人工资条满足；薪资/员工可见范围由接口裁剪。 |
+| AM01–AM05 | `ListPage`/`DetailPage`/`RecordDrawer`/`FormPage` | 合同、资产、公告、用品可查看并登记人工记录；领用归还、折旧、发布状态待 API。 |
+
+本轮没有改动 `types/foundation.ts`、`utils/permission-engine.ts`、`stores/permissions.ts`，没有删测试，也没有修改后端或其他工作树。
