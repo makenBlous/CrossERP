@@ -1,5 +1,6 @@
 import { assertCan, database, delay } from '@/api/mock-client'
 import type { CurrencyCode } from '@/types/domain'
+import type { ApprovalEntity } from '@/types/entities'
 
 // 未来: POST /api/v1/procurement/orders/{id}/submit
 export async function submitPurchaseOrder(id: string) {
@@ -112,7 +113,7 @@ export interface SuggestionDraft {
 }
 
 // 未来: POST /api/v1/approvals
-export async function submitAgentSuggestion(input: SuggestionDraft) {
+export async function submitAgentSuggestion(input: SuggestionDraft): Promise<ApprovalEntity> {
   await delay()
 
   const actor = assertCan('suggest')

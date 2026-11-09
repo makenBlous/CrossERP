@@ -257,6 +257,10 @@ sendMessage(context, message, emit) => Promise<void>
 | `/agent/definitions` | roles 卡片：`VCard` + `VAvatar` + `VChip` |
 | `/agent/runs` | `ListPage` |
 | 全局智能助手抽屉 | chat 气泡和输入条，套在 `VNavigationDrawer` 里 |
+| `/crm/*`、`/admin/*`、`/account/*` | 第 3 批列表统一改编自 `/pages/apps/user/list` / `/views/apps/roles`，详情改编自 `/pages/apps/user/view`，表单改编自 `/pages/pages/account-settings` |
+| `/crm/leads/board`、`/crm/opportunities` | Vuexy `/pages/apps/kanban/index.vue` + `/views/apps/kanban/KanbanItems.vue`（FormKit 拖拽） |
+| `/agent/*` | 列表 `ListPage`，详情 `DetailPage` + `v-tabs-pill`/`VWindow` + `VTimeline`，DeerFlow 使用 Vuexy wizard `VStepper` |
+| `/audit`、`/security-log`、`/audit/verify`、`/audit/export` | `、`/`、` |
 
 | 复用规则 | 当前实现 |
 |---|---|
@@ -300,3 +304,5 @@ pnpm exec vite preview --host 127.0.0.1 --port 4173
 ```
 
 浏览器打开 http://127.0.0.1:4173 。构建版不需要边打开边编译，首次打开不到 1 秒。`pnpm dev` 开发版第一次启动（或依赖变化后）需要预编译，首屏可能要十几秒，之后很快。`vite.config.ts` 里已预先打包常用依赖，避免首次访问时整页重载导致白屏。Vue DevTools 默认关闭，需要时用 `VITE_DEVTOOLS=1 pnpm dev`。
+
+

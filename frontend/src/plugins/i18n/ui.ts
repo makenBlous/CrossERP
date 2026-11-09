@@ -1,6 +1,12 @@
+import { agentMessages } from './modules/agent'
+import { auditMessages } from './modules/audit'
+import { crmAdminAccountMessages } from './modules/crm-admin-account'
 import type { AppLocale } from '@/types/domain'
 
 const zhCN = {
+  ...agentMessages['zh-CN'],
+  ...auditMessages['zh-CN'],
+  ...crmAdminAccountMessages['zh-CN'],
   menu: {
     workbench: '工作台',
     catalog: '商品',
@@ -577,7 +583,10 @@ const zhCN = {
   },
 }
 
-const en: typeof zhCN = {
+const en = {
+  ...agentMessages.en,
+  ...auditMessages.en,
+  ...crmAdminAccountMessages.en,
   menu: {
     workbench: 'Workbench',
     catalog: 'Catalog',
@@ -1154,7 +1163,7 @@ const en: typeof zhCN = {
   },
 }
 
-export const uiMessages: Record<AppLocale, typeof zhCN> = {
+export const uiMessages = {
   'zh-CN': zhCN,
   en,
-}
+} as unknown as Record<AppLocale, typeof zhCN>

@@ -1,3 +1,4 @@
+import { addAgentModuleSeed } from './agent-module'
 import type { CurrencyCode, IssueCode } from '@/types/domain'
 import type { Actor, MockDatabase, Platform, Shop } from '@/types/entities'
 import { submitSuggestion } from '@/mocks/services/approvals'
@@ -12,7 +13,7 @@ import { seedFinance } from '@/mocks/seed/finance'
 import { type Minor, addMinor, convertMinor, minorFromDecimal, mulQty } from '@/utils/money'
 
 const SEED = 20261109
-const VERSION = 2
+const VERSION = 3
 
 function actor(name: string, role: Actor['role'], at: string): Actor {
   return { name, role, at }
@@ -90,6 +91,18 @@ function emptyDb(): MockDatabase {
     },
     finance2: { imports: [], feeMaps: [], columnMaps: [], exports: [], clearing: [] },
     ads: { imports: [], allocations: [] },
+    crmLeads: [],
+    crmActivities: [],
+    crmReviews: [],
+    crmTicketMessages: [],
+    roleOverrides: [],
+    adminIntegrations: [],
+    adminModules: [],
+    adminDicts: [],
+    adminNotifications: [],
+    adminSettings: [],
+    accountTokens: [],
+    accountSessions: [],
   }
 }
 
@@ -710,14 +723,114 @@ function addCrm(db: MockDatabase) {
     status: 'open',
     orderNo: sample?.orderNo ?? null,
   })
+  db.crmLeads = [
+    { id: 'lead-1', name: 'Mia Chen', company: 'Summit Trail LLC', email: 'mia@summit.example', source: '展会', owner: '周衡', stage: 'qualified', accountId: 'acc-summit', contactId: 'ctc-acc-summit', opportunityId: null, createdAt: '2026-11-02' },
+    { id: 'lead-2', name: 'Oliver Smith', company: 'Ridge & Co. Ltd', email: 'oliver@ridge.example', source: '网站表单', owner: '林夏', stage: 'new', accountId: null, contactId: null, opportunityId: null, createdAt: '2026-11-04' },
+    { id: 'lead-3', name: 'Yuki Tanaka', company: '木曾户外株式会社', email: 'yuki@kiso.example', source: '转介绍', owner: '周衡', stage: 'proposal', accountId: 'acc-kiso', contactId: 'ctc-acc-kiso', opportunityId: 'opp-acc-kiso', createdAt: '2026-10-25' },
+  ]
+  db.crmActivities = [
+    { id: 'act-1', subject: '确认春季补货数量', kind: '电话', at: '2026-11-12 10:00', accountId: 'acc-summit', owner: '周衡', status: 'planned' },
+    { id: 'act-2', subject: '发送报价单', kind: '邮件', at: '2026-11-13 15:30', accountId: 'acc-ridge', owner: '林夏', status: 'planned' },
+    { id: 'act-3', subject: '德国客户季度回顾', kind: '会议', at: '2026-11-08 09:00', accountId: 'acc-alpine', owner: '林夏', status: 'done' },
+  ]
+  db.crmReviews = [
+    { id: 'review-1', source: 'Shopify', author: 'Emma R.', rating: 5, title: '轻便又结实', content: '帐篷搭建很快，适合周末露营。', sku: 'NW-TENT-2P-OLV', status: 'published' },
+    { id: 'review-2', source: 'Amazon US', author: 'Daniel K.', rating: 3, title: '包装有改进空间', content: '产品不错，但外箱略有破损。', sku: 'NW-LAMP-OLV', status: 'pending' },
+  ]
+  db.crmTicketMessages = [
+    { id: 'msg-tkt-1', ticketId: 'tkt-1', author: '客服 Nina', text: '已联系仓库核对装箱单。', at: '2026-11-08 12:00', internal: false },
+    { id: 'msg-tkt-2', ticketId: 'tkt-1', author: '仓库', text: '确认少发一箱，安排补发。', at: '2026-11-08 15:30', internal: true },
+  ]
+
+  const owners = ['林夏', '周衡', '陈宁']
+  const accountIds = db.crmAccounts.map(account => account.id)
+  const stages = ['new', 'qualified', 'proposal', 'converted'] as const
+  for (let index = 4; index <= 30; index++) {
+    const accountId = accountIds[index % accountIds.length]
+    const account = db.crmAccounts.find(item => item.id === accountId)
+
+    db.crmLeads.push({
+      id: `lead-${index}`,
+      name: `${['Sofia', 'Lucas', 'Amelia', 'Noah', 'Mia'][index % 5]} ${index}`,
+      company: account?.name ?? 'New Trail Buyer',
+      email: `lead${index}@buyer.example`,
+      source: ['展会', '网站表单', '转介绍', '广告'][index % 4],
+      owner: owners[index % owners.length],
+      stage: stages[index % stages.length],
+      accountId: index % 4 === 0 ? accountId : null,
+      contactId: index % 4 === 0 ? `ctc-${accountId}` : null,
+      opportunityId: index % 4 === 0 ? `opp-${accountId}` : null,
+      createdAt: `2026-${String(10 + (index % 3)).padStart(2, '0')}-${String((index % 25) + 1).padStart(2, '0')}`,
+    })
+  }
+  for (let index = 1; index <= 17; index++) {
+    const accountId = accountIds[index % accountIds.length]
+    const account = db.crmAccounts.find(item => item.id === accountId)
+    if (index > 7)
+      db.crmContacts.push({ id: `ctc-extra-${index}`, accountId, name: ['Alex Morgan', '陈璐', 'Hiro Sato'][index % 3], title: index % 2 ? '采购经理' : '财务负责人', email: `contact${index}@buyer.example` })
+
+    if (index > 8)
+      db.crmOpportunities.push({ id: `opp-extra-${index}`, accountId, name: `${account?.name ?? '客户'} ${2027 + (index % 2)} 补货`, amount: minorFromDecimal(String(12000 + index * 1750)), currency: account?.currency ?? 'USD', stage: ['初步沟通', '需求确认', '报价', '谈判'][index % 4] })
+  }
+  for (let index = 4; index <= 40; index++)
+    db.crmActivities.push({ id: `act-${index}`, subject: ['跟进报价', '确认库存', '安排回访', '发送合同'][index % 4], kind: ['电话', '邮件', '会议'][index % 3] as '电话' | '邮件' | '会议', at: `2026-${String(10 + (index % 3)).padStart(2, '0')}-${String((index % 25) + 1).padStart(2, '0')} ${String(9 + (index % 8)).padStart(2, '0')}:00`, accountId: accountIds[index % accountIds.length], owner: owners[index % owners.length], status: index % 4 === 0 ? 'done' : 'planned' })
+
+  const orderRows = db.orders.slice(0, 20)
+  for (let index = 2; index <= 20; index++) {
+    const order = orderRows[index - 2]
+    const accountId = accountIds[index % accountIds.length]
+    const ticketId = `tkt-${index}`
+
+    db.crmTickets.push({ id: ticketId, accountId, subject: ['少件补发', '退货进度', '尺寸咨询', '物流延迟'][index % 4], status: index % 3 === 0 ? 'resolved' : 'open', orderNo: order?.orderNo ?? null })
+    db.crmTicketMessages.push({ id: `msg-${ticketId}-1`, ticketId, author: '客服 Nina', text: '已收到客户反馈，正在核对订单。', at: `2026-11-${String((index % 8) + 1).padStart(2, '0')} 10:00`, internal: false })
+    db.crmTicketMessages.push({ id: `msg-${ticketId}-2`, ticketId, author: '运营团队', text: index % 3 === 0 ? '问题已解决并通知客户。' : '等待仓库提供处理结果。', at: `2026-11-${String((index % 8) + 1).padStart(2, '0')} 15:30`, internal: true })
+  }
+  for (let index = 3; index <= 30; index++)
+    db.crmReviews.push({ id: `review-${index}`, source: ['Amazon US', 'Shopify', 'TikTok Shop'][index % 3], author: `Buyer ${index}`, rating: 1 + (index % 5), title: ['Great for camping', '包装需要改进', '轻便好用'][index % 3], content: '真实买家反馈样例，用于演示审核和回复流程。', sku: db.skus[index % db.skus.length].internalSku, status: index % 4 === 0 ? 'pending' : 'published' })
+}
+
+function addAdmin(db: MockDatabase) {
+  db.adminIntegrations = [
+    { id: 'int-amazon', name: 'Amazon SP-API', platform: 'Amazon', status: 'connected', account: 'Northwind US', lastSync: '2026-11-09 08:45' },
+    { id: 'int-shopify', name: 'Shopify Admin', platform: 'Shopify', status: 'connected', account: 'northwind-outdoor.com', lastSync: '2026-11-09 08:30' },
+    { id: 'int-tiktok', name: 'TikTok Shop', platform: 'TikTok Shop', status: 'needs_attention', account: 'Northwind TikTok US', lastSync: '2026-11-08 17:10' },
+  ]
+  db.adminModules = [
+    { id: 'crm', name: 'CRM', description: '客户、线索、商机与售后工单', enabled: true },
+    { id: 'finance', name: '财务', description: '结算、对账与利润', enabled: true },
+    { id: 'agent', name: '智能体', description: '只读问答和待审批建议', enabled: true },
+    { id: 'ads', name: '广告', description: '广告花费和分摊（后续模块）', enabled: false },
+  ]
+  db.adminDicts = [
+    { id: 'dict-1', group: '工单状态', code: 'open', label: '处理中', active: true },
+    { id: 'dict-2', group: '工单状态', code: 'resolved', label: '已解决', active: true },
+    { id: 'dict-3', group: '线索来源', code: 'event', label: '展会', active: true },
+  ]
+  db.adminNotifications = [
+    { id: 'notify-1', channel: '飞书机器人', event: '审批待办', enabled: true, target: '配置引用：vault:feishu-approval' },
+    { id: 'notify-2', channel: '邮件', event: '导入失败', enabled: false, target: 'ops@example.invalid' },
+  ]
+  db.adminSettings = [
+    { id: 'setting-1', key: 'single_user_mode', label: '单人模式', value: true, description: '演示环境允许提交人审批自己的建议。' },
+    { id: 'setting-2', key: 'audit_strict', label: '严格审计', value: true, description: '所有写操作必须记录审计轨迹。' },
+    { id: 'setting-3', key: 'default_currency', label: '默认币种', value: 'USD', description: '报表默认展示币种。' },
+  ]
+  db.accountTokens = [
+    { id: 'tok-1', name: 'MCP 只读', prefix: 'csp_demo…', createdAt: '2026-10-15 09:00', lastUsedAt: '2026-11-08 18:20', revoked: false },
+    { id: 'tok-2', name: '报表脚本（已撤销）', prefix: 'csp_old…', createdAt: '2026-08-02 11:30', lastUsedAt: '2026-10-01 07:45', revoked: true },
+  ]
+  db.accountSessions = [
+    { id: 'session-current', device: 'Chrome · Windows', location: '上海', ip: '192.0.2.10', lastSeenAt: '2026-11-09 09:00', current: true },
+    { id: 'session-mobile', device: 'Safari · iPhone', location: '杭州', ip: '192.0.2.21', lastSeenAt: '2026-11-08 18:20', current: false },
+  ]
 }
 
 function addAgents(db: MockDatabase) {
   db.agentDefinitions = [
-    { id: 'recon-explainer', name: '对账解释员', duty: '用只读工具解释异常，并起草待审批建议。不算钱，不写账。', model: 'grok-3', status: 'active', source: 'DeerFlow', tools: ['list_issues', 'get_recon_summary', 'propose_issue_note'], storeScope: '全部店铺', kind: 'deerflow' },
-    { id: 'profit-analyst', name: '利润问答', duty: '按已算好的利润快照回答，并给出出处。', model: 'grok-3', status: 'active', source: 'DeerFlow', tools: ['get_profit', 'get_order'], storeScope: '全部店铺', kind: 'deerflow' },
-    { id: 'crm-drafter', name: '客户跟进草稿', duty: '根据客户档案起草跟进。不改订单金额。', model: 'grok-3-mini', status: 'paused', source: 'DeerFlow', tools: ['crm.get_account'], storeScope: 'CRM 客户', kind: 'deerflow' },
-    { id: 'auditor-readonly', name: '审计只读', duty: '核对审计轨迹和运行记录。没有写工具。', model: 'grok-3', status: 'active', source: 'DeerFlow', tools: ['audit.list'], storeScope: '只读，全公司', kind: 'builtin_ask' },
+    { id: 'recon-explainer', name: '对账解释员', duty: '用只读工具解释异常，并起草待审批建议。不算钱，不写账。', model: 'placeholder-model-A', status: 'active', source: 'DeerFlow', tools: ['list_issues', 'get_recon_summary', 'propose_issue_note'], storeScope: '全部店铺', kind: 'deerflow' },
+    { id: 'profit-analyst', name: '利润问答', duty: '按已算好的利润快照回答，并给出出处。', model: 'placeholder-model-A', status: 'active', source: 'DeerFlow', tools: ['get_profit', 'get_order'], storeScope: '全部店铺', kind: 'deerflow' },
+    { id: 'crm-drafter', name: '客户跟进草稿', duty: '根据客户档案起草跟进。不改订单金额。', model: 'placeholder-model-B', status: 'paused', source: 'DeerFlow', tools: ['crm.get_account'], storeScope: 'CRM 客户', kind: 'deerflow' },
+    { id: 'auditor-readonly', name: '审计只读', duty: '核对审计轨迹和运行记录。没有写工具。', model: 'placeholder-model-A', status: 'active', source: 'DeerFlow', tools: ['audit.list'], storeScope: '只读，全公司', kind: 'builtin_ask' },
   ]
   db.agentTools = [
     { name: 'get_profit', description: '读取利润快照', sideEffect: 'none', moduleCode: 'finance', active: true },
@@ -844,7 +957,9 @@ export function buildSeed(): MockDatabase {
   seedFinance(db)
   seedAds(db)
   addCrm(db)
+  addAdmin(db)
   addAgents(db)
+  addAgentModuleSeed(db)
   addDraftStockDocs(db)
   addAlerts(db)
 

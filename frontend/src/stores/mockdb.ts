@@ -66,6 +66,7 @@ import {
 } from '@/mocks/services/procurement'
 import { MOCK_DB_VERSION, buildSeed } from '@/mocks/seed/build'
 import type { Actor, MockDatabase } from '@/types/entities'
+import { addTicket, convertLead, createToken, resetRoleOverride, revokeToken, saveRoleOverride, updateLeadStage, updateTicketStatus } from '@/mocks/services/crm-admin'
 
 const STORAGE_KEY = 'crosserp-mockdb-v1'
 
@@ -396,6 +397,56 @@ export const useMockDbStore = defineStore('mockdb', {
     },
     postCount(id: string, actuals: CountActual[], actor: Actor) {
       const result = postStockCount(this.db, id, actuals, actor)
+
+      this.persist()
+
+      return result
+    },
+    updateLeadStage(id: string, stage: Parameters<typeof updateLeadStage>[2], actor: Actor) {
+      const result = updateLeadStage(this.db, id, stage, actor)
+
+      this.persist()
+
+      return result
+    },
+    convertLead(id: string, actor: Actor) {
+      const result = convertLead(this.db, id, actor)
+
+      this.persist()
+
+      return result
+    },
+    addTicket(input: { accountId: string; orderNo: string | null; subject: string }, actor: Actor) {
+      const result = addTicket(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    updateTicketStatus(id: string, status: string, actor: Actor) {
+      const result = updateTicketStatus(this.db, id, status, actor)
+
+      this.persist()
+
+      return result
+    },
+    saveRoleOverride(role: Actor['role'], hiddenGroups: string[], hiddenPageIds: string[], actor: Actor) {
+      saveRoleOverride(this.db, role, hiddenGroups, hiddenPageIds, actor)
+      this.persist()
+    },
+    resetRoleOverride(role: Actor['role'], actor: Actor) {
+      resetRoleOverride(this.db, role, actor)
+      this.persist()
+    },
+    createToken(name: string, actor: Actor) {
+      const result = createToken(this.db, name, actor)
+
+      this.persist()
+
+      return result
+    },
+    revokeToken(id: string, actor: Actor) {
+      const result = revokeToken(this.db, id, actor)
 
       this.persist()
 
