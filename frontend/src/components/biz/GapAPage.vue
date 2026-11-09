@@ -234,6 +234,7 @@ async function uploadRebateDocument() {
   })
 }
 async function validateRebate(id: string) {
+  successMessage.value = '正在校验退税资料…'
   await run(async () => {
     const result = await validateGapARebate(id)
     rebateValidation.value = result?.missing ?? []
