@@ -40,7 +40,7 @@ async function submit() {
     domain="voucher"
     :status="row.status"
     :timeline="row.timeline"
-    :related="row.approvalId ? [{ id: row.approvalId, type: '审批', label: '查看审批记录', to: `/approvals/${row.approvalId}` }] : []"
+    :related="(row.approvalIds ?? []).map((id, index, all) => ({ id, type: '审批', label: index === all.length - 1 ? '查看最新审批' : `历史审批 ${index + 1}`, to: `/approvals/${id}` }))"
   >
     <template #actions>
       <VBtn

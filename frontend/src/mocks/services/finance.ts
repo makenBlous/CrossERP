@@ -107,7 +107,7 @@ export function voucherDetail(db: MockDatabase, id: string) {
   const debit = lines.reduce((sum, line) => sum + line.debit, 0)
   const credit = lines.reduce((sum, line) => sum + line.credit, 0)
 
-  return { ...voucher, lines, debit, credit, balanced: debit === credit, difference: debit - credit, approvalId: db.approvals.find(item => item.targetType === 'voucher' && item.targetId === voucher.id)?.id, timeline: db.audit.filter(event => event.refId === voucher.id).map(event => ({ at: event.at, title: event.action, detail: event.summary, actor: event.actor })) }
+  return { ...voucher, lines, debit, credit, balanced: debit === credit, difference: debit - credit, approvalId: db.approvals.filter(item => item.targetType === 'voucher' && item.targetId === voucher.id).at(-1)?.id, approvalIds: db.approvals.filter(item => item.targetType === 'voucher' && item.targetId === voucher.id).map(item => item.id), timeline: db.audit.filter(event => event.refId === voucher.id).map(event => ({ at: event.at, title: event.action, detail: event.summary, actor: event.actor })) }
 }
 
 export function accounts(db: MockDatabase) {
