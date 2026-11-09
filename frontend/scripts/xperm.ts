@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars, unused-imports/no-unused-imports, max-statements-per-line, antfu/if-newline, comma-spacing, @stylistic/ts/comma-spacing, lines-around-comment, padding-line-between-statements, prefer-template, prefer-const, @stylistic/ts/brace-style, indent, @stylistic/ts/indent */
 // 独立权限实测（不是 Codex 写的）：页面默认拒绝 / 模板分工 / 旧 5 角色基线 / 拒绝优先 / 临时授权 / 服务层拦截 / 字段裁剪
 import { readFileSync } from 'node:fs'
 import { canRoleOpen, pageCatalog } from '@/config/pages'

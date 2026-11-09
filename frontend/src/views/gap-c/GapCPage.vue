@@ -3,6 +3,7 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   confirmGapCAccessReview,
+  copyGapCRole,
   createGapCReport,
   createGapCTemporaryGrant,
   decideGapCApproval,
@@ -11,6 +12,7 @@ import {
   fetchGapCAlerts,
   fetchGapCApprovalRules,
   fetchGapCApprovals,
+  fetchGapCArchiveRuns,
   fetchGapCAudit,
   fetchGapCDataScopes,
   fetchGapCEffectivePermissions,
@@ -26,6 +28,7 @@ import {
   fetchGapCTemporaryGrants,
   markGapCNotificationRead,
   resolveGapCAlert,
+  runGapCArchive,
   runGapCReport,
   saveGapCApprovalRule,
   saveGapCDataScope,
@@ -46,7 +49,7 @@ import StatusChip from '@/components/biz/StatusChip.vue'
 import KpiCard from '@/components/KpiCard.vue'
 import { findPageById } from '@/config/pages'
 import { useAiModeStore } from '@/stores/ai-mode'
-import type { FieldAccess, GapCAccessReview, GapCAgentTrace, GapCAlert, GapCApprovalRow, GapCApprovalRule, GapCAuditRow, GapCDataScope, GapCFieldPolicy, GapCMatrixCell, GapCNotification, GapCPermissionChange, GapCReport, GapCReportResult, GapCRetention, GapCRoleView, GapCSodRule, GapCSubscription, GapCTemporaryGrant } from '@/types/gap-c'
+import type { FieldAccess, GapCAccessReview, GapCAgentTrace, GapCAlert, GapCApprovalRow, GapCApprovalRule, GapCArchiveRun, GapCAuditRow, GapCDataScope, GapCFieldPolicy, GapCMatrixCell, GapCNotification, GapCPermissionChange, GapCReport, GapCReportBuilder, GapCReportResult, GapCRetention, GapCRoleView, GapCSodRule, GapCSubscription, GapCTemporaryGrant } from '@/types/gap-c'
 
 interface RowRecord { id: string; [key: string]: unknown }
 
@@ -69,11 +72,17 @@ const auditRows = ref<GapCAuditRow[]>([])
 const trace = ref<GapCAgentTrace | null>(null)
 const alerts = ref<GapCAlert[]>([])
 const retention = ref<GapCRetention | null>(null)
+const archiveRuns = ref<GapCArchiveRun[]>([])
 const fieldPolicies = ref<GapCFieldPolicy[]>([])
 const dataScopes = ref<GapCDataScope[]>([])
 const temporaryGrants = ref<GapCTemporaryGrant[]>([])
 const accessReviews = ref<GapCAccessReview[]>([])
 const selectedRole = ref<GapCRoleView | null>(null)
+const roleCopyDrawer = ref(false)
+const roleCopyName = ref('')
+const roleCopyNameEn = ref('')
+const roleCopyScope = ref('store')
+const roleCopyUsers = ref('demo-operator')
 const matrix = ref<GapCMatrixCell[]>([])
 const effective = ref<Array<{ permissionKey: string; labelZh: string; allowed: boolean; sources: string[]; deniedBy: string[]; module: string; sensitive: boolean }>>([])
 const changes = ref<GapCPermissionChange[]>([])
@@ -84,8 +93,13 @@ const reportQuery = ref('')
 const confirmer = ref('')
 const reportName = ref('')
 const reportDescription = ref('')
+const reportDataSource = ref<GapCReportBuilder['dataSource']>('orders')
+const reportFields = ref<string[]>(['orderNo', 'store', 'amount', 'status'])
+const reportFilterField = ref('status')
+const reportFilterValue = ref('')
+const reportResultPreview = ref<GapCReportResult | null>(null)
 const grantUser = ref('demo-operator')
-const grantPermission = ref('sku_cost:read')
+const grantPermission = ref('sku.cost:read')
 const grantReason = ref('')
 const grantExpires = ref('2026-11-17T00:00:00Z')
 const grantDrawer = ref(false)
@@ -94,9 +108,24 @@ const selectedRecord = ref<RowRecord | null>(null)
 const recordDrawer = ref(false)
 const selectedRule = ref<GapCApprovalRule | null>(null)
 
+const reportFieldOptions: Record<GapCReportBuilder['dataSource'], string[]> = {
+  orders: ['orderNo', 'store', 'owner', 'amount', 'status'],
+  expenses: ['title', 'department', 'owner', 'amount', 'status'],
+  employees: ['name', 'department', 'salary', 'status'],
+  audit: ['action', 'actor', 'object', 'at'],
+}
+
 const title = computed(() => page.value?.name['zh-CN'] ?? props.pageId)
 const listPageIds = new Set(['W05', 'W06', 'W07', 'N01', 'RP01', 'U05', 'U07', 'SYS14', 'SYS15', 'SYS16', 'SYS17', 'SYS18', 'SYS22', 'SYS24'])
 const isList = computed(() => listPageIds.has(props.pageId))
+
+const matrixImpactUsers = computed(() => {
+  const roles = new Set(matrix.value.filter(item => item.effect !== 'none').map(item => item.roleId))
+
+  return [...roles].reduce((total, roleId) => total + (roleId === 'store_operator' ? 3 : 1), 0)
+})
+
+const selectedReportFields = computed(() => reportFieldOptions[reportDataSource.value])
 
 function row(value: object): RowRecord {
   return value as RowRecord
@@ -185,7 +214,7 @@ async function load() {
       case 'U05': auditRows.value = await fetchGapCAudit(); break
       case 'U06': trace.value = await fetchGapCAgentTrace(typeof routeParams.id === 'string' ? routeParams.id : 'sug-001'); break
       case 'U07': alerts.value = await fetchGapCAlerts(); break
-      case 'U08': retention.value = await fetchGapCRetention(); break
+      case 'U08': retention.value = await fetchGapCRetention(); archiveRuns.value = await fetchGapCArchiveRuns(); break
       case 'SYS14': fieldPolicies.value = await fetchGapCFieldPolicies(); break
       case 'SYS15': dataScopes.value = await fetchGapCDataScopes(); break
       case 'SYS16': temporaryGrants.value = await fetchGapCTemporaryGrants(); break
@@ -224,7 +253,20 @@ function editRule(item: RowRecord) {
 }
 
 async function saveSubscriptions() { await runAction(() => saveGapCSubscriptions(subscriptions.value), '订阅已保存') }
-async function saveReport() { await runAction(async () => { await createGapCReport({ name: reportName.value, description: reportDescription.value, permissionKey: 'report:read' }); reportName.value = ''; reportDescription.value = '' }, '自定义报表已保存') }
+async function saveReport() {
+  const builder: GapCReportBuilder = {
+    dataSource: reportDataSource.value,
+    fields: reportFields.value,
+    filters: reportFilterValue.value ? [{ field: reportFilterField.value, operator: 'contains', value: reportFilterValue.value }] : [],
+  }
+
+  await runAction(async () => {
+    const report = await createGapCReport({ name: reportName.value, description: reportDescription.value, permissionKey: 'report:read', builder })
+
+    reportResultPreview.value = await runGapCReport(report.id, period.value)
+    reportName.value = ''; reportDescription.value = ''
+  }, '自定义报表已保存并生成模拟结果')
+}
 async function saveGrant() {
   await runAction(() => createGapCTemporaryGrant({ userId: grantUser.value, userName: grantUser.value === 'demo-operator' ? '演示运营' : '演示员工', permissionKey: grantPermission.value, effect: 'allow', reason: grantReason.value, startsAt: new Date().toISOString(), expiresAt: grantExpires.value }), '临时授权已创建')
   grantDrawer.value = false
@@ -266,8 +308,32 @@ async function saveRetention() {
   if (retention.value)
     await runAction(() => saveGapCRetention(retention.value!), '保留策略已保存')
 }
+async function runArchive() {
+  await runAction(async () => {
+    const run = await runGapCArchive()
+
+    archiveRuns.value = [run, ...archiveRuns.value]
+  }, '已生成模拟归档执行记录')
+}
 async function saveMatrix() { await runAction(() => saveGapCMatrix(matrix.value.slice(0, 24), confirmer.value), '权限矩阵已保存') }
 async function changeEffectiveUser() { await runAction(async () => { effective.value = await fetchGapCEffectivePermissions(selectedUser.value) }, '有效权限已刷新') }
+
+async function saveRoleCopy() {
+  let copied: GapCRoleView | null = null
+  await runAction(async () => {
+    copied = await copyGapCRole({ sourceRoleId: selectedRole.value?.id ?? 'store_operator', nameZh: roleCopyName.value, nameEn: roleCopyNameEn.value || roleCopyName.value, dataScopes: [roleCopyScope.value as GapCRoleView['defaultDataScopes'][number]], memberUserIds: roleCopyUsers.value.split(/[,，]/).map(item => item.trim()).filter(Boolean) })
+    roleCopyDrawer.value = false
+    roleCopyName.value = ''; roleCopyNameEn.value = ''; roleCopyUsers.value = 'demo-operator'
+  }, '角色已复制、保存并模拟指派用户')
+  if (copied)
+    selectedRole.value = copied
+}
+
+function changeReportSource(value: GapCReportBuilder['dataSource']) {
+  reportDataSource.value = value
+  reportFields.value = reportFieldOptions[value].slice(0, 4)
+  reportFilterField.value = reportFieldOptions[value][0]
+}
 
 onMounted(load)
 </script>
@@ -333,6 +399,12 @@ onMounted(load)
           v-if="props.pageId === 'SYS22'"
           class="d-flex gap-4 align-center mb-4"
         >
+          <VChip
+            color="info"
+            variant="tonal"
+          >
+            预计影响用户数：{{ matrixImpactUsers }}
+          </VChip>
           <AppTextField
             v-model="confirmer"
             label="另一位管理员确认人"
@@ -583,6 +655,75 @@ onMounted(load)
           label="说明"
           class="mb-4"
         />
+        <AppSelect
+          :model-value="reportDataSource"
+          label="数据源（模拟）"
+          :items="[{ title: '订单', value: 'orders' }, { title: '费用报销', value: 'expenses' }, { title: '员工档案', value: 'employees' }, { title: '审计日志', value: 'audit' }]"
+          class="mb-4"
+          @update:model-value="changeReportSource($event as GapCReportBuilder['dataSource'])"
+        />
+        <AppSelect
+          v-model="reportFields"
+          label="字段（模拟）"
+          :items="selectedReportFields"
+          multiple
+          chips
+          class="mb-4"
+        />
+        <VRow>
+          <VCol
+            cols="12"
+            md="6"
+          >
+            <AppSelect
+              v-model="reportFilterField"
+              label="筛选字段（可选）"
+              :items="selectedReportFields"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            md="6"
+          >
+            <AppTextField
+              v-model="reportFilterValue"
+              label="筛选值（可选）"
+            />
+          </VCol>
+        </VRow>
+        <VAlert
+          v-if="reportResultPreview"
+          type="success"
+          variant="tonal"
+          class="mt-4"
+        >
+          模拟结果已生成：{{ reportResultPreview.rows.length }} 行，期间 {{ reportResultPreview.period }}；保存、运行和审计记录均为模拟。
+          <VTable class="mt-3">
+            <thead>
+              <tr>
+                <th
+                  v-for="key in Object.keys(reportResultPreview.rows[0] ?? {})"
+                  :key="key"
+                >
+                  {{ key }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(item, index) in reportResultPreview.rows"
+                :key="index"
+              >
+                <td
+                  v-for="key in Object.keys(item)"
+                  :key="key"
+                >
+                  {{ item[key] }}
+                </td>
+              </tr>
+            </tbody>
+          </VTable>
+        </VAlert>
       </template>
     </FormPage>
 
@@ -666,6 +807,25 @@ onMounted(load)
             />
           </VCol>
         </VRow>
+        <VBtn
+          color="primary"
+          variant="tonal"
+          class="mt-4"
+          @click="runArchive"
+        >
+          模拟执行归档
+        </VBtn>
+        <VTable class="mt-4">
+          <thead><tr><th>执行时间</th><th>归档条数</th><th>状态</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr
+              v-for="run in archiveRuns"
+              :key="run.id"
+            >
+              <td>{{ run.startedAt }}</td><td>{{ run.archivedCount }}</td><td>{{ run.status }}</td><td>{{ run.note }}</td>
+            </tr>
+          </tbody>
+        </VTable>
       </template>
     </FormPage>
 
@@ -680,9 +840,9 @@ onMounted(load)
         <PermissionGate action="create">
           <VBtn
             variant="tonal"
-            @click="notice = '复制角色会创建新角色草稿，需管理员确认后保存。'"
+            @click="roleCopyDrawer = true"
           >
-            复制为新角色
+            复制并保存角色
           </VBtn>
         </PermissionGate>
       </template>
@@ -707,6 +867,14 @@ onMounted(load)
         >
           {{ item.permissionKey }} · {{ item.effect === 'allow' ? '允许' : '拒绝' }}
         </VChip>
+        <VAlert
+          v-if="selectedRole.isCustom"
+          type="info"
+          variant="tonal"
+          class="mt-4"
+        >
+          已保存模拟角色：数据范围 {{ selectedRole.dataScopeLabel }}；指派用户 {{ selectedRole.memberUserIds?.join('、') || '无' }}。这些用户的菜单和数据范围会随角色刷新（静态原型）。
+        </VAlert>
       </template>
     </DetailPage>
 
@@ -716,17 +884,17 @@ onMounted(load)
       :subtitle="page?.purpose['zh-CN']"
     >
       <template #actions>
-          <AppSelect
-            v-model="selectedUser"
-            label="用户"
-            :items="[{ title: '演示运营', value: 'demo-operator' }, { title: '演示财务', value: 'demo-finance' }, { title: '演示员工', value: 'demo-employee' }]"
-          />
-          <VBtn
-            color="primary"
-            @click="changeEffectiveUser"
-          >
-            查看有效权限
-          </VBtn>
+        <AppSelect
+          v-model="selectedUser"
+          label="用户"
+          :items="[{ title: '演示运营', value: 'demo-operator' }, { title: '演示财务', value: 'demo-finance' }, { title: '演示员工', value: 'demo-employee' }]"
+        />
+        <VBtn
+          color="primary"
+          @click="changeEffectiveUser"
+        >
+          查看有效权限
+        </VBtn>
       </template>
       <template #default>
         <VTable>
@@ -769,10 +937,18 @@ onMounted(load)
           />
           <span v-if="selectedRecord.severity">级别：{{ selectedRecord.severity }}</span>
         </div>
-        <p v-if="selectedRecord.summary">{{ selectedRecord.summary }}</p>
-        <p v-if="selectedRecord.detail">{{ selectedRecord.detail }}</p>
-        <p v-if="selectedRecord.userName">用户：{{ selectedRecord.userName }}</p>
-        <p v-if="selectedRecord.reviewer">复核人：{{ selectedRecord.reviewer }}</p>
+        <p v-if="selectedRecord.summary">
+          {{ selectedRecord.summary }}
+        </p>
+        <p v-if="selectedRecord.detail">
+          {{ selectedRecord.detail }}
+        </p>
+        <p v-if="selectedRecord.userName">
+          用户：{{ selectedRecord.userName }}
+        </p>
+        <p v-if="selectedRecord.reviewer">
+          复核人：{{ selectedRecord.reviewer }}
+        </p>
         <MoneyText
           v-if="typeof selectedRecord.amount === 'number'"
           :amount="selectedRecord.amount"
@@ -850,6 +1026,42 @@ onMounted(load)
       <AppTextField
         v-model="grantReason"
         label="原因"
+      />
+    </FormDrawer>
+
+    <FormDrawer
+      v-model="roleCopyDrawer"
+      title="复制并保存角色（模拟）"
+      @save="saveRoleCopy"
+    >
+      <VAlert
+        type="info"
+        variant="tonal"
+        class="mb-4"
+      >
+        复制会保留父角色继承和显式拒绝；修改后的数据范围、用户指派和审计记录均在 mock 中保存。
+      </VAlert>
+      <AppTextField
+        v-model="roleCopyName"
+        label="新角色中文名"
+        class="mb-4"
+        :rules="[requiredValidator]"
+      />
+      <AppTextField
+        v-model="roleCopyNameEn"
+        label="新角色英文名"
+        class="mb-4"
+        :rules="[requiredValidator]"
+      />
+      <AppSelect
+        v-model="roleCopyScope"
+        label="数据范围"
+        :items="[{ title: '欧洲店铺', value: 'store' }, { title: '本部门', value: 'department' }, { title: '本人', value: 'self' }, { title: '全部', value: 'all' }]"
+        class="mb-4"
+      />
+      <AppTextField
+        v-model="roleCopyUsers"
+        label="指派用户（逗号分隔）"
       />
     </FormDrawer>
 

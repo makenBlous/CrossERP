@@ -64,6 +64,13 @@ export interface GapCReport {
   lastRunAt: string
   permissionKey: string
   columns: string[]
+  builder?: GapCReportBuilder
+}
+
+export interface GapCReportBuilder {
+  dataSource: 'orders' | 'expenses' | 'employees' | 'audit'
+  fields: string[]
+  filters: Array<{ field: string; operator: 'equals' | 'contains' | 'gte' | 'lte'; value: string }>
 }
 
 export interface GapCReportResult {
@@ -120,6 +127,15 @@ export interface GapCRetention {
   immutable: boolean
 }
 
+export interface GapCArchiveRun {
+  id: string
+  policyId: string
+  startedAt: string
+  archivedCount: number
+  status: 'simulated' | 'completed'
+  note: string
+}
+
 export interface GapCFieldPolicy {
   id: string
   roleId: string
@@ -167,6 +183,17 @@ export interface GapCAccessReview {
 export interface GapCRoleView extends RoleTemplate {
   memberCount: number
   status: 'active' | 'paused'
+  memberUserIds?: string[]
+  dataScopeLabel?: string
+  isCustom?: boolean
+}
+
+export interface GapCRoleCopyInput {
+  sourceRoleId: string
+  nameZh: string
+  nameEn: string
+  dataScopes: DataScopeRuleType[]
+  memberUserIds: string[]
 }
 
 export type GapCMatrixEffect = 'allow' | 'inherit' | 'deny' | 'none'

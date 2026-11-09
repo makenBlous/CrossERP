@@ -1,6 +1,6 @@
 import { delay } from '@/api/mock-client'
 import * as service from '@/mocks/services/gap-c'
-import type { FieldAccess, GapCAccessReview, GapCAgentTrace, GapCAlert, GapCApprovalRow, GapCApprovalRule, GapCAuditRow, GapCDataScope, GapCFieldPolicy, GapCMatrixCell, GapCNotification, GapCPermissionChange, GapCReport, GapCReportResult, GapCRetention, GapCRoleView, GapCSodRule, GapCSubscription, GapCTemporaryGrant } from '@/types/gap-c'
+import type { FieldAccess, GapCAccessReview, GapCAgentTrace, GapCAlert, GapCApprovalRow, GapCApprovalRule, GapCArchiveRun, GapCAuditRow, GapCDataScope, GapCFieldPolicy, GapCMatrixCell, GapCNotification, GapCPermissionChange, GapCReport, GapCReportBuilder, GapCReportResult, GapCRetention, GapCRoleCopyInput, GapCRoleView, GapCSodRule, GapCSubscription, GapCTemporaryGrant } from '@/types/gap-c'
 
 // 未来: GET /api/v1/approvals?scope=all|agent|cc
 export async function fetchGapCApprovals(mode: 'all' | 'agent' | 'cc' = 'all'): Promise<GapCApprovalRow[]> {
@@ -73,7 +73,7 @@ export async function runGapCReport(id: string, period: string): Promise<GapCRep
 }
 
 // 未来: POST /api/v1/reports
-export async function createGapCReport(input: { name: string; description: string; permissionKey: string }): Promise<GapCReport> {
+export async function createGapCReport(input: { name: string; description: string; permissionKey: string; builder: GapCReportBuilder }): Promise<GapCReport> {
   await delay()
 
   return service.saveGapCReport(input)
@@ -119,6 +119,20 @@ export async function saveGapCRetention(next: GapCRetention): Promise<GapCRetent
   await delay()
 
   return service.saveGapCRetention(next)
+}
+
+// 未来: POST /api/v1/audit/retention/archive
+export async function runGapCArchive(): Promise<GapCArchiveRun> {
+  await delay()
+
+  return service.runGapCArchive()
+}
+
+// 未来: GET /api/v1/audit/retention/archive-runs
+export async function fetchGapCArchiveRuns(): Promise<GapCArchiveRun[]> {
+  await delay()
+
+  return service.listGapCArchiveRuns()
 }
 
 // 未来: GET /api/v1/admin/field-policies
@@ -189,6 +203,13 @@ export async function fetchGapCRole(id: string): Promise<GapCRoleView> {
   await delay()
 
   return service.getGapCRole(id)
+}
+
+// 未来: POST /api/v1/admin/roles/{id}/copy
+export async function copyGapCRole(input: GapCRoleCopyInput): Promise<GapCRoleView> {
+  await delay()
+
+  return service.copyGapCRole(input)
 }
 
 // 未来: GET /api/v1/admin/permission-matrix

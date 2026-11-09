@@ -150,7 +150,8 @@ const templatePermissions: Record<string, string[]> = {
   cashier: ['payment_entry:read', 'payment_entry:write', 'payment_entry:submit', 'journal_entry:read', 'report:read', 'approval:read', 'notification:read'],
   hr_admin: ['employee_record:read', 'employee_record:read_own', 'employee_record:write', 'employee_record:create', 'employee.salary:read', 'employee.id_number:read', 'salary_slip:read', 'salary_slip:read_own', 'salary_slip:read_all', 'salary_slip:write', 'salary_slip:create', 'attendance:read', 'attendance:write', 'leave_application:read', 'leave_application:write', 'leave_application:approve', 'contract:read', 'asset:read', 'asset:write', 'notification:read', 'notification:write', 'document:read', 'approval:read'],
   employee: ['expense_claim:read', 'expense_claim:create', 'expense_claim:write', 'employee_advance:read', 'employee_advance:create', 'travel_request:read', 'travel_request:create', 'leave_application:read', 'leave_application:create', 'salary_slip:read_own', 'employee_record:read_own', 'notification:read', 'document:read', 'office_supply:read', 'office_supply:create', 'approval:read'],
-  department_manager: ['approval:read', 'approval:approve', 'expense_claim:read', 'leave_application:read', 'leave_application:approve', 'purchase_order:read', 'budget:read', 'notification:read'],
+  department_manager: ['approval:read', 'approval:approve', 'expense_claim:read', 'leave_application:read', 'leave_application:approve', 'purchase_order:read', 'sales_order:read', 'employee_record:read', 'budget:read', 'notification:read'],
+
   // 审计可以只读查看权限配置，便于核对改前改后；没有任何 permission:write/approve。
   auditor_template: ['report:read', 'audit_log:read', 'audit_log:export', 'agent_tool:read', 'permission:read'],
   external_viewer: ['report:read', 'notification:read'],

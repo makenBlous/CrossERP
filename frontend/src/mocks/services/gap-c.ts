@@ -13,6 +13,7 @@ import type {
   GapCAlert,
   GapCApprovalRow,
   GapCApprovalRule,
+  GapCArchiveRun,
   GapCAuditRow,
   GapCDataScope,
   GapCEffectiveRow,
@@ -21,8 +22,10 @@ import type {
   GapCNotification,
   GapCPermissionChange,
   GapCReport,
+  GapCReportBuilder,
   GapCReportResult,
   GapCRetention,
+  GapCRoleCopyInput,
   GapCRoleView,
   GapCSodRule,
   GapCSubscription,
@@ -88,6 +91,7 @@ const traces: GapCAgentTrace[] = [{
 
 const alerts: GapCAlert[] = [{ id: 'alert-001', severity: 'high', title: '权限矩阵修改待二次确认', detail: '管理员修改了 permission:write 的角色范围。', createdAt: '2026-11-10 09:20', resolved: false, href: '/admin/permission-matrix' }, { id: 'alert-002', severity: 'medium', title: '夜间大额审批', detail: '检测到 2026-11-09 23:18 的 ¥80,000 付款审批。', createdAt: '2026-11-10 08:00', resolved: false }]
 let retention: GapCRetention = { businessYears: 10, aiYears: 3, archiveAfterDays: 365, lastArchiveAt: '2026-10-01 02:00', immutable: true }
+const archiveRuns: GapCArchiveRun[] = [{ id: 'archive-001', policyId: 'policy', startedAt: '2026-10-01 02:00', archivedCount: 128, status: 'simulated', note: '演示归档记录，原始日志保持只追加。' }]
 
 const fieldPolicies: GapCFieldPolicy[] = roleTemplates.flatMap(role => [
   { id: `${role.id}-cost`, roleId: role.id, roleName: role.nameZh, objectType: 'SKU', fieldKey: 'cost', fieldLabel: 'SKU 成本', access: (role.fieldRestrictions.cost ?? 'visible') as FieldAccess, sensitive: true },
@@ -99,6 +103,7 @@ const temporaryGrants: GapCTemporaryGrant[] = [{ id: 'grant-001', userId: 'demo-
 const accessReviews: GapCAccessReview[] = [{ id: 'review-001', userId: 'demo-operator', userName: '演示运营', reviewer: '演示管理员', dueAt: '2026-12-31', permissionCount: 18, unusedCount: 3, status: 'pending' }, { id: 'review-002', userId: 'demo-finance', userName: '演示财务', reviewer: '演示管理员', dueAt: '2026-12-31', permissionCount: 26, unusedCount: 0, status: 'confirmed' }]
 const changes: GapCPermissionChange[] = [{ id: 'chg-001', at: '2026-11-10 09:20', actor: '演示管理员', confirmer: '演示财务主管', target: '运营主管', action: '拒绝导出订单', before: '允许（继承店铺运营）', after: '拒绝（职责限制）', sensitive: true }]
 const sodRules: GapCSodRule[] = [{ id: 'sod-001', firstAction: '提交单据', secondAction: '批准单据', objectType: '全部审批单', enabled: true, reason: '做单的人不能审单' }, { id: 'sod-002', firstAction: '新建供应商', secondAction: '发起付款', objectType: '供应商', enabled: true, reason: '职责分离，避免同人控制供应商与付款' }]
+const customRoles: GapCRoleView[] = []
 
 function userSubject(): PermissionSubject {
   const session = useSessionStore()
@@ -114,6 +119,14 @@ function requirePermission(permissionKey: string) {
   return actor()
 }
 
+const demoDepartments: Record<string, string> = {
+  'demo-department-manager': '运营部',
+  'demo-employee': '运营部',
+  'demo-operator': '运营部',
+  'demo-finance': '财务部',
+  'demo-purchaser': '供应链部',
+}
+
 export function dataScopesFor(subject: PermissionSubject, permissionKey: string): DataScopeRuleType[] {
   return effectivePermission(subject, permissionKey).dataScopes
 }
@@ -127,7 +140,7 @@ export function scopeAllows(subject: PermissionSubject, permissionKey: string, o
   if (permission.dataScopes.includes('self'))
     return ownerId === subject.userId
   if (permission.dataScopes.includes('department'))
-    return Boolean(department)
+    return Boolean(department && department === demoDepartments[subject.userId])
 
   return dataScopesFor(subject, permissionKey).length > 0
 }
@@ -218,17 +231,55 @@ export function saveGapCSubscriptions(next: GapCSubscription[]) {
 }
 
 export function listGapCReports() { return clone(reports.filter(report => effectivePermission(userSubject(), report.permissionKey).allowed)) }
+
+function runBuilderReport(builder: GapCReportBuilder, restricted: boolean): Array<Record<string, string | number>> {
+  const sourceRows: Record<GapCReportBuilder['dataSource'], Array<Record<string, string | number>>> = {
+    orders: [
+      { orderNo: 'DE-1001', store: 'Amazon DE', owner: '演示运营', amount: 4200, status: '待发货' },
+      { orderNo: 'US-1002', store: 'Amazon US', owner: '演示财务', amount: 8000, status: '已发货' },
+    ],
+    expenses: [
+      { title: '客户拜访住宿', department: '运营部', owner: '演示员工', amount: 2800, status: '待审批' },
+      { title: '财务培训', department: '财务部', owner: '演示财务', amount: 1800, status: '已通过' },
+    ],
+    employees: [
+      { name: '演示员工', department: '运营部', salary: restricted ? '***' : 1200000, status: '在职' },
+      { name: '演示财务', department: '财务部', salary: restricted ? '***' : 1800000, status: '在职' },
+    ],
+    audit: aiAudit.map(item => ({ action: item.action, actor: item.actor, object: item.objectId, at: item.at })),
+  }
+
+  const filtered = sourceRows[builder.dataSource].filter(row => builder.filters.every(filter => {
+    const actual = String(row[filter.field] ?? '')
+    if (filter.operator === 'equals')
+      return actual === filter.value
+    if (filter.operator === 'contains')
+      return actual.includes(filter.value)
+    const numeric = Number(row[filter.field])
+    const expected = Number(filter.value)
+
+    return filter.operator === 'gte' ? numeric >= expected : numeric <= expected
+  }))
+
+  if (!builder.fields.length)
+    return filtered
+
+  return filtered.map(row => Object.fromEntries(builder.fields.filter(field => field in row).map(field => [field, row[field]])))
+}
+
 export function runGapCReport(reportId: string, period: string): GapCReportResult {
   const report = reports.find(item => item.id === reportId)
   if (!report || !effectivePermission(userSubject(), report.permissionKey).allowed)
     throw new Error('当前用户不能运行该报表')
   const restricted = fieldAccess(userSubject(), 'cost') === 'hidden'
 
-  const rows: Array<Record<string, string | number>> = report.id === 'rpt-budget'
-    ? [{ department: '运营部', budget: 100000, used: 82000, rate: '82%', ...(restricted ? {} : { cost: 82000 }) }, { department: '财务部', budget: 120000, used: 51000, rate: '42%' }]
-    : report.id === 'rpt-approval'
-      ? [{ type: '费用报销', pending: 2, approved: 14, avgHours: 5.2 }, { type: '采购申请', pending: 1, approved: 8, avgHours: 8.5 }]
-      : aiAudit.map(item => ({ action: item.action, actor: item.actor, object: item.objectId, at: item.at }))
+  const rows: Array<Record<string, string | number>> = report.builder
+    ? runBuilderReport(report.builder, restricted)
+    : report.id === 'rpt-budget'
+      ? [{ department: '运营部', budget: 100000, used: 82000, rate: '82%', ...(restricted ? {} : { cost: 82000 }) }, { department: '财务部', budget: 120000, used: 51000, rate: '42%' }]
+      : report.id === 'rpt-approval'
+        ? [{ type: '费用报销', pending: 2, approved: 14, avgHours: 5.2 }, { type: '采购申请', pending: 1, approved: 8, avgHours: 8.5 }]
+        : aiAudit.map(item => ({ action: item.action, actor: item.actor, object: item.objectId, at: item.at }))
 
   const result = { id: `run-${Date.now()}`, reportId, period, rows, generatedAt: new Date().toISOString(), totals: { rows: rows.length } }
 
@@ -236,10 +287,12 @@ export function runGapCReport(reportId: string, period: string): GapCReportResul
 
   return result
 }
-export function saveGapCReport(input: { name: string; description: string; permissionKey: string }) {
+export function saveGapCReport(input: { name: string; description: string; permissionKey: string; builder: GapCReportBuilder }) {
   requirePermission('report:write')
+  if (!input.name.trim() || !input.builder.dataSource || !input.builder.fields.length)
+    throw new Error('报表名称、数据源和字段不能为空')
 
-  const report: GapCReport = { id: `rpt-${Date.now()}`, ...input, module: '自定义', lastRunAt: '未运行', columns: ['筛选结果'] }
+  const report: GapCReport = { id: `rpt-${Date.now()}`, ...input, module: '自定义', lastRunAt: '未运行', columns: input.builder.fields, builder: clone(input.builder) }
 
   reports.push(report); audit('report.create', 'report', report.id, `创建自定义报表 ${report.name}`)
 
@@ -275,9 +328,29 @@ export function getGapCRetention() {
   return clone(retention)
 }
 export function saveGapCRetention(next: GapCRetention) {
-  requirePermission('audit_log:write'); retention = clone(next); audit('audit.retention.update', 'audit_retention', 'policy', '更新日志保留策略')
+  requirePermission('audit_log:write')
+  if (next.businessYears < 1 || next.aiYears < 1 || next.archiveAfterDays < 1)
+    throw new Error('保留期必须为正数')
+  retention = clone(next); audit('audit.retention.update', 'audit_retention', 'policy', '更新日志保留策略')
 
   return clone(retention)
+}
+
+export function runGapCArchive(): GapCArchiveRun {
+  requirePermission('audit_log:write')
+
+  const run: GapCArchiveRun = { id: `archive-${Date.now()}`, policyId: 'policy', startedAt: new Date().toISOString(), archivedCount: 128, status: 'simulated', note: '模拟归档：只生成执行记录，不删除审计日志。' }
+
+  archiveRuns.unshift(run)
+  audit('audit.archive.run', 'audit_archive', run.id, run.note)
+
+  return clone(run)
+}
+
+export function listGapCArchiveRuns(): GapCArchiveRun[] {
+  requirePermission('audit_log:read')
+
+  return clone(archiveRuns)
 }
 
 export function listGapCFieldPolicies() {
@@ -336,15 +409,46 @@ export function confirmGapCAccessReview(id: string) {
 export function listGapCRoles(): GapCRoleView[] {
   requirePermission('permission:read')
 
-  return clone(roleTemplates.map(role => ({ ...role, memberCount: role.id === 'store_operator' ? 3 : 1, status: 'active' as const })))
+  return clone([...roleTemplates.map(role => ({ ...role, memberCount: role.id === 'store_operator' ? 3 : 1, status: 'active' as const })), ...customRoles])
 }
 export function getGapCRole(id: string) {
   requirePermission('permission:read')
 
-  const role = roleTemplates.find(item => item.id === id); if (!role)
+  const role = [...roleTemplates, ...customRoles].find(item => item.id === id); if (!role)
     throw new Error('找不到角色')
 
-  return clone({ ...role, memberCount: role.id === 'store_operator' ? 3 : 1, status: 'active' as const })
+  const view: GapCRoleView = 'status' in role && 'memberCount' in role
+    ? role as GapCRoleView
+    : { ...role, memberCount: role.id === 'store_operator' ? 3 : 1, status: 'active' as const }
+
+  return clone(view)
+}
+export function copyGapCRole(input: GapCRoleCopyInput): GapCRoleView {
+  const current = requirePermission('permission:write')
+  const source = [...roleTemplates, ...customRoles].find(item => item.id === input.sourceRoleId)
+  if (!source)
+    throw new Error('找不到要复制的角色')
+  if (!input.nameZh.trim() || !input.nameEn.trim() || !input.dataScopes.length)
+    throw new Error('角色名称和数据范围不能为空')
+
+  const role: GapCRoleView = {
+    ...clone(source),
+    id: `custom_${Date.now()}`,
+    nameZh: input.nameZh.trim(),
+    nameEn: input.nameEn.trim(),
+    parentIds: [source.id],
+    defaultDataScopes: [...input.dataScopes],
+    memberCount: input.memberUserIds.length,
+    memberUserIds: [...input.memberUserIds],
+    dataScopeLabel: input.dataScopes.join('、'),
+    isCustom: true,
+    status: 'active',
+  }
+
+  customRoles.push(role)
+  audit('permission.role.copy', 'role', role.id, `${current.name} 从 ${source.nameZh} 复制角色 ${role.nameZh}，指派 ${input.memberUserIds.join('、') || '无用户'}`)
+
+  return clone(role)
 }
 export function listGapCMatrix(): GapCMatrixCell[] {
   requirePermission('permission:read')
