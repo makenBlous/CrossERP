@@ -73,11 +73,25 @@ export async function fetchGapATrips() {
   return service.listTrips()
 }
 
+// 未来: POST /api/v1/expense/trips
+export async function createGapATrip(input: { claimant: string; destination: string; startOn: string; endOn: string; budget: number; currency: CurrencyCode }) {
+  await delay()
+
+  return service.createTrip(input)
+}
+
 // 未来: GET /api/v1/expense/policies
 export async function fetchGapAPolicies() {
   await delay()
 
   return service.listPolicies()
+}
+
+// 未来: PATCH /api/v1/expense/policies/{id}
+export async function createGapAPolicy(id: string, limit: number) {
+  await delay()
+
+  return service.savePolicy(id, limit)
 }
 
 // 未来: GET /api/v1/accounting/gl

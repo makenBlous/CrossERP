@@ -111,7 +111,24 @@ export function claim(id: string) { return clone(state.claims.find(item => item.
 export function listLoans() { return clone(state.loans) }
 export function loan(id: string) { return clone(state.loans.find(item => item.id === id) ?? null) }
 export function listTrips() { return clone(state.trips) }
+export function createTrip(input: Omit<TravelRequest, 'id' | 'status'>) {
+  const item: TravelRequest = { ...input, id: nextId('trip'), status: 'draft' }
+
+  state.trips.unshift(item)
+  persist()
+
+  return clone(item)
+}
 export function listPolicies() { return clone(state.policies) }
+export function savePolicy(id: string, limit: number) {
+  const item = state.policies.find(row => row.id === id)
+  if (!item || limit <= 0)
+    return null
+  item.limit = limit
+  persist()
+
+  return clone(item)
+}
 export function listLedger(period?: string) { return clone(state.ledger.filter(item => !period || item.period === period)) }
 export function listVouchers() { return clone(state.vouchers) }
 export function voucher(id: string) { return clone(state.vouchers.find(item => item.id === id) ?? null) }

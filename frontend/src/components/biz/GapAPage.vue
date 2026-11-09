@@ -2,16 +2,20 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line, sonarjs/no-same-line-conditional */
 import DetailPage from '@/components/biz/DetailPage.vue'
+import FormDrawer from '@/components/biz/FormDrawer.vue'
+import FormPage from '@/components/biz/FormPage.vue'
 import ListPage from '@/components/biz/ListPage.vue'
 import MoneyText from '@/components/biz/MoneyText.vue'
+import PermissionGate from '@/components/biz/PermissionGate.vue'
+import StatusChip from '@/components/biz/StatusChip.vue'
 import { useAiModeStore } from '@/stores/ai-mode'
 import { useSessionStore } from '@/stores/session'
 import {
-  closeGapAPeriod, createGapAClaim, createGapACogsVoucher, createGapAFxVoucher, createGapAProfitVoucher,
-  decideGapAClaim, fetchGapABudget, fetchGapABudgets, fetchGapAClaim, fetchGapAClaims, fetchGapACogs,
+  closeGapAPeriod, createGapAClaim, createGapACogsVoucher, createGapAFxVoucher, createGapAPolicy, createGapAProfitVoucher, createGapATrip,
+  decideGapAClaim, fetchGapAAudits, fetchGapABudget, fetchGapABudgets, fetchGapAClaim, fetchGapAClaims, fetchGapACogs,
   fetchGapAFx, fetchGapALedger, fetchGapALoan, fetchGapALoans, fetchGapAPeriods,
-  fetchGapAPolicies, fetchGapARebates, fetchGapAStatement, fetchGapATrialBalance, fetchGapATrips, fetchGapAVat,
-  generateGapAOrderVoucher, offsetGapALoan, saveGapABudget, submitGapAClaim,
+  fetchGapAPolicies, fetchGapARebates, fetchGapAStatement, fetchGapATrialBalance, fetchGapATrips, fetchGapAVat, generateGapAOrderVoucher,
+  offsetGapALoan, repayGapALoan, saveGapABudget, submitGapAClaim,
 } from '@/api/gap-a'
 import type { BudgetRow, EmployeeLoan, ExpenseClaim, GapAPageKey } from '@/types/gap-a'
 import { minorFromDecimal } from '@/utils/money'
@@ -27,12 +31,21 @@ const loading = ref(true)
 const errorMessage = ref('')
 const rows = ref<TableRow[]>([])
 const detail = ref<unknown>(null)
+const auditEvents = ref<Array<{ id: string; at: string; actor: string; action: string; detail: string }>>([])
 const selectedPeriod = ref('2026-10')
 const selectedStore = ref('amz-us')
 const selectedGranularity = ref<'per_order' | 'per_settlement' | 'per_period_summary'>('per_settlement')
 const budgetInput = ref('10000')
 const claimDraft = reactive({ category: '交通', merchant: '', amount: '120', occurredOn: '2026-11-10', note: '', attachmentName: '' })
 const aiPrefilled = ref(false)
+const loanDrawerOpen = ref(false)
+const selectedLoanId = ref('')
+const repaymentInput = ref('0')
+const policyDrawerOpen = ref(false)
+const selectedPolicy = ref<TableRow | null>(null)
+const policyInput = ref('0')
+const tripCreateMode = ref(false)
+const tripDraft = reactive({ destination: '', startOn: '2026-11-18', endOn: '2026-11-20', budget: '2400' })
 
 const titles: Record<GapAPageKey, [string, string]> = {
   EX01: ['报销单列表', '查看自己或下属的报销进度，金额由票面和代码合计。'],
@@ -59,15 +72,16 @@ const titles: Record<GapAPageKey, [string, string]> = {
 const [title, subtitle] = titles[props.pageKey]
 const isDetail = computed(() => ['EX03', 'EX05', 'F31'].includes(props.pageKey))
 const isForm = computed(() => props.pageKey === 'EX02')
+const isTripForm = computed(() => props.pageKey === 'EX06' && tripCreateMode.value)
 const canFinance = computed(() => ['admin', 'finance', 'accountant', 'finance_manager'].includes(session.role))
 const canManager = computed(() => ['admin', 'operator', 'operations_manager', 'department_manager'].includes(session.role))
 
 const columns = computed(() => {
   const map: Record<string, Array<{ key: string; title: string; align?: 'end' }>> = {
     EX01: [{ key: 'id', title: '编号' }, { key: 'claimant', title: '提交人' }, { key: 'department', title: '部门' }, { key: 'total', title: '金额', align: 'end' }, { key: 'status', title: '状态' }, { key: 'origin', title: '来源' }],
-    EX04: [{ key: 'id', title: '借款单' }, { key: 'claimant', title: '员工' }, { key: 'purpose', title: '用途' }, { key: 'amount', title: '借款', align: 'end' }, { key: 'outstanding', title: '未冲余额', align: 'end' }, { key: 'status', title: '状态' }],
+    EX04: [{ key: 'id', title: '借款单' }, { key: 'claimant', title: '员工' }, { key: 'purpose', title: '用途' }, { key: 'amount', title: '借款', align: 'end' }, { key: 'outstanding', title: '未冲余额', align: 'end' }, { key: 'status', title: '状态' }, { key: 'actions', title: '操作' }],
     EX06: [{ key: 'id', title: '申请单' }, { key: 'claimant', title: '申请人' }, { key: 'destination', title: '目的地' }, { key: 'startOn', title: '开始' }, { key: 'endOn', title: '结束' }, { key: 'budget', title: '预算', align: 'end' }, { key: 'status', title: '状态' }],
-    EX07: [{ key: 'category', title: '费用类别' }, { key: 'department', title: '部门' }, { key: 'limit', title: '上限', align: 'end' }, { key: 'effectiveFrom', title: '生效日' }, { key: 'active', title: '启用' }],
+    EX07: [{ key: 'category', title: '费用类别' }, { key: 'department', title: '部门' }, { key: 'limit', title: '上限', align: 'end' }, { key: 'effectiveFrom', title: '生效日' }, { key: 'active', title: '启用' }, { key: 'actions', title: '操作' }],
     F23: [{ key: 'period', title: '期间' }, { key: 'account', title: '科目' }, { key: 'summary', title: '摘要' }, { key: 'debit', title: '借方', align: 'end' }, { key: 'credit', title: '贷方', align: 'end' }, { key: 'sourceId', title: '来源' }],
     F24: [{ key: 'account', title: '科目' }, { key: 'opening', title: '期初', align: 'end' }, { key: 'debit', title: '借方', align: 'end' }, { key: 'credit', title: '贷方', align: 'end' }, { key: 'closing', title: '期末', align: 'end' }],
     F25: [{ key: 'label', title: '项目' }, { key: 'amount', title: '金额', align: 'end' }, { key: 'sourceIds', title: '来源凭证' }],
@@ -86,12 +100,21 @@ const columns = computed(() => {
 
 function rowAmount(row: TableRow, key: string) { return Number(row[key] ?? 0) }
 function currency(row: TableRow) { return (row.currency as 'CNY' | 'USD' | 'EUR' | 'GBP' | 'JPY' | undefined) ?? 'CNY' }
-function statusLabel(value: unknown) { return String(value ?? '').replace('_', ' ') }
 function navigate(id: string) {
   if (props.pageKey === 'EX01')
     router.push(`/expense/claims/${id}`); if (props.pageKey === 'EX04')
     router.push(`/expense/loans/${id}`); if (props.pageKey === 'F30')
     router.push(`/finance/budgets/${id}`)
+}
+function statusDomain() {
+  if (props.pageKey === 'F23')
+    return 'voucher' as const
+  if (['F25', 'F26', 'F27'].includes(props.pageKey))
+    return 'statement' as const
+  if (['EX01', 'EX04', 'EX06'].includes(props.pageKey))
+    return 'approval' as const
+
+  return 'generic' as const
 }
 function routeId() {
   const params = route.params as Record<string, string | undefined>
@@ -122,6 +145,7 @@ async function load() {
       const id = routeId()
 
       detail.value = props.pageKey === 'EX03' ? await fetchGapAClaim(id) : props.pageKey === 'EX05' ? await fetchGapALoan(id) : await fetchGapABudget(id)
+      auditEvents.value = await fetchGapAAudits(id)
     }
   }
   catch (error) { errorMessage.value = error instanceof Error ? error.message : '加载失败' }
@@ -148,6 +172,19 @@ async function saveClaim() {
   } await run(async () => {
     const item = await createGapAClaim({ claimant: session.displayName, department: '运营部', attachmentName: claimDraft.attachmentName || '人工填写', line: { category: claimDraft.category, merchant: claimDraft.merchant || '未填写商户', amount, currency: 'CNY', occurredOn: claimDraft.occurredOn, note: claimDraft.note }, origin: aiPrefilled.value ? 'ai' : 'human', agentSuggestionId: aiPrefilled.value ? `sug-${Date.now()}` : undefined }); if (!item || !('id' in item))
       return; await submitGapAClaim(item.id); router.push(`/expense/claims/${item.id}`)
+  })
+}
+async function saveTrip() {
+  let budget: number
+  try { budget = minorFromDecimal(tripDraft.budget) }
+  catch {
+    errorMessage.value = '差旅预算格式不正确'
+
+    return
+  }
+  await run(async () => {
+    await createGapATrip({ claimant: session.displayName, destination: tripDraft.destination || '待填写', startOn: tripDraft.startOn, endOn: tripDraft.endOn, budget, currency: 'CNY' })
+    tripCreateMode.value = false
   })
 }
 async function decideClaim(step: 'manager' | 'finance', status: 'approved' | 'rejected') {
@@ -193,10 +230,44 @@ async function offsetLoan() {
 
   await run(async () => { await offsetGapALoan(loanId, 'exp-001') })
 }
+function openRepayment(id: string) {
+  selectedLoanId.value = id
+  repaymentInput.value = '0'
+  loanDrawerOpen.value = true
+}
+async function repayLoan() {
+  let amount: number
+  try { amount = minorFromDecimal(repaymentInput.value) }
+  catch {
+    errorMessage.value = '还款金额格式不正确'
+
+    return
+  }
+  await run(async () => { await repayGapALoan(selectedLoanId.value, amount); loanDrawerOpen.value = false })
+}
+function openPolicy(row: TableRow) {
+  selectedPolicy.value = row
+  policyInput.value = String(Number(row.limit ?? 0) / 10000)
+  policyDrawerOpen.value = true
+}
+async function savePolicy() {
+  if (!selectedPolicy.value)
+    return
+  let amount: number
+  try { amount = minorFromDecimal(policyInput.value) }
+  catch {
+    errorMessage.value = '费用标准格式不正确'
+
+    return
+  }
+  await run(async () => { await createGapAPolicy(String(selectedPolicy.value?.id), amount); policyDrawerOpen.value = false })
+}
 
 const detailClaim = computed(() => detail.value as ExpenseClaim)
 const detailLoan = computed(() => detail.value as EmployeeLoan)
 const detailBudget = computed(() => detail.value as BudgetRow)
+const trialBalanced = computed(() => props.pageKey !== 'F24' || rows.value.reduce((sum, item) => sum + Number(item.debit ?? 0) - Number(item.credit ?? 0), 0) === 0)
+const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event.id, at: event.at, title: event.action, detail: event.detail, actor: event.actor })))
 </script>
 
 <template>
@@ -223,6 +294,13 @@ const detailBudget = computed(() => detail.value as BudgetRow)
           prepend-icon="tabler-plus"
         >
           新建报销
+        </VBtn>
+        <VBtn
+          v-if="pageKey === 'EX06' && !tripCreateMode"
+          prepend-icon="tabler-plus"
+          @click="tripCreateMode = true"
+        >
+          新建差旅申请
         </VBtn>
         <VBtn
           v-if="pageKey === 'F25'"
@@ -260,98 +338,153 @@ const detailBudget = computed(() => detail.value as BudgetRow)
     </VAlert>
 
     <template v-if="isForm">
-      <VCard>
-        <VCardText>
-          <VForm @submit.prevent="saveClaim">
-            <VRow>
-              <VCol
-                cols="12"
-                md="6"
-              >
-                <AppTextField
-                  v-model="claimDraft.attachmentName"
-                  label="票据附件文件名"
-                  prepend-inner-icon="tabler-paperclip"
-                />
-              </VCol>
-              <VCol
-                cols="12"
-                md="6"
-                class="d-flex align-end gap-2"
-              >
-                <VBtn
-                  v-if="aiMode.isEnabled"
-                  type="button"
-                  variant="tonal"
-                  prepend-icon="tabler-sparkles"
-                  @click="identifyReceipt"
-                >
-                  AI 识别并预填（L3 分类）
-                </VBtn><VChip
-                  v-if="aiPrefilled"
-                  color="info"
-                  size="small"
-                >
-                  AI 预填
-                </VChip>
-              </VCol>
-              <VCol
-                cols="12"
-                md="4"
-              >
-                <AppTextField
-                  v-model="claimDraft.category"
-                  label="费用类别"
-                />
-              </VCol>
-              <VCol
-                cols="12"
-                md="4"
-              >
-                <AppTextField
-                  v-model="claimDraft.merchant"
-                  label="商户"
-                />
-              </VCol>
-              <VCol
-                cols="12"
-                md="4"
-              >
-                <AppTextField
-                  v-model="claimDraft.amount"
-                  label="票面金额（CNY）"
-                />
-              </VCol>
-              <VCol
-                cols="12"
-                md="4"
-              >
-                <AppTextField
-                  v-model="claimDraft.occurredOn"
-                  label="发生日期"
-                />
-              </VCol>
-              <VCol cols="12">
-                <AppTextarea
-                  v-model="claimDraft.note"
-                  label="说明"
-                  rows="3"
-                />
-              </VCol>
-            </VRow><VDivider class="my-4" /><div class="d-flex justify-end gap-3">
-              <VBtn
+      <FormPage
+        :title="title"
+        :subtitle="subtitle"
+        @save="saveClaim"
+        @cancel="router.push('/expense/claims')"
+      >
+        <VRow>
+          <VCol
+            cols="12"
+            md="6"
+          >
+            <AppTextField
+              v-model="claimDraft.attachmentName"
+              label="票据附件文件名"
+              prepend-inner-icon="tabler-paperclip"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            md="6"
+            class="d-flex align-end gap-2"
+          >
+            <VBtn
+              v-if="aiMode.isEnabled"
+              type="button"
+              variant="tonal"
+              prepend-icon="tabler-sparkles"
+              @click="identifyReceipt"
+            >
+              AI 识别并预填（L3 分类）
+            </VBtn><VChip
+              v-if="aiPrefilled"
+              color="info"
+              size="small"
+            >
+              AI 预填
+            </VChip>
+          </VCol>
+          <VCol
+            cols="12"
+            md="4"
+          >
+            <AppTextField
+              v-model="claimDraft.category"
+              label="费用类别"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            md="4"
+          >
+            <AppTextField
+              v-model="claimDraft.merchant"
+              label="商户"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            md="4"
+          >
+            <AppTextField
+              v-model="claimDraft.amount"
+              label="票面金额（CNY）"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            md="4"
+          >
+            <AppTextField
+              v-model="claimDraft.occurredOn"
+              label="发生日期"
+            />
+          </VCol>
+          <VCol cols="12">
+            <AppTextarea
+              v-model="claimDraft.note"
+              label="说明"
+              rows="3"
+            />
+          </VCol>
+        </VRow>
+        <template #aside>
+          <VCard title="提交前检查">
+            <VCardText>
+              <VAlert
+                type="info"
                 variant="tonal"
-                color="secondary"
-                to="/expense/claims"
               >
-                取消
-              </VBtn><VBtn type="submit">
-                确认并提交（L2 审批）
-              </VBtn>
-            </div>
-          </VForm>
-        </VCardText>
-      </VCard>
+                金额以票面为准，合计由代码计算；提交后进入人工审批。
+              </VAlert>
+              <VChip
+                v-if="aiPrefilled"
+                color="info"
+                size="small"
+                class="mt-4"
+              >
+                AI 预填，已等待员工确认
+              </VChip>
+            </VCardText>
+          </VCard>
+        </template>
+      </FormPage>
+    </template>
+    <template v-else-if="isTripForm">
+      <FormPage
+        :title="title"
+        subtitle="出差前提交申请，审批后可关联报销。"
+        @save="saveTrip"
+        @cancel="tripCreateMode = false"
+      >
+        <VRow>
+          <VCol cols="12">
+            <AppTextField
+              v-model="tripDraft.destination"
+              label="目的地"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            md="6"
+          >
+            <AppDateTimePicker
+              v-model="tripDraft.startOn"
+              label="开始日期"
+              :config="{ dateFormat: 'Y-m-d', allowInput: true }"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            md="6"
+          >
+            <AppDateTimePicker
+              v-model="tripDraft.endOn"
+              label="结束日期"
+              :config="{ dateFormat: 'Y-m-d', allowInput: true }"
+            />
+          </VCol>
+          <VCol cols="12">
+            <AppTextField
+              v-model="tripDraft.budget"
+              label="预算（CNY）"
+              type="number"
+            />
+          </VCol>
+        </VRow>
+      </FormPage>
     </template>
 
     <template v-else-if="pageKey === 'EX03' && detail">
@@ -360,7 +493,7 @@ const detailBudget = computed(() => detail.value as BudgetRow)
         :subtitle="`${detailClaim.claimant} · ${detailClaim.department}`"
         :status="detailClaim.status"
         domain="approval"
-        :timeline="detailClaim.approvalSteps?.map((step: any, index: number) => ({ id: String(index), at: step.actor ? '已处理' : '待处理', title: step.title, detail: step.status, actor: step.actor }))"
+        :timeline="auditEvents.length ? auditTimeline : detailClaim.approvalSteps?.map((step: any, index: number) => ({ id: String(index), at: step.actor ? '已处理' : '待处理', title: step.title, detail: step.status, actor: step.actor }))"
         :related="detailClaim.status === 'posted' ? [{ id: 'voucher', type: '凭证草稿', label: '查看报销凭证', to: '/finance/vouchers' }] : []"
       >
         <VCard>
@@ -400,31 +533,39 @@ const detailBudget = computed(() => detail.value as BudgetRow)
                 </tr>
               </tbody>
             </VTable><div class="d-flex gap-3 mt-6">
-              <VBtn
-                v-if="detailClaim.status === 'draft'"
-                @click="run(async () => { await submitGapAClaim(detailClaim.id) })"
-              >
-                提交
-              </VBtn><VBtn
-                color="success"
-                :disabled="!canManager || detailClaim.status !== 'submitted' || detailClaim.claimant === session.displayName"
-                @click="decideClaim('manager', 'approved')"
-              >
-                主管批准
-              </VBtn><VBtn
-                color="success"
-                :disabled="!canFinance || detailClaim.status !== 'manager_approved' || detailClaim.claimant === session.displayName"
-                @click="decideClaim('finance', 'approved')"
-              >
-                财务批准
-              </VBtn><VBtn
-                color="error"
-                variant="tonal"
-                :disabled="detailClaim.status === 'posted' || detailClaim.status === 'rejected'"
-                @click="decideClaim(canFinance ? 'finance' : 'manager', 'rejected')"
-              >
-                驳回
-              </VBtn>
+              <PermissionGate action="create">
+                <VBtn
+                  v-if="detailClaim.status === 'draft'"
+                  @click="run(async () => { await submitGapAClaim(detailClaim.id) })"
+                >
+                  提交
+                </VBtn>
+              </PermissionGate><PermissionGate action="approve">
+                <VBtn
+                  color="success"
+                  :disabled="!canManager || detailClaim.status !== 'submitted' || detailClaim.claimant === session.displayName"
+                  @click="decideClaim('manager', 'approved')"
+                >
+                  主管批准
+                </VBtn>
+              </PermissionGate><PermissionGate action="approve">
+                <VBtn
+                  color="success"
+                  :disabled="!canFinance || detailClaim.status !== 'manager_approved' || detailClaim.claimant === session.displayName"
+                  @click="decideClaim('finance', 'approved')"
+                >
+                  财务批准
+                </VBtn>
+              </PermissionGate><PermissionGate action="approve">
+                <VBtn
+                  color="error"
+                  variant="tonal"
+                  :disabled="detailClaim.status === 'posted' || detailClaim.status === 'rejected'"
+                  @click="decideClaim(canFinance ? 'finance' : 'manager', 'rejected')"
+                >
+                  驳回
+                </VBtn>
+              </PermissionGate>
             </div>
           </VCardText>
         </VCard>
@@ -436,7 +577,7 @@ const detailBudget = computed(() => detail.value as BudgetRow)
         :subtitle="`${detailLoan.claimant} · ${detailLoan.purpose}`"
         :status="detailLoan.status"
         domain="approval"
-        :timeline="detailLoan.audit.map(event => ({ id: event.id, at: event.at, title: event.action, detail: event.detail, actor: event.actor }))"
+        :timeline="auditEvents.length ? auditTimeline : detailLoan.audit.map(event => ({ id: event.id, at: event.at, title: event.action, detail: event.detail, actor: event.actor }))"
       >
         <VCard>
           <VCardText>
@@ -489,6 +630,7 @@ const detailBudget = computed(() => detail.value as BudgetRow)
         :subtitle="`${detailBudget.period} · ${detailBudget.department} · ${detailBudget.account}`"
         :status="detailBudget.status"
         domain="generic"
+        :timeline="auditTimeline"
       >
         <VCard>
           <VCardText>
@@ -537,6 +679,14 @@ const detailBudget = computed(() => detail.value as BudgetRow)
     </template>
 
     <template v-else>
+      <VAlert
+        v-if="pageKey === 'F24'"
+        :type="trialBalanced ? 'success' : 'error'"
+        variant="tonal"
+        class="mb-6"
+      >
+        {{ trialBalanced ? '借贷合计平衡，余额可追溯到总账。' : '借贷合计不平衡，请先检查总账明细。' }}
+      </VAlert>
       <VCard
         v-if="pageKey === 'F23'"
         class="mb-6"
@@ -614,6 +764,7 @@ const detailBudget = computed(() => detail.value as BudgetRow)
         :subtitle="subtitle"
         :items="rows"
         :columns="columns"
+        :filters="pageKey === 'EX01' ? [{ key: 'status', label: '状态', items: [{ title: '已提交', value: 'submitted' }, { title: '已入账', value: 'posted' }, { title: '已驳回', value: 'rejected' }] }] : pageKey === 'EX04' ? [{ key: 'status', label: '状态', items: [{ title: '待审批', value: 'submitted' }, { title: '已批准', value: 'approved' }, { title: '已还清', value: 'repaid' }] }] : []"
         :loading="loading"
         @open="item => navigate(item.id)"
       >
@@ -674,20 +825,49 @@ const detailBudget = computed(() => detail.value as BudgetRow)
             minor
             :currency="currency(item)"
           />
-          <span v-else-if="column.key === 'status'"><VChip
-            size="small"
-            :color="['approved', 'posted', 'normal', 'ready'].includes(String(item[column.key])) ? 'success' : ['warning', 'pending', 'submitted', 'preview', 'drafted', 'collecting'].includes(String(item[column.key])) ? 'warning' : 'secondary'"
-          >{{ statusLabel(item[column.key]) }}</VChip><VBtn
-            v-if="pageKey === 'F29'"
-            size="x-small"
-            variant="text"
-            @click.stop="cogsVoucher(String(item.period))"
-          >生成凭证</VBtn><VBtn
-            v-if="pageKey === 'F32'"
-            size="x-small"
-            variant="text"
-            @click.stop="fxVoucher(String(item.id))"
-          >生成凭证</VBtn></span>
+          <span v-else-if="column.key === 'status'">
+            <StatusChip
+              :domain="statusDomain()"
+              :value="String(item[column.key])"
+            />
+            <VBtn
+              v-if="pageKey === 'F29'"
+              size="x-small"
+              variant="text"
+              @click.stop="cogsVoucher(String(item.period))"
+            >
+              生成凭证
+            </VBtn>
+            <VBtn
+              v-if="pageKey === 'F32'"
+              size="x-small"
+              variant="text"
+              @click.stop="fxVoucher(String(item.id))"
+            >
+              生成凭证
+            </VBtn>
+          </span>
+          <span
+            v-else-if="column.key === 'actions'"
+            class="d-flex gap-2"
+          >
+            <VBtn
+              v-if="pageKey === 'EX04'"
+              size="x-small"
+              variant="tonal"
+              @click.stop="openRepayment(String(item.id))"
+            >
+              登记还款
+            </VBtn>
+            <VBtn
+              v-if="pageKey === 'EX07'"
+              size="x-small"
+              variant="tonal"
+              @click.stop="openPolicy(item)"
+            >
+              编辑标准
+            </VBtn>
+          </span>
           <span v-else-if="column.key === 'checks'">{{ (item.checks as unknown[]).filter((check: any) => check.passed).length }}/{{ (item.checks as unknown[]).length }} 通过 <VBtn
             size="x-small"
             variant="text"
@@ -700,6 +880,31 @@ const detailBudget = computed(() => detail.value as BudgetRow)
           <span v-else>{{ item[column.key] ?? '—' }}</span>
         </template>
       </ListPage>
+      <FormDrawer
+        v-model="loanDrawerOpen"
+        title="登记借款还款"
+        @save="repayLoan"
+      >
+        <AppTextField
+          v-model="repaymentInput"
+          label="还款金额（CNY）"
+          type="number"
+        />
+        <p class="text-caption text-medium-emphasis mt-2 mb-0">
+          还款动作由人工确认，余额由服务层确定性更新。
+        </p>
+      </FormDrawer>
+      <FormDrawer
+        v-model="policyDrawerOpen"
+        title="编辑费用标准"
+        @save="savePolicy"
+      >
+        <AppTextField
+          v-model="policyInput"
+          label="费用上限（CNY）"
+          type="number"
+        />
+      </FormDrawer>
     </template>
   </div>
 </template>

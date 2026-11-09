@@ -253,4 +253,26 @@
 
 订单到凭证、报销审批和利润凭证都通过 `src/api/gap-a.ts` 调用批次专用 mock；金额展示统一使用 `MoneyText`，金额生成和审批护栏在服务层完成。
 
+## 补齐批次 A 独立复用审计
+
+本节按 `docs/design/01-前端页面设计.md` 的 EX01–EX07、F23–F34 逐页核对。页面路由文件只保留 `GapAPage` 的薄包装；跨页面的列表筛选、分页、列管理、导出和空/错/加载态由 `ListPage` 提供，详情双栏、时间线和关联记录由 `DetailPage` 提供，金额由 `MoneyText` 提供，业务状态由 `StatusChip` 提供。
+
+| 组件/UI 块 | 位置 | 现成等价物 | 处理 | 原因 | 业务操作是否满足 |
+|---|---|---|---|---|---|
+| 批次 A 通用编排壳 | `src/components/biz/GapAPage.vue` | 项目 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`MoneyText`、`StatusChip`、`PermissionGate`；Vuexy `apps/invoice/*` | 保留为薄组合；移除重复表单壳和手写状态 Chip | 19 页共享加载/错误/权限/金额规则，差异仅是字段与动作 | 已覆盖列表、详情、人工审批、AI 开关与审计时间线 |
+| 页面路由包装 | `src/pages/expense/{claims,loans,trips,policies}/*`、`src/pages/finance/{cogs,fx-revaluation,gl,period-close,trial-balance,statements,tax,budgets}/*` | Vuexy 页面路由只负责装配业务视图 | 保留 7 行左右薄包装 | 避免每个页面重复 API、状态和表格模板 | 路由、权限点和 `data-test` 不变 |
+| 报销新建表单 | `GapAPage.vue` 的 EX02 | `FormPage`；Vuexy `apps/invoice/add/index.vue`；`DropZone`/`AppDateTimePicker` 为可替换控件 | 改用 `FormPage` 顶栏保存/取消、右栏提交检查，保留 AI 预填和人工填写 | 原实现手写 `VCard`/`VForm`，重复了统一表单布局 | AI 开启可预填；AI 关闭仍可人工提交；超标准由服务层拦截 |
+| 报销审批详情 | EX03 分支 | `DetailPage`、`MoneyText`、`PermissionGate`；Vuexy `apps/invoice/preview/[id].vue` | 保留字段专属 `VTable`，审批按钮改由 `PermissionGate` 包裹；时间线优先读 `fetchGapAAudits` | 明细行和审批动作不是通用列表字段，时间线必须保留审计来源 | 提交、主管批、财务批、驳回、凭证关联和审计记录均可用 |
+| 借款列表/还款 | EX04 分支 | `ListPage`、`FormDrawer`；Vuexy `InvoiceAddPaymentDrawer` | 增加状态筛选、`登记还款` `FormDrawer`，余额更新仍走服务层 | 原页面只有展示，缺少设计要求的还款登记 | 列表、详情、还款和报销冲抵均可用 |
+| 借款详情 | EX05 分支 | `DetailPage`、Vuexy invoice preview/timeline | 保留三张 KPI 卡和专属冲抵按钮；时间线接审计接口 | 借款余额与冲抵是领域字段，套通用表格会丢失语义 | 查看借/还/冲抵记录；冲抵动作可用 |
+| 差旅列表/新建 | EX06 分支 | `ListPage`、`FormPage`、`AppDateTimePicker`；Vuexy `wizard-examples/create-deal.vue`、`AppStepper` | 增加新建差旅表单，保存走批次 mock；自动匹配仍保留为后续接口 | 设计阶段标注 v1.0，但当前页面可先完成出差前申请 | 列表筛选、人工新建和状态查看可用；自动匹配待后续接口 |
+| 费用标准 | EX07 分支 | `ListPage`、`FormDrawer`；Vuexy tables/data-table | 增加 `编辑标准` `FormDrawer`，保存调用专用 mock 更新 | 原页面只读，缺少维护上限操作 | 列表、筛选和人工编辑可用 |
+| 总账与报表 | F23–F27 分支 | `ListPage`、`MoneyText`、`StatusChip`；Vuexy tables/simple-table | 保留领域专属来源链接和订单→凭证规则卡，状态/金额统一复用业务组件；F24 增加借贷平衡提示 | 规则选择、来源追溯和余额校验不能由通用列渲染猜测 | 期间筛选、来源追溯、平衡校验、利润凭证生成可用 |
+| 期末结账 | F28 分支 | `ListPage` 的检查清单 + Vuetify `VAlert`；Vuexy `form-wizard-numbered`/`AppStepper` | 保留清单式列表并使用现成分页/状态壳，结账按钮走服务层 | 结账是逐期间检查动作，`FormPage` 单一保存语义不适合多行检查项 | 未审批凭证时拒绝；检查通过后人工点击结账 |
+| 成本结转/汇兑重估 | F29、F32 分支 | `ListPage`、`MoneyText`、`StatusChip` | 保留领域操作按钮，生成凭证统一走 API | 生成草稿需要行级期间/重估 ID | 预览、生成草稿和金额展示可用 |
+| 预算与预算详情 | F30、F31 分支 | `ListPage`、`DetailPage`、`MoneyText`、`KpiCard` | 保留预算进度专属 KPI；详情时间线接审计接口，调整走保存动作 | 使用率、预警和调整记录是页面特有业务块 | 80% 预警、详情、人工调整和审计记录可用 |
+| VAT/出口退税 | F33、F34 分支 | `ListPage`、`StatusChip`、`MoneyText`；Vuexy invoice list/file input | 保留列表字段专属渲染，移除通用页外的重复表格 | 当前接口是跟踪查询，状态和金额需要业务字典 | 期间筛选、状态、税额/退税额展示可用；资料上传待后端接口 |
+| AgentCard、RecordDrawer、AssistantDrawer | 批次 A 全部页面 | 项目现成组件 | 未引入；AI 仅使用现有 `useAiModeStore` 提示/预填，审计记录放入 `DetailPage` 时间线 | 设计对批次 A 的 AI 是 L1/L2 建议，不能增加独立对话或写入口；详情记录不适合只读抽屉 | AI 关闭时人工路径仍可用，AI 不绕过审批 |
+| 凭证列表/详情与利润页 | `pages/finance/vouchers/*`、`pages/finance/profit/*` | `ListPage`、`DetailPage`、`MoneyText`、`StatusChip` | 保留领域专属分录/来源追溯，期间选择和审批动作接 `api/gap-a` | 凭证分录、借贷平衡和来源链接不是通用 CRUD 字段 | 草稿→审批→批准护栏、来源追溯和利润期间选择可用 |
+
 
