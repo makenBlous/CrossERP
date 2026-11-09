@@ -2,6 +2,7 @@
  * 静态原型的数据出口。
  * 页面只调用 src/api 下的函数。以后把函数体换成请求 /api/v1，返回类型保持不变。
  */
+import { toRaw } from 'vue'
 import { FlowError } from '@/mocks/services/errors'
 import { useMockDbStore } from '@/stores/mockdb'
 import { useSessionStore } from '@/stores/session'
@@ -15,7 +16,7 @@ export function delay(ms = 160) {
 }
 
 export function readMock<T>(data: T): Promise<T> {
-  return delay().then(() => structuredClone(data))
+  return delay().then(() => JSON.parse(JSON.stringify(toRaw(data))) as T)
 }
 
 export function currentActor(): Actor {

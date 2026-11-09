@@ -5,6 +5,7 @@ import type { ReconRun } from '@/types/domain'
 import { formatInteger, formatPercent } from '@/utils/format'
 
 const { t } = useI18n({ useScope: 'global' })
+const router = useRouter()
 const runs = ref<ReconRun[]>([])
 
 onMounted(async () => {
@@ -38,6 +39,7 @@ const filters = computed(() => [{
       :items="runs"
       :columns="columns"
       :filters="filters"
+      @open="item => router.push(`/finance/recon/${item.id}`)"
     >
       <template #widgets>
         <div class="d-flex justify-end mb-4">

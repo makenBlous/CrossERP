@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import type { ApexOptions } from 'apexcharts'
-import { fetchProfit } from '@/api/finance'
+import { draftVoucherFromProfit, fetchProfit } from '@/api/finance'
 import ListPage from '@/components/biz/ListPage.vue'
+import MoneyText from '@/components/biz/MoneyText.vue'
 import { useChartTheme } from '@/composables/useChartTheme'
 import type { ProfitRow, StoreProfit } from '@/types/domain'
-import { formatMoney } from '@/utils/format'
 
 const { t } = useI18n({ useScope: 'global' })
 const chart = useChartTheme()
 const rows = ref<ProfitRow[]>([])
 const stores = ref<StoreProfit[]>([])
+const router = useRouter()
 
 onMounted(async () => {
   const payload = await fetchProfit()
@@ -69,6 +70,49 @@ const skuColumns = computed(() => [
     >
       {{ t('profit.formula') }}
     </VAlert>
+    <VRow class="mb-6">
+      <VCol
+        cols="12"
+        sm="4"
+      >
+        <KpiCard
+          title="SKU 行数"
+          :value="String(rows.length)"
+          icon="tabler-chart-bar"
+        />
+      </VCol>
+      <VCol
+        cols="12"
+        sm="4"
+      >
+        <KpiCard
+          title="店铺数"
+          :value="String(stores.length)"
+          icon="tabler-building-store"
+          color="info"
+        />
+      </VCol>
+      <VCol
+        cols="12"
+        sm="4"
+      >
+        <KpiCard
+          title="广告来源"
+          value="广告分摊 / 演示计提"
+          icon="tabler-speakerphone"
+          color="success"
+        />
+      </VCol>
+    </VRow>
+    <div class="d-flex justify-end mb-4">
+      <VBtn
+        variant="tonal"
+        prepend-icon="tabler-notebook"
+        @click="draftVoucherFromProfit().then(voucher => voucher && router.push(`/finance/vouchers/${voucher.id}`))"
+      >
+        生成凭证草稿
+      </VBtn>
+    </div>
     <VCard class="mb-6">
       <VCardItem>
         <VCardTitle>{{ t('profit.chart') }}</VCardTitle>
@@ -118,22 +162,40 @@ const skuColumns = computed(() => [
           >
             <td>{{ store.storeName }}</td>
             <td class="text-end">
-              {{ formatMoney(store.revenue, store.currency) }}
+              <MoneyText
+                :amount="store.revenue"
+                :currency="store.currency"
+              />
             </td>
             <td class="text-end">
-              {{ formatMoney(store.platformFee, store.currency) }}
+              <MoneyText
+                :amount="store.platformFee"
+                :currency="store.currency"
+              />
             </td>
             <td class="text-end">
-              {{ formatMoney(store.ads, store.currency) }}
+              <MoneyText
+                :amount="store.ads"
+                :currency="store.currency"
+              />
             </td>
             <td class="text-end">
-              {{ formatMoney(store.firstMile, store.currency) }}
+              <MoneyText
+                :amount="store.firstMile"
+                :currency="store.currency"
+              />
             </td>
             <td class="text-end">
-              {{ formatMoney(store.cost, store.currency) }}
+              <MoneyText
+                :amount="store.cost"
+                :currency="store.currency"
+              />
             </td>
             <td class="text-end font-weight-medium">
-              {{ formatMoney(store.profit, store.currency) }}
+              <MoneyText
+                :amount="store.profit"
+                :currency="store.currency"
+              />
             </td>
           </tr>
         </tbody>
@@ -145,24 +207,45 @@ const skuColumns = computed(() => [
       :title="t('profit.bySku')"
       :items="skuItems"
       :columns="skuColumns"
+      @open="item => router.push(`/finance/profit/sku/${item.sku}`)"
     >
       <template #item.revenue="{ item }">
-        {{ formatMoney(item.revenue, item.currency) }}
+        <RouterLink :to="`/finance/profit/sku/${item.sku}`">
+        <MoneyText
+          :amount="item.revenue"
+          :currency="item.currency"
+        />
+        </RouterLink>
       </template>
       <template #item.platformFee="{ item }">
-        {{ formatMoney(item.platformFee, item.currency) }}
+        <MoneyText
+          :amount="item.platformFee"
+          :currency="item.currency"
+        />
       </template>
       <template #item.ads="{ item }">
-        {{ formatMoney(item.ads, item.currency) }}
+        <MoneyText
+          :amount="item.ads"
+          :currency="item.currency"
+        />
       </template>
       <template #item.firstMile="{ item }">
-        {{ formatMoney(item.firstMile, item.currency) }}
+        <MoneyText
+          :amount="item.firstMile"
+          :currency="item.currency"
+        />
       </template>
       <template #item.cost="{ item }">
-        {{ formatMoney(item.cost, item.currency) }}
+        <MoneyText
+          :amount="item.cost"
+          :currency="item.currency"
+        />
       </template>
       <template #item.profit="{ item }">
-        {{ formatMoney(item.profit, item.currency) }}
+        <MoneyText
+          :amount="item.profit"
+          :currency="item.currency"
+        />
       </template>
     </ListPage>
   </div>

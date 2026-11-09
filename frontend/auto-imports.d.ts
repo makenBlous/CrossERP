@@ -94,6 +94,7 @@ declare global {
   const mapWritableState: typeof import('pinia')['mapWritableState']
   const markRaw: typeof import('vue')['markRaw']
   const minorFromDecimal: typeof import('./src/utils/money')['minorFromDecimal']
+  const minorToDecimal: typeof import('./src/utils/money')['minorToDecimal']
   const moneyText: typeof import('./src/@core/utils/validators')['moneyText']
   const moneyValidator: typeof import('./src/@core/utils/validators')['moneyValidator']
   const mulQty: typeof import('./src/utils/money')['mulQty']
@@ -482,6 +483,7 @@ declare module 'vue' {
     readonly mapWritableState: UnwrapRef<typeof import('pinia')['mapWritableState']>
     readonly markRaw: UnwrapRef<typeof import('vue')['markRaw']>
     readonly minorFromDecimal: UnwrapRef<typeof import('./src/utils/money')['minorFromDecimal']>
+    readonly minorToDecimal: UnwrapRef<typeof import('./src/utils/money')['minorToDecimal']>
     readonly moneyText: UnwrapRef<typeof import('./src/@core/utils/validators')['moneyText']>
     readonly moneyValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['moneyValidator']>
     readonly mulQty: UnwrapRef<typeof import('./src/utils/money')['mulQty']>

@@ -33,12 +33,6 @@ const ORDER_STATUS_ZH: Record<string, string> = {
   cancelled: '已取消',
 }
 
-const ISSUE_STATUS_ZH: Record<string, string> = {
-  open: '待处理',
-  explained: '已说明',
-  ignored: '已忽略',
-}
-
 const CRM_STATUS_ZH: Record<string, string> = {
   active: '合作中',
   negotiating: '谈判中',
@@ -346,7 +340,7 @@ export function projectRecon(db: MockDatabase): ReconRun[] {
     matched: item.matched,
     unmatched: item.unmatched,
     matchRate: percentRatio(item.matched, item.matched + item.unmatched),
-    status: item.status === 'done' ? '已完成' : '进行中',
+    status: item.status,
     finishedAt: utcLabel(item.finishedAt),
   }))
 }
@@ -358,9 +352,9 @@ export function projectIssues(db: MockDatabase): IssueRow[] {
     severity: item.severity,
     storeName: storeOf(db, item.storeId)?.name ?? item.storeId,
     refNo: item.refNo,
-    amount: money(item.amount, item.currency),
+    amount: item.amount,
     currency: item.currency,
-    status: label(ISSUE_STATUS_ZH, item.status),
+    status: item.status,
     summary: item.summary,
   }))
 }
@@ -371,8 +365,8 @@ export function projectVouchers(db: MockDatabase): VoucherRow[] {
     no: item.no,
     period: item.period,
     status: item.status,
-    debit: money(item.debit, 'CNY'),
-    credit: money(item.credit, 'CNY'),
+    debit: item.debit,
+    credit: item.credit,
     currency: 'CNY',
     summary: item.summary,
     submitter: item.submitter,
@@ -386,15 +380,18 @@ export function projectApprovals(db: MockDatabase): ApprovalItem[] {
     type: item.type,
     submitter: item.submitter,
     submittedAt: utcLabel(item.submittedAt),
-    amount: money(item.amount, item.currency),
+    amount: item.amount,
     currency: item.currency,
     status: item.status,
     summary: item.summary,
     lines: item.lines.map(line => ({
       account: line.account,
-      debit: money(line.debit, item.currency),
-      credit: money(line.credit, item.currency),
+      debit: line.debit,
+      credit: line.credit,
     })),
+    comment: item.comment,
+    payloadHash: item.payloadHash,
+    timeline: db.audit.filter(event => event.refId === item.id).map(event => ({ at: utcLabel(event.at), title: event.action, detail: event.summary, actor: event.actor })),
   }))
 }
 

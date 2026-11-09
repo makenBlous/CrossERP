@@ -5,6 +5,7 @@ import MoneyText from '@/components/biz/MoneyText.vue'
 import type { IssueCode, IssueRow } from '@/types/domain'
 
 const { t } = useI18n({ useScope: 'global' })
+const router = useRouter()
 const rows = ref<IssueRow[]>([])
 
 const codes: IssueCode[] = [
@@ -72,7 +73,44 @@ const filters = computed(() => [
     :items="rows"
     :columns="columns"
     :filters="filters"
+    @open="item => router.push(`/finance/issues/${item.id}`)"
   >
+    <template #widgets>
+      <VRow class="mb-6">
+        <VCol
+          cols="12"
+          sm="4"
+        >
+          <KpiCard
+            title="异常总数"
+            :value="String(rows.length)"
+            icon="tabler-alert-triangle"
+          />
+        </VCol>
+        <VCol
+          cols="12"
+          sm="4"
+        >
+          <KpiCard
+            title="待处理"
+            :value="String(rows.filter(item => item.status === 'open').length)"
+            icon="tabler-clock"
+            color="warning"
+          />
+        </VCol>
+        <VCol
+          cols="12"
+          sm="4"
+        >
+          <KpiCard
+            title="高严重度"
+            :value="String(rows.filter(item => item.severity === 'high').length)"
+            icon="tabler-flame"
+            color="error"
+          />
+        </VCol>
+      </VRow>
+    </template>
     <template #item.severity="{ item }">
       <VChip
         size="small"
@@ -84,6 +122,7 @@ const filters = computed(() => [
     <template #item.amount="{ item }">
       <MoneyText
         :amount="item.amount"
+        minor
         :currency="item.currency"
       />
     </template>

@@ -243,7 +243,14 @@ sendMessage(context, message, emit) => Promise<void>
 | `/logistics/shipments/:id` | fleet/invoice preview：`DetailPage` 路线、货箱、费用、轨迹 |
 | `/finance/recon`、`/finance/issues`、`/finance/vouchers` | `ListPage`；对账页顶部统计卡 |
 | `/finance/profit` | dashboards 柱状图 + 嵌入式 `ListPage` |
+| `/finance/imports`、`/finance/settlements`、`/finance/accounts`、`/finance/fx-rates`、`/finance/fee-map`、`/finance/column-maps`、`/finance/ar`、`/finance/ap`、`/finance/clearing`、`/finance/exports`、`/finance/cash` | invoice list / user list 的 `ListPage` 薄封装 + `KpiCard`/`VDataTable` |
+| `/finance/imports/:id`、`/finance/rows/:table/:id`、`/finance/settlements/:id`、`/finance/recon/:id`、`/finance/issues/:id`、`/finance/profit/sku/:internalSku`、`/finance/vouchers/:id` | invoice preview + order details 的 `DetailPage` + `VTimeline` |
+| `/ads/campaigns`、`/ads/performance` | dashboards/analytics 图表卡 + `ListPage` |
+| `/ads/imports` | forms/file-input 的 `VFileInput` + `ListPage` |
+| `/ads/allocations` | form-validation 表单 + 结果 `ListPage` |
 | `/approvals` | `ListPage`；右侧抽屉用 `AppDrawerHeaderSection` + `PerfectScrollbar`（同 AddNewUserDrawer 外壳，不是表单） |
+| `/approvals/submitted`、`/approvals/:id` | invoice preview 的详情卡 + `DetailPage` 时间线 |
+| `/approvals/workflows` | form-wizard-icons 的步骤结构（用 `VExpansionPanels` 呈现静态步骤） |
 | `/crm/accounts` | user list / `ListPage` |
 | `/crm/accounts/:id` | user view：`DetailPage` + `v-tabs-pill` + `VWindow` |
 | `/agent/chat` | `pages/apps/chat.vue` + `views/apps/chat/ChatLog.vue` + 消息输入条 |
@@ -277,6 +284,9 @@ sendMessage(context, message, emit) => Promise<void>
 | `EmptyState` / `LoadingState` | 分别包 `VEmptyState` / `VSkeletonLoader`，文案走 i18n |
 | `ConfirmHost` | 把 `useConfirm()` 接到 Vuexy `ConfirmDialog` |
 | `views/apps/chat/ChatLog.vue`、`ChatMessageForm.vue` | 从 Vuexy chat 拆出，去掉演示 store，给助手抽屉和 `/agent/chat` 共用 |
+| `pages/finance/_components/FinanceTablePage.vue` | 模块专用薄封装，统一 finance/ads/approval 表格的列、详情跳转和空状态 |
+| `pages/finance/_components/FinanceDetail.vue` | 模块专用薄封装，复用 `DetailPage` 并统一金融详情页插槽 |
+| `pages/finance/_components/FinanceUpload.vue` | 模块专用上传外壳，复用 Vuetify `VFileInput`；需要展示解析提示与导入状态 |
 
 ## 许可证提醒
 

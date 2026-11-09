@@ -7,6 +7,18 @@ const NAME_KEY = 'crosserp-name'
 
 const roles: Role[] = ['admin', 'operator', 'finance', 'viewer', 'auditor']
 
+/**
+ * 每个演示角色对应一个独立的演示用户身份。
+ * 审批的「提交人 ≠ 审批人」规则按这个身份判断，所以切换角色就等于换了一个人。
+ */
+export const demoIdentities: Record<Role, { id: string; name: string }> = {
+  admin: { id: 'demo-admin', name: '演示管理员' },
+  operator: { id: 'demo-operator', name: '演示运营' },
+  finance: { id: 'demo-finance', name: '演示财务' },
+  viewer: { id: 'demo-viewer', name: '演示只读' },
+  auditor: { id: 'demo-auditor', name: '演示审计' },
+}
+
 function readStorage(key: string) {
   if (typeof sessionStorage === 'undefined')
     return null
@@ -41,16 +53,20 @@ export const useSessionStore = defineStore('session', {
   state: () => ({
     isLoggedIn: readStorage(AUTH_KEY) === '1',
     role: readRole(),
-    displayName: readStorage(NAME_KEY) || '演示用户',
+
+    // 登录框里输入的账号名，只用于展示；审批和审计使用角色对应的演示身份。
+    loginName: readStorage(NAME_KEY) || '',
   }),
+  getters: {
+    userId: state => demoIdentities[state.role].id,
+    displayName: state => demoIdentities[state.role].name,
+  },
   actions: {
     login(name: string) {
-      const displayName = name.trim() || '演示用户'
-
       this.isLoggedIn = true
-      this.displayName = displayName
+      this.loginName = name.trim()
       writeStorage(AUTH_KEY, '1')
-      writeStorage(NAME_KEY, displayName)
+      writeStorage(NAME_KEY, this.loginName)
       writeStorage(ROLE_KEY, this.role)
     },
     setRole(role: Role) {
@@ -59,7 +75,7 @@ export const useSessionStore = defineStore('session', {
     },
     logout() {
       this.isLoggedIn = false
-      this.displayName = '演示用户'
+      this.loginName = ''
       removeStorage(AUTH_KEY)
       removeStorage(NAME_KEY)
     },

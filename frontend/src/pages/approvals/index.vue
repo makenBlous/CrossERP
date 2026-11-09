@@ -8,6 +8,7 @@ import type { ApprovalItem, ApprovalStatus } from '@/types/domain'
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
+const router = useRouter()
 const rows = ref<ApprovalItem[]>([])
 const selected = ref<ApprovalItem | null>(null)
 const drawer = ref(false)
@@ -40,6 +41,10 @@ const filters = computed(() => [{
 function open(item: ApprovalItem) {
   selected.value = item
   drawer.value = true
+}
+
+function goDetail(item: ApprovalItem) {
+  router.push(`/approvals/${item.id}`)
 }
 
 async function decide(status: ApprovalStatus) {
@@ -75,13 +80,59 @@ async function decide(status: ApprovalStatus) {
       :items="rows"
       :columns="columns"
       :filters="filters"
-      @open="open"
+      @open="goDetail"
     >
+      <template #widgets>
+        <VRow class="mb-6">
+          <VCol
+            cols="12"
+            sm="4"
+          >
+            <KpiCard
+              title="待审批"
+              :value="String(rows.filter(item => item.status === 'pending').length)"
+              icon="tabler-clock"
+              color="warning"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            sm="4"
+          >
+            <KpiCard
+              title="今日已批"
+              :value="String(rows.filter(item => item.status === 'approved').length)"
+              icon="tabler-check"
+              color="success"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            sm="4"
+          >
+            <KpiCard
+              title="驳回"
+              :value="String(rows.filter(item => item.status === 'rejected').length)"
+              icon="tabler-x"
+              color="error"
+            />
+          </VCol>
+        </VRow>
+      </template>
       <template #item.amount="{ item }">
         <MoneyText
           :amount="item.amount"
+          minor
           :currency="item.currency"
         />
+      </template>
+      <template #item.title="{ item }">
+        <RouterLink
+          :to="`/approvals/${item.id}`"
+          class="text-primary font-weight-medium"
+        >
+          {{ item.title }}
+        </RouterLink>
       </template>
       <template #item.status="{ item }">
         <StatusChip
@@ -127,6 +178,7 @@ async function decide(status: ApprovalStatus) {
               <MoneyText
                 :amount="selected.amount"
                 :currency="selected.currency"
+                minor
               />
             </div>
             <VTable
@@ -152,10 +204,22 @@ async function decide(status: ApprovalStatus) {
                 >
                   <td>{{ line.account }}</td>
                   <td class="text-end">
-                    {{ line.debit || '—' }}
+                    <MoneyText
+                      v-if="line.debit"
+                      :amount="line.debit"
+                      :currency="selected.currency"
+                      minor
+                    />
+                    <span v-else>—</span>
                   </td>
                   <td class="text-end">
-                    {{ line.credit || '—' }}
+                    <MoneyText
+                      v-if="line.credit"
+                      :amount="line.credit"
+                      :currency="selected.currency"
+                      minor
+                    />
+                    <span v-else>—</span>
                   </td>
                 </tr>
               </tbody>
