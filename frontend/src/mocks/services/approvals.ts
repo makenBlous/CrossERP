@@ -56,6 +56,12 @@ export function decideApproval(db: MockDatabase, id: string, status: 'approved' 
     if (po && po.status === 'submitted')
       po.status = status === 'approved' ? 'approved' : 'rejected'
   }
+  if (approval.targetType === 'voucher') {
+    const voucher = db.vouchers.find(item => item.id === approval.targetId)
+
+    if (voucher)
+      voucher.status = status === 'approved' ? 'posted' : 'draft'
+  }
   writeAudit(db, actor, status, 'approval', approval.id, `${status === 'approved' ? '通过' : '驳回'}审批 ${approval.title}。演示不写账。`)
 
   return approval

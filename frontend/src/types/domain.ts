@@ -181,7 +181,7 @@ export interface IssueRow {
   summary: string
 }
 
-export type VoucherStatus = 'draft' | 'pending' | 'posted'
+export type VoucherStatus = 'draft' | 'pending' | 'posted' | 'rejected'
 
 export interface VoucherRow {
   id: string

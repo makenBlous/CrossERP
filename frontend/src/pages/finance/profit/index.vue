@@ -1,6 +1,8 @@
+/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
+/* eslint-disable max-statements-per-line */
 import type { ApexOptions } from 'apexcharts'
-import { fetchProfit } from '@/api/finance'
+import { draftVoucherFromProfit, fetchProfit } from '@/api/finance'
 import ListPage from '@/components/biz/ListPage.vue'
 import { useChartTheme } from '@/composables/useChartTheme'
 import type { ProfitRow, StoreProfit } from '@/types/domain'
@@ -10,6 +12,7 @@ const { t } = useI18n({ useScope: 'global' })
 const chart = useChartTheme()
 const rows = ref<ProfitRow[]>([])
 const stores = ref<StoreProfit[]>([])
+const router = useRouter()
 
 onMounted(async () => {
   const payload = await fetchProfit()
@@ -69,6 +72,15 @@ const skuColumns = computed(() => [
     >
       {{ t('profit.formula') }}
     </VAlert>
+    <div class="d-flex justify-end mb-4">
+      <VBtn
+        variant="tonal"
+        prepend-icon="tabler-notebook"
+        @click="draftVoucherFromProfit().then(voucher => voucher && router.push(`/finance/vouchers/${voucher.id}`))"
+      >
+        生成凭证草稿
+      </VBtn>
+    </div>
     <VCard class="mb-6">
       <VCardItem>
         <VCardTitle>{{ t('profit.chart') }}</VCardTitle>
@@ -145,6 +157,7 @@ const skuColumns = computed(() => [
       :title="t('profit.bySku')"
       :items="skuItems"
       :columns="skuColumns"
+      @open="item => router.push(`/finance/profit/sku/${item.sku}`)"
     >
       <template #item.revenue="{ item }">
         {{ formatMoney(item.revenue, item.currency) }}
@@ -167,3 +180,4 @@ const skuColumns = computed(() => [
     </ListPage>
   </div>
 </template>
+

@@ -367,7 +367,7 @@ export interface VoucherEntity {
   id: string
   no: string
   period: string
-  status: 'draft' | 'pending' | 'posted'
+  status: 'draft' | 'pending' | 'posted' | 'rejected'
   debit: Minor
   credit: Minor
   currency: 'CNY'

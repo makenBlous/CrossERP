@@ -1,5 +1,7 @@
-import { database, delay } from '@/api/mock-client'
+/* eslint-disable max-statements-per-line */
+import { assertCan, database, delay, readMock } from '@/api/mock-client'
 import { projectIssues, projectProfit, projectRecon, projectVouchers } from '@/mocks/project'
+import { accounts, apRows, arRows, cashRows, clearingRows, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, settlementDetail, settlements, sourceRow, voucherDetail } from '@/mocks/services/finance'
 
 // 未来: GET /api/v1/finance/profit
 export async function fetchProfit() {
@@ -28,3 +30,118 @@ export async function fetchVouchers() {
 
   return projectVouchers(database().db)
 }
+
+export async function fetchImports() {
+  await delay()
+
+  return readMock(listImports())
+}
+export async function fetchImport(id: string) {
+  await delay()
+
+  return readMock(importDetail(id))
+}
+export async function fetchSourceRow(table: string, id: string) {
+  await delay()
+
+  return readMock(sourceRow(table, id))
+}
+export async function fetchSettlements() {
+  await delay()
+
+  return readMock(settlements(database().db))
+}
+export async function fetchSettlement(id: string) {
+  await delay()
+
+  return readMock(settlementDetail(database().db, id))
+}
+export async function fetchReconDetail(id: string) {
+  await delay()
+
+  return readMock(reconDetail(database().db, id))
+}
+export async function fetchIssueDetail(id: string) {
+  await delay()
+
+  return readMock(issueDetail(database().db, id))
+}
+export async function fetchVoucherDetail(id: string) {
+  await delay()
+
+  return readMock(voucherDetail(database().db, id))
+}
+export async function fetchAccounts() {
+  await delay()
+
+  return readMock(accounts(database().db))
+}
+export async function fetchFxRates() {
+  await delay()
+
+  return readMock(fxRates(database().db))
+}
+export async function fetchFeeMap() {
+  await delay()
+
+  return readMock(feeMapRows())
+}
+export async function fetchColumnMaps() {
+  await delay()
+
+  return readMock(columnMapRows())
+}
+export async function fetchAr() {
+  await delay()
+
+  return readMock(arRows(database().db))
+}
+export async function fetchAp() {
+  await delay()
+
+  return readMock(apRows(database().db))
+}
+export async function fetchClearing() {
+  await delay()
+
+  return readMock(clearingRows(database().db))
+}
+export async function fetchExports() {
+  await delay()
+
+  return readMock(exportRows(database().db))
+}
+export async function fetchCash() {
+  await delay()
+
+  return readMock(cashRows(database().db))
+}
+export async function resolveIssue(id: string, action: 'explained' | 'ignored', note: string) {
+  const actor = assertCan('update')
+
+  handleIssue(database().db, id, action, note, actor); database().persist()
+
+  return fetchIssueDetail(id)
+}
+export async function confirmFee(id: string, category: string) {
+  const actor = assertCan('update')
+
+  confirmFeeMap(database().db, id, category, actor); database().persist()
+
+  return fetchFeeMap()
+}
+export async function draftVoucherFromIssue(id: string) {
+  const actor = assertCan('create'); const row = createVoucherFromIssue(database().db, id, actor)
+
+  database().persist()
+
+  return row
+}
+export async function draftVoucherFromProfit() {
+  const actor = assertCan('create'); const row = createVoucherFromProfit(database().db, actor)
+
+  database().persist()
+
+  return row
+}
+

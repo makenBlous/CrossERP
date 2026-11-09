@@ -1,10 +1,13 @@
+/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
+/* eslint-disable max-statements-per-line */
 import { fetchIssues } from '@/api/finance'
 import ListPage from '@/components/biz/ListPage.vue'
 import MoneyText from '@/components/biz/MoneyText.vue'
 import type { IssueCode, IssueRow } from '@/types/domain'
 
 const { t } = useI18n({ useScope: 'global' })
+const router = useRouter()
 const rows = ref<IssueRow[]>([])
 
 const codes: IssueCode[] = [
@@ -72,6 +75,7 @@ const filters = computed(() => [
     :items="rows"
     :columns="columns"
     :filters="filters"
+    @open="item => router.push(`/finance/issues/${item.id}`)"
   >
     <template #item.severity="{ item }">
       <VChip
@@ -95,3 +99,4 @@ const filters = computed(() => [
     </template>
   </ListPage>
 </template>
+

@@ -9,6 +9,18 @@ export async function fetchApprovals() {
   return projectApprovals(database().db)
 }
 
+export async function fetchApproval(id: string) {
+  await delay()
+
+  return projectApprovals(database().db).find(item => item.id === id) ?? null
+}
+
+export async function fetchSubmittedApprovals() {
+  await delay()
+
+  return projectApprovals(database().db).filter(item => item.submitter === '林夏' || item.status !== 'pending')
+}
+
 // 未来: POST /api/v1/approvals/{id}/decide
 export async function decideApproval(id: string, status: Extract<ApprovalStatus, 'approved' | 'rejected'>) {
   await delay()

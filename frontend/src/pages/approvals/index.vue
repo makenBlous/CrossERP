@@ -1,4 +1,6 @@
+/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
+/* eslint-disable max-statements-per-line */
 import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
 import { decideApproval, fetchApprovals } from '@/api/approvals'
 import ListPage from '@/components/biz/ListPage.vue'
@@ -183,3 +185,4 @@ async function decide(status: ApprovalStatus) {
     </VNavigationDrawer>
   </div>
 </template>
+

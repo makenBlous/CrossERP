@@ -1,10 +1,13 @@
+/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
+/* eslint-disable max-statements-per-line */
 import { fetchVouchers } from '@/api/finance'
 import ListPage from '@/components/biz/ListPage.vue'
 import MoneyText from '@/components/biz/MoneyText.vue'
 import type { VoucherRow, VoucherStatus } from '@/types/domain'
 
 const { t } = useI18n({ useScope: 'global' })
+const router = useRouter()
 const rows = ref<VoucherRow[]>([])
 
 onMounted(async () => {
@@ -39,6 +42,7 @@ const filters = computed(() => [{
     :items="rows"
     :columns="columns"
     :filters="filters"
+    @open="item => router.push(`/finance/vouchers/${item.id}`)"
   >
     <template #item.status="{ item }">
       <StatusChip
@@ -68,3 +72,4 @@ const filters = computed(() => [{
     </template>
   </ListPage>
 </template>
+
