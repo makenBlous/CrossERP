@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { fetchFxRates } from '@/api/finance'
-import FinanceTablePage, { type FinanceRow } from '@/pages/finance/_components/FinanceTablePage.vue'
+import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchFxRates>>>([])
 
@@ -20,4 +20,3 @@ const columns = [{ key: 'period', title: '期间' }, { key: 'fromCcy', title: '�
     :columns="columns"
   />
 </template>
-

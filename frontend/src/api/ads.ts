@@ -29,4 +29,3 @@ export async function saveAdAllocation(sku: string, ratio: number) {
 
   return readMock(row)
 }
-

@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { fetchSubmittedApprovals } from '@/api/approvals'
-import FinanceTablePage, { type FinanceRow } from '@/pages/finance/_components/FinanceTablePage.vue'
+import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchSubmittedApprovals>>>([])
 
@@ -28,4 +28,3 @@ const columns = [{ key: 'title', title: '审批事项' }, { key: 'type', title: 
     </template>
   </FinanceTablePage>
 </template>
-

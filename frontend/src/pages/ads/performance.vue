@@ -3,7 +3,7 @@
 /* eslint-disable max-statements-per-line */
 import type { ApexOptions } from 'apexcharts'
 import { fetchAdPerformance } from '@/api/ads'
-import FinanceTablePage, { type FinanceRow } from '@/pages/finance/_components/FinanceTablePage.vue'
+import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 import { useChartTheme } from '@/composables/useChartTheme'
 
 const chart = useChartTheme(); const rows = ref<Awaited<ReturnType<typeof fetchAdPerformance>>>([])
@@ -39,4 +39,3 @@ const options = computed<ApexOptions>(() => ({ chart: { toolbar: { show: false }
     />
   </div>
 </template>
-

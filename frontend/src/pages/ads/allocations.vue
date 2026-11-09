@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { fetchAllocations, saveAdAllocation } from '@/api/ads'
-import FinanceTablePage, { type FinanceRow } from '@/pages/finance/_components/FinanceTablePage.vue'
+import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchAllocations>>>([]); const sku = ref(''); const ratio = ref(10)
 
@@ -70,4 +70,3 @@ async function save() {
     />
   </div>
 </template>
-

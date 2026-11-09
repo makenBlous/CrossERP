@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { fetchExports } from '@/api/finance'
-import FinanceTablePage, { type FinanceRow } from '@/pages/finance/_components/FinanceTablePage.vue'
+import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchExports>>>([])
 
@@ -38,4 +38,3 @@ const columns = [{ key: 'fileName', title: '文件' }, { key: 'target', title: '
     </template>
   </FinanceTablePage>
 </template>
-

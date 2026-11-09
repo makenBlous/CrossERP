@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { fetchSettlements } from '@/api/finance'
-import FinanceTablePage, { type FinanceRow } from '@/pages/finance/_components/FinanceTablePage.vue'
+import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchSettlements>>>([])
 
@@ -21,4 +21,3 @@ const columns = [{ key: 'externalId', title: '结算编号' }, { key: 'storeName
     :columns="columns"
   />
 </template>
-

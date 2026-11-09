@@ -144,4 +144,3 @@ export async function draftVoucherFromProfit() {
 
   return row
 }
-

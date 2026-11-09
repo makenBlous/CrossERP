@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { fetchAdCampaigns } from '@/api/ads'
-import FinanceTablePage, { type FinanceRow } from '@/pages/finance/_components/FinanceTablePage.vue'
+import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchAdCampaigns>>>([])
 
@@ -20,4 +20,3 @@ const columns = [{ key: 'name', title: '活动' }, { key: 'storeName', title: '�
     :columns="columns"
   />
 </template>
-

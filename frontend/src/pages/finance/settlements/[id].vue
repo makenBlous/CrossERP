@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { fetchSettlement } from '@/api/finance'
-import FinanceDetail from '@/pages/finance/_components/FinanceDetail.vue'
+import FinanceDetail from '@/views/finance/FinanceDetail.vue'
 
 const route = useRoute(); const row = ref<NonNullable<Awaited<ReturnType<typeof fetchSettlement>>> | null>(null)
 
@@ -60,4 +60,3 @@ onMounted(async () => { row.value = await fetchSettlement(String((route.params a
     </VCard>
   </FinanceDetail><EmptyState v-else />
 </template>
-

@@ -88,4 +88,3 @@ async function decide(status: 'approved' | 'rejected') {
     </VCard>
   </DetailPage><EmptyState v-else />
 </template>
-

@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { draftVoucherFromIssue, fetchIssueDetail, resolveIssue } from '@/api/finance'
-import FinanceDetail from '@/pages/finance/_components/FinanceDetail.vue'
+import FinanceDetail from '@/views/finance/FinanceDetail.vue'
 
 const route = useRoute(); const router = useRouter(); const row = ref<NonNullable<Awaited<ReturnType<typeof fetchIssueDetail>>> | null>(null); const note = ref(''); const saving = ref(false)
 
@@ -86,4 +86,3 @@ async function createVoucher() {
     </VCard>
   </FinanceDetail><EmptyState v-else />
 </template>
-

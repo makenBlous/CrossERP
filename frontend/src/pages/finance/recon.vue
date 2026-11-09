@@ -1,6 +1,4 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import { fetchReconRuns } from '@/api/finance'
 import ListPage from '@/components/biz/ListPage.vue'
 import type { ReconRun } from '@/types/domain'
@@ -82,4 +80,3 @@ const filters = computed(() => [{
     </ListPage>
   </div>
 </template>
-

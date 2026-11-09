@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { confirmFee, fetchFeeMap } from '@/api/finance'
-import FinanceTablePage, { type FinanceRow } from '@/pages/finance/_components/FinanceTablePage.vue'
+import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchFeeMap>>>([])
 
@@ -39,4 +39,3 @@ async function confirm(row: FinanceRow) { rows.value = await confirmFee(String(r
     </template>
   </FinanceTablePage>
 </template>
-

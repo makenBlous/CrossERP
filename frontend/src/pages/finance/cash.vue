@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { fetchCash } from '@/api/finance'
-import FinanceTablePage, { type FinanceRow } from '@/pages/finance/_components/FinanceTablePage.vue'
+import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchCash>>>([])
 
@@ -20,4 +20,3 @@ const columns = [{ key: 'date', title: '日期' }, { key: 'account', title: '资
     :columns="columns"
   />
 </template>
-

@@ -1,6 +1,4 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import type { ApexOptions } from 'apexcharts'
 import { draftVoucherFromProfit, fetchProfit } from '@/api/finance'
 import ListPage from '@/components/biz/ListPage.vue'
@@ -180,4 +178,3 @@ const skuColumns = computed(() => [
     </ListPage>
   </div>
 </template>
-

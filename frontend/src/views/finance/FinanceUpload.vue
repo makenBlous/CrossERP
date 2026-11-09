@@ -1,6 +1,4 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 const props = withDefaults(defineProps<{ title: string; subtitle: string; accept?: string }>(), { accept: '.csv,.txt,.xlsx' })
 const file = ref<File | null>(null)
 const uploaded = ref(false)
@@ -55,4 +53,3 @@ function upload() {
     <slot />
   </div>
 </template>
-

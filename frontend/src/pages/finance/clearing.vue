@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { fetchClearing } from '@/api/finance'
-import FinanceTablePage, { type FinanceRow } from '@/pages/finance/_components/FinanceTablePage.vue'
+import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchClearing>>>([])
 
@@ -36,4 +36,3 @@ const columns = [{ key: 'payout', title: '打款' }, { key: 'ar', title: '应收
     </template>
   </FinanceTablePage>
 </template>
-

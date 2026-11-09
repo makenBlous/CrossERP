@@ -1,6 +1,4 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import DetailPage from '@/components/biz/DetailPage.vue'
 
 defineProps<{
@@ -26,4 +24,3 @@ defineProps<{
     <slot />
   </DetailPage>
 </template>
-

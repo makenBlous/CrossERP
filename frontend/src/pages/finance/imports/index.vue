@@ -2,8 +2,8 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { fetchImports } from '@/api/finance'
-import FinanceTablePage, { type FinanceRow } from '@/pages/finance/_components/FinanceTablePage.vue'
-import FinanceUpload from '@/pages/finance/_components/FinanceUpload.vue'
+import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
+import FinanceUpload from '@/views/finance/FinanceUpload.vue'
 import type { ImportBatchRow } from '@/mocks/services/finance'
 
 const rows = ref<ImportBatchRow[]>([])
@@ -28,4 +28,3 @@ const columns = [{ key: 'fileName', title: '文件' }, { key: 'connector', title
     />
   </FinanceUpload>
 </template>
-

@@ -1,6 +1,4 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import { fetchIssues } from '@/api/finance'
 import ListPage from '@/components/biz/ListPage.vue'
 import MoneyText from '@/components/biz/MoneyText.vue'
@@ -99,4 +97,3 @@ const filters = computed(() => [
     </template>
   </ListPage>
 </template>
-

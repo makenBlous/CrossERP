@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { fetchAccounts } from '@/api/finance'
-import FinanceTablePage, { type FinanceRow } from '@/pages/finance/_components/FinanceTablePage.vue'
+import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchAccounts>>>([])
 
@@ -30,4 +30,3 @@ const columns = [{ key: 'code', title: '科目编码' }, { key: 'name', title: '
     </template>
   </FinanceTablePage>
 </template>
-

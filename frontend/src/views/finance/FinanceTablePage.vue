@@ -1,6 +1,4 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import ListPage from '@/components/biz/ListPage.vue'
 
 export interface FinanceRow { id: string; [key: string]: unknown }
@@ -57,4 +55,3 @@ function open(row: FinanceRow) {
     </ListPage>
   </div>
 </template>
-

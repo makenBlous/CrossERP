@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { fetchProfit } from '@/api/finance'
-import FinanceDetail from '@/pages/finance/_components/FinanceDetail.vue'
+import FinanceDetail from '@/views/finance/FinanceDetail.vue'
 
 const route = useRoute(); const payload = ref<Awaited<ReturnType<typeof fetchProfit>>>(); const row = computed(() => payload.value?.rows.find(item => item.sku === String((route.params as Record<string, string>).internalSku)))
 
@@ -38,4 +38,3 @@ onMounted(async () => { payload.value = await fetchProfit() })
     </VRow>
   </FinanceDetail><EmptyState v-else />
 </template>
-

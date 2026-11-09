@@ -2,7 +2,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { fetchColumnMaps } from '@/api/finance'
-import FinanceTablePage, { type FinanceRow } from '@/pages/finance/_components/FinanceTablePage.vue'
+import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchColumnMaps>>>([])
 
@@ -20,4 +20,3 @@ const columns = [{ key: 'connector', title: '连接器' }, { key: 'name', title:
     :columns="columns"
   />
 </template>
-
