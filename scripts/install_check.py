@@ -59,6 +59,45 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
 
 
+def _stop_process(process: subprocess.Popen[Any]) -> None:
+    """停掉服务进程及其子进程。uv 的 Windows 启动器退出后子进程仍可能占着 SQLite。"""
+    if process.poll() is not None:
+        return
+    if os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except FileNotFoundError:
+            process.kill()
+    else:
+        process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=10)
+
+
+def _cleanup_directory(path: Path, *, timeout: float = 15.0) -> None:
+    """删除临时目录。Windows 释放 SQLite 句柄有延迟，占用时重试。"""  # noqa: RUF002
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            shutil.rmtree(path)
+        except FileNotFoundError:
+            return
+        except PermissionError as exc:
+            if time.monotonic() >= deadline:
+                raise RuntimeError(f"无法删除临时目录 {path}: {exc}") from exc
+            time.sleep(0.2)
+            continue
+        return
+
+
 def _wait_for_health(
     url: str, *, timeout: float = 90.0, process: subprocess.Popen[bytes] | None = None
 ) -> None:
@@ -147,8 +186,9 @@ def main() -> int:
     if not executable.exists():
         raise RuntimeError(f"uv tool 未生成命令: {executable}")
 
-    with tempfile.TemporaryDirectory(prefix="crosserp-install-check-") as raw_dir:
-        work = Path(raw_dir)
+    work = Path(tempfile.mkdtemp(prefix="crosserp-install-check-"))
+    process: subprocess.Popen[bytes] | None = None
+    try:
         database = work / "data.db"
         demo_database = work / "demo.db"
         database_url = f"sqlite:///{database.as_posix()}"
@@ -192,22 +232,16 @@ def main() -> int:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        try:
-            step("serve", lambda: _wait_for_health(f"{base_url}/health", process=process))
-            begin = time.perf_counter()
-            result["login_success"] = _login(base_url, username, password)
-            result["steps"].append(
-                {"name": "login", "seconds": round(time.perf_counter() - begin, 3)}
-            )
-            if not result["login_success"]:
-                raise RuntimeError("登录失败")
-        finally:
-            process.terminate()
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
+        step("serve", lambda: _wait_for_health(f"{base_url}/health", process=process))
+        begin = time.perf_counter()
+        result["login_success"] = _login(base_url, username, password)
+        result["steps"].append({"name": "login", "seconds": round(time.perf_counter() - begin, 3)})
+        if not result["login_success"]:
+            raise RuntimeError("登录失败")
+    finally:
+        if process is not None:
+            _stop_process(process)
+        _cleanup_directory(work)
 
     result["total_seconds"] = round(time.perf_counter() - started, 3)
     args.output.parent.mkdir(parents=True, exist_ok=True)
