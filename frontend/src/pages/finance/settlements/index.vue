@@ -28,7 +28,7 @@ const columns = [{ key: 'externalId', title: '结算编号' }, { key: 'storeName
       </RouterLink>
     </template>
     <template #item.totalDisplay="{ item }">
-      <MoneyText :amount="item.total" :currency="item.currency" minor />
+      <MoneyText :amount="Number(item.total)" :currency="item.currency as any" minor />
     </template>
     <template #item.status="{ item }">
       <div class="d-flex align-center gap-2">
