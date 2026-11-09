@@ -14,6 +14,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from html.parser import HTMLParser
 from http.cookiejar import CookieJar
 from pathlib import Path
 from typing import Any
@@ -116,13 +117,36 @@ def _wait_for_health(
     raise RuntimeError(f"服务未在 {timeout:.0f}s 内就绪: {last_error}")
 
 
+class _LoginCsrfParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.token = ""
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag != "input":
+            return
+        data = dict(attrs)
+        if data.get("name") == "csrf_token":
+            self.token = data.get("value") or ""
+
+
+def _form_csrf(html: str) -> str:
+    parser = _LoginCsrfParser()
+    parser.feed(html)
+    return parser.token
+
+
 def _login(base_url: str, username: str, password: str) -> bool:
     jar = CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
     with opener.open(f"{base_url}/login", timeout=5) as response:
         if response.status != 200:
             return False
-    csrf = next((cookie.value for cookie in jar if cookie.name == "crosserp_login_csrf"), "")
+        html = response.read().decode("utf-8")
+    # 必须用页面隐藏字段. 只读 Set-Cookie 会放过表单令牌为空的回归.
+    csrf = _form_csrf(html)
+    if not csrf:
+        return False
     payload = urlencode(
         {
             "username": username,

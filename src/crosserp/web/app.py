@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-import secrets
 import tempfile
 import time
 from collections.abc import Awaitable, Callable, Iterator
@@ -14,7 +13,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Form, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import or_, select
@@ -66,10 +71,16 @@ from crosserp.issues.service import transition as transition_issue
 from crosserp.ledger.write_service import ApprovalRequired
 from crosserp.ledger.write_service import export_many as export_ledger_many
 from crosserp.observability.stats import summarize
+from crosserp.web.csrf import login_form_token, valid_pair
 from crosserp.web.deps import require
 
 _WEB_DIR = Path(__file__).parent
 _DUMMY_HASH = hash_password("CrossERP dummy password value")
+
+
+def plain_text(content: str, status_code: int) -> PlainTextResponse:
+    """纯文本必须声明 UTF-8. 响应带 nosniff, 未声明字符集时中文 Windows 会按 GBK 显示."""
+    return PlainTextResponse(content, status_code=status_code)
 
 
 def create_app(database_url: str | None = None) -> FastAPI:
@@ -111,7 +122,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             user_agent=request.headers.get("user-agent"),
             detail={"permission": permission, "path": request.url.path, "method": request.method},
         )
-        return Response("你没有权限做这件事", status_code=403)
+        return plain_text("你没有权限做这件事", 403)
 
     @app.middleware("http")
     async def security_headers(
@@ -128,12 +139,14 @@ def create_app(database_url: str | None = None) -> FastAPI:
 
     @app.get("/login", response_class=HTMLResponse)
     def login_page(request: Request, next: str = "/") -> Response:
+        token, issue = login_form_token(request.cookies.get("crosserp_login_csrf"))
         response = templates.TemplateResponse(
-            request, "login.html", {"next": _safe_next(next), "error": None}
+            request,
+            "login.html",
+            {"next": _safe_next(next), "error": None, "csrf_token": token},
         )
-        response.set_cookie(
-            "crosserp_login_csrf", secrets.token_urlsafe(24), samesite="lax", path="/"
-        )
+        if issue:
+            response.set_cookie("crosserp_login_csrf", token, samesite="lax", path="/")
         return response
 
     @app.post("/login", response_class=HTMLResponse)
@@ -144,8 +157,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
         next: str = Form("/"),
         csrf_token: str = Form(""),
     ) -> Response:
-        if not csrf_token or csrf_token != request.cookies.get("crosserp_login_csrf"):
-            return Response("CSRF 校验失败", status_code=403)
+        if not valid_pair(request.cookies.get("crosserp_login_csrf"), csrf_token):
+            return plain_text("CSRF 校验失败", 403)
         now = datetime.now(UTC)
         with sessions() as session:
             user = get_by_username(session, username)
@@ -168,7 +181,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
                 return templates.TemplateResponse(
                     request,
                     "login.html",
-                    {"next": _safe_next(next), "error": message},
+                    {"next": _safe_next(next), "error": message, "csrf_token": csrf_token},
                     status_code=401,
                 )
             user.failed_logins = 0
@@ -206,7 +219,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     @app.post("/logout")
     def logout(request: Request, csrf_token: str = Form(...)) -> Response:
         if request.cookies.get("crosserp_csrf") != csrf_token:
-            return Response("CSRF 校验失败", status_code=403)
+            return plain_text("CSRF 校验失败", 403)
         with sessions() as session:
             revoke_session(session, request.cookies.get("crosserp_session"))
             record_security(
@@ -286,7 +299,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     ) -> Response:
         """从利润表提交一个利润报表审批单。"""
         if csrf_token != request.cookies.get("crosserp_csrf"):
-            return Response("CSRF 校验失败", status_code=403)
+            return plain_text("CSRF 校验失败", 403)
         with sessions() as session:
             user = current(request, session)
             if user is None:
@@ -312,7 +325,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
                     actor_name=user.username,
                 )
             except (LookupError, ValueError) as exc:
-                return Response(str(exc), status_code=400)
+                return plain_text(str(exc), 400)
         return RedirectResponse("/profit", status_code=303)
 
     @app.get("/approvals", response_class=HTMLResponse)
@@ -360,7 +373,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             except ValueError:
                 row = None
             if row is None:
-                return Response("审批单不存在", status_code=404)
+                return plain_text("审批单不存在", 404)
             current_hash: str | None = None
             snapshots: list[tuple[ProfitSnapshot, Store]] = []
             if row.target_type == "profit_report":
@@ -411,11 +424,11 @@ def create_app(database_url: str | None = None) -> FastAPI:
         from uuid import UUID
 
         if csrf_token != request.cookies.get("crosserp_csrf"):
-            return Response("CSRF 校验失败", status_code=403)
+            return plain_text("CSRF 校验失败", 403)
         if action not in {"approve", "reject"}:
-            return Response("不认识的审批动作", status_code=400)
+            return plain_text("不认识的审批动作", 400)
         if not comment.strip() or len(comment) > 1000:
-            return Response("审批意见必填，且不能超过 1000 个字符", status_code=400)  # noqa: RUF001
+            return plain_text("审批意见必填，且不能超过 1000 个字符", 400)  # noqa: RUF001
         approved_token: str | None = None
         approved_batch: str | None = None
         with sessions() as session:
@@ -426,7 +439,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
                 return permission_denied(session, user, request, Permission.APPROVAL_DECIDE.value)
             row = session.get(Approval, UUID(approval_id))
             if row is None:
-                return Response("审批单不存在", status_code=404)
+                return plain_text("审批单不存在", 404)
             setting = session.get(AppSetting, "solo_mode")
             solo_mode = bool(setting.value_json) if setting is not None else False
             try:
@@ -436,7 +449,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
                 else:
                     current_hash = row.payload_hash
                 if action == "approve" and row.payload_hash != current_hash:
-                    return Response("数据已变，需要重新提交", status_code=400)  # noqa: RUF001
+                    return plain_text("数据已变，需要重新提交", 400)  # noqa: RUF001
                 if action == "approve":
                     approved_token = approve_approval(
                         session,
@@ -463,9 +476,9 @@ def create_app(database_url: str | None = None) -> FastAPI:
                         solo_mode=solo_mode,
                     )
             except ConcurrentModification:
-                return Response("别人刚处理过，请刷新", status_code=409)  # noqa: RUF001
+                return plain_text("别人刚处理过，请刷新", 409)  # noqa: RUF001
             except (LookupError, ValueError) as exc:
-                return Response(str(exc), status_code=400)
+                return plain_text(str(exc), 400)
         if approved_token is not None and approved_batch is not None:
             try:
                 with sessions() as export_session:
@@ -477,7 +490,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
                         output_dir=Path.cwd() / "exports",
                     )
             except (ApprovalRequired, LookupError, ValueError, FileExistsError) as exc:
-                return Response(str(exc), status_code=400)
+                return plain_text(str(exc), 400)
         return RedirectResponse(f"/approvals/{approval_id}", status_code=303)
 
     @app.get("/vouchers", response_class=HTMLResponse)
@@ -508,7 +521,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             except ValueError:
                 row = None
             if row is None:
-                return Response("凭证不存在", status_code=404)
+                return plain_text("凭证不存在", 404)
             lines = list(
                 session.scalars(
                     select(VoucherLine)
@@ -540,7 +553,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
         from uuid import UUID
 
         if target not in {"kingdee_xlsx", "generic_xlsx"}:
-            return Response("不支持的凭证格式", status_code=400)
+            return plain_text("不支持的凭证格式", 400)
         denial_batch: str | None = None
         path: Path | None = None
         with sessions() as session:
@@ -554,7 +567,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             except ValueError:
                 voucher = None
             if voucher is None:
-                return Response("凭证不存在", status_code=404)
+                return plain_text("凭证不存在", 404)
             artifact = session.scalar(
                 select(ExportArtifact)
                 .join(Approval, Approval.id == ExportArtifact.approval_id)
@@ -580,8 +593,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
                         output_dir=Path.cwd() / "exports",
                     )
             except ApprovalRequired as exc:
-                return Response(str(exc), status_code=403)
-            return Response("凭证文件不存在", status_code=403)
+                return plain_text(str(exc), 403)
+            return plain_text("凭证文件不存在", 403)
         assert path is not None
         return FileResponse(path, filename=path.name)
 
@@ -602,7 +615,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
         request: Request, question: str = Form(...), csrf_token: str = Form(...)
     ) -> Response:
         if csrf_token != request.cookies.get("crosserp_csrf"):
-            return Response("CSRF 校验失败", status_code=403)
+            return plain_text("CSRF 校验失败", 403)
         with sessions() as session:
             user = current(request, session)
             if user is None:
@@ -610,11 +623,11 @@ def create_app(database_url: str | None = None) -> FastAPI:
             if not require(session, user, Permission.AI_ASK):
                 return permission_denied(session, user, request, Permission.AI_ASK.value)
             if len(question) > 500:
-                return Response("问题不能超过 500 个字符", status_code=400)
+                return plain_text("问题不能超过 500 个字符", 400)
             now = time.monotonic()
             recent = [item for item in ask_times.get(user.username, []) if now - item < 60]
             if len(recent) >= 6:
-                return Response("请求过于频繁，请稍后再试", status_code=429)  # noqa: RUF001
+                return plain_text("请求过于频繁，请稍后再试", 429)  # noqa: RUF001
             ask_times[user.username] = [*recent, now]
             try:
                 answer = ask_agent(question, user_ctx=user.username)
@@ -661,7 +674,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
         }
         model = allowed.get(table)
         if model is None:
-            return Response("行不存在", status_code=404)
+            return plain_text("行不存在", 404)
         with sessions() as session:
             user = current(request, session)
             if user is None:
@@ -673,7 +686,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             except ValueError:
                 row = None
             if row is None:
-                return Response("行不存在", status_code=404)
+                return plain_text("行不存在", 404)
             values = {column.name: getattr(row, column.name) for column in model.__table__.columns}
         return templates.TemplateResponse(
             request,
@@ -707,7 +720,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
         request: Request, name: str = Form(...), csrf_token: str = Form(...)
     ) -> Response:
         if csrf_token != request.cookies.get("crosserp_csrf"):
-            return Response("CSRF 校验失败", status_code=403)
+            return plain_text("CSRF 校验失败", 403)
         with sessions() as session:
             user = current(request, session)
             if user is None:
@@ -745,7 +758,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
                 return permission_denied(session, user, request, Permission.LLM_MONITOR_READ.value)
             row = session.get(LlmCall, UUID(call_id))
             if row is None:
-                return Response("调用不存在", status_code=404)
+                return plain_text("调用不存在", 404)
         return templates.TemplateResponse(
             request, "llm_call.html", {"request": request, "row": row, "user": user}
         )
@@ -830,7 +843,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             f"业务链: {'正常' if business.ok else '损坏'}; "
             f"security 链: {'正常' if security_ok else '损坏'}"
         )
-        return Response(status, media_type="text/plain")
+        return plain_text(status, 200)
 
     @app.get("/audit/export")
     def audit_export_page(request: Request) -> Response:
@@ -906,7 +919,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
                 return login_redirect(request)
             issue = session.get(Issue, UUID(issue_id))
             if issue is None:
-                return Response("异常不存在", status_code=404)
+                return plain_text("异常不存在", 404)
         return HTMLResponse(
             f"<h1>异常详情</h1><p>状态：{issue.status}</p><pre>{issue.detail_json}</pre>"  # noqa: RUF001
         )
@@ -922,7 +935,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
         from uuid import UUID
 
         if csrf_token != request.cookies.get("crosserp_csrf"):
-            return Response("CSRF 校验失败", status_code=403)
+            return plain_text("CSRF 校验失败", 403)
         with sessions() as session:
             user = current(request, session)
             if user is None:
@@ -932,7 +945,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             try:
                 transition_issue(session, UUID(issue_id), status, note)
             except (ValueError, LookupError) as exc:
-                return Response(str(exc), status_code=400)
+                return plain_text(str(exc), 400)
         return RedirectResponse(f"/issues/{issue_id}", status_code=303)
 
     @app.get("/security-log", response_class=HTMLResponse)
@@ -975,7 +988,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
         request: Request, solo_mode: str = Form(...), csrf_token: str = Form(...)
     ) -> Response:
         if csrf_token != request.cookies.get("crosserp_csrf"):
-            return Response("CSRF 校验失败", status_code=403)
+            return plain_text("CSRF 校验失败", 403)
         with sessions() as session:
             user = current(request, session)
             if user is None:
@@ -1020,7 +1033,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
         csrf_token: str = Form(...),
     ) -> Response:
         if csrf_token != request.cookies.get("crosserp_csrf"):
-            return Response("CSRF 校验失败", status_code=403)
+            return plain_text("CSRF 校验失败", 403)
         with sessions() as session:
             actor = current(request, session)
             if actor is None:
@@ -1028,7 +1041,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
             if not require(session, actor, Permission.USER_MANAGE):
                 return permission_denied(session, actor, request, Permission.USER_MANAGE.value)
             if get_by_username(session, username) is not None:
-                return Response("用户已存在", status_code=400)
+                return plain_text("用户已存在", 400)
             new_user = create_user(session, username=username, password=password, roles=())
             grant_role(session, new_user.id, role, granted_by=actor.id)
             record_security(

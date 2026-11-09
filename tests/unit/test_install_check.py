@@ -85,3 +85,12 @@ def test_stop_process_releases_file_held_by_child(tmp_path: Path) -> None:
     install_check._cleanup_directory(tmp_path, timeout=10)
     assert parent.wait(timeout=5) is not None
     assert not tmp_path.exists()
+
+
+def test_install_login_reads_csrf_from_html() -> None:
+    html = (
+        '<input type="hidden" name="next" value="/">'
+        '<input type="hidden" name="csrf_token" value="issued-token">'
+    )
+    assert install_check._form_csrf(html) == "issued-token"
+    assert install_check._form_csrf('<input name="csrf_token" value="">') == ""

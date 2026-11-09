@@ -16,7 +16,7 @@ from crosserp.auth import security
 from crosserp.db.repo import approval as approval_repo
 from crosserp.mcp_server import server as mcp_server
 from crosserp.profit.report_csv import write_report_csv
-from crosserp.web.csrf import token_hash, valid_pair
+from crosserp.web.csrf import login_form_token, token_hash, valid_pair
 
 
 def test_csrf_security_and_mcp_helpers() -> None:
@@ -24,6 +24,13 @@ def test_csrf_security_and_mcp_helpers() -> None:
     assert valid_pair("x", "x")
     assert not valid_pair("x", "y")
     assert not valid_pair(None, "x")
+    assert not valid_pair("", "x")
+    issued, must_set = login_form_token(None)
+    assert must_set
+    assert login_form_token(issued) == (issued, False)
+    replaced, replace = login_form_token("not a token")
+    assert replace
+    assert replaced != "not a token"
     assert security.record_security_event("ignored") is None
     assert "get_profit" in mcp_server.registered_tools()
     assert not set(mcp_server.registered_tools()) & {"export", "approve"}
