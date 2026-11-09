@@ -17,11 +17,12 @@ const loading = ref(true)
 const error = ref('')
 const message = ref('')
 const search = ref('')
+const uploadFile = ref<File | null>(null)
 const form = reactive({ source: '领星', fileName: '', subject: '', supplierCount: '2', amount: '120000', channel: '钉钉', account: '', endpoint: '', threshold: '50000' })
 const wizardStep = ref(1)
 
 const id = computed(() => {
-  const value = route.params.id
+  const value = (route.params as Record<string, string | string[] | undefined>).id
   return Array.isArray(value) ? value[0] : value
 })
 
@@ -214,7 +215,7 @@ function rowStatus(row: GapBRow) {
           </VStepper>
           <template v-if="wizardStep === 1">
             <AppSelect v-model="form.source" label="数据来源" :items="['领星', '赛狐']" class="mb-4" />
-            <VFileInput v-model="form.fileName" label="上传 CSV/XLSX" accept=".csv,.xlsx,.xls" data-test="import-file" />
+            <VFileInput v-model="uploadFile" label="上传 CSV/XLSX" accept=".csv,.xlsx,.xls" data-test="import-file" />
           </template>
           <template v-else-if="wizardStep === 2">
             <VAlert type="info" variant="tonal" class="mb-4">AI 已建议 12 个列映射，请逐项确认后导入。AI 只提供建议，不直接导入。</VAlert>
