@@ -2,9 +2,9 @@
 import type { ApexOptions } from 'apexcharts'
 import { draftVoucherFromProfit, fetchProfit } from '@/api/finance'
 import ListPage from '@/components/biz/ListPage.vue'
+import MoneyText from '@/components/biz/MoneyText.vue'
 import { useChartTheme } from '@/composables/useChartTheme'
 import type { ProfitRow, StoreProfit } from '@/types/domain'
-import { formatMoney } from '@/utils/format'
 
 const { t } = useI18n({ useScope: 'global' })
 const chart = useChartTheme()
@@ -162,22 +162,46 @@ const skuColumns = computed(() => [
           >
             <td>{{ store.storeName }}</td>
             <td class="text-end">
-              {{ formatMoney(store.revenue, store.currency) }}
+              <MoneyText
+                :amount="store.revenue"
+                :currency="store.currency"
+                minor
+              />
             </td>
             <td class="text-end">
-              {{ formatMoney(store.platformFee, store.currency) }}
+              <MoneyText
+                :amount="store.platformFee"
+                :currency="store.currency"
+                minor
+              />
             </td>
             <td class="text-end">
-              {{ formatMoney(store.ads, store.currency) }}
+              <MoneyText
+                :amount="store.ads"
+                :currency="store.currency"
+                minor
+              />
             </td>
             <td class="text-end">
-              {{ formatMoney(store.firstMile, store.currency) }}
+              <MoneyText
+                :amount="store.firstMile"
+                :currency="store.currency"
+                minor
+              />
             </td>
             <td class="text-end">
-              {{ formatMoney(store.cost, store.currency) }}
+              <MoneyText
+                :amount="store.cost"
+                :currency="store.currency"
+                minor
+              />
             </td>
             <td class="text-end font-weight-medium">
-              {{ formatMoney(store.profit, store.currency) }}
+              <MoneyText
+                :amount="store.profit"
+                :currency="store.currency"
+                minor
+              />
             </td>
           </tr>
         </tbody>
@@ -192,22 +216,46 @@ const skuColumns = computed(() => [
       @open="item => router.push(`/finance/profit/sku/${item.sku}`)"
     >
       <template #item.revenue="{ item }">
-        {{ formatMoney(item.revenue, item.currency) }}
+        <MoneyText
+          :amount="item.revenue"
+          :currency="item.currency"
+          minor
+        />
       </template>
       <template #item.platformFee="{ item }">
-        {{ formatMoney(item.platformFee, item.currency) }}
+        <MoneyText
+          :amount="item.platformFee"
+          :currency="item.currency"
+          minor
+        />
       </template>
       <template #item.ads="{ item }">
-        {{ formatMoney(item.ads, item.currency) }}
+        <MoneyText
+          :amount="item.ads"
+          :currency="item.currency"
+          minor
+        />
       </template>
       <template #item.firstMile="{ item }">
-        {{ formatMoney(item.firstMile, item.currency) }}
+        <MoneyText
+          :amount="item.firstMile"
+          :currency="item.currency"
+          minor
+        />
       </template>
       <template #item.cost="{ item }">
-        {{ formatMoney(item.cost, item.currency) }}
+        <MoneyText
+          :amount="item.cost"
+          :currency="item.currency"
+          minor
+        />
       </template>
       <template #item.profit="{ item }">
-        {{ formatMoney(item.profit, item.currency) }}
+        <MoneyText
+          :amount="item.profit"
+          :currency="item.currency"
+          minor
+        />
       </template>
     </ListPage>
   </div>
