@@ -8,6 +8,7 @@ import type { ApprovalItem, ApprovalStatus } from '@/types/domain'
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
+const router = useRouter()
 const rows = ref<ApprovalItem[]>([])
 const selected = ref<ApprovalItem | null>(null)
 const drawer = ref(false)
@@ -40,6 +41,10 @@ const filters = computed(() => [{
 function open(item: ApprovalItem) {
   selected.value = item
   drawer.value = true
+}
+
+function goDetail(item: ApprovalItem) {
+  router.push(`/approvals/${item.id}`)
 }
 
 async function decide(status: ApprovalStatus) {
@@ -75,7 +80,7 @@ async function decide(status: ApprovalStatus) {
       :items="rows"
       :columns="columns"
       :filters="filters"
-      @open="open"
+      @open="goDetail"
     >
       <template #widgets>
         <VRow class="mb-6">
@@ -120,6 +125,11 @@ async function decide(status: ApprovalStatus) {
           minor
           :currency="item.currency"
         />
+      </template>
+      <template #item.title="{ item }">
+        <RouterLink :to="`/approvals/${item.id}`" class="text-primary font-weight-medium">
+          {{ item.title }}
+        </RouterLink>
       </template>
       <template #item.status="{ item }">
         <StatusChip

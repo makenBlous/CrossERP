@@ -11,6 +11,7 @@ const session = useSessionStore()
 const row = ref<NonNullable<Awaited<ReturnType<typeof fetchApproval>>> | null>(null)
 const comment = ref('')
 const saving = ref(false)
+const copied = ref(false)
 
 const canDecide = computed(() => Boolean(row.value && row.value.status === 'pending' && ['admin', 'finance'].includes(session.role) && row.value.submitter !== session.displayName))
 
@@ -25,6 +26,14 @@ async function decide(status: 'approved' | 'rejected') {
   saving.value = true
   row.value = await decideApproval(row.value.id, status, comment.value)
   saving.value = false
+}
+
+async function copyHash() {
+  if (!row.value?.payloadHash)
+    return
+  await navigator.clipboard.writeText(row.value.payloadHash)
+  copied.value = true
+  window.setTimeout(() => copied.value = false, 1600)
 }
 </script>
 
@@ -51,8 +60,11 @@ async function decide(status: 'approved' | 'rejected') {
     >
       <VCardText>
         <p>{{ row.summary }}</p>
-        <div class="text-caption font-monospace">
-          内容哈希：{{ row.payloadHash || `sha256:${row.id}` }}
+        <div class="d-flex align-center gap-2 text-caption font-monospace">
+          <span>内容哈希：{{ row.payloadHash }}</span>
+          <VBtn size="x-small" variant="tonal" prepend-icon="tabler-copy" @click="copyHash">
+            {{ copied ? '已复制' : '复制' }}
+          </VBtn>
         </div>
         <VTable class="mt-4">
           <thead>

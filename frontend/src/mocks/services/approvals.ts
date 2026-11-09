@@ -5,6 +5,30 @@ import { FlowError } from '@/mocks/services/errors'
 import { mustFind, nextId } from '@/mocks/services/ids'
 import { minorFromDecimal } from '@/utils/money'
 
+export function approvalPayload(approval: ApprovalEntity) {
+  return {
+    id: approval.id,
+    targetType: approval.targetType,
+    targetId: approval.targetId,
+    title: approval.title,
+    type: approval.type,
+    submitter: approval.submitter,
+    submittedAt: approval.submittedAt,
+    amount: approval.amount,
+    currency: approval.currency,
+    summary: approval.summary,
+    storeId: approval.storeId,
+    lines: approval.lines.map(line => ({ account: line.account, debit: line.debit, credit: line.credit })),
+  }
+}
+
+export async function approvalPayloadHash(approval: ApprovalEntity) {
+  const bytes = new TextEncoder().encode(JSON.stringify(approvalPayload(approval)))
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+
+  return `sha256:${[...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, '0')).join('')}`
+}
+
 export interface SuggestionInput {
   title: string
   summary: string
