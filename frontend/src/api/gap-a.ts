@@ -1,7 +1,7 @@
 import { delay } from '@/api/mock-client'
 import * as service from '@/mocks/services/gap-a'
 import type { CurrencyCode } from '@/types/domain'
-import type { ExpenseClaimLine, GapApprovalStatus } from '@/types/gap-a'
+import type { ExpenseClaimLine, ExportRebateDocument, GapApprovalStatus } from '@/types/gap-a'
 
 // 未来: GET /api/v1/expense/claims
 export async function fetchGapAClaims() {
@@ -78,6 +78,27 @@ export async function createGapATrip(input: { claimant: string; destination: str
   await delay()
 
   return service.createTrip(input)
+}
+
+// 未来: POST /api/v1/expense/trips/{id}/submit
+export async function submitGapATrip(id: string) {
+  await delay()
+
+  return service.submitTrip(id)
+}
+
+// 未来: POST /api/v1/expense/trips/{id}/match-suggestion
+export async function suggestGapATripClaim(id: string) {
+  await delay()
+
+  return service.suggestTripClaim(id)
+}
+
+// 未来: POST /api/v1/expense/trips/{id}/match
+export async function confirmGapATripClaim(id: string, claimId: string) {
+  await delay()
+
+  return service.confirmTripClaim(id, claimId)
 }
 
 // 未来: GET /api/v1/expense/policies
@@ -179,10 +200,17 @@ export async function createGapAFxVoucher(id: string) {
 }
 
 // 未来: GET /api/v1/tax/vat-returns
-export async function fetchGapAVat() {
+export async function fetchGapAVat(period?: string) {
   await delay()
 
-  return service.listVat()
+  return service.listVat(period)
+}
+
+// 未来: POST /api/v1/tax/vat-returns/{id}/submit
+export async function submitGapAVat(id: string) {
+  await delay()
+
+  return service.submitVat(id)
 }
 
 // 未来: GET /api/v1/tax/export-rebates
@@ -190,6 +218,20 @@ export async function fetchGapARebates() {
   await delay()
 
   return service.listRebates()
+}
+
+// 未来: POST /api/v1/tax/export-rebates/{id}/documents
+export async function uploadGapARebateDocument(id: string, input: Omit<ExportRebateDocument, 'id' | 'uploadedAt'>) {
+  await delay()
+
+  return service.uploadRebateDocument(id, input)
+}
+
+// 未来: POST /api/v1/tax/export-rebates/{id}/validate
+export async function validateGapARebate(id: string) {
+  await delay()
+
+  return service.validateRebate(id)
 }
 
 // 未来: GET /api/v1/finance/vouchers

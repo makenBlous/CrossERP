@@ -67,6 +67,8 @@ export interface TravelRequest {
   currency: CurrencyCode
   status: 'draft' | 'submitted' | 'approved' | 'rejected'
   linkedClaimId?: string
+  matchRule?: string
+  matchConfirmedAt?: string
 }
 
 export interface ExpensePolicy {
@@ -158,6 +160,15 @@ export interface VatReturnRow {
   dueOn: string
   status: 'draft' | 'ready' | 'submitted'
   currency: CurrencyCode
+  submittedAt?: string
+}
+
+export interface ExportRebateDocument {
+  id: string
+  fileName: string
+  documentType: '报关单' | '进项发票' | '运输凭证' | '其他'
+  size: number
+  uploadedAt: string
 }
 
 export interface ExportRebateRow {
@@ -170,6 +181,7 @@ export interface ExportRebateRow {
   currency: CurrencyCode
   status: 'collecting' | 'ready' | 'submitted' | 'paid'
   dueOn: string
+  documents: ExportRebateDocument[]
 }
 
 export interface VoucherSourceLink {

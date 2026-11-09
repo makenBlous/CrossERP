@@ -1,8 +1,8 @@
 /* eslint-disable max-statements-per-line, sonarjs/no-same-line-conditional, @typescript-eslint/no-shadow */
 import type {
   BudgetRow, CogsRun, EmployeeLoan, ExpenseClaim, ExpenseClaimLine, ExpensePolicy, ExportRebateRow, FxRevaluationRow,
-  GapAAuditEvent, GapAState, GapAVoucher, GapApprovalStatus, LedgerEntry, PeriodCloseState, StatementRow, TravelRequest, TrialBalanceRow,
-  VatReturnRow, VoucherSourceLink,
+  ExportRebateDocument, GapAAuditEvent, GapAState, GapAVoucher, GapApprovalStatus, LedgerEntry, PeriodCloseState, StatementRow, TravelRequest,
+  TrialBalanceRow, VatReturnRow, VoucherSourceLink,
 } from '@/types/gap-a'
 import { useSessionStore } from '@/stores/session'
 import { minorFromDecimal } from '@/utils/money'
@@ -73,7 +73,7 @@ function initialState(): GapAState {
     budgets: [{ id: 'budget-2026-11-ops', period: '2026-11', department: '运营部', account: '差旅费', budget: minorFromDecimal('10000'), actual: minorFromDecimal('8200'), currency: 'CNY', status: 'warning' }, { id: 'budget-2026-11-fin', period: '2026-11', department: '财务部', account: '办公费', budget: minorFromDecimal('12000'), actual: minorFromDecimal('3600'), currency: 'CNY', status: 'normal' }],
     fx: [{ id: 'fxr-001', period: '2026-10', currency: 'USD', closingRate: '7.12000000', balance: minorFromDecimal('12800'), gainLoss: minorFromDecimal('220.5'), status: 'preview' }, { id: 'fxr-002', period: '2026-10', currency: 'EUR', closingRate: '7.78000000', balance: minorFromDecimal('6200'), gainLoss: minorFromDecimal('-84.2'), status: 'preview' }],
     vat: [{ id: 'vat-001', store: 'Northwind Outdoor DE', period: '2026-Q4', outputTax: minorFromDecimal('2180'), inputTax: minorFromDecimal('920'), payable: minorFromDecimal('1260'), dueOn: '2027-01-31', status: 'ready', currency: 'EUR' }, { id: 'vat-002', store: 'Northwind Outdoor UK', period: '2026-Q4', outputTax: minorFromDecimal('1850'), inputTax: minorFromDecimal('1100'), payable: minorFromDecimal('750'), dueOn: '2027-01-31', status: 'draft', currency: 'GBP' }],
-    rebates: [{ id: 'rebate-001', declarationNo: 'DECL-2026-10-018', store: 'Northwind Outdoor US', period: '2026-10', inputInvoice: 'INV-2026-10-088', amount: minorFromDecimal('4860'), currency: 'CNY', status: 'collecting', dueOn: '2026-12-31' }],
+    rebates: [{ id: 'rebate-001', declarationNo: 'DECL-2026-10-018', store: 'Northwind Outdoor US', period: '2026-10', inputInvoice: 'INV-2026-10-088', amount: minorFromDecimal('4860'), currency: 'CNY', status: 'collecting', dueOn: '2026-12-31', documents: [] }],
     vouchers: [vch1, vch2, { id: 'vch-3', no: '记-2026-09-011', period: '2026-09', summary: '9 月利润凭证', status: 'posted', debit: minorFromDecimal('96220'), credit: minorFromDecimal('96220'), currency: 'CNY', sourceLinks: [{ sourceType: 'profit', sourceId: '2026-09', label: '2026-09 利润快照', to: '/finance/profit', amount: minorFromDecimal('96220'), currency: 'CNY' }], timeline: seedAudit('vch-3') }],
     audits: [...seedAudit('vch-1'), ...seedAudit('vch-3')],
     orderRules: [{ storeId: 'amz-us', store: 'Northwind Outdoor US', granularity: 'per_settlement' }, { storeId: 'amz-uk', store: 'Northwind Outdoor UK', granularity: 'per_period_summary' }, { storeId: 'shopify', store: 'northwind-outdoor.com', granularity: 'per_order' }],
@@ -90,7 +90,13 @@ function loadState() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
 
-    return saved ? JSON.parse(saved) as GapAState : initialState()
+    if (!saved)
+      return initialState()
+
+    const parsed = JSON.parse(saved) as GapAState
+    parsed.rebates = parsed.rebates.map(item => ({ ...item, documents: item.documents ?? [] }))
+
+    return parsed
   }
   catch {
     return initialState()
@@ -115,6 +121,62 @@ export function createTrip(input: Omit<TravelRequest, 'id' | 'status'>) {
   const item: TravelRequest = { ...input, id: nextId('trip'), status: 'draft' }
 
   state.trips.unshift(item)
+  addAudit(audit('trip-created', '创建差旅申请', `创建差旅申请 ${item.id}，预算由代码按申请填写保存。`), item.id)
+  persist()
+
+  return clone(item)
+}
+export function submitTrip(id: string) {
+  const item = state.trips.find(row => row.id === id)
+  if (!item)
+    return null
+  if (item.status !== 'draft')
+    throw new Error('只有草稿差旅申请可以提交')
+
+  item.status = 'submitted'
+  addAudit(audit('trip-submitted', '提交差旅申请', `差旅申请 ${id} 已进入人工审批。`), id)
+  persist()
+
+  return clone(item)
+}
+export function suggestTripClaim(id: string) {
+  const item = state.trips.find(row => row.id === id)
+  if (!item)
+    return null
+
+  const start = item.startOn.slice(0, 10)
+  const end = item.endOn.slice(0, 10)
+  const candidates = state.claims
+    .map(claimItem => {
+      const sameClaimant = claimItem.claimant === item.claimant
+      const inWindow = claimItem.lines.some(line => line.occurredOn >= start && line.occurredOn <= end)
+      const withinBudget = claimItem.total <= item.budget
+      const score = (sameClaimant ? 100 : 0) + (inWindow ? 50 : 0) + (withinBudget ? 20 : 0)
+
+      return { claim: claimItem, score }
+    })
+    .filter(candidate => candidate.score > 0)
+    .sort((left, right) => right.score - left.score || left.claim.id.localeCompare(right.claim.id))
+
+  const best = candidates[0]
+  if (!best)
+    throw new Error('没有找到符合差旅人、日期或预算规则的报销单')
+
+  addAudit(audit('trip-match-suggested', '模拟匹配建议', `按人员、日期窗口、预算规则建议关联报销 ${best.claim.id}，等待人工确认。`), id)
+  persist()
+
+  return clone({ trip: item, claim: best.claim, score: best.score, rule: '同人员优先，其次日期在出差窗口内，且报销金额不超过预算' })
+}
+export function confirmTripClaim(id: string, claimId: string) {
+  const item = state.trips.find(row => row.id === id)
+  const claimItem = state.claims.find(row => row.id === claimId)
+  if (!item || !claimItem)
+    return null
+
+  item.linkedClaimId = claimId
+  item.matchRule = '人工确认：同人员/日期窗口/预算规则候选，可人工改选'
+  item.matchConfirmedAt = now()
+  addAudit(audit('trip-match-confirmed', '确认差旅匹配', `人工确认差旅 ${id} 关联报销 ${claimId}。`), id)
   persist()
 
   return clone(item)
@@ -136,8 +198,50 @@ export function listBudgets() { return clone(state.budgets) }
 export function budget(id: string) { return clone(state.budgets.find(item => item.id === id) ?? null) }
 export function listCogs() { return clone(state.cogs) }
 export function listFx() { return clone(state.fx) }
-export function listVat() { return clone(state.vat) }
+export function listVat(period?: string) { return clone(state.vat.filter(item => !period || item.period === period)) }
+export function submitVat(id: string) {
+  const item = state.vat.find(row => row.id === id)
+  if (!item)
+    return null
+  if (item.status === 'submitted')
+    return clone(item)
+  if (item.status === 'draft')
+    item.status = 'ready'
+  item.status = 'submitted'
+  item.submittedAt = now()
+  addAudit(audit('vat-submitted', '保存模拟 VAT 申报', `VAT ${id} 已保存为模拟申报记录，期间 ${item.period}。`), id)
+  persist()
+
+  return clone(item)
+}
 export function listRebates() { return clone(state.rebates) }
+export function uploadRebateDocument(id: string, input: Omit<ExportRebateDocument, 'id' | 'uploadedAt'>) {
+  const item = state.rebates.find(row => row.id === id)
+  if (!item)
+    return null
+  const document: ExportRebateDocument = { ...input, id: nextId('rebate-doc'), uploadedAt: now() }
+
+  item.documents.push(document)
+  if (['报关单', '进项发票', '运输凭证'].every(type => item.documents.some(row => row.documentType === type)))
+    item.status = 'ready'
+  addAudit(audit('rebate-document-uploaded', '模拟上传退税资料', `仅登记文件元数据：${document.fileName}（${document.documentType}，${document.size} 字节）。`), id)
+  persist()
+
+  return clone(item)
+}
+export function validateRebate(id: string) {
+  const item = state.rebates.find(row => row.id === id)
+  if (!item)
+    return null
+  const required = ['报关单', '进项发票', '运输凭证'] as const
+  const missing = required.filter(type => !item.documents.some(row => row.documentType === type))
+  if (!missing.length)
+    item.status = 'ready'
+  addAudit(audit('rebate-validated', '校验出口退税资料', missing.length ? `资料不齐全，缺少：${missing.join('、')}。` : '资料齐全，状态更新为待申报。'), id)
+  persist()
+
+  return clone({ item, missing })
+}
 export function listPeriods() { return clone(state.periods) }
 export function listOrderRules() { return clone(state.orderRules) }
 export function audits(refId?: string) { return clone(refId ? state.audits.filter(item => item.id.startsWith(refId) || item.detail.includes(refId)) : state.audits) }

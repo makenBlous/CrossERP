@@ -12,10 +12,12 @@ import { useAiModeStore } from '@/stores/ai-mode'
 import { useSessionStore } from '@/stores/session'
 import {
   closeGapAPeriod, createGapAClaim, createGapACogsVoucher, createGapAFxVoucher, createGapAPolicy, createGapAProfitVoucher, createGapATrip,
+  confirmGapATripClaim,
   decideGapAClaim, fetchGapAAudits, fetchGapABudget, fetchGapABudgets, fetchGapAClaim, fetchGapAClaims, fetchGapACogs,
   fetchGapAFx, fetchGapALedger, fetchGapALoan, fetchGapALoans, fetchGapAPeriods,
   fetchGapAPolicies, fetchGapARebates, fetchGapAStatement, fetchGapATrialBalance, fetchGapATrips, fetchGapAVat, generateGapAOrderVoucher,
-  offsetGapALoan, repayGapALoan, saveGapABudget, submitGapAClaim,
+  offsetGapALoan, repayGapALoan, saveGapABudget, submitGapAClaim, submitGapATrip, submitGapAVat, suggestGapATripClaim,
+  uploadGapARebateDocument, validateGapARebate,
 } from '@/api/gap-a'
 import type { BudgetRow, EmployeeLoan, ExpenseClaim, GapAPageKey } from '@/types/gap-a'
 import { minorFromDecimal } from '@/utils/money'
@@ -46,6 +48,14 @@ const selectedPolicy = ref<TableRow | null>(null)
 const policyInput = ref('0')
 const tripCreateMode = ref(false)
 const tripDraft = reactive({ destination: '', startOn: '2026-11-18', endOn: '2026-11-20', budget: '2400' })
+const selectedTripId = ref('')
+const tripMatch = ref<{ claim: { id: string; total: number; claimant: string }; score: number; rule: string } | null>(null)
+const vatPeriod = ref('all')
+const selectedRebateId = ref('')
+const rebateDrawerOpen = ref(false)
+const rebateDocumentType = ref<'报关单' | '进项发票' | '运输凭证' | '其他'>('报关单')
+const rebateFile = ref<File | null>(null)
+const rebateValidation = ref<string[]>([])
 
 const titles: Record<GapAPageKey, [string, string]> = {
   EX01: ['报销单列表', '查看自己或下属的报销进度，金额由票面和代码合计。'],
@@ -80,7 +90,7 @@ const columns = computed(() => {
   const map: Record<string, Array<{ key: string; title: string; align?: 'end' }>> = {
     EX01: [{ key: 'id', title: '编号' }, { key: 'claimant', title: '提交人' }, { key: 'department', title: '部门' }, { key: 'total', title: '金额', align: 'end' }, { key: 'status', title: '状态' }, { key: 'origin', title: '来源' }],
     EX04: [{ key: 'id', title: '借款单' }, { key: 'claimant', title: '员工' }, { key: 'purpose', title: '用途' }, { key: 'amount', title: '借款', align: 'end' }, { key: 'outstanding', title: '未冲余额', align: 'end' }, { key: 'status', title: '状态' }, { key: 'actions', title: '操作' }],
-    EX06: [{ key: 'id', title: '申请单' }, { key: 'claimant', title: '申请人' }, { key: 'destination', title: '目的地' }, { key: 'startOn', title: '开始' }, { key: 'endOn', title: '结束' }, { key: 'budget', title: '预算', align: 'end' }, { key: 'status', title: '状态' }],
+    EX06: [{ key: 'id', title: '申请单' }, { key: 'claimant', title: '申请人' }, { key: 'destination', title: '目的地' }, { key: 'startOn', title: '开始' }, { key: 'endOn', title: '结束' }, { key: 'budget', title: '预算', align: 'end' }, { key: 'status', title: '状态' }, { key: 'linkedClaimId', title: '关联报销' }, { key: 'actions', title: '操作' }],
     EX07: [{ key: 'category', title: '费用类别' }, { key: 'department', title: '部门' }, { key: 'limit', title: '上限', align: 'end' }, { key: 'effectiveFrom', title: '生效日' }, { key: 'active', title: '启用' }, { key: 'actions', title: '操作' }],
     F23: [{ key: 'period', title: '期间' }, { key: 'account', title: '科目' }, { key: 'summary', title: '摘要' }, { key: 'debit', title: '借方', align: 'end' }, { key: 'credit', title: '贷方', align: 'end' }, { key: 'sourceId', title: '来源' }],
     F24: [{ key: 'account', title: '科目' }, { key: 'opening', title: '期初', align: 'end' }, { key: 'debit', title: '借方', align: 'end' }, { key: 'credit', title: '贷方', align: 'end' }, { key: 'closing', title: '期末', align: 'end' }],
@@ -91,8 +101,8 @@ const columns = computed(() => {
     F29: [{ key: 'period', title: '期间' }, { key: 'outboundCount', title: '出库数' }, { key: 'amount', title: '结转金额', align: 'end' }, { key: 'status', title: '状态' }],
     F30: [{ key: 'period', title: '期间' }, { key: 'department', title: '部门' }, { key: 'account', title: '科目' }, { key: 'budget', title: '预算', align: 'end' }, { key: 'actual', title: '实际', align: 'end' }, { key: 'status', title: '状态' }],
     F32: [{ key: 'period', title: '期间' }, { key: 'currency', title: '币种' }, { key: 'closingRate', title: '期末汇率' }, { key: 'balance', title: '余额', align: 'end' }, { key: 'gainLoss', title: '汇兑损益', align: 'end' }, { key: 'status', title: '状态' }],
-    F33: [{ key: 'store', title: '站点' }, { key: 'period', title: '申报期' }, { key: 'outputTax', title: '销项税', align: 'end' }, { key: 'inputTax', title: '进项税', align: 'end' }, { key: 'payable', title: '应纳', align: 'end' }, { key: 'dueOn', title: '申报日' }, { key: 'status', title: '状态' }],
-    F34: [{ key: 'declarationNo', title: '报关单' }, { key: 'store', title: '店铺' }, { key: 'period', title: '期间' }, { key: 'inputInvoice', title: '进项发票' }, { key: 'amount', title: '金额', align: 'end' }, { key: 'status', title: '状态' }, { key: 'dueOn', title: '预计退税日' }],
+    F33: [{ key: 'store', title: '站点' }, { key: 'period', title: '申报期' }, { key: 'outputTax', title: '销项税', align: 'end' }, { key: 'inputTax', title: '进项税', align: 'end' }, { key: 'payable', title: '应纳', align: 'end' }, { key: 'dueOn', title: '申报日' }, { key: 'status', title: '状态' }, { key: 'actions', title: '操作' }],
+    F34: [{ key: 'declarationNo', title: '报关单' }, { key: 'store', title: '店铺' }, { key: 'period', title: '期间' }, { key: 'inputInvoice', title: '进项发票' }, { key: 'amount', title: '金额', align: 'end' }, { key: 'status', title: '状态' }, { key: 'dueOn', title: '预计退税日' }, { key: 'documents', title: '资料数' }, { key: 'actions', title: '操作' }],
   }
 
   return map[props.pageKey] ?? []
@@ -139,7 +149,7 @@ async function load() {
     else if (props.pageKey === 'F29') { setRows(await fetchGapACogs()) }
     else if (props.pageKey === 'F30') { setRows(await fetchGapABudgets()) }
     else if (props.pageKey === 'F32') { setRows(await fetchGapAFx()) }
-    else if (props.pageKey === 'F33') { setRows(await fetchGapAVat()) }
+    else if (props.pageKey === 'F33') { setRows(await fetchGapAVat(vatPeriod.value === 'all' ? undefined : vatPeriod.value)) }
     else if (props.pageKey === 'F34') { setRows(await fetchGapARebates()) }
     else if (isDetail.value) {
       const id = routeId()
@@ -153,7 +163,7 @@ async function load() {
 }
 
 onMounted(load)
-watch([selectedPeriod, () => props.pageKey], load)
+watch([selectedPeriod, vatPeriod, () => props.pageKey], load)
 
 async function run(action: () => Promise<unknown>) {
   errorMessage.value = ''; try { await action(); await load() }
@@ -185,6 +195,46 @@ async function saveTrip() {
   await run(async () => {
     await createGapATrip({ claimant: session.displayName, destination: tripDraft.destination || '待填写', startOn: tripDraft.startOn, endOn: tripDraft.endOn, budget, currency: 'CNY' })
     tripCreateMode.value = false
+  })
+}
+async function submitTrip(id: string) { await run(async () => { await submitGapATrip(id) }) }
+async function suggestTripMatch(id: string) {
+  await run(async () => {
+    const result = await suggestGapATripClaim(id)
+    if (result)
+      tripMatch.value = { claim: result.claim, score: result.score, rule: result.rule }
+    selectedTripId.value = id
+  })
+}
+async function confirmTripMatch() {
+  if (!selectedTripId.value || !tripMatch.value)
+    return
+  await run(async () => { await confirmGapATripClaim(selectedTripId.value, tripMatch.value!.claim.id); tripMatch.value = null; selectedTripId.value = '' })
+}
+async function submitVat(id: string) { await run(async () => { await submitGapAVat(id) }) }
+function openRebateUpload(id: string) {
+  selectedRebateId.value = id
+  rebateDocumentType.value = '报关单'
+  rebateFile.value = null
+  rebateValidation.value = []
+  rebateDrawerOpen.value = true
+}
+async function uploadRebateDocument() {
+  if (!selectedRebateId.value || !rebateFile.value) {
+    errorMessage.value = '请选择要模拟登记的资料文件'
+
+    return
+  }
+  await run(async () => {
+    await uploadGapARebateDocument(selectedRebateId.value, { fileName: rebateFile.value!.name, documentType: rebateDocumentType.value, size: rebateFile.value!.size })
+    rebateFile.value = null
+  })
+}
+async function validateRebate(id: string) {
+  await run(async () => {
+    const result = await validateGapARebate(id)
+    rebateValidation.value = result?.missing ?? []
+    selectedRebateId.value = id
   })
 }
 async function decideClaim(step: 'manager' | 'finance', status: 'approved' | 'rejected') {
@@ -288,6 +338,14 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
           :items="[{ title: '2026-09', value: '2026-09' }, { title: '2026-10', value: '2026-10' }]"
           style="inline-size: 10rem;"
         />
+        <AppSelect
+          v-if="pageKey === 'F33'"
+          v-model="vatPeriod"
+          label="申报期间"
+          :items="[{ title: '全部期间', value: 'all' }, { title: '2026-Q4', value: '2026-Q4' }, { title: '2026-Q3', value: '2026-Q3' }]"
+          style="inline-size: 10rem;"
+          data-test="vat-period"
+        />
         <VBtn
           v-if="pageKey === 'EX01'"
           to="/expense/claims/new"
@@ -302,6 +360,14 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
         >
           新建差旅申请
         </VBtn>
+        <VChip
+          v-if="['F33', 'F34'].includes(pageKey)"
+          color="warning"
+          variant="tonal"
+          data-test="simulation-badge"
+        >
+          模拟操作：不上传真实文件、不调用外部税务接口
+        </VChip>
         <VBtn
           v-if="pageKey === 'F25'"
           color="primary"
@@ -851,6 +917,33 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
             v-else-if="column.key === 'actions'"
             class="d-flex gap-2"
           >
+            <template v-if="pageKey === 'EX06'">
+              <VBtn
+                v-if="item.status === 'draft'"
+                size="x-small"
+                variant="tonal"
+                data-test="trip-submit"
+                @click.stop="submitTrip(String(item.id))"
+              >
+                提交申请
+              </VBtn>
+              <VBtn
+                v-if="item.status !== 'draft' && !item.linkedClaimId"
+                size="x-small"
+                variant="tonal"
+                data-test="trip-match"
+                @click.stop="suggestTripMatch(String(item.id))"
+              >
+                模拟匹配报销
+              </VBtn>
+              <VChip
+                v-if="item.linkedClaimId"
+                size="small"
+                color="success"
+              >
+                已人工确认
+              </VChip>
+            </template>
             <VBtn
               v-if="pageKey === 'EX04'"
               size="x-small"
@@ -867,7 +960,44 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
             >
               编辑标准
             </VBtn>
+            <VBtn
+              v-if="pageKey === 'F33' && item.status !== 'submitted'"
+              size="x-small"
+              variant="tonal"
+              data-test="vat-submit"
+              @click.stop="submitVat(String(item.id))"
+            >
+              保存模拟申报
+            </VBtn>
+            <template v-if="pageKey === 'F34'">
+              <VBtn
+                size="x-small"
+                variant="tonal"
+                data-test="rebate-upload"
+                @click.stop="openRebateUpload(String(item.id))"
+              >
+                选择资料并模拟上传
+              </VBtn>
+              <VBtn
+                size="x-small"
+                variant="text"
+                data-test="rebate-validate"
+                @click.stop="validateRebate(String(item.id))"
+              >
+                校验资料
+              </VBtn>
+            </template>
           </span>
+          <span v-else-if="column.key === 'linkedClaimId'">
+            <RouterLink
+              v-if="item.linkedClaimId"
+              :to="`/expense/claims/${item.linkedClaimId}`"
+            >
+              {{ item.linkedClaimId }}
+            </RouterLink>
+            <span v-else>未关联</span>
+          </span>
+          <span v-else-if="column.key === 'documents'">{{ Array.isArray(item.documents) ? item.documents.length : 0 }} / 3</span>
           <span v-else-if="column.key === 'checks'">{{ (item.checks as unknown[]).filter((check: any) => check.passed).length }}/{{ (item.checks as unknown[]).length }} 通过 <VBtn
             size="x-small"
             variant="text"
@@ -880,6 +1010,85 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
           <span v-else>{{ item[column.key] ?? '—' }}</span>
         </template>
       </ListPage>
+      <VDialog
+        :model-value="Boolean(tripMatch)"
+        max-width="560"
+        data-test="trip-match-dialog"
+        @update:model-value="value => { if (!value) { tripMatch = null; selectedTripId = '' } }"
+      >
+        <VCard title="模拟匹配建议（人工确认）">
+          <VCardText>
+            <VAlert
+              type="info"
+              variant="tonal"
+              class="mb-4"
+            >
+              规则由代码计算，建议仅供人工选择；确认动作会写入审计记录。
+            </VAlert>
+            <div v-if="tripMatch">
+              <div>候选报销单：<strong>{{ tripMatch.claim.id }}</strong></div>
+              <div>提交人：{{ tripMatch.claim.claimant }}</div>
+              <div>金额：<MoneyText :amount="tripMatch.claim.total" minor currency="CNY" /></div>
+              <div class="text-caption text-medium-emphasis mt-2">匹配分数 {{ tripMatch.score }}；{{ tripMatch.rule }}</div>
+            </div>
+          </VCardText>
+          <VCardActions class="justify-end">
+            <VBtn
+              variant="tonal"
+              @click="tripMatch = null; selectedTripId = ''"
+            >
+              取消
+            </VBtn>
+            <VBtn
+              color="primary"
+              data-test="trip-match-confirm"
+              @click="confirmTripMatch"
+            >
+              人工确认关联
+            </VBtn>
+          </VCardActions>
+        </VCard>
+      </VDialog>
+      <FormDrawer
+        v-model="rebateDrawerOpen"
+        title="出口退税资料（模拟上传）"
+        data-test="rebate-upload-drawer"
+        @save="uploadRebateDocument"
+      >
+        <VAlert
+          type="warning"
+          variant="tonal"
+          class="mb-4"
+        >
+          仅登记文件名、类型和大小，不保存文件内容；这是模拟操作。
+        </VAlert>
+        <AppSelect
+          v-model="rebateDocumentType"
+          label="资料类型"
+          :items="['报关单', '进项发票', '运输凭证', '其他']"
+          data-test="rebate-document-type"
+        />
+        <VFileInput
+          label="选择资料文件"
+          prepend-icon="tabler-paperclip"
+          show-size
+          accept=".pdf,.xlsx,.xls,.csv,.jpg,.png"
+          data-test="rebate-file"
+          @update:model-value="value => { rebateFile = Array.isArray(value) ? value[0] ?? null : value }"
+        />
+        <p class="text-caption text-medium-emphasis mt-2 mb-0">
+          资料齐全要求：报关单、进项发票、运输凭证各至少一份。
+        </p>
+      </FormDrawer>
+      <VAlert
+        v-if="pageKey === 'F34' && selectedRebateId && rebateValidation.length"
+        type="warning"
+        variant="tonal"
+        class="mt-4"
+        data-test="rebate-missing"
+      >
+        资料仍缺少：{{ rebateValidation.join('、') }}
+      </VAlert>
       <FormDrawer
         v-model="loanDrawerOpen"
         title="登记借款还款"
