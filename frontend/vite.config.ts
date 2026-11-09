@@ -32,7 +32,9 @@ export default defineConfig({
         },
       },
     }),
-    VueDevTools(),
+
+    // Vue DevTools 会明显拖慢首次加载，默认关闭；需要时用 VITE_DEVTOOLS=1 pnpm dev
+    ...(process.env.VITE_DEVTOOLS ? [VueDevTools()] : []),
     vueJsx(),
 
     // Docs: https://github.com/vuetifyjs/vuetify-loader/tree/master/packages/vite-plugin
@@ -97,8 +99,26 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 5000,
   },
+  server: {
+    // 启动后预先编译入口和常用页面，减少第一次打开时的等待
+    warmup: {
+      clientFiles: ['./src/main.ts', './src/App.vue', './src/layouts/*.vue', './src/pages/login.vue', './src/pages/dashboard.vue'],
+    },
+  },
   optimizeDeps: {
     exclude: ['vuetify'],
+
+    // 预先打包这些依赖，避免首次访问时 Vite 发现新依赖后整页重载（白屏的原因之一）
+    include: [
+      'vue-router',
+      'unplugin-vue-router/data-loaders/basic',
+      '@antfu/utils',
+      'webfontloader',
+      'cookie-es',
+      'destr',
+      'vue3-apexcharts',
+      'apexcharts',
+    ],
     entries: [
       './src/**/*.vue',
     ],

@@ -65,3 +65,13 @@ pnpm run typecheck
 ## 许可证提醒
 
 界面骨架来自 Vuexy 商业后台模板。不要把 `frontend/`、模板源码或商业图片提交到公开仓库。本原型只供内部演示。
+
+
+## 只看效果：用构建版（最快）
+
+```bash
+pnpm build
+pnpm exec vite preview --host 127.0.0.1 --port 4173
+```
+
+浏览器打开 http://127.0.0.1:4173 。构建版不需要边打开边编译，首次打开不到 1 秒。`pnpm dev` 开发版第一次启动（或依赖变化后）需要预编译，首屏可能要十几秒，之后很快。`vite.config.ts` 里已预先打包常用依赖，避免首次访问时整页重载导致白屏。Vue DevTools 默认关闭，需要时用 `VITE_DEVTOOLS=1 pnpm dev`。

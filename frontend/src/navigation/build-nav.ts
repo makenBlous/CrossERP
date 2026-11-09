@@ -8,7 +8,9 @@ export function buildNav(role: Role): VerticalNavItems {
       .filter(item => item.showInMenu && item.group === group.id && item.roles.includes(role))
       .map(item => ({
         title: `page.${item.id}.name`,
-        to: item.path,
+
+        // Vuexy 把字符串 to 当作路由名；这里用路径对象，兼容文件路由与占位路由
+        to: { path: item.path },
         icon: { icon: item.icon },
       }))
 
