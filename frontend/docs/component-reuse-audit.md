@@ -285,4 +285,59 @@
 
 批次 A 页面仍通过 `src/api/*.ts` 访问服务层，金额继续使用 `MoneyText` 展示；未新增 AI 对话界面，AI 关闭时上述人工路径完整可用。
 
+### 批次 A 增量审计（`d0946a4..f548479`，2026-11-10）
+
+本节复核本批补齐与两轮修复的实际代码，不以改动行数代替逐项检查。结论中的“遗留”表示本轮只允许做安全复用重构，未扩大为业务规则改造。
+
+#### 1. Vuexy / biz 组件复用
+
+| 交互或区块 | 复用情况 | 理由、已改与遗留 |
+|---|---|---|
+| EX06 差旅列表、新建表单 | **已复用** `ListPage`、`FormPage`、`AppDateTimePicker`、`MoneyText`、`StatusChip` | 列表分页/筛选/列插槽由 `ListPage` 承担；表单壳由 `FormPage` 承担；金额和状态没有页面自写格式化或标签。 |
+| EX06 匹配建议 | **保留专用** Vuetify `VDialog`，内部仍复用 `MoneyText` | 弹窗展示候选报销、规则、分数并等待人工确认，属于带业务内容的审阅视图，不是可由 `ConfirmHost` 表达的二元确认；没有另写抽屉、确认组件或状态标签。**遗留**：若后续只剩二元确认，应迁移到 `useConfirm` / `ConfirmHost`。 |
+| F33 VAT | **已复用** `ListPage`、`AppSelect`、`StatusChip`、`MoneyText` | 期间筛选是页面查询条件，行级“保存模拟申报”调用 API；没有自写表格或金额格式化。 |
+| F34 出口退税 | **已复用** `ListPage`、`FormDrawer`、`AppSelect`、Vuetify `VFileInput`、`StatusChip`、`MoneyText` | 抽屉、文件选择、状态和金额均使用现成组件；只登记文件元数据，不重复实现上传组件。 |
+| EX03 报销明细 | **复用** `DetailPage`、`PermissionGate`、`MoneyText`；保留 Vuetify `VTable` | 明细行是凭证/审批专属字段，和列表分页列语义不同；表格没有复制分页、筛选、状态或金额组件。 |
+| 其他批次 A 列表、详情、抽屉 | **已复用** `ListPage`、`DetailPage`、`FormDrawer`、`KpiCard`、`StatusChip`、`PermissionGate` | 未新增 `.vue` 通用组件；页面只做字段、插槽和 API 编排。 |
+
+**组件结论：** 本批没有发现可安全一对一替换的重复通用表格、抽屉、确认框、金额组件或状态标签；因此没有代码级复用重构，已改内容仅在上一轮补齐中完成并由本节复核。
+
+#### 2. `GapAPage.vue` 业务动作与追溯
+
+| 功能 | API / mock 路径 | 实质检查 | 结论 |
+|---|---|---|---|
+| EX06 创建、提交、匹配建议、人工确认 | `src/api/gap-a.ts` → `mocks/services/gap-a.ts` | 保存状态、确定性规则（人员/日期窗口/预算）、人工确认、幂等拦截和审计追加均在服务层完成。 | **复用且可追溯** |
+| F33 模拟申报 | `fetchGapAVat(period)`、`submitGapAVat(id)` | 期间作为 API 参数；状态由 `draft/ready` 到 `submitted`，重复提交拒绝，审计记录包含期间。 | **复用且可追溯** |
+| F34 资料登记、资料校验 | `uploadGapARebateDocument(id)`、`validateGapARebate(id)` | 只存文件名、类型、大小；重复资料、后续状态上传和资料齐全校验均在 mock 服务层，动作追加审计。 | **复用且可追溯** |
+| 既有报销、借款、凭证、结账、预算和重估动作 | 各自 `src/api/gap-a.ts` 写接口 | 页面没有直接写 mock 状态；按钮由 `run()` 调 API 后重新加载。 | **通过** |
+| AI 识别并预填 | `identifyReceipt()` | 只在前端填充演示字段，不写数据库、不追加审计；它是非写入的预填建议，不应被当作已完成的真实识别接口。 | **遗留**：接入真实只读建议 API 前仍只能标为演示预填。 |
+
+#### 3. 写接口权限、身份、审批和幂等
+
+- `src/api/gap-a.ts` 的所有写函数均先调用 `assertCan()` 或 `assertAny()`；独立脚本逐项验证 viewer 越权均在接口层拒绝。
+- 创建报销和差旅时由 `currentActor().id` 写入 `claimantId`，凭证创建写入 `createdById`；审批自审在服务层按 ID 判断，未按显示名或固定姓名判断。报销审批顺序、凭证 `draft → pending`、重复提交/重复生成/已结账拦截均有服务层护栏。
+- 新增动作均经 API 层进入 mock 服务并写审计；审计事件带当前 `actorId`。历史种子审计仍只有展示名，这是**遗留数据**，不影响本批新增事件。
+- `suggestTripClaim()` 仍用 `claimant` 显示名比较候选，而不是 `claimantId`。这属于身份契约遗留，后续接真实后端前应改为稳定 ID；本轮没有扩大为业务规则修改。
+- **遗留**：`savePolicy()` 和 `closePeriod()` 会改变业务状态但当前 mock 服务没有调用 `addAudit()`；因此费用标准保存和期间结账还不能满足“每个写动作可追溯”，后续应补审计事件并保留操作人 ID。
+
+#### 4. 报销科目映射与凭证来源
+
+- 默认映射唯一来源是 `src/mocks/config/gap-a-expense-accounts.ts` 的 `EXPENSE_ACCOUNT_MAPPINGS`，每条配置和 EX07 提示均标注“示例映射，待会计核实”；报销凭证按费用类别取费用科目，贷方为 `其他应付款-员工`，没有沿用销售结算的 `主营业务成本 / 平台结算清算`。
+- **遗留**：EX07 抽屉仍允许手填借方科目，`savePolicy()` 只校验贷方固定值，因而保存后的展示值可能脱离配置表。按本轮限制未把输入控件改成配置选择，也未改业务规则；这项应在后续业务修复中收紧为配置项校验。
+
+#### 5. 金额确定性与地基契约
+
+- 新增金额输入走 `minorFromDecimal()`；列表、详情和匹配建议的金额展示走 `MoneyText`，服务层金额使用万分位整数，独立脚本验证报销凭证借贷相等且金额等于明细金额。
+- **遗留**：`GapAPage.vue` 的 KPI 文案、服务层审计文案和预算阈值仍有直接 `/ 10000`、`Math.min/abs` 或 `* 0.8` 表达；这些不是新造金额组件，但还没有完全收敛到 `utils/money.ts` 的命名运算，应在后续金额统一任务中处理。
+- `src/api/mock-client.ts` 的 `currentActor()` 本批已提供 `id`。这是跨批契约：C 批 mock-client 使用 `userId` 字段名；合并时以 C 为准，A 需要统一到同一字段，不能退回显示名。本轮按要求没有修改地基文件。
+
+#### 6. 验证证据与本轮变更
+
+- `pnpm run typecheck`：通过。
+- `node_modules\\.bin\\eslint.cmd . -c .eslintrc.cjs --ext .ts,.js,.cjs,.vue,.tsx,.jsx`：0 error，23 个既有 warning。
+- `pnpm run build`：通过；构建后已恢复 `auto-imports.d.ts`、`components.d.ts`、`typed-router.d.ts`。
+- 独立脚本 `%TEMP%\\cx-pw\\xbatch\\xa.ts` 复制到 `scripts\\_xa.ts` 后用 `pnpm exec tsx` 运行：`== FAIL 0`；临时文件已删除，断言未修改。
+
+本轮没有发现允许范围内且足够安全的重复轮子替换，因此只追加本审计文档，不改业务代码或地基文件。
+
 
