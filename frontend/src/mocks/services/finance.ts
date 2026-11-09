@@ -37,7 +37,7 @@ export function importDetail(db: MockDatabase, id: string) {
 
 export function recordImport(db: MockDatabase, fileName: string, actor: Actor) {
   const data = financeData(db)
-  const row = { id: `imp-${String(data.imports.length + 1).padStart(3, '0')}`, fileName, connector: 'Auto-detect', status: 'success', rows: 64, errors: 0, importedAt: actor.at.slice(0, 16).replace('T', ' ') }
+  const row = { id: `imp-${String(data.imports.length + 1).padStart(3, '0')}`, fileName, connector: 'Auto-detect', status: 'success', rows: 64, errors: 0, importedAt: new Date(actor.at).toLocaleString('sv-SE').slice(0, 16) }
 
   data.imports.unshift(row)
   writeAudit(db, actor, 'import_file', 'import_batch', row.id, `导入文件 ${fileName}，解析 ${row.rows} 行。`)
@@ -178,7 +178,7 @@ export function adsImportRows(db: MockDatabase) {
 
 export function recordAdImport(db: MockDatabase, fileName: string, actor: Actor) {
   const data = adsData(db)
-  const row: AdsImportBatch = { id: `adimp-${data.imports.length + 1}`, fileName, platform: 'Amazon Ads', rows: 128, spend: minorFromDecimal('418.3600'), status: 'success', importedAt: actor.at.slice(0, 16).replace('T', ' ') }
+  const row: AdsImportBatch = { id: `adimp-${data.imports.length + 1}`, fileName, platform: 'Amazon Ads', rows: 128, spend: minorFromDecimal('418.3600'), status: 'success', importedAt: new Date(actor.at).toLocaleString('sv-SE').slice(0, 16) }
 
   data.imports.unshift(row)
 
