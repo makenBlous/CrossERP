@@ -7,6 +7,17 @@ import type { FieldAccess } from '@/types/gap-c'
 const templateById = new Map(roleTemplates.map(item => [item.id, item]))
 const legacyRoles = ['admin', 'operator', 'finance', 'viewer', 'auditor'] as const
 
+/** 敏感字段的唯一登记表；新增敏感字段必须先登记权限点。 */
+export const sensitiveFieldPermissionKeys: Record<string, string> = {
+  cost: 'sku.cost:read',
+  margin: 'sku.margin:read',
+  salary: 'employee.salary:read',
+  salaryDetail: 'salary_slip:read_all',
+  idCard: 'employee.id_number:read',
+  bankAccount: 'employee.bank_account:read',
+  buyerContact: 'buyer.contact:read',
+}
+
 function legacyAllowsAction(role: typeof legacyRoles[number], action: string) {
   const actions = legacyRoleActions[role]
   if (actions.includes(action))
@@ -65,7 +76,7 @@ export function computeEffectivePermissions(subject: PermissionSubject, now = Da
       ? [
           ...legacyRoleActions[roleId as typeof legacyRoles[number]].map(action => ({ permissionKey: legacyPermissionKeys[action], effect: 'allow' as const, source: `旧角色 ${roleId}` })),
           ...permissionCatalog
-            .filter(point => point.key.endsWith(':read') || (roleId === 'admin' && ['salary_slip:read_own', 'employee_record:read_own'].includes(point.key)) || legacyAllowsAction(roleId as typeof legacyRoles[number], point.key.split(':')[1] ?? ''))
+            .filter(point => (!point.sensitive && point.kind !== 'field' && point.key.endsWith(':read')) || (roleId === 'admin' && point.sensitive && point.kind !== 'field') || (roleId === 'operator' && point.key === 'permission:read') || (roleId === 'admin' && ['salary_slip:read_own', 'employee_record:read_own'].includes(point.key)) || legacyAllowsAction(roleId as typeof legacyRoles[number], point.key.split(':')[1] ?? ''))
             .map(point => ({ permissionKey: point.key, effect: 'allow' as const, source: `旧角色 ${roleId}` })),
         ]
       : [])
@@ -146,13 +157,7 @@ export function canPermission(subject: PermissionSubject, permissionKey: string)
 
 /** 字段权限在 mock 返回数据前裁剪，页面层不能用视觉隐藏替代。 */
 export function fieldAccess(subject: PermissionSubject, fieldKey: string): FieldAccess {
-  const fieldPermissionKeys: Record<string, string> = {
-    salary: 'employee.salary:read',
-    salaryDetail: 'salary_slip:read_all',
-    idCard: 'employee.id_number:read',
-  }
-
-  const fieldPermissionKey = fieldPermissionKeys[fieldKey]
+  const fieldPermissionKey = sensitiveFieldPermissionKeys[fieldKey]
   if (fieldPermissionKey && !effectivePermission(subject, fieldPermissionKey).allowed)
     return 'hidden'
 

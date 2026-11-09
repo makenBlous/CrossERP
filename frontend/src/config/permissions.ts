@@ -103,8 +103,12 @@ export const permissionCatalog: PermissionPoint[] = docTypes.flatMap(([docType, 
 )
 
 const fieldPermissionPoints: PermissionPoint[] = [
+  { key: 'sku.cost:read', labelZh: 'SKU 成本字段查看', labelEn: 'SKU Cost Field Read', module: 'Accounts', kind: 'field', sensitive: true, dataScopeRuleTypes: ['all', 'store', 'owner'], erpnextRef: 'Item valuation_rate', odooRef: 'product.template.standard_price' },
+  { key: 'sku.margin:read', labelZh: 'SKU 毛利字段查看', labelEn: 'SKU Margin Field Read', module: 'Accounts', kind: 'field', sensitive: true, dataScopeRuleTypes: ['all', 'store', 'owner'], erpnextRef: 'Item margin', odooRef: 'product.template.margin' },
   { key: 'employee.salary:read', labelZh: '员工薪资字段查看', labelEn: 'Employee Salary Field Read', module: 'Payroll', kind: 'field', sensitive: true, dataScopeRuleTypes: ['all', 'self'], erpnextRef: 'Employee.salary', odooRef: 'hr.employee.wage' },
   { key: 'employee.id_number:read', labelZh: '员工证件字段查看', labelEn: 'Employee ID Number Field Read', module: 'HR', kind: 'field', sensitive: true, dataScopeRuleTypes: ['all', 'self'], erpnextRef: 'Employee.id_number', odooRef: 'hr.employee.identification_id' },
+  { key: 'employee.bank_account:read', labelZh: '员工银行账号字段查看', labelEn: 'Employee Bank Account Field Read', module: 'HR', kind: 'field', sensitive: true, dataScopeRuleTypes: ['all', 'self'], erpnextRef: 'Employee.bank_account', odooRef: 'hr.employee.bank_account' },
+  { key: 'buyer.contact:read', labelZh: '买家联系方式字段查看', labelEn: 'Buyer Contact Field Read', module: 'Selling', kind: 'field', sensitive: true, dataScopeRuleTypes: ['all', 'store', 'owner'], erpnextRef: 'Customer.contact', odooRef: 'res.partner.phone' },
   { key: 'salary_slip:read_own', labelZh: '本人工资条查看', labelEn: 'Own Salary Slip Read', module: 'Payroll', kind: 'menu', sensitive: true, dataScopeRuleTypes: ['self'], erpnextRef: 'Salary Slip', odooRef: 'hr.payslip' },
   { key: 'salary_slip:read_all', labelZh: '全部工资条查看', labelEn: 'All Salary Slips Read', module: 'Payroll', kind: 'menu', sensitive: true, dataScopeRuleTypes: ['all', 'department'], erpnextRef: 'Salary Slip', odooRef: 'hr.payslip' },
   { key: 'employee_record:read_own', labelZh: '本人档案查看', labelEn: 'Own Employee Record Read', module: 'HR', kind: 'menu', dataScopeRuleTypes: ['self'], erpnextRef: 'Employee', odooRef: 'hr.employee' },
@@ -147,8 +151,9 @@ const templatePermissions: Record<string, string[]> = {
   hr_admin: ['employee_record:read', 'employee_record:read_own', 'employee_record:write', 'employee_record:create', 'employee.salary:read', 'employee.id_number:read', 'salary_slip:read', 'salary_slip:read_own', 'salary_slip:read_all', 'salary_slip:write', 'salary_slip:create', 'attendance:read', 'attendance:write', 'leave_application:read', 'leave_application:write', 'leave_application:approve', 'contract:read', 'asset:read', 'asset:write', 'notification:read', 'notification:write', 'document:read', 'approval:read'],
   employee: ['expense_claim:read', 'expense_claim:create', 'expense_claim:write', 'employee_advance:read', 'employee_advance:create', 'travel_request:read', 'travel_request:create', 'leave_application:read', 'leave_application:create', 'salary_slip:read_own', 'employee_record:read_own', 'notification:read', 'document:read', 'office_supply:read', 'office_supply:create', 'approval:read'],
   department_manager: ['approval:read', 'approval:approve', 'expense_claim:read', 'leave_application:read', 'leave_application:approve', 'purchase_order:read', 'budget:read', 'notification:read'],
-  auditor_template: [...permissionCatalog.filter(point => point.key.endsWith(':read') && point.key !== 'user_admin:read').map(point => point.key), 'audit_log:export', 'agent_tool:read'],
-  external_viewer: ['report:read', 'sales_order:read', 'item:read', 'listing:read', 'notification:read', 'document:read'],
+  // 审计可以只读查看权限配置，便于核对改前改后；没有任何 permission:write/approve。
+  auditor_template: ['report:read', 'audit_log:read', 'audit_log:export', 'agent_tool:read', 'permission:read'],
+  external_viewer: ['report:read', 'notification:read'],
 }
 
 const template = (
@@ -199,7 +204,7 @@ export const roleTemplates: RoleTemplate[] = [
   template('cashier', '出纳', 'Cashier', [], undefined, ['owner'], ['Accounts User'], ['account.group_account_user']),
   template('hr_admin', '人事行政', 'HR & Administration', [], 'admin', ['all'], ['HR User', 'Payroll User'], ['hr.group_hr_user']),
   template('employee', '普通员工', 'Employee', [], 'operator', ['self'], ['Employee'], ['base.group_user']),
-  template('department_manager', '部门主管', 'Department Manager', ['employee'], undefined, ['department'], ['HR Manager'], ['hr.group_hr_manager']),
+  template('department_manager', '部门主管', 'Department Manager', ['employee'], undefined, ['department'], ['HR Manager'], ['hr.group_hr_manager'], [{ permissionKey: 'employee_record:read', effect: 'allow', dataScopes: ['department'], source: '模板 部门主管（本部门）' }]),
   template('auditor_template', '审计', 'Auditor', [], 'auditor', ['all'], ['System Manager'], ['base.group_system']),
   template('external_viewer', '只读/外部顾问', 'Read-only / External Advisor', [], 'viewer', ['store'], ['Employee'], ['base.group_user']),
 ]
