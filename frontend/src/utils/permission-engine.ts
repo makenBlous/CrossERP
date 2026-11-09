@@ -20,7 +20,9 @@ const legacyDefaultDataScopes: Record<LegacyRole, DataScopeRuleType[]> = {
 const legacySensitiveFieldPermissions: Record<LegacyRole, string[]> = {
   admin: ['sku.cost:read', 'sku.margin:read', 'employee.salary:read', 'salary_slip:read_all', 'employee.id_number:read', 'employee.bank_account:read'],
   operator: [],
-  finance: ['sku.cost:read', 'sku.margin:read'],
+
+  // 旧财务页仍依赖收付款读接口；员工薪资、证件和银行卡字段继续不授予。
+  finance: ['sku.cost:read', 'sku.margin:read', 'payment_entry:read'],
   viewer: [],
   auditor: [],
 }
