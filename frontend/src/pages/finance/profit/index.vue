@@ -210,10 +210,12 @@ const skuColumns = computed(() => [
       @open="item => router.push(`/finance/profit/sku/${item.sku}`)"
     >
       <template #item.revenue="{ item }">
+        <RouterLink :to="`/finance/profit/sku/${item.sku}`">
         <MoneyText
           :amount="item.revenue"
           :currency="item.currency"
         />
+        </RouterLink>
       </template>
       <template #item.platformFee="{ item }">
         <MoneyText

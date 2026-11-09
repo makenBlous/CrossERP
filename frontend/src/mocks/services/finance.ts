@@ -46,14 +46,16 @@ export function recordImport(db: MockDatabase, fileName: string, actor: Actor) {
 }
 
 export function sourceRow(table: string, id: string) {
-  if (id !== 'row-42')
+  if (id !== 'row-42' && !/-row-1$/.test(id))
     return null
 
-  return { id, table, sourceFile: 'amazon-us-2026-10.txt', rowNo: 42, payload: { settlement_id: 'STL-US-2026-10', transaction_type: 'Order', amount: '128.40', currency: 'USD', sku: 'TENT-2P' } }
+  const settlementId = id.replace(/-row-1$/, '')
+
+  return { id, table, sourceFile: 'amazon-us-2026-10.txt', rowNo: id === 'row-42' ? 42 : 1, payload: { settlement_id: settlementId === id ? 'STL-US-2026-10' : settlementId, transaction_type: 'Order', amount: '128.40', currency: 'USD', sku: 'TENT-2P' } }
 }
 
 export function settlements(db: MockDatabase) {
-  return db.settlements.map(row => ({ ...row, storeName: db.stores.find(store => store.id === row.storeId)?.name ?? row.storeId, totalDisplay: toDisplay(row.total, row.currency), matched: db.reconRuns.find(run => run.storeId === row.storeId)?.matched ?? 0 }))
+  return db.settlements.map(row => ({ ...row, storeName: db.stores.find(store => store.id === row.storeId)?.name ?? row.storeId, totalDisplay: toDisplay(row.total, row.currency), rawRowId: `${row.id}-row-1`, matched: db.reconRuns.find(run => run.storeId === row.storeId)?.matched ?? 0 }))
 }
 
 export function settlementDetail(db: MockDatabase, id: string) {

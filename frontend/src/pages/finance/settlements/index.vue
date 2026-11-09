@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { fetchSettlements } from '@/api/finance'
 import MoneyText from '@/components/biz/MoneyText.vue'
+import StatusChip from '@/components/biz/StatusChip.vue'
 import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchSettlements>>>([])
@@ -21,8 +22,19 @@ const columns = [{ key: 'externalId', title: '结算编号' }, { key: 'storeName
     :rows="rows as unknown as FinanceRow[]"
     :columns="columns"
   >
+    <template #item.externalId="{ item }">
+      <RouterLink :to="`/finance/settlements/${item.id}`">
+        {{ item.externalId }}
+      </RouterLink>
+    </template>
     <template #item.totalDisplay="{ item }">
       <MoneyText :amount="item.total" :currency="item.currency" minor />
+    </template>
+    <template #item.status="{ item }">
+      <div class="d-flex align-center gap-2">
+        <StatusChip domain="settlement" :value="String(item.status)" />
+        <RouterLink :to="`/finance/rows/settlement/${item.rawRowId}`" class="text-caption">原始行</RouterLink>
+      </div>
     </template>
   </FinanceTablePage>
 </template>
