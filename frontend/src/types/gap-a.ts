@@ -11,6 +11,7 @@ export interface GapAAuditEvent {
   id: string
   at: string
   actor: string
+  actorId?: string
   action: string
   detail: string
   origin: 'human' | 'ai'
@@ -47,6 +48,7 @@ export interface ExpenseClaim {
 
 export interface EmployeeLoan {
   id: string
+  claimantId?: string
   claimant: string
   purpose: string
   status: 'draft' | 'submitted' | 'approved' | 'repaid'
@@ -60,6 +62,7 @@ export interface EmployeeLoan {
 
 export interface TravelRequest {
   id: string
+  claimantId?: string
   claimant: string
   destination: string
   startOn: string
@@ -80,6 +83,9 @@ export interface ExpensePolicy {
   currency: CurrencyCode
   effectiveFrom: string
   active: boolean
+  debitAccount?: string
+  creditAccount?: string
+  mappingNote?: string
 }
 
 export interface LedgerEntry {

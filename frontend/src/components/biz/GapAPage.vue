@@ -46,6 +46,8 @@ const repaymentInput = ref('0')
 const policyDrawerOpen = ref(false)
 const selectedPolicy = ref<TableRow | null>(null)
 const policyInput = ref('0')
+const policyDebitAccount = ref('')
+const policyCreditAccount = ref('其他应付款-员工')
 const tripCreateMode = ref(false)
 const tripDraft = reactive({ destination: '', startOn: '2026-11-18', endOn: '2026-11-20', budget: '2400' })
 const selectedTripId = ref('')
@@ -91,7 +93,7 @@ const columns = computed(() => {
     EX01: [{ key: 'id', title: '编号' }, { key: 'claimant', title: '提交人' }, { key: 'department', title: '部门' }, { key: 'total', title: '金额', align: 'end' }, { key: 'status', title: '状态' }, { key: 'origin', title: '来源' }],
     EX04: [{ key: 'id', title: '借款单' }, { key: 'claimant', title: '员工' }, { key: 'purpose', title: '用途' }, { key: 'amount', title: '借款', align: 'end' }, { key: 'outstanding', title: '未冲余额', align: 'end' }, { key: 'status', title: '状态' }, { key: 'actions', title: '操作' }],
     EX06: [{ key: 'id', title: '申请单' }, { key: 'claimant', title: '申请人' }, { key: 'destination', title: '目的地' }, { key: 'startOn', title: '开始' }, { key: 'endOn', title: '结束' }, { key: 'budget', title: '预算', align: 'end' }, { key: 'status', title: '状态' }, { key: 'linkedClaimId', title: '关联报销' }, { key: 'actions', title: '操作' }],
-    EX07: [{ key: 'category', title: '费用类别' }, { key: 'department', title: '部门' }, { key: 'limit', title: '上限', align: 'end' }, { key: 'effectiveFrom', title: '生效日' }, { key: 'active', title: '启用' }, { key: 'actions', title: '操作' }],
+    EX07: [{ key: 'category', title: '费用类别' }, { key: 'department', title: '部门' }, { key: 'limit', title: '上限', align: 'end' }, { key: 'debitAccount', title: '借方费用科目' }, { key: 'creditAccount', title: '贷方应付科目' }, { key: 'mappingNote', title: '映射说明' }, { key: 'effectiveFrom', title: '生效日' }, { key: 'active', title: '启用' }, { key: 'actions', title: '操作' }],
     F23: [{ key: 'period', title: '期间' }, { key: 'account', title: '科目' }, { key: 'summary', title: '摘要' }, { key: 'debit', title: '借方', align: 'end' }, { key: 'credit', title: '贷方', align: 'end' }, { key: 'sourceId', title: '来源' }],
     F24: [{ key: 'account', title: '科目' }, { key: 'opening', title: '期初', align: 'end' }, { key: 'debit', title: '借方', align: 'end' }, { key: 'credit', title: '贷方', align: 'end' }, { key: 'closing', title: '期末', align: 'end' }],
     F25: [{ key: 'label', title: '项目' }, { key: 'amount', title: '金额', align: 'end' }, { key: 'sourceIds', title: '来源凭证' }],
@@ -305,6 +307,8 @@ async function repayLoan() {
 function openPolicy(row: TableRow) {
   selectedPolicy.value = row
   policyInput.value = String(Number(row.limit ?? 0) / 10000)
+  policyDebitAccount.value = String(row.debitAccount ?? '')
+  policyCreditAccount.value = String(row.creditAccount ?? '其他应付款-员工')
   policyDrawerOpen.value = true
 }
 async function savePolicy() {
@@ -317,7 +321,7 @@ async function savePolicy() {
 
     return
   }
-  await run(async () => { await createGapAPolicy(String(selectedPolicy.value?.id), amount); policyDrawerOpen.value = false })
+  await run(async () => { await createGapAPolicy(String(selectedPolicy.value?.id), amount, { debitAccount: policyDebitAccount.value, creditAccount: policyCreditAccount.value }); policyDrawerOpen.value = false })
 }
 
 const detailClaim = computed(() => detail.value as ExpenseClaim)
@@ -837,6 +841,14 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
           </VAlert>
         </VCardText>
       </VCard>
+      <VAlert
+        v-if="pageKey === 'EX07'"
+        type="info"
+        variant="tonal"
+        class="mb-6"
+      >
+        报销凭证按费用类别借记费用科目、贷记其他应付款-员工；映射为示例，待会计核实，科目名称为推断，待会计核实。依据：Frappe HR Expense Claim 文档。
+      </VAlert>
       <ListPage
         :storage-key="`gap-a-${pageKey}`"
         :title="title"
@@ -1126,6 +1138,17 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
           label="费用上限（CNY）"
           type="number"
         />
+        <AppTextField
+          v-model="policyDebitAccount"
+          label="借方费用科目（示例，待会计核实）"
+        />
+        <AppTextField
+          v-model="policyCreditAccount"
+          label="贷方应付科目（固定为其他应付款-员工）"
+        />
+        <p class="text-caption text-medium-emphasis mt-2 mb-0">
+          具体中国会计科目名称为推断，待会计核实。
+        </p>
       </FormDrawer>
     </template>
   </div>

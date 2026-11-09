@@ -101,7 +101,7 @@ export async function createGapATrip(input: { claimant: string; destination: str
 
   await delay()
 
-  return service.createTrip({ ...input, claimant: actor.name })
+  return service.createTrip({ ...input, claimant: actor.name, claimantId: actor.id })
 }
 
 // 未来: POST /api/v1/expense/trips/{id}/submit
@@ -136,11 +136,11 @@ export async function fetchGapAPolicies() {
 }
 
 // 未来: PATCH /api/v1/expense/policies/{id}
-export async function createGapAPolicy(id: string, limit: number) {
+export async function createGapAPolicy(id: string, limit: number, mapping?: { debitAccount?: string; creditAccount?: string }) {
   assertCan('update')
   await delay()
 
-  return service.savePolicy(id, limit)
+  return service.savePolicy(id, limit, mapping)
 }
 
 // 未来: GET /api/v1/accounting/gl
