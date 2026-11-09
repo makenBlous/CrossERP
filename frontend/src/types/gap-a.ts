@@ -12,6 +12,7 @@ export interface GapAAuditEvent {
   at: string
   actor: string
   actorId?: string
+  identityStatus?: 'resolved' | 'needs_manual_repair'
   action: string
   detail: string
   origin: 'human' | 'ai'
@@ -31,6 +32,7 @@ export interface ExpenseClaimLine {
 export interface ExpenseClaim {
   id: string
   claimantId?: string
+  identityStatus?: 'resolved' | 'needs_manual_repair'
   claimant: string
   department: string
   status: ExpenseClaimStatus
@@ -41,7 +43,7 @@ export interface ExpenseClaim {
   attachmentName: string
   origin: 'human' | 'ai'
   lines: ExpenseClaimLine[]
-  approvalSteps: Array<{ title: string; status: GapApprovalStatus; actor?: string }>
+  approvalSteps: Array<{ title: string; status: GapApprovalStatus; actor?: string; actorId?: string }>
   budgetPeriod: string
   createdAt: string
 }
@@ -49,6 +51,7 @@ export interface ExpenseClaim {
 export interface EmployeeLoan {
   id: string
   claimantId?: string
+  identityStatus?: 'resolved' | 'needs_manual_repair'
   claimant: string
   purpose: string
   status: 'draft' | 'submitted' | 'approved' | 'repaid'
@@ -64,6 +67,7 @@ export interface EmployeeLoan {
 export interface TravelRequest {
   id: string
   claimantId?: string
+  identityStatus?: 'resolved' | 'needs_manual_repair'
   claimant: string
   destination: string
   startOn: string
@@ -204,6 +208,7 @@ export interface VoucherSourceLink {
 export interface GapAVoucher {
   id: string
   createdById?: string
+  identityStatus?: 'resolved' | 'needs_manual_repair'
   no: string
   period: string
   summary: string
@@ -218,6 +223,7 @@ export interface GapAVoucher {
 }
 
 export interface GapAState {
+  schemaVersion: number
   claims: ExpenseClaim[]
   loans: EmployeeLoan[]
   trips: TravelRequest[]

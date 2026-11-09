@@ -1,8 +1,9 @@
-import { assertCan, delay } from '@/api/mock-client'
+import { assertCan, assertPermission, delay } from '@/api/mock-client'
 import * as service from '@/mocks/services/gap-a'
 import type { CurrencyCode } from '@/types/domain'
 import type { ExpenseClaimLine, ExportRebateDocument, GapApprovalStatus } from '@/types/gap-a'
 import type { AppAction } from '@/utils/permission'
+import { expenseApprovalPermissionKeys } from '@/config/permissions'
 
 function assertAny(actions: AppAction[]) {
   let lastError: unknown
@@ -52,7 +53,7 @@ export async function submitGapAClaim(id: string) {
 
 // 未来: POST /api/v1/expense/claims/{id}/decide
 export async function decideGapAClaim(id: string, step: 'manager' | 'finance', status: Extract<GapApprovalStatus, 'approved' | 'rejected'>) {
-  assertCan('approve')
+  assertPermission(step === 'manager' ? expenseApprovalPermissionKeys.manager : expenseApprovalPermissionKeys.finance)
   await delay()
 
   return service.decideClaim(id, step, status)
@@ -74,7 +75,7 @@ export async function fetchGapALoan(id: string) {
 
 // 未来: POST /api/v1/expense/loans/{id}/repay
 export async function repayGapALoan(id: string, amount: number) {
-  assertCan('update')
+  assertPermission('employee_advance:write')
   await delay()
 
   return service.repayLoan(id, amount)
@@ -82,7 +83,7 @@ export async function repayGapALoan(id: string, amount: number) {
 
 // 未来: POST /api/v1/expense/loans/{id}/offset
 export async function offsetGapALoan(id: string, claimId: string) {
-  assertCan('update')
+  assertPermission('employee_advance:write')
   await delay()
 
   return service.offsetLoan(id, claimId)
@@ -137,7 +138,7 @@ export async function fetchGapAPolicies() {
 
 // 未来: PATCH /api/v1/expense/policies/{id}
 export async function createGapAPolicy(id: string, limit: number, mapping?: { debitAccount?: string; creditAccount?: string }) {
-  assertCan('update')
+  assertPermission('expense_claim_type:write')
   await delay()
 
   return service.savePolicy(id, limit, mapping)
@@ -210,7 +211,7 @@ export async function fetchGapABudget(id: string) {
 
 // 未来: PATCH /api/v1/budget/budgets/{id}
 export async function saveGapABudget(id: string, amount: number) {
-  assertCan('update')
+  assertPermission('budget:write')
   await delay()
 
   return service.saveBudget(id, amount)
@@ -240,7 +241,7 @@ export async function fetchGapAVat(period?: string) {
 
 // 未来: POST /api/v1/tax/vat-returns/{id}/submit
 export async function submitGapAVat(id: string) {
-  assertCan('update')
+  assertPermission('vat_return:write')
   await delay()
 
   return service.submitVat(id)
@@ -255,7 +256,7 @@ export async function fetchGapARebates() {
 
 // 未来: POST /api/v1/tax/export-rebates/{id}/documents
 export async function uploadGapARebateDocument(id: string, input: Omit<ExportRebateDocument, 'id' | 'uploadedAt'>) {
-  assertCan('update')
+  assertPermission('export_tax_rebate:write')
   await delay()
 
   return service.uploadRebateDocument(id, input)
@@ -263,7 +264,7 @@ export async function uploadGapARebateDocument(id: string, input: Omit<ExportReb
 
 // 未来: POST /api/v1/tax/export-rebates/{id}/validate
 export async function validateGapARebate(id: string) {
-  assertCan('update')
+  assertPermission('export_tax_rebate:write')
   await delay()
 
   return service.validateRebate(id)

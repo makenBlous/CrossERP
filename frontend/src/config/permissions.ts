@@ -102,6 +102,35 @@ export const permissionCatalog: PermissionPoint[] = docTypes.flatMap(([docType, 
   })),
 )
 
+/** 批次 A 报销审批按职责拆分；服务层按有效权限检查这些稳定 key。 */
+export const expenseApprovalPermissionKeys = {
+  manager: 'expense_claim:approve_manager',
+  finance: 'expense_claim:approve_finance',
+} as const
+
+permissionCatalog.push(
+  {
+    key: expenseApprovalPermissionKeys.manager,
+    labelZh: '费用报销主管审批',
+    labelEn: 'Expense Claim Manager Approval',
+    module: 'HR',
+    kind: 'action',
+    dataScopeRuleTypes: ['department', 'self', 'owner', 'amount'],
+    erpnextRef: 'Expense Claim',
+    odooRef: 'hr_expense',
+  },
+  {
+    key: expenseApprovalPermissionKeys.finance,
+    labelZh: '费用报销财务审批',
+    labelEn: 'Expense Claim Finance Approval',
+    module: 'Accounts',
+    kind: 'action',
+    dataScopeRuleTypes: ['all', 'department', 'amount'],
+    erpnextRef: 'Expense Claim',
+    odooRef: 'hr_expense',
+  },
+)
+
 export const legacyPermissionKeys: Record<string, string> = {
   view: 'system:read',
   create: 'system:create',
@@ -122,9 +151,24 @@ export const legacyRoleActions: Record<'admin' | 'operator' | 'finance' | 'viewe
   auditor: ['view', 'export'],
 }
 
+function expenseApprovalPermission(permissionKey: string): RolePermission {
+  return { permissionKey, effect: 'allow', source: '批次 A 审批职责' }
+}
+
+const adminBatchPermissions = permissionCatalog
+  .filter(point => point.key.endsWith(':write') || point.key.includes(':approve_'))
+  .map(point => ({ permissionKey: point.key, effect: 'allow' as const, source: '管理员批次 A 写权限' }))
+
+const financeBatchPermissions: RolePermission[] = [
+  expenseApprovalPermission(expenseApprovalPermissionKeys.finance),
+  ...['expense_claim_type:write', 'employee_advance:write', 'budget:write', 'vat_return:write', 'export_tax_rebate:write'].map(permissionKey => ({ permissionKey, effect: 'allow' as const, source: '批次 A 财务职责' })),
+]
+
 const basePermissions = (role: 'admin' | 'operator' | 'finance' | 'viewer' | 'auditor'): RolePermission[] => [
   ...legacyRoleActions[role].map(action => ({ permissionKey: legacyPermissionKeys[action], effect: 'allow' as const, source: `旧角色 ${role}` })),
   ...permissionCatalog.filter(point => point.key.endsWith(':read')).map(point => ({ permissionKey: point.key, effect: 'allow' as const, source: `模板 ${role}` })),
+  ...(role === 'admin' ? adminBatchPermissions : []),
+  ...(role === 'finance' ? financeBatchPermissions : []),
 ]
 
 const isLegacyRole = (role: Role): role is 'admin' | 'operator' | 'finance' | 'viewer' | 'auditor' => ['admin', 'operator', 'finance', 'viewer', 'auditor'].includes(role)
@@ -155,7 +199,7 @@ const template = (
 export const roleTemplates: RoleTemplate[] = [
   template('owner_manager', '老板/总经理', 'Owner / General Manager', [], 'admin', ['all'], ['System Manager'], ['base.group_system']),
   template('store_operator', '店铺运营', 'Store Operator', [], 'operator', ['store', 'owner'], ['Sales User'], ['sales_team.group_sale_salesman']),
-  template('operations_manager', '运营主管', 'Operations Manager', ['store_operator'], undefined, ['store', 'department'], ['Sales Manager'], ['sales_team.group_sale_manager']),
+  template('operations_manager', '运营主管', 'Operations Manager', ['store_operator'], undefined, ['store', 'department'], ['Sales Manager'], ['sales_team.group_sale_manager'], [expenseApprovalPermission(expenseApprovalPermissionKeys.manager)]),
   template('advertising', '广告投放', 'Advertising', [], undefined, ['store', 'owner'], ['Sales User'], ['marketing.group_marketing_user']),
   template('product_developer', '产品开发/选品', 'Product Development', [], undefined, ['owner'], ['Item Manager'], ['product.group_product_manager']),
   template('purchaser', '采购', 'Purchaser', [], 'operator', ['owner', 'warehouse'], ['Purchase User'], ['purchase.group_purchase_user']),
@@ -166,7 +210,7 @@ export const roleTemplates: RoleTemplate[] = [
   template('cashier', '出纳', 'Cashier', [], undefined, ['owner'], ['Accounts User'], ['account.group_account_user']),
   template('hr_admin', '人事行政', 'HR & Administration', [], 'admin', ['all'], ['HR User', 'Payroll User'], ['hr.group_hr_user']),
   template('employee', '普通员工', 'Employee', [], 'operator', ['self'], ['Employee'], ['base.group_user']),
-  template('department_manager', '部门主管', 'Department Manager', ['employee'], undefined, ['department'], ['HR Manager'], ['hr.group_hr_manager']),
+  template('department_manager', '部门主管', 'Department Manager', ['employee'], undefined, ['department'], ['HR Manager'], ['hr.group_hr_manager'], [expenseApprovalPermission(expenseApprovalPermissionKeys.manager)]),
   template('auditor_template', '审计', 'Auditor', [], 'auditor', ['all'], ['System Manager'], ['base.group_system']),
   template('external_viewer', '只读/外部顾问', 'Read-only / External Advisor', [], 'viewer', ['store'], ['Employee'], ['base.group_user']),
 ]
@@ -183,6 +227,8 @@ export const moduleRegistry = [
 // ---- 补齐批次 A：费用与财务做深权限点 ----
 // 页面仍由有效权限引擎裁决；这些 key 仅作为未来后端权限目录的稳定标识。
 export const batchAPermissionKeys = [
+  expenseApprovalPermissionKeys.manager,
+  expenseApprovalPermissionKeys.finance,
   'expense_claim:read',
   'expense_claim:create',
   'employee_advance:read',

@@ -371,4 +371,14 @@
 - `pnpm run typecheck`：通过（退出码 0）。
 - `node_modules\\.bin\\eslint.cmd . -c .eslintrc.cjs --ext .ts,.js,.cjs,.vue,.tsx,.jsx`：通过（退出码 0，0 errors、23 个既有 warnings）。
 
+### 批次 A 第五轮修复（2026-11-10，1935bc1 审计问题）
+
+本轮已关闭前一节列出的三项「必须修复」：
+
+- **审批职责分离：已修复。** `manager`/`finance` 使用独立的有效权限点，服务层和 API 层都检查；审批步骤按顺序推进，提交人不能自审，同一 `actorId` 不能连续完成两级，重复审批拒绝。
+- **旧 localStorage 身份迁移：已修复。** 状态版本升级为 2，迁移 claims/loans/trips、审批步骤、voucher timeline 和业务审计的稳定身份；无法映射的记录标为 `needs_manual_repair`（待人工修复），审批与差旅匹配均拒绝继续。
+- **页面写权限一致性：已修复。** EX07、F30、F33、F34、EX04、F23 的写 API 改用对应细粒度权限；财务获得设计允许的费用标准、借款、预算、VAT、出口退税和财务审批权限，其他角色未放宽；无权限按钮禁用并给出提示。
+
+服务层金额入口统一拒绝非 `Number.isSafeInteger` 或不大于零的最小单位金额。独立验收脚本 `xa.ts`、`xa2.ts` 已覆盖职责分离和非整数金额，均为 `== FAIL 0`；另以临时迁移断言验证未知身份记录的待人工修复护栏。
+
 

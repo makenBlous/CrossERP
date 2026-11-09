@@ -11,6 +11,8 @@ import StatusChip from '@/components/biz/StatusChip.vue'
 import { EXPENSE_ACCOUNT_MAPPINGS } from '@/mocks/config/gap-a-expense-accounts'
 import { useAiModeStore } from '@/stores/ai-mode'
 import { useSessionStore } from '@/stores/session'
+import { expenseApprovalPermissionKeys } from '@/config/permissions'
+import { canPermission, roleSubject } from '@/utils/permission-engine'
 import {
   closeGapAPeriod, confirmGapATripClaim, createGapAClaim, createGapACogsVoucher, createGapAFxVoucher, createGapAPolicy, createGapAProfitVoucher, createGapATrip,
   decideGapAClaim, fetchGapAAudits, fetchGapABudget, fetchGapABudgets, fetchGapAClaim, fetchGapAClaims, fetchGapACogs,
@@ -88,8 +90,9 @@ const [title, subtitle] = titles[props.pageKey]
 const isDetail = computed(() => ['EX03', 'EX05', 'F31'].includes(props.pageKey))
 const isForm = computed(() => props.pageKey === 'EX02')
 const isTripForm = computed(() => props.pageKey === 'EX06' && tripCreateMode.value)
-const canFinance = computed(() => ['admin', 'finance', 'accountant', 'finance_manager'].includes(session.role))
-const canManager = computed(() => ['admin', 'operator', 'operations_manager', 'department_manager'].includes(session.role))
+const canPermissionKey = (permission: string) => canPermission(roleSubject(session.role, session.userId), permission)
+const canFinance = computed(() => canPermissionKey(expenseApprovalPermissionKeys.finance))
+const canManager = computed(() => canPermissionKey(expenseApprovalPermissionKeys.manager))
 
 const columns = computed(() => {
   const map: Record<string, Array<{ key: string; title: string; align?: 'end' }>> = {
@@ -648,8 +651,9 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
                 v-if="canManager || canFinance"
                 color="error"
                 variant="tonal"
-                :disabled="detailClaim.status === 'posted' || detailClaim.status === 'rejected'"
-                @click="decideClaim(canFinance ? 'finance' : 'manager', 'rejected')"
+                :disabled="detailClaim.status === 'posted' || detailClaim.status === 'rejected' || (detailClaim.status === 'manager_approved' ? !canFinance : !canManager)"
+                :title="(detailClaim.status === 'manager_approved' ? canFinance : canManager) ? undefined : '当前角色无当前审批步骤权限'"
+                @click="decideClaim(detailClaim.status === 'manager_approved' ? 'finance' : 'manager', 'rejected')"
               >
                 驳回
               </VBtn>
@@ -702,7 +706,8 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
             </VRow><VBtn
               class="mt-4"
               variant="tonal"
-              :disabled="detailLoan.outstanding <= 0"
+              :disabled="detailLoan.outstanding <= 0 || !canPermissionKey('employee_advance:write')"
+              :title="canPermissionKey('employee_advance:write') ? undefined : '当前角色无借款写权限'"
               @click="offsetLoan"
             >
               选择报销单冲抵
@@ -756,7 +761,11 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               <AppTextField
                 v-model="budgetInput"
                 label="调整预算（CNY）"
-              /><VBtn @click="saveBudgetDetail">
+              /><VBtn
+                :disabled="!canPermissionKey('budget:write')"
+                :title="canPermissionKey('budget:write') ? undefined : '当前角色无预算写权限'"
+                @click="saveBudgetDetail"
+              >
                 保存调整申请（L2）
               </VBtn>
             </div>
@@ -812,7 +821,11 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               md="4"
               class="d-flex align-end"
             >
-              <VBtn @click="orderVoucher">
+              <VBtn
+                :disabled="!canPermissionKey('sales_order:create')"
+                :title="canPermissionKey('sales_order:create') ? undefined : '只有管理员可以生成订单凭证草稿'"
+                @click="orderVoucher"
+              >
                 生成收入 / 应收凭证草稿
               </VBtn>
             </VCol>
@@ -977,6 +990,8 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               v-if="pageKey === 'EX04'"
               size="x-small"
               variant="tonal"
+              :disabled="!canPermissionKey('employee_advance:write')"
+              :title="canPermissionKey('employee_advance:write') ? undefined : '当前角色无借款写权限'"
               @click.stop="openRepayment(String(item.id))"
             >
               登记还款
@@ -985,6 +1000,8 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               v-if="pageKey === 'EX07'"
               size="x-small"
               variant="tonal"
+              :disabled="!canPermissionKey('expense_claim_type:write')"
+              :title="canPermissionKey('expense_claim_type:write') ? undefined : '当前角色无费用标准写权限'"
               @click.stop="openPolicy(item)"
             >
               编辑标准
@@ -993,6 +1010,8 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               v-if="pageKey === 'F33' && item.status !== 'submitted'"
               size="x-small"
               variant="tonal"
+              :disabled="!canPermissionKey('vat_return:write')"
+              :title="canPermissionKey('vat_return:write') ? undefined : '当前角色无 VAT 写权限'"
               data-test="vat-submit"
               @click.stop="submitVat(String(item.id))"
             >
@@ -1002,6 +1021,8 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               <VBtn
                 size="x-small"
                 variant="tonal"
+                :disabled="!canPermissionKey('export_tax_rebate:write')"
+                :title="canPermissionKey('export_tax_rebate:write') ? undefined : '当前角色无出口退税写权限'"
                 data-test="rebate-upload"
                 @click.stop="openRebateUpload(String(item.id))"
               >
@@ -1010,6 +1031,8 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               <VBtn
                 size="x-small"
                 variant="text"
+                :disabled="!canPermissionKey('export_tax_rebate:write')"
+                :title="canPermissionKey('export_tax_rebate:write') ? undefined : '当前角色无出口退税写权限'"
                 data-test="rebate-validate"
                 @click.stop="validateRebate(String(item.id))"
               >

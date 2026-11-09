@@ -8,6 +8,7 @@ import { useMockDbStore } from '@/stores/mockdb'
 import { useSessionStore } from '@/stores/session'
 import type { Actor } from '@/types/entities'
 import { type AppAction, can } from '@/utils/permission'
+import { canPermission, roleSubject } from '@/utils/permission-engine'
 
 export function delay(ms = 160) {
   return new Promise<void>(resolve => {
@@ -47,6 +48,30 @@ export function assertCan(action: AppAction) {
     throw new FlowError('当前角色不能执行这个操作')
 
   return actor
+}
+
+export function assertPermission(permissionKey: string) {
+  const actor = currentActor()
+
+  if (!canPermission(roleSubject(actor.role, actor.id), permissionKey))
+    throw new FlowError('当前角色不能执行这个操作')
+
+  return actor
+}
+
+export function assertAnyPermission(permissionKeys: string[]) {
+  let lastError: unknown
+
+  for (const permissionKey of permissionKeys) {
+    try {
+      return assertPermission(permissionKey)
+    }
+    catch (error) {
+      lastError = error
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new FlowError('当前角色不能执行这个操作')
 }
 
 export function database() {

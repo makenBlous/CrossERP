@@ -6,6 +6,8 @@ import type {
 } from '@/types/gap-a'
 import { demoIdentities, useSessionStore } from '@/stores/session'
 import { EXPENSE_ACCOUNT_MAPPINGS, expenseAccountMappingForCategory } from '@/mocks/config/gap-a-expense-accounts'
+import { expenseApprovalPermissionKeys } from '@/config/permissions'
+import { canPermission, roleSubject } from '@/utils/permission-engine'
 import { minorFromDecimal, minorToDecimal, percentOf } from '@/utils/money'
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
@@ -14,11 +16,45 @@ const actor = () => useSessionStore().displayName
 const actorId = () => useSessionStore().userId
 const BUDGET_WARNING_BASIS_POINTS = 8000
 const EXPENSE_DEBIT_ACCOUNTS = new Set(EXPENSE_ACCOUNT_MAPPINGS.map(item => item.debitAccount))
+const GAP_A_STATE_VERSION = 2
 
 function identityNameForId(id: string | undefined, fallback: string) {
   const identity = Object.values(demoIdentities).find(item => item.id === id)
 
   return identity?.name ?? fallback
+}
+
+function identityIdForName(name: string | undefined) {
+  if (!name)
+    return undefined
+
+  return Object.values(demoIdentities).find(item => item.name === name)?.id
+}
+
+function isKnownIdentityId(id: string | undefined) {
+  return Boolean(id && Object.values(demoIdentities).some(item => item.id === id))
+}
+
+function identityStatus(id: string | undefined, name: string | undefined): 'resolved' | 'needs_manual_repair' {
+  return isKnownIdentityId(id ?? identityIdForName(name)) ? 'resolved' : 'needs_manual_repair'
+}
+
+function assertKnownIdentity(record: { claimantId?: string; identityStatus?: 'resolved' | 'needs_manual_repair' }, kind: string) {
+  if (!isKnownIdentityId(record.claimantId) || record.identityStatus === 'needs_manual_repair')
+    throw new Error(`${kind}身份无法确定，已标记为待人工修复`)
+}
+
+function assertSafeMinorAmount(amount: number, label: string) {
+  if (!Number.isSafeInteger(amount) || amount <= 0)
+    throw new Error(`${label}必须是大于零的安全整数最小单位`)
+}
+
+function assertApprovalPermission(step: 'manager' | 'finance') {
+  const session = useSessionStore()
+  const permissionKey = step === 'manager' ? expenseApprovalPermissionKeys.manager : expenseApprovalPermissionKeys.finance
+
+  if (!canPermission(roleSubject(session.role, session.userId), permissionKey))
+    throw new Error(`当前角色没有${step === 'manager' ? '主管' : '财务'}审批权限`)
 }
 
 function audit(id: string, action: string, detail: string, origin: 'human' | 'ai' = 'human', agentSuggestionId?: string): GapAAuditEvent {
@@ -70,6 +106,7 @@ function initialState(): GapAState {
   }
 
   return {
+    schemaVersion: GAP_A_STATE_VERSION,
     claims: [{ id: 'exp-001', claimantId: 'demo-employee', claimant: '演示普通员工', department: '运营部', status: 'submitted', total: minorFromDecimal('850'), currency: 'CNY', standardLimit: minorFromDecimal('600'), overStandard: true, attachmentName: '差旅发票-001.pdf', origin: 'human', lines: [makeLine('exp-001-1', minorFromDecimal('850'))], approvalSteps: [{ title: '部门主管', status: 'pending' }, { title: '财务', status: 'pending' }], budgetPeriod: '2026-11', createdAt: '2026-11-05T09:00:00Z' }],
     loans: [{ id: 'loan-001', claimantId: 'demo-employee', claimant: '演示普通员工', purpose: '海外展会差旅备用金', status: 'approved', amount: minorFromDecimal('3000'), settled: minorFromDecimal('1200'), outstanding: minorFromDecimal('1800'), currency: 'CNY', dueOn: '2026-12-15', audit: [{ id: 'loan-001-approved', at: '2026-10-20T09:00:00Z', actor: '演示财务', actorId: 'demo-finance', action: '批准借款', detail: '借款审批通过。', origin: 'human' }] }],
     trips: [{ id: 'trip-001', claimantId: 'demo-employee', claimant: '演示普通员工', destination: '深圳', startOn: '2026-11-18', endOn: '2026-11-20', budget: minorFromDecimal('2400'), currency: 'CNY', status: 'approved' }],
@@ -105,13 +142,41 @@ function loadState() {
     if (!saved)
       return initialState()
 
-    const parsed = JSON.parse(saved) as GapAState
+    const parsed = JSON.parse(saved) as Partial<GapAState>
+    const version = Number.isInteger(parsed.schemaVersion) ? Number(parsed.schemaVersion) : 0
 
-    parsed.rebates = parsed.rebates.map(item => ({ ...item, documents: item.documents ?? [] }))
-    parsed.claims = parsed.claims.map(item => ({ ...item }))
-    parsed.loans = parsed.loans.map(item => ({ ...item }))
-    parsed.trips = parsed.trips.map(item => ({ ...item }))
-    parsed.policies = parsed.policies.map(item => {
+    if (version > GAP_A_STATE_VERSION)
+      throw new Error('本地费用数据版本过新，无法读取')
+
+    const defaults = initialState()
+    const migrated = { ...defaults, ...parsed, schemaVersion: GAP_A_STATE_VERSION } as GapAState
+
+    migrated.rebates = (parsed.rebates ?? defaults.rebates).map(item => ({ ...item, documents: item.documents ?? [] }))
+
+    migrated.claims = (parsed.claims ?? defaults.claims).map(item => {
+      const claimantId = isKnownIdentityId(item.claimantId) ? item.claimantId : identityIdForName(item.claimant)
+
+      const steps = (item.approvalSteps ?? [{ title: '部门主管', status: 'pending' as const }, { title: '财务', status: 'pending' as const }]).map(step => {
+        const stepActorId = isKnownIdentityId(step.actorId) ? step.actorId : identityIdForName(step.actor)
+
+        return { ...step, actorId: stepActorId }
+      })
+
+      const unresolvedStepActor = steps.some(step => Boolean(step.actor) && !step.actorId)
+
+      return { ...item, claimantId, identityStatus: claimantId && !unresolvedStepActor ? 'resolved' : 'needs_manual_repair', approvalSteps: steps }
+    })
+    migrated.loans = (parsed.loans ?? defaults.loans).map(item => {
+      const claimantId = isKnownIdentityId(item.claimantId) ? item.claimantId : identityIdForName(item.claimant)
+
+      return { ...item, claimantId, identityStatus: identityStatus(claimantId, item.claimant) }
+    })
+    migrated.trips = (parsed.trips ?? defaults.trips).map(item => {
+      const claimantId = isKnownIdentityId(item.claimantId) ? item.claimantId : identityIdForName(item.claimant)
+
+      return { ...item, claimantId, identityStatus: identityStatus(claimantId, item.claimant) }
+    })
+    migrated.policies = (parsed.policies ?? defaults.policies).map(item => {
       const configured = expenseAccountMappingForCategory(item.category)
 
       return {
@@ -122,16 +187,28 @@ function loadState() {
         mappingNote: item.mappingNote ?? configured.note,
       }
     })
-    parsed.vouchers = parsed.vouchers.map(item => ({
-      ...item,
-      createdById: item.createdById ?? 'demo-operator',
-    }))
+    migrated.vouchers = (parsed.vouchers ?? defaults.vouchers).map(item => {
+      const timeline = item.timeline ?? []
+      const createdById = isKnownIdentityId(item.createdById) ? item.createdById : identityIdForName(timeline[0]?.actor)
 
-    return parsed
+      return { ...item, createdById, identityStatus: identityStatus(createdById, timeline[0]?.actor), timeline: timeline.map(event => migrateAudit(event)) }
+    })
+    migrated.audits = (parsed.audits ?? defaults.audits).map(event => migrateAudit(event))
+
+    if (version < GAP_A_STATE_VERSION && typeof localStorage !== 'undefined')
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
+
+    return migrated
   }
   catch {
     return initialState()
   }
+}
+
+function migrateAudit(event: GapAAuditEvent): GapAAuditEvent {
+  const actorIdValue = isKnownIdentityId(event.actorId) ? event.actorId : identityIdForName(event.actor)
+
+  return { ...event, actorId: actorIdValue, identityStatus: actorIdValue ? 'resolved' : 'needs_manual_repair' }
 }
 
 function persist() {
@@ -149,11 +226,10 @@ export function listLoans() { return clone(state.loans) }
 export function loan(id: string) { return clone(state.loans.find(item => item.id === id) ?? null) }
 export function listTrips() { return clone(state.trips) }
 export function createTrip(input: Omit<TravelRequest, 'id' | 'status'>) {
-  if (input.budget <= 0)
-    throw new Error('差旅预算必须大于零')
-  if (!input.claimantId)
+  assertSafeMinorAmount(input.budget, '差旅预算')
+  if (!isKnownIdentityId(input.claimantId))
     throw new Error('差旅申请必须提供稳定身份 ID')
-  const item: TravelRequest = { ...input, claimant: identityNameForId(input.claimantId, input.claimant), id: nextId('trip'), status: 'draft' }
+  const item: TravelRequest = { ...input, identityStatus: 'resolved', claimant: identityNameForId(input.claimantId, input.claimant), id: nextId('trip'), status: 'draft' }
 
   state.trips.unshift(item)
   addAudit(audit('trip-created', '创建差旅申请', `创建差旅申请 ${item.id}，预算由代码按申请填写保存。`), item.id)
@@ -178,12 +254,15 @@ export function suggestTripClaim(id: string) {
   const item = state.trips.find(row => row.id === id)
   if (!item)
     return null
+  assertKnownIdentity(item, '差旅申请')
 
   const start = item.startOn.slice(0, 10)
   const end = item.endOn.slice(0, 10)
 
   const candidates = state.claims
     .map(claimItem => {
+      if (!isKnownIdentityId(claimItem.claimantId) || claimItem.identityStatus === 'needs_manual_repair')
+        return null
       const sameClaimant = Boolean(claimItem.claimantId && item.claimantId && claimItem.claimantId === item.claimantId)
       const inWindow = claimItem.lines.some(line => line.occurredOn >= start && line.occurredOn <= end)
       const withinBudget = claimItem.total <= item.budget
@@ -191,7 +270,7 @@ export function suggestTripClaim(id: string) {
 
       return { claim: claimItem, score, sameClaimant }
     })
-    .filter(candidate => candidate.sameClaimant && candidate.score > 0)
+    .filter((candidate): candidate is { claim: ExpenseClaim; score: number; sameClaimant: boolean } => Boolean(candidate?.sameClaimant && candidate.score > 0))
     .sort((left, right) => right.score - left.score || left.claim.id.localeCompare(right.claim.id))
 
   const best = candidates[0]
@@ -208,6 +287,8 @@ export function confirmTripClaim(id: string, claimId: string) {
   const claimItem = state.claims.find(row => row.id === claimId)
   if (!item || !claimItem)
     return null
+  assertKnownIdentity(item, '差旅申请')
+  assertKnownIdentity(claimItem, '报销单')
   if (item.linkedClaimId)
     throw new Error('该差旅申请已经确认匹配，不能重复确认')
   if (!['submitted', 'posted'].includes(claimItem.status))
@@ -224,8 +305,10 @@ export function confirmTripClaim(id: string, claimId: string) {
 export function listPolicies() { return clone(state.policies) }
 export function savePolicy(id: string, limit: number, mapping?: { debitAccount?: string; creditAccount?: string }) {
   const item = state.policies.find(row => row.id === id)
-  if (!item || limit <= 0)
+  if (!item)
     return null
+  assertSafeMinorAmount(limit, '费用标准')
+
   const debitAccount = mapping?.debitAccount?.trim() || item.debitAccount || expenseAccountMappingForCategory(item.category).debitAccount
   const creditAccount = mapping?.creditAccount?.trim() || item.creditAccount || '其他应付款-员工'
   if (!debitAccount)
@@ -325,15 +408,14 @@ function expenseAccountForCategory(lines: ExpenseClaimLine[]) {
 }
 
 export function createClaim(input: { claimant: string; claimantId?: string; department: string; attachmentName: string; line: Omit<ExpenseClaimLine, 'id'>; origin: 'human' | 'ai'; agentSuggestionId?: string }) {
-  if (input.line.amount <= 0)
-    throw new Error('报销明细金额必须大于零')
-  if (!input.claimantId)
+  assertSafeMinorAmount(input.line.amount, '报销明细金额')
+  if (!isKnownIdentityId(input.claimantId))
     throw new Error('报销必须提供稳定身份 ID')
   const id = `exp-${String(state.claims.length + 1).padStart(3, '0')}`
   const line = { ...input.line, id: `${id}-1` }
   const policy = state.policies.find(item => item.category === line.category && (item.department === input.department || item.department === '全公司'))
   const claimantId = input.claimantId
-  const item: ExpenseClaim = { id, claimantId, claimant: identityNameForId(claimantId, input.claimant), department: input.department, status: 'draft', total: line.amount, currency: line.currency, standardLimit: policy?.limit ?? line.amount, overStandard: line.amount > (policy?.limit ?? line.amount), attachmentName: input.attachmentName, origin: input.origin, lines: [line], approvalSteps: [{ title: '部门主管', status: 'pending' }, { title: '财务', status: 'pending' }], budgetPeriod: '2026-11', createdAt: now() }
+  const item: ExpenseClaim = { id, claimantId, identityStatus: 'resolved', claimant: identityNameForId(claimantId, input.claimant), department: input.department, status: 'draft', total: line.amount, currency: line.currency, standardLimit: policy?.limit ?? line.amount, overStandard: line.amount > (policy?.limit ?? line.amount), attachmentName: input.attachmentName, origin: input.origin, lines: [line], approvalSteps: [{ title: '部门主管', status: 'pending' }, { title: '财务', status: 'pending' }], budgetPeriod: '2026-11', createdAt: now() }
 
   state.claims.unshift(item)
   addAudit(audit('claim-created', '创建报销草稿', `创建报销 ${id}，金额由票面和代码合计。`, input.origin, input.agentSuggestionId), id)
@@ -362,9 +444,14 @@ export function decideClaim(id: string, step: 'manager' | 'finance', status: Ext
     return null
   if (item.origin === 'ai')
     throw new Error('AI 来源只能保存草稿，不能审批')
+  assertKnownIdentity(item, '报销单')
+  assertApprovalPermission(step)
   if (item.status === 'rejected')
     throw new Error('已驳回的报销不能继续审批')
-  const currentActor = actor(); if (item.claimantId && actorId() === item.claimantId)
+  const currentActor = actor(); const currentActorId = actorId()
+  if (!isKnownIdentityId(currentActorId))
+    throw new Error('审批人身份无法确定，已标记为待人工修复')
+  if (currentActorId === item.claimantId)
     throw new Error('不能审批自己提交的报销单，请换另一位审批人')
   const index = step === 'manager' ? 0 : 1
   if (item.approvalSteps[index].status !== 'pending')
@@ -373,12 +460,19 @@ export function decideClaim(id: string, step: 'manager' | 'finance', status: Ext
     throw new Error('只有已提交的报销单才能由主管审批')
   if (step === 'finance' && item.status !== 'manager_approved')
     throw new Error('主管审批通过后，财务才能审批')
+  if (step === 'finance' && item.approvalSteps[0].actorId === currentActorId)
+    throw new Error('同一审批人不能连续完成主管级与财务级审批')
 
-  item.approvalSteps[index].status = status; item.approvalSteps[index].actor = currentActor
+  item.approvalSteps[index].status = status; item.approvalSteps[index].actor = currentActor; item.approvalSteps[index].actorId = currentActorId
+
   if (status === 'rejected') { item.status = 'rejected' }
   else if (step === 'manager') { item.status = 'manager_approved' }
   else {
+    item.lines.forEach(line => assertSafeMinorAmount(line.amount, '报销明细金额'))
+
     const amount = item.lines.reduce((sum, line) => sum + line.amount, 0)
+
+    assertSafeMinorAmount(amount, '报销合计')
 
     item.total = amount
     item.status = 'finance_approved'; item.status = 'posted'
@@ -405,8 +499,7 @@ export function decideClaim(id: string, step: 'manager' | 'finance', status: Ext
 export function repayLoan(id: string, amount: number) {
   const item = state.loans.find(row => row.id === id); if (!item)
     return null
-  if (amount <= 0)
-    throw new Error('还款金额必须大于零')
+  assertSafeMinorAmount(amount, '还款金额')
   if (item.outstanding <= 0 || item.status === 'repaid')
     throw new Error('借款已还清，不能重复还款')
   if (amount > item.outstanding)
@@ -433,6 +526,7 @@ export function offsetLoan(loanId: string, claimId: string) {
     throw new Error('同一报销单不能重复冲抵借款')
   if (amount <= 0)
     throw new Error('冲抵金额必须大于零')
+  assertSafeMinorAmount(amount, '冲抵金额')
 
   loanItem.settled += amount; loanItem.outstanding -= amount; if (!loanItem.outstanding)
     loanItem.status = 'repaid'; addAudit(audit('loan-offset', '冲抵报销', `报销 ${claimId} 冲抵借款 ${loanId}。`), loanId)
@@ -442,8 +536,7 @@ export function offsetLoan(loanId: string, claimId: string) {
 }
 
 export function createVoucher(summary: string, period: string, amount: number, sourceLinks: VoucherSourceLink[], sourceType: string, sourceId: string, debitAccount = '主营业务成本', creditAccount = '平台结算清算', createdById = actorId()) {
-  if (amount <= 0)
-    throw new Error('凭证金额必须大于零')
+  assertSafeMinorAmount(amount, '凭证金额')
   assertOpen(period)
   if (state.vouchers.some(voucher => voucher.sourceLinks.some(link => link.sourceType === sourceType && link.sourceId === sourceId)))
     throw new Error(`来源 ${sourceType}:${sourceId} 已生成凭证，不能重复生成`)
@@ -508,7 +601,11 @@ export function createFxVoucher(id: string) {
     return null
   if (row.voucherId || row.status !== 'preview')
     throw new Error(`汇兑重估 ${id} 已生成凭证，不能重复生成`)
-  const amount = Math.abs(row.gainLoss); const voucher = createVoucher(`${row.period} ${row.currency} 汇兑重估`, row.period, amount, [{ sourceType: 'fx_revaluation', sourceId: row.id, label: `${row.currency} 汇兑重估`, to: '/finance/fx-revaluation', amount, currency: 'CNY' }], 'fx_revaluation', row.id)
+  const amount = Math.abs(row.gainLoss)
+
+  assertSafeMinorAmount(amount, '汇兑重估金额')
+
+  const voucher = createVoucher(`${row.period} ${row.currency} 汇兑重估`, row.period, amount, [{ sourceType: 'fx_revaluation', sourceId: row.id, label: `${row.currency} 汇兑重估`, to: '/finance/fx-revaluation', amount, currency: 'CNY' }], 'fx_revaluation', row.id)
 
   row.status = 'drafted'; row.voucherId = voucher.id
   persist()
@@ -552,8 +649,7 @@ export function closePeriod(period: string) {
 export function saveBudget(id: string, budget: number) {
   const item = state.budgets.find(row => row.id === id); if (!item)
     return null
-  if (budget <= 0)
-    throw new Error('预算必须大于零')
+  assertSafeMinorAmount(budget, '预算')
   if (item.budget === budget)
     throw new Error('预算没有变化，不能重复调整')
   const warningThreshold = percentOf(budget, BUDGET_WARNING_BASIS_POINTS)
