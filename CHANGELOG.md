@@ -4,6 +4,7 @@
 
 ## [Unreleased]
 
+- 批次二前端重做：财务/广告/审批数据统一进入可持久化 mockdb，金额保持万分位整数，补齐状态字典、英文文案、详情空态和凭证审批导出链路。
 - 修复登录页 CSRF：表单写入本次签发的令牌，刷新和多标签页可以登录；纯文本错误声明 UTF-8，避免中文 Windows 把「校验失败」显示成乱码。
 - 修正本地 Docker Compose 通过 HTTP 访问时的登录 Cookie 配置；HTTPS 部署仍可设置 `CROSSERP_COOKIE_SECURE=1`。
 - 安装 smoke 在跨平台启动本地服务时显式关闭 HTTPS Cookie，并在服务提前退出时立即报告原因。

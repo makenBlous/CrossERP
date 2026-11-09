@@ -33,12 +33,6 @@ const ORDER_STATUS_ZH: Record<string, string> = {
   cancelled: '已取消',
 }
 
-const ISSUE_STATUS_ZH: Record<string, string> = {
-  open: '待处理',
-  explained: '已说明',
-  ignored: '已忽略',
-}
-
 const CRM_STATUS_ZH: Record<string, string> = {
   active: '合作中',
   negotiating: '谈判中',
