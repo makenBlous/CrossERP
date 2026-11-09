@@ -11,8 +11,7 @@ import StatusChip from '@/components/biz/StatusChip.vue'
 import { useAiModeStore } from '@/stores/ai-mode'
 import { useSessionStore } from '@/stores/session'
 import {
-  closeGapAPeriod, createGapAClaim, createGapACogsVoucher, createGapAFxVoucher, createGapAPolicy, createGapAProfitVoucher, createGapATrip,
-  confirmGapATripClaim,
+  closeGapAPeriod, confirmGapATripClaim, createGapAClaim, createGapACogsVoucher, createGapAFxVoucher, createGapAPolicy, createGapAProfitVoucher, createGapATrip,
   decideGapAClaim, fetchGapAAudits, fetchGapABudget, fetchGapABudgets, fetchGapAClaim, fetchGapAClaims, fetchGapACogs,
   fetchGapAFx, fetchGapALedger, fetchGapALoan, fetchGapALoans, fetchGapAPeriods,
   fetchGapAPolicies, fetchGapARebates, fetchGapAStatement, fetchGapATrialBalance, fetchGapATrips, fetchGapAVat, generateGapAOrderVoucher,
@@ -237,11 +236,13 @@ async function validateRebate(id: string) {
   successMessage.value = '正在校验退税资料…'
   await run(async () => {
     const result = await validateGapARebate(id)
+
     rebateValidation.value = result?.missing ?? []
     successMessage.value = rebateValidation.value.length ? '退税资料校验完成，结果已写入审计记录。' : '退税资料齐全，状态已更新为待申报，审计记录已追加。'
     selectedRebateId.value = id
   })
 }
+
 async function decideClaim(step: 'manager' | 'finance', status: 'approved' | 'rejected') {
   const id = routeId()
 

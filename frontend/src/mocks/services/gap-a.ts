@@ -1,7 +1,7 @@
 /* eslint-disable max-statements-per-line, sonarjs/no-same-line-conditional, @typescript-eslint/no-shadow */
 import type {
-  BudgetRow, CogsRun, EmployeeLoan, ExpenseClaim, ExpenseClaimLine, ExpensePolicy, ExportRebateRow, FxRevaluationRow,
-  ExportRebateDocument, GapAAuditEvent, GapAState, GapAVoucher, GapApprovalStatus, LedgerEntry, PeriodCloseState, StatementRow, TravelRequest,
+  BudgetRow, CogsRun, EmployeeLoan, ExpenseClaim, ExpenseClaimLine, ExpensePolicy, ExportRebateDocument, ExportRebateRow, FxRevaluationRow,
+  GapAAuditEvent, GapAState, GapAVoucher, GapApprovalStatus, LedgerEntry, PeriodCloseState, StatementRow, TravelRequest,
   TrialBalanceRow, VatReturnRow, VoucherSourceLink,
 } from '@/types/gap-a'
 import { useSessionStore } from '@/stores/session'
@@ -94,6 +94,7 @@ function loadState() {
       return initialState()
 
     const parsed = JSON.parse(saved) as GapAState
+
     parsed.rebates = parsed.rebates.map(item => ({ ...item, documents: item.documents ?? [] }))
 
     return parsed
@@ -146,6 +147,7 @@ export function suggestTripClaim(id: string) {
 
   const start = item.startOn.slice(0, 10)
   const end = item.endOn.slice(0, 10)
+
   const candidates = state.claims
     .map(claimItem => {
       const sameClaimant = claimItem.claimant === item.claimant
