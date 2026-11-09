@@ -72,3 +72,10 @@ export const departments: Department[] = [
   { id: 'dept-ops', code: 'OPS', name: '运营部', parentId: null, managerUserId: 'demo-operator', active: true },
   { id: 'dept-fin', code: 'FIN', name: '财务部', parentId: null, managerUserId: 'demo-finance', active: true },
 ]
+
+// ---- 补齐批次 D：人事、行政、智能体控制的种子索引 ----
+export const gapDSeed = {
+  aiControl: { mode: 'normal' as const, reason: '演示默认正常；可由管理员切换为降级或关闭' },
+  payrollNotice: '模拟规则，费率待会计/HR 核实，不代表已具备全国合规算税算社保能力',
+  salaryFieldPolicy: '仅人事、获授权财务和员工本人可见',
+}

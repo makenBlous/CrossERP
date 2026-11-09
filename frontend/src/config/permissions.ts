@@ -179,3 +179,12 @@ export const moduleRegistry = [
   { id: 'collaboration', nameZh: '协作', nameEn: 'Collaboration', enabled: true, defaultPhase: 'now' as const },
   { id: 'expense', nameZh: '费用', nameEn: 'Expenses', enabled: true, defaultPhase: 'now' as const },
 ] as const
+
+// ---- 补齐批次 D：页面动作权限点（薪资字段默认收窄） ----
+export const gapDPermissionPoints: PermissionPoint[] = [
+  { key: 'agent_autonomy:write', labelZh: '修改自主等级', labelEn: 'Edit autonomy policy', module: 'Agent', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all'] },
+  { key: 'agent_mode:write', labelZh: '切换 AI 总开关', labelEn: 'Change AI mode', module: 'Agent', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all'] },
+  { key: 'payroll_run:calculate', labelZh: '发起算薪', labelEn: 'Calculate payroll', module: 'Payroll', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all', 'department'] },
+  { key: 'salary_slip:read_own', labelZh: '查看本人工资条', labelEn: 'Read own payslip', module: 'Payroll', kind: 'field', sensitive: true, dataScopeRuleTypes: ['self'] },
+  { key: 'salary_slip:read_all', labelZh: '查看全部工资字段', labelEn: 'Read all salary fields', module: 'Payroll', kind: 'field', sensitive: true, dataScopeRuleTypes: ['all'] },
+]

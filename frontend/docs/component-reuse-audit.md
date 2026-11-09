@@ -244,3 +244,17 @@
 批次 0 没有新增业务页面组件，98 条新路由统一复用现有 `components/PlaceholderPage.vue`。权限、AI 状态、渠道和校验属于共享地基，分别复用 Pinia、现有 `PermissionGate`、`AssistantDrawer`、`ChatLog` 与 `vue-i18n`；没有重复实现 Vuexy 页面或聊天卡片。
 
 
+
+## 补齐批次 D：智能体可控中心与人事行政
+
+审计范围：`src/views/gap-d/BatchDPage.vue`、`src/pages/agent/**`、`src/pages/hr/**`、`src/pages/office/**`，以及批次 D 的类型、API 和 mock 服务。
+
+| 页面区块 | 复用组件 | 处理与理由 |
+| --- | --- | --- |
+| 智能体、员工、行政列表 | `components/biz/ListPage`、`StatusChip`、`MoneyText` | 直接复用统一筛选、分页、状态和金额展示；服务层先裁剪工资字段。 |
+| AI 总开关、工资批次、资产详情 | `components/biz/DetailPage`、Vuetify `VCard`/`VAlert`/`VTable` | `DetailPage` 提供 Vuexy 详情双栏和时间线；状态/明细是业务专属字段，表格使用 Vuetify 原生组件。 |
+| 新工具、请假、规则维护 | `components/biz/FormPage`、`AppTextField`、`AppTextarea`、`VSwitch` | 复用现有表单页保存/取消和校验外壳；工具密钥只显示“已配置”。 |
+| 可信度指标 | `components/KpiCard` | 复用现有 Vuexy `CardStatisticsHorizontal` 薄封装，没有新增卡片组件。 |
+| AI 辅助区 | 顶部 `VAlert`；全局 `AssistantDrawer` | 仅在 AI 开启时显示 AI 状态提示，关闭时隐藏 AI 区；页面没有新造聊天或建议卡。 |
+
+本批没有新增通用 UI 组件。`BatchDPage` 是批次专用页面编排器，原因是 26 个页面共享同一套静态 API、权限提示、工资字段裁剪和人工流程状态；路由文件保持薄壳，避免复制列表/详情/表单结构。Vuexy 对照采用 `apps/permissions`、`apps/user/view`、`apps/invoice/list` 和 `forms/form-wizard` 的布局语义，未复制其源码。

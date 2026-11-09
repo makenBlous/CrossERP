@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import AgentListPage from '@/views/agent/AgentListPage.vue'
+import BatchDPage from '@/views/gap-d/BatchDPage.vue'
 </script>
 
 <template>
-  <AgentListPage mode="tools" />
+  <BatchDPage page-id="G04" />
 </template>
