@@ -2,6 +2,7 @@ import type { Actor, AgentRunEntity, AuditEvent, MockDatabase } from '@/types/en
 import type { AgentRunStep, AgentTask, EvalCase, EvalRun, KnowledgeDocument, PromptVersion, SecurityEvent, UsageCall } from '@/types/agent-module'
 import { nextId } from '@/mocks/services/ids'
 import { writeAudit } from '@/mocks/services/audit'
+import { requireActorPermission } from '@/utils/service-permissions'
 
 interface AgentCollections {
   agentTasks: AgentTask[]
@@ -57,6 +58,8 @@ export function listSecurityEvents(db: MockDatabase) {
 }
 
 export function recordAgentRun(db: MockDatabase, input: { question: string; agentName?: string; runId?: string }, actor: Actor): AgentRunEntity {
+  requireActorPermission(actor, 'agent_tool:read')
+
   const run: AgentRunEntity = {
     id: input.runId ?? nextId(db, 'run'),
     agentName: input.agentName ?? '对账解释员',
@@ -84,6 +87,7 @@ export function recordAgentRun(db: MockDatabase, input: { question: string; agen
 }
 
 export function addSuggestionStep(db: MockDatabase, runId: string, approvalId: string, actor: Actor) {
+  requireActorPermission(actor, 'agent_tool:write')
   collections(db).agentRunSteps.push({ id: nextId(db, 'step'), runId, kind: 'suggestion', title: '生成待审批建议', detail: `建议 ${approvalId} 已进入审批队列，未写入业务数据`, at: actor.at.slice(11, 19), output: '{"approval":"pending"}', redacted: true })
 }
 

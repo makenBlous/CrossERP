@@ -4,6 +4,7 @@ import { submitSuggestion } from '@/mocks/services/approvals'
 import { writeAudit } from '@/mocks/services/audit'
 import { nextId } from '@/mocks/services/ids'
 import { type Minor, addMinor, convertMinor, minorFromDecimal, minorToDecimal, toDisplay } from '@/utils/money'
+import { requireActorPermission } from '@/utils/service-permissions'
 
 export type ImportBatchRow = Finance2Data['imports'][number]
 export type FeeMapRow = Finance2Data['feeMaps'][number]
@@ -36,6 +37,8 @@ export function importDetail(db: MockDatabase, id: string) {
 }
 
 export function recordImport(db: MockDatabase, fileName: string, actor: Actor) {
+  requireActorPermission(actor, 'integration:import')
+
   const data = financeData(db)
   const row = { id: `imp-${String(data.imports.length + 1).padStart(3, '0')}`, fileName, connector: 'Auto-detect', status: 'success', rows: 64, errors: 0, importedAt: new Date(actor.at).toLocaleString('sv-SE').slice(0, 16) }
 
@@ -120,6 +123,8 @@ export function fxRates(db: MockDatabase) {
 }
 
 export function addFxRate(db: MockDatabase, input: { period: string; fromCcy: CurrencyCode; toCcy: CurrencyCode; rate: string }, actor: Actor) {
+  requireActorPermission(actor, 'integration:write')
+
   const rate = minorFromDecimal(input.rate)
   if (rate <= 0)
     return null
@@ -144,6 +149,8 @@ export function columnMapDetail(db: MockDatabase, id: string) {
 }
 
 export function saveColumnMap(db: MockDatabase, id: string, mappings: Array<{ source: string; field: string }>, actor: Actor) {
+  requireActorPermission(actor, 'integration:write')
+
   const row = financeData(db).columnMaps.find(item => item.id === id)
   if (!row)
     return null
@@ -228,6 +235,8 @@ export function adsImportRows(db: MockDatabase) {
 }
 
 export function recordAdImport(db: MockDatabase, fileName: string, actor: Actor) {
+  requireActorPermission(actor, 'advertisement:import')
+
   const data = adsData(db)
   const row: AdsImportBatch = { id: `adimp-${data.imports.length + 1}`, fileName, platform: 'Amazon Ads', rows: 128, spend: minorFromDecimal('418.3600'), status: 'success', importedAt: new Date(actor.at).toLocaleString('sv-SE').slice(0, 16) }
 
@@ -260,6 +269,8 @@ export interface AllocationShare { sku: string; ratio: number }
  * 比例必须是正整数、SKU 不重复、合计恰好 100%；花费按整数万分位分摊，尾差给最后一行，保证合计等于活动花费。
  */
 export function saveAllocation(db: MockDatabase, campaignId: string, shares: AllocationShare[], actor: Actor) {
+  requireActorPermission(actor, 'advertisement:write')
+
   const campaign = db.adsCampaigns.find(item => item.id === campaignId)
   if (!campaign || !shares.length)
     return null
@@ -308,6 +319,8 @@ export function saveAllocation(db: MockDatabase, campaignId: string, shares: All
 }
 
 export function confirmFeeMap(db: MockDatabase, id: string, category: string, actor: Actor) {
+  requireActorPermission(actor, 'integration:write')
+
   const row = financeData(db).feeMaps.find(item => item.id === id)
   if (!row)
     return
@@ -320,6 +333,8 @@ export function confirmFeeMap(db: MockDatabase, id: string, category: string, ac
 }
 
 export function handleIssue(db: MockDatabase, id: string, action: 'explained' | 'ignored', note: string, actor: Actor) {
+  requireActorPermission(actor, 'report:write')
+
   const row = db.issues.find(item => item.id === id)
   if (!row)
     return
@@ -329,6 +344,8 @@ export function handleIssue(db: MockDatabase, id: string, action: 'explained' | 
 }
 
 export function createVoucherFromIssue(db: MockDatabase, issueId: string, actor: Actor) {
+  requireActorPermission(actor, 'journal_entry:create')
+
   const issue = db.issues.find(item => item.id === issueId)
   if (!issue)
     return null
@@ -341,6 +358,8 @@ export function createVoucherFromIssue(db: MockDatabase, issueId: string, actor:
 }
 
 export function createVoucherFromProfit(db: MockDatabase, actor: Actor) {
+  requireActorPermission(actor, 'journal_entry:create')
+
   // 利润快照有多种币种，先按服务层汇率折算成凭证币种 CNY 再合计，不能直接相加。
   const total = db.profitSnapshots.filter(row => row.period === '2026-10').reduce((sum, row) => addMinor(sum, convertMinor(row.profit, row.currency, 'CNY')), 0)
   const amount: Minor = total || minorFromDecimal('100.0000')
@@ -353,6 +372,8 @@ export function createVoucherFromProfit(db: MockDatabase, actor: Actor) {
 }
 
 export function submitVoucher(db: MockDatabase, voucherId: string, actor: Actor) {
+  requireActorPermission(actor, 'journal_entry:submit')
+
   const voucher = db.vouchers.find(item => item.id === voucherId)
   if (!voucher || (voucher.status !== 'draft' && voucher.status !== 'rejected'))
     return null
@@ -381,6 +402,8 @@ export function createExportArtifact(db: MockDatabase, approvalId: string, vouch
 }
 
 export function submitClearing(db: MockDatabase, ids: string[], actor: Actor) {
+  requireActorPermission(actor, 'approval:create')
+
   const selected = clearingRows(db).filter(row => ids.includes(row.id))
   if (!selected.length)
     return null

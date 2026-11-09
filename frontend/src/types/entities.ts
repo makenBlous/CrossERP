@@ -11,6 +11,7 @@ export interface Actor {
   name: string
   role: Role
   at: string
+  userId?: string
 }
 
 export interface Company {

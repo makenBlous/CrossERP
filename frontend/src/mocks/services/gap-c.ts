@@ -3,7 +3,7 @@ import { currentActor, database } from '@/api/mock-client'
 import { permissionCatalog, roleTemplates } from '@/config/permissions'
 import { writeAudit } from '@/mocks/services/audit'
 import type { Role } from '@/types/domain'
-import type { PermissionSubject } from '@/types/foundation'
+import type { DataScopeRuleType, PermissionSubject } from '@/types/foundation'
 import { effectivePermission, fieldAccess, roleSubject } from '@/utils/permission-engine'
 import { useSessionStore } from '@/stores/session'
 import type {
@@ -114,6 +114,24 @@ function requirePermission(permissionKey: string) {
   return actor()
 }
 
+export function dataScopesFor(subject: PermissionSubject, permissionKey: string): DataScopeRuleType[] {
+  return effectivePermission(subject, permissionKey).dataScopes
+}
+
+export function scopeAllows(subject: PermissionSubject, permissionKey: string, ownerId?: string, department?: string) {
+  const permission = effectivePermission(subject, permissionKey)
+  if (!permission.allowed)
+    return false
+  if (permission.dataScopes.includes('all') || permission.dataScopes.includes('store'))
+    return true
+  if (permission.dataScopes.includes('self'))
+    return ownerId === subject.userId
+  if (permission.dataScopes.includes('department'))
+    return Boolean(department)
+
+  return dataScopesFor(subject, permissionKey).length > 0
+}
+
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
@@ -127,11 +145,14 @@ function audit(action: string, objectType: string, objectId: string, reason: str
 
 export function listGapCApprovals(mode: 'all' | 'agent' | 'cc' = 'all') {
   const current = actor()
+  const subject = userSubject()
 
   const filtered = approvals.filter(item => {
     if (mode === 'agent' && item.origin !== 'agent')
       return false
     if (mode === 'cc' && item.status !== 'cc')
+      return false
+    if (!scopeAllows(subject, 'approval:read', item.submitterId, item.department))
       return false
     if (current.role === 'employee' || current.role === 'operator')
       return item.submitterId === useSessionStore().userId || item.status === 'cc'
@@ -364,12 +385,16 @@ export function saveGapCSodRule(id: string, enabled: boolean) {
 
 export function projectGapCField<T extends Record<string, unknown>>(subject: PermissionSubject, row: T): Partial<T> {
   const result = { ...row }
+  const mutable = result as Record<string, unknown>
   for (const key of ['cost', 'margin', 'salary', 'salaryDetail', 'idCard', 'bankAccount', 'buyerContact']) {
-    if (fieldAccess(subject, key) === 'hidden')
+    const access = fieldAccess(subject, key)
+    if (access === 'hidden')
       delete result[key]
+    else if (access === 'masked' && key in result)
+      mutable[key] = '***'
   }
 
   return result
 }
 
-export const gapCReadHelpers = { subjectFor, fieldAccess, projectGapCField }
+export const gapCReadHelpers = { subjectFor, fieldAccess, projectGapCField, dataScopesFor, scopeAllows }

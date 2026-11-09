@@ -1,4 +1,4 @@
-import { assertCan, database, delay } from '@/api/mock-client'
+import { assertPermission, database, delay } from '@/api/mock-client'
 import type { BundleDraft, CostDraft, ListingDraft, MappingDraft, NamedDraft, SkuDraft } from '@/mocks/services/catalog'
 import {
   projectBrands,
@@ -16,6 +16,7 @@ import {
 // 未来: GET /api/v1/catalog/skus
 export async function fetchSkus() {
   await delay()
+  assertPermission('item:read')
 
   return projectSkuRows(database().db)
 }
@@ -23,6 +24,7 @@ export async function fetchSkus() {
 // 未来: GET /api/v1/catalog/skus/{id}
 export async function fetchSku(id: string) {
   await delay()
+  assertPermission('item:read')
 
   return projectSkuDetail(database().db, id)
 }
@@ -31,25 +33,26 @@ export async function fetchSku(id: string) {
 export async function createSku(input: SkuDraft) {
   await delay()
 
-  return database().saveSku(input, assertCan('create'))
+  return database().saveSku(input, assertPermission('item:create'))
 }
 
 // 未来: PATCH /api/v1/catalog/skus/{id}
 export async function updateSku(id: string, input: SkuDraft) {
   await delay()
 
-  return database().saveSku({ ...input, id }, assertCan('update'))
+  return database().saveSku({ ...input, id }, assertPermission('item:write'))
 }
 
 // 未来: POST /api/v1/catalog/skus/status
 export async function changeSkuActive(ids: string[], active: boolean) {
   await delay()
-  database().setSkuActive(ids, active, assertCan('update'))
+  database().setSkuActive(ids, active, assertPermission('item:write'))
 }
 
 // 未来: GET /api/v1/catalog/costs
 export async function fetchCosts() {
   await delay()
+  assertPermission('item:read')
 
   return projectCosts(database().db)
 }
@@ -58,12 +61,13 @@ export async function fetchCosts() {
 export async function createCost(input: CostDraft) {
   await delay()
 
-  return database().addSkuCost(input, assertCan('create'))
+  return database().addSkuCost(input, assertPermission('item:write'))
 }
 
 // 未来: GET /api/v1/catalog/listings
 export async function fetchListings() {
   await delay()
+  assertPermission('listing:read')
 
   return projectListings(database().db)
 }
@@ -71,6 +75,7 @@ export async function fetchListings() {
 // 未来: GET /api/v1/catalog/listings/{id}
 export async function fetchListing(id: string) {
   await delay()
+  assertPermission('listing:read')
 
   return projectListing(database().db, id)
 }
@@ -79,25 +84,26 @@ export async function fetchListing(id: string) {
 export async function createListing(input: ListingDraft) {
   await delay()
 
-  return database().saveListing(input, assertCan('create'))
+  return database().saveListing(input, assertPermission('listing:create'))
 }
 
 // 未来: PATCH /api/v1/catalog/listings/{id}
 export async function updateListing(id: string, input: ListingDraft) {
   await delay()
 
-  return database().saveListing({ ...input, id }, assertCan('update'))
+  return database().saveListing({ ...input, id }, assertPermission('listing:write'))
 }
 
 // 未来: POST /api/v1/catalog/listings/status
 export async function changeListingStatus(ids: string[], status: string) {
   await delay()
-  database().setListingStatus(ids, status, assertCan('update'))
+  database().setListingStatus(ids, status, assertPermission('listing:write'))
 }
 
 // 未来: GET /api/v1/catalog/categories
 export async function fetchCategories() {
   await delay()
+  assertPermission('item_group:read')
 
   return projectCategories(database().db)
 }
@@ -106,25 +112,26 @@ export async function fetchCategories() {
 export async function createCategory(input: NamedDraft) {
   await delay()
 
-  return database().saveCategory(input, assertCan('create'))
+  return database().saveCategory(input, assertPermission('item_group:create'))
 }
 
 // 未来: PATCH /api/v1/catalog/categories/{id}
 export async function updateCategory(id: string, input: NamedDraft) {
   await delay()
 
-  return database().saveCategory({ ...input, id }, assertCan('update'))
+  return database().saveCategory({ ...input, id }, assertPermission('item_group:write'))
 }
 
 // 未来: POST /api/v1/catalog/categories/status
 export async function changeCategoryActive(ids: string[], active: boolean) {
   await delay()
-  database().setCategoryActive(ids, active, assertCan('update'))
+  database().setCategoryActive(ids, active, assertPermission('item_group:write'))
 }
 
 // 未来: GET /api/v1/catalog/brands
 export async function fetchBrands() {
   await delay()
+  assertPermission('brand:read')
 
   return projectBrands(database().db)
 }
@@ -133,25 +140,26 @@ export async function fetchBrands() {
 export async function createBrand(input: NamedDraft) {
   await delay()
 
-  return database().saveBrand(input, assertCan('create'))
+  return database().saveBrand(input, assertPermission('brand:create'))
 }
 
 // 未来: PATCH /api/v1/catalog/brands/{id}
 export async function updateBrand(id: string, input: NamedDraft) {
   await delay()
 
-  return database().saveBrand({ ...input, id }, assertCan('update'))
+  return database().saveBrand({ ...input, id }, assertPermission('brand:write'))
 }
 
 // 未来: POST /api/v1/catalog/brands/status
 export async function changeBrandActive(ids: string[], active: boolean) {
   await delay()
-  database().setBrandActive(ids, active, assertCan('update'))
+  database().setBrandActive(ids, active, assertPermission('brand:write'))
 }
 
 // 未来: GET /api/v1/catalog/mappings
 export async function fetchMappings() {
   await delay()
+  assertPermission('listing:read')
 
   return projectMappings(database().db)
 }
@@ -160,18 +168,19 @@ export async function fetchMappings() {
 export async function createMapping(input: MappingDraft) {
   await delay()
 
-  return database().saveMapping(input, assertCan('create'))
+  return database().saveMapping(input, assertPermission('item:write'))
 }
 
 // 未来: POST /api/v1/catalog/mappings/confirm
 export async function confirmMappingRows(ids: string[]) {
   await delay()
-  database().confirmMappings(ids, assertCan('update'))
+  database().confirmMappings(ids, assertPermission('item:write'))
 }
 
 // 未来: GET /api/v1/catalog/bundles
 export async function fetchBundles() {
   await delay()
+  assertPermission('item:read')
 
   return projectBundles(database().db)
 }
@@ -180,25 +189,26 @@ export async function fetchBundles() {
 export async function createBundle(input: BundleDraft) {
   await delay()
 
-  return database().saveBundle(input, assertCan('create'))
+  return database().saveBundle(input, assertPermission('item:write'))
 }
 
 // 未来: PATCH /api/v1/catalog/bundles/{id}
 export async function updateBundle(id: string, input: BundleDraft) {
   await delay()
 
-  return database().saveBundle({ ...input, id }, assertCan('update'))
+  return database().saveBundle({ ...input, id }, assertPermission('item:write'))
 }
 
 // 未来: DELETE /api/v1/catalog/bundles
 export async function deleteBundles(ids: string[]) {
   await delay()
-  database().removeBundles(ids, assertCan('delete'))
+  database().removeBundles(ids, assertPermission('item:delete'))
 }
 
 // 未来: GET /api/v1/catalog/lookups
 export async function fetchCatalogLookups() {
   await delay()
+  assertPermission('item:read')
 
   return projectLookups(database().db)
 }

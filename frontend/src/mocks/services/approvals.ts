@@ -1,6 +1,7 @@
 import type { CurrencyCode } from '@/types/domain'
 import type { Actor, ApprovalEntity, MockDatabase } from '@/types/entities'
 import { writeAudit } from '@/mocks/services/audit'
+import { requireActorPermission } from '@/utils/service-permissions'
 import { FlowError } from '@/mocks/services/errors'
 import { mustFind, nextId } from '@/mocks/services/ids'
 import { minorFromDecimal } from '@/utils/money'
@@ -20,6 +21,7 @@ export const approvalWorkflowTemplates: Record<string, ApprovalWorkflowStep[]> =
 }
 
 export function auditWorkflowEdit(db: MockDatabase, actor: Actor, documentType: string, step: ApprovalWorkflowStep) {
+  requireActorPermission(actor, 'approval:write')
   writeAudit(db, actor, 'update_workflow', 'approval_workflow', documentType, `调整 ${documentType} 流程步骤 ${step.title}，审批角色改为 ${step.role}。`)
 }
 
@@ -58,6 +60,8 @@ export interface SuggestionInput {
 }
 
 export function submitSuggestion(db: MockDatabase, input: SuggestionInput, actor: Actor): ApprovalEntity {
+  requireActorPermission(actor, 'agent_suggestion:create')
+
   const amount = minorFromDecimal(input.amount)
 
   const approval: ApprovalEntity = {
@@ -87,6 +91,8 @@ export function submitSuggestion(db: MockDatabase, input: SuggestionInput, actor
 }
 
 export function decideApproval(db: MockDatabase, id: string, status: 'approved' | 'rejected', actor: Actor, comment = ''): ApprovalEntity {
+  requireActorPermission(actor, 'approval:approve')
+
   const approval = mustFind(db.approvals, id, '审批')
 
   if (approval.status !== 'pending')

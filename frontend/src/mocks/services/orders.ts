@@ -4,9 +4,12 @@ import { FlowError } from '@/mocks/services/errors'
 import { mustFind, nextId } from '@/mocks/services/ids'
 import { applyMovement, postStockDoc } from '@/mocks/services/inventory'
 import { rebuildProfit } from '@/mocks/services/profit'
+import { requireActorPermission } from '@/utils/service-permissions'
 import { addMinor, mulQty } from '@/utils/money'
 
 export function shipSalesOrder(db: MockDatabase, id: string, actor: Actor): SalesOrder {
+  requireActorPermission(actor, 'delivery_note:submit')
+
   const order = mustFind(db.orders, id, '订单')
 
   if (order.status !== 'paid')
@@ -35,6 +38,8 @@ export function shipSalesOrder(db: MockDatabase, id: string, actor: Actor): Sale
 }
 
 export function markRefund(db: MockDatabase, id: string, refund: number, actor: Actor): SalesOrder {
+  requireActorPermission(actor, 'sales_order:write')
+
   const order = mustFind(db.orders, id, '订单')
 
   if (order.status !== 'shipped' && order.status !== 'partial_refund')
@@ -84,6 +89,8 @@ function scrapLines(db: MockDatabase, order: SalesOrder, actor: Actor) {
 }
 
 export function disposeReturn(db: MockDatabase, id: string, disposition: 'restock' | 'scrap', actor: Actor): SalesReturn {
+  requireActorPermission(actor, disposition === 'restock' ? 'purchase_receipt:submit' : 'sales_order:write')
+
   const row = mustFind(db.returns, id, '退货')
 
   if (row.status === 'restocked' || row.status === 'scrapped')
@@ -107,6 +114,8 @@ export function disposeReturn(db: MockDatabase, id: string, disposition: 'restoc
 }
 
 export function registerReturn(db: MockDatabase, orderId: string, disposition: 'restock' | 'scrap', actor: Actor): SalesReturn {
+  requireActorPermission(actor, disposition === 'restock' ? 'purchase_receipt:submit' : 'sales_order:write')
+
   const order = mustFind(db.orders, orderId, '订单')
 
   if (order.status !== 'shipped' && order.status !== 'partial_refund')

@@ -65,7 +65,7 @@ export function computeEffectivePermissions(subject: PermissionSubject, now = Da
       ? [
           ...legacyRoleActions[roleId as typeof legacyRoles[number]].map(action => ({ permissionKey: legacyPermissionKeys[action], effect: 'allow' as const, source: `旧角色 ${roleId}` })),
           ...permissionCatalog
-            .filter(point => point.key.endsWith(':read') || legacyAllowsAction(roleId as typeof legacyRoles[number], point.key.split(':')[1] ?? ''))
+            .filter(point => point.key.endsWith(':read') || (roleId === 'admin' && ['salary_slip:read_own', 'employee_record:read_own'].includes(point.key)) || legacyAllowsAction(roleId as typeof legacyRoles[number], point.key.split(':')[1] ?? ''))
             .map(point => ({ permissionKey: point.key, effect: 'allow' as const, source: `旧角色 ${roleId}` })),
         ]
       : [])
@@ -146,6 +146,16 @@ export function canPermission(subject: PermissionSubject, permissionKey: string)
 
 /** 字段权限在 mock 返回数据前裁剪，页面层不能用视觉隐藏替代。 */
 export function fieldAccess(subject: PermissionSubject, fieldKey: string): FieldAccess {
+  const fieldPermissionKeys: Record<string, string> = {
+    salary: 'employee.salary:read',
+    salaryDetail: 'salary_slip:read_all',
+    idCard: 'employee.id_number:read',
+  }
+
+  const fieldPermissionKey = fieldPermissionKeys[fieldKey]
+  if (fieldPermissionKey && !effectivePermission(subject, fieldPermissionKey).allowed)
+    return 'hidden'
+
   const restrictions: FieldAccess[] = []
   for (const roleId of collectRoleIds(subject.roleIds)) {
     const restriction = templateById.get(roleId)?.fieldRestrictions[fieldKey]

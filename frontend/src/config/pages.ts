@@ -72,6 +72,48 @@ interface PageInput {
   odooRef?: string
 }
 
+const pagePermissionByGroup: Partial<Record<PageGroupId, string>> = {
+  workbench: 'report:read',
+  catalog: 'item:read',
+  orders: 'sales_order:read',
+  inventory: 'stock_ledger:read',
+  procurement: 'purchase_order:read',
+  logistics: 'shipment:read',
+  finance: 'report:read',
+  ads: 'advertisement:read',
+  crm: 'customer:read',
+  approvals: 'approval:read',
+  agent: 'agent_tool:read',
+  audit: 'audit_log:read',
+  admin: 'permission:read',
+  account: 'user:read',
+  expense: 'expense_claim:read',
+  hr: 'employee_record:read',
+  office: 'asset:read',
+  collaboration: 'notification:read',
+  integrations: 'integration:read',
+  knowledge: 'document:read',
+}
+
+function defaultPagePermission(input: PageInput) {
+  if (input.path === '/admin/users' || input.path === '/admin/users/:id')
+    return 'user_admin:read'
+  if (input.path === '/admin/roles' || input.path === '/admin/permissions' || input.path === '/admin/permission-matrix')
+    return 'permission:read'
+  if (input.path.startsWith('/admin/'))
+    return 'permission:read'
+  if (input.path.startsWith('/finance/vouchers'))
+    return 'journal_entry:read'
+  if (input.path.startsWith('/finance/imports') || input.path.startsWith('/finance/rows'))
+    return 'integration:read'
+  if (input.path === '/account/password')
+    return 'user:read'
+  if (input.path === '/not-authorized')
+    return 'system:read'
+
+  return pagePermissionByGroup[input.group ?? 'workbench'] ?? 'system:read'
+}
+
 const all: Role[] = ['admin', 'operator', 'finance', 'viewer', 'auditor']
 const opViewFin: Role[] = ['admin', 'operator', 'viewer', 'finance']
 const opView: Role[] = ['admin', 'operator', 'viewer']
@@ -102,7 +144,7 @@ function page(input: PageInput): PageDef {
     public: input.public ?? false,
     unauthenticatedOnly: input.unauthenticatedOnly ?? false,
     layout: input.layout ?? 'default',
-    requiredPermissions: input.requiredPermissions,
+    requiredPermissions: input.requiredPermissions ?? (input.public ? [] : [defaultPagePermission(input)]),
     module: input.module,
     batch: input.batch,
     erpnextRef: input.erpnextRef,
@@ -2240,7 +2282,7 @@ export const pageCatalog: PageDef[] = [
   page({ id: 'HR09', path: '/hr/payroll/:id/review', group: 'hr', roles: ['admin'], icon: 'tabler-file-check', phase: 'later', nameZh: '薪资复核', nameEn: 'Payroll Review', purposeZh: '与上月对比、标出变化大的人；调整需填原因；复核通过后提交审批', purposeEn: '与上月对比、标出变化大的人；调整需填原因；复核通过后提交审批', blocksZh: ['占位页：HR09'], blocksEn: ['Placeholder: HR09'], requiredPermissions: ['salary_slip:approve'], module: 'hr', batch: 'D', erpnextRef: 'Salary Slip', odooRef: 'hr_payroll（未核实）' }),
   page({ id: 'HR10', path: '/hr/payroll/rules', group: 'hr', roles: ['admin', 'finance'], icon: 'tabler-scale', phase: 'later', nameZh: '社保公积金与个税规则', nameEn: 'Social Security and Tax Rules', purposeZh: '按城市/地区维护社保（养老/医疗/失业/工伤/生育）、公积金的基数上下限和单位/个人比例；维护个税累计预扣税率表；按生效期分版本', purposeEn: '按城市/地区维护社保（养老/医疗/失业/工伤/生育）、公积金的基数上下限和单位/个人比例；维护个税累计预扣税率表；按生效期分版本', blocksZh: ['占位页：HR10'], blocksEn: ['Placeholder: HR10'], requiredPermissions: ['salary_structure:write'], module: 'hr', batch: 'D', erpnextRef: 'Salary Structure（未核实）', odooRef: 'hr_payroll（未核实）' }),
   page({ id: 'HR11', path: '/hr/payroll/deductions', group: 'hr', roles: ['admin'], icon: 'tabler-receipt-tax', phase: 'later', nameZh: '专项附加扣除', nameEn: 'Additional Tax Deductions', purposeZh: '每位员工的子女教育、继续教育、大病医疗、住房贷款利息、住房租金、赡养老人、婴幼儿照护等扣除登记与生效期', purposeEn: '每位员工的子女教育、继续教育、大病医疗、住房贷款利息、住房租金、赡养老人、婴幼儿照护等扣除登记与生效期', blocksZh: ['占位页：HR11'], blocksEn: ['Placeholder: HR11'], requiredPermissions: ['employee_tax_exemption_declaration:read'], module: 'hr', batch: 'D', erpnextRef: 'Employee Tax Exemption Declaration（未核实）' }),
-  page({ id: 'HR12', path: '/hr/payslips', group: 'hr', roles: ['admin'], icon: 'tabler-file-invoice', phase: 'later', nameZh: '我的工资条', nameEn: 'My Payslips', purposeZh: '员工只看自己的工资条和个税累计', purposeEn: '员工只看自己的工资条和个税累计', blocksZh: ['占位页：HR12'], blocksEn: ['Placeholder: HR12'], requiredPermissions: ['salary_slip:read'], module: 'hr', batch: 'D', erpnextRef: 'Salary Slip', odooRef: 'hr_payroll（未核实）' }),
+  page({ id: 'HR12', path: '/hr/payslips', group: 'hr', roles: ['admin'], icon: 'tabler-file-invoice', phase: 'later', nameZh: '我的工资条', nameEn: 'My Payslips', purposeZh: '员工只看自己的工资条和个税累计', purposeEn: '员工只看自己的工资条和个税累计', blocksZh: ['占位页：HR12'], blocksEn: ['Placeholder: HR12'], requiredPermissions: ['salary_slip:read_own'], module: 'hr', batch: 'D', erpnextRef: 'Salary Slip', odooRef: 'hr_payroll（未核实）' }),
   page({ id: 'AM01', path: '/office/contracts', group: 'office', roles: ['admin', 'finance'], icon: 'tabler-file-description', phase: 'later', nameZh: '合同管理', nameEn: 'Contracts', purposeZh: '销售、租赁、服务等非采购合同', purposeEn: '销售、租赁、服务等非采购合同', blocksZh: ['占位页：AM01'], blocksEn: ['Placeholder: AM01'], requiredPermissions: ['contract:read'], module: 'office', batch: 'D', erpnextRef: 'Contract（未核实）', odooRef: 'hr_contract（仅劳动合同）（未核实）' }),
   page({ id: 'AM02', path: '/office/assets', group: 'office', roles: ['admin', 'finance'], icon: 'tabler-building-bank', phase: 'later', nameZh: '固定资产', nameEn: 'Fixed Assets', purposeZh: '资产卡片、领用人、折旧', purposeEn: '资产卡片、领用人、折旧', blocksZh: ['占位页：AM02'], blocksEn: ['Placeholder: AM02'], requiredPermissions: ['asset:read'], module: 'office', batch: 'D', erpnextRef: 'Asset', odooRef: 'account_asset（未核实）' }),
   page({ id: 'AM03', path: '/office/assets/:id', group: 'office', roles: ['admin'], icon: 'tabler-building-bank', phase: 'later', nameZh: '资产详情', nameEn: 'Asset Details', purposeZh: '领用/归还记录、折旧表', purposeEn: '领用/归还记录、折旧表', blocksZh: ['占位页：AM03'], blocksEn: ['Placeholder: AM03'], requiredPermissions: ['asset:read'], module: 'office', batch: 'D', erpnextRef: 'Asset', odooRef: 'account_asset（未核实）' }),
@@ -2266,7 +2308,7 @@ export const pageCatalog: PageDef[] = [
   page({ id: 'K07', path: '/kb/expiring', group: 'knowledge', roles: ['admin'], icon: 'tabler-calendar-exclamation', phase: 'now', nameZh: '到期提醒', nameEn: 'Expiry Alerts', purposeZh: '合同、证书、资质等快到期的文档', purposeEn: '合同、证书、资质等快到期的文档', blocksZh: ['占位页：K07'], blocksEn: ['Placeholder: K07'], requiredPermissions: ['document:read'], module: 'knowledge', batch: 'E' }),
   page({ id: 'K08', path: '/kb/index', group: 'knowledge', roles: ['admin'], icon: 'tabler-search', phase: 'v1', nameZh: '检索与索引', nameEn: 'Search and Index', purposeZh: '索引状态、重建索引、检索测试（输入问题看命中的段落和出处）', purposeEn: '索引状态、重建索引、检索测试（输入问题看命中的段落和出处）', blocksZh: ['占位页：K08'], blocksEn: ['Placeholder: K08'], requiredPermissions: ['document:read'], module: 'knowledge', batch: 'E' }),
   page({ id: 'K09', path: '/kb/access-log', group: 'knowledge', roles: ['admin', 'auditor'], icon: 'tabler-file-search', phase: 'v1', nameZh: '敏感文档访问记录', nameEn: 'Sensitive Document Access Log', purposeZh: '谁在何时查看/下载了哪份敏感文档（含 AI 读取）', purposeEn: '谁在何时查看/下载了哪份敏感文档（含 AI 读取）', blocksZh: ['占位页：K09'], blocksEn: ['Placeholder: K09'], requiredPermissions: ['audit_log:read'], module: 'knowledge', batch: 'E' }),
-  page({ id: 'HR13', path: '/hr/employees/:id/files', group: 'hr', roles: ['admin'], icon: 'tabler-folder-lock', phase: 'later', nameZh: '员工个人档案', nameEn: 'Employee Files', purposeZh: '合同、身份证复印件、证书；上传、有效期、下载（全部记日志）', purposeEn: '合同、身份证复印件、证书；上传、有效期、下载（全部记日志）', blocksZh: ['占位页：HR13'], blocksEn: ['Placeholder: HR13'], requiredPermissions: ['employee_record:read'], module: 'hr', batch: 'E', erpnextRef: 'Employee', odooRef: 'hr.employee' }),
+  page({ id: 'HR13', path: '/hr/employees/:id/files', group: 'hr', roles: ['admin'], icon: 'tabler-folder-lock', phase: 'later', nameZh: '员工个人档案', nameEn: 'Employee Files', purposeZh: '合同、身份证复印件、证书；上传、有效期、下载（全部记日志）', purposeEn: 'Contracts, ID copies and certificates; upload, expiry, download (all logged)', blocksZh: ['占位页：HR13'], blocksEn: ['Placeholder: HR13'], requiredPermissions: ['employee_record:read_own'], module: 'hr', batch: 'E', erpnextRef: 'Employee', odooRef: 'hr.employee' }),
   page({ id: 'ON01', path: '/onboarding', group: 'knowledge', roles: ['admin', 'operator', 'viewer'], icon: 'tabler-school', phase: 'now', nameZh: '新人上手', nameEn: 'New Hire Onboarding', purposeZh: '按我的角色生成上手清单；「怎么提交报销」等问答；一键开始页面引导', purposeEn: '按我的角色生成上手清单；「怎么提交报销」等问答；一键开始页面引导', blocksZh: ['占位页：ON01'], blocksEn: ['Placeholder: ON01'], requiredPermissions: ['document:read'], module: 'knowledge', batch: 'E', odooRef: 'website_slides（未核实）' }),
   page({ id: 'ON02', path: '/onboarding/admin', group: 'knowledge', roles: ['admin'], icon: 'tabler-school', phase: 'v1', nameZh: '上手清单与引导配置', nameEn: 'Onboarding Checklist and Guide Settings', purposeZh: '按角色模板维护上手清单；维护各页面的分步引导', purposeEn: '按角色模板维护上手清单；维护各页面的分步引导', blocksZh: ['占位页：ON02'], blocksEn: ['Placeholder: ON02'], requiredPermissions: ['document:write'], module: 'knowledge', batch: 'E', odooRef: 'website_slides（未核实）' }),
 
@@ -2296,13 +2338,21 @@ export function canRoleOpen(role: Role, item: PageDef) {
   if (item.public)
     return true
 
+  // 这是权限失败后的落点，所有已登录角色都必须能看到解释页，否则会形成重定向循环。
+  if (item.path === '/not-authorized')
+    return true
+
+  const requiredPermissions = item.requiredPermissions
+  if (!requiredPermissions?.length)
+    return false
+
   const legacyRoles: Role[] = ['admin', 'operator', 'finance', 'viewer', 'auditor']
   if (legacyRoles.includes(role)) {
     if (!item.roles.includes(role))
       return false
 
-    return (item.requiredPermissions ?? []).every(permissionKey => canPermission(roleSubject(role), permissionKey))
+    return requiredPermissions.every(permissionKey => canPermission(roleSubject(role), permissionKey))
   }
 
-  return (item.requiredPermissions ?? []).every(permissionKey => canPermission(roleSubject(role), permissionKey))
+  return requiredPermissions.every(permissionKey => canPermission(roleSubject(role), permissionKey))
 }

@@ -1,28 +1,13 @@
 import type { Role } from '@/types/domain'
 import type { PermissionPoint, RolePermission, RoleTemplate } from '@/types/foundation'
 
-export const legacyRoleMap: Record<Role, Role> = {
+/** 旧角色兼容表只保留五个历史 slug；预置模板必须走自己的权限集合。 */
+export const legacyRoleMap: Partial<Record<Role, Role>> = {
   admin: 'admin',
   operator: 'operator',
   finance: 'finance',
   viewer: 'viewer',
   auditor: 'auditor',
-  owner_manager: 'admin',
-  operations_manager: 'operator',
-  store_operator: 'operator',
-  advertising: 'operator',
-  product_developer: 'operator',
-  purchaser: 'operator',
-  warehouse_logistics: 'operator',
-  customer_service: 'operator',
-  accountant: 'finance',
-  finance_manager: 'finance',
-  cashier: 'finance',
-  hr_admin: 'admin',
-  employee: 'operator',
-  department_manager: 'operator',
-  auditor_template: 'auditor',
-  external_viewer: 'viewer',
 }
 
 const legacyActionLabels: Record<string, [string, string]> = {
@@ -67,6 +52,7 @@ const docTypes: Array<[string, string, string, string]> = [
   ['document', '知识文档', 'Knowledge', 'Document'],
   ['employee_record', '员工档案', 'HR', 'Employee'],
   ['permission', '权限', 'Identity', 'Role Permission'],
+  ['agent_suggestion', '智能体建议', 'Agent', 'Agent Suggestion'],
 
   // 补齐批次 A–E 占位页使用的 ERPNext DocType / Odoo 模型权限点。
   ['travel_request', '差旅申请', 'HR', 'Travel Request'],
@@ -86,6 +72,20 @@ const docTypes: Array<[string, string, string, string]> = [
   ['salary_structure', '薪资规则', 'Payroll', 'Salary Structure'],
   ['employee_tax_exemption_declaration', '专项附加扣除', 'Payroll', 'Employee Tax Exemption Declaration'],
   ['office_supply', '办公用品', 'Stock', 'Office Supply'],
+  ['item', '商品', 'Stock', 'Item'],
+  ['item_group', '商品类目', 'Stock', 'Item Group'],
+  ['brand', '品牌', 'Stock', 'Brand'],
+  ['listing', '平台 Listing', 'Selling', 'Item Price'],
+  ['warehouse', '仓库', 'Stock', 'Warehouse'],
+  ['shipment', '物流运单', 'Stock', 'Shipment'],
+  ['advertisement', '广告活动', 'Selling', 'Campaign'],
+  ['customer', '客户', 'Selling', 'Customer'],
+  ['lead', '销售线索', 'Selling', 'Lead'],
+  ['contact', '联系人', 'Selling', 'Contact'],
+  ['ticket', '售后工单', 'Support', 'Issue'],
+  ['user', '用户账号', 'Identity', 'User'],
+  ['user_admin', '用户管理', 'Identity', 'User'],
+  ['system', '系统', 'Platform', 'System Settings'],
 ]
 
 export const permissionCatalog: PermissionPoint[] = docTypes.flatMap(([docType, label, module, erpnextRef]) =>
@@ -101,6 +101,16 @@ export const permissionCatalog: PermissionPoint[] = docTypes.flatMap(([docType, 
     odooRef: docType === 'expense_claim' ? 'hr_expense' : docType === 'journal_entry' ? 'account.move' : `x_${docType}`,
   })),
 )
+
+const fieldPermissionPoints: PermissionPoint[] = [
+  { key: 'employee.salary:read', labelZh: '员工薪资字段查看', labelEn: 'Employee Salary Field Read', module: 'Payroll', kind: 'field', sensitive: true, dataScopeRuleTypes: ['all', 'self'], erpnextRef: 'Employee.salary', odooRef: 'hr.employee.wage' },
+  { key: 'employee.id_number:read', labelZh: '员工证件字段查看', labelEn: 'Employee ID Number Field Read', module: 'HR', kind: 'field', sensitive: true, dataScopeRuleTypes: ['all', 'self'], erpnextRef: 'Employee.id_number', odooRef: 'hr.employee.identification_id' },
+  { key: 'salary_slip:read_own', labelZh: '本人工资条查看', labelEn: 'Own Salary Slip Read', module: 'Payroll', kind: 'menu', sensitive: true, dataScopeRuleTypes: ['self'], erpnextRef: 'Salary Slip', odooRef: 'hr.payslip' },
+  { key: 'salary_slip:read_all', labelZh: '全部工资条查看', labelEn: 'All Salary Slips Read', module: 'Payroll', kind: 'menu', sensitive: true, dataScopeRuleTypes: ['all', 'department'], erpnextRef: 'Salary Slip', odooRef: 'hr.payslip' },
+  { key: 'employee_record:read_own', labelZh: '本人档案查看', labelEn: 'Own Employee Record Read', module: 'HR', kind: 'menu', dataScopeRuleTypes: ['self'], erpnextRef: 'Employee', odooRef: 'hr.employee' },
+]
+
+permissionCatalog.push(...fieldPermissionPoints)
 
 export const legacyPermissionKeys: Record<string, string> = {
   view: 'system:read',
@@ -122,28 +132,23 @@ export const legacyRoleActions: Record<'admin' | 'operator' | 'finance' | 'viewe
   auditor: ['view', 'export'],
 }
 
-// 新模板只从安全的只读权限起步，再按模板补充明确权限；不再借用旧角色放大权限。
-const safeTemplatePermissions = (): RolePermission[] => permissionCatalog
-  .filter(point => point.key.endsWith(':read') && !point.sensitive && !['salary_slip:read', 'employee_record:read', 'permission:read'].includes(point.key))
-  .map(point => ({ permissionKey: point.key, effect: 'allow' as const, source: '模板基础只读' }))
-
 const templatePermissions: Record<string, string[]> = {
-  owner_manager: ['approval:read', 'report:read', 'notification:read', 'audit_log:read', 'permission:read'],
-  operations_manager: ['approval:read', 'approval:approve', 'report:read', 'notification:read'],
-  store_operator: ['approval:read', 'notification:read'],
-  advertising: ['notification:read'],
-  product_developer: ['notification:read'],
-  purchaser: ['approval:read', 'notification:read'],
-  warehouse_logistics: ['approval:read', 'notification:read'],
-  customer_service: ['approval:read', 'notification:read'],
-  accountant: ['approval:read', 'report:read', 'journal_entry:read', 'audit_log:read', 'notification:read'],
-  finance_manager: ['approval:read', 'approval:write', 'approval:approve', 'report:read', 'report:write', 'audit_log:read', 'permission:read', 'notification:read'],
-  cashier: ['approval:read', 'notification:read'],
-  hr_admin: ['approval:read', 'report:read', 'notification:read', 'audit_log:read'],
-  employee: ['approval:read', 'notification:read'],
-  department_manager: ['approval:read', 'approval:approve', 'notification:read'],
-  auditor_template: ['report:read', 'audit_log:read', 'notification:read', 'permission:read'],
-  external_viewer: ['report:read', 'notification:read'],
+  owner_manager: permissionCatalog.map(point => point.key),
+  store_operator: ['item:read', 'item:write', 'item:create', 'item_group:read', 'brand:read', 'listing:read', 'sales_order:read', 'delivery_note:read', 'report:read', 'stock_ledger:read', 'material_request:read', 'approval:read', 'notification:read', 'customer:read', 'lead:read', 'contact:read', 'ticket:read', 'document:read'],
+  operations_manager: ['approval:read', 'approval:approve', 'report:read', 'budget:read', 'notification:read'],
+  advertising: ['advertisement:read', 'advertisement:write', 'advertisement:create', 'advertisement:import', 'sales_order:read', 'listing:read', 'report:read', 'notification:read'],
+  product_developer: ['item:read', 'item:write', 'item:create', 'item_group:read', 'item_group:write', 'brand:read', 'brand:write', 'listing:read', 'supplier:read', 'request_for_quotation:read', 'request_for_quotation:create', 'report:read', 'notification:read'],
+  purchaser: ['supplier:read', 'supplier:write', 'supplier:create', 'purchase_order:read', 'purchase_order:write', 'purchase_order:create', 'purchase_receipt:read', 'purchase_receipt:submit', 'request_for_quotation:read', 'request_for_quotation:write', 'request_for_quotation:create', 'supplier_quotation:read', 'contract:read', 'material_request:read', 'report:read', 'approval:read', 'notification:read'],
+  warehouse_logistics: ['warehouse:read', 'warehouse:write', 'warehouse:create', 'stock_ledger:read', 'stock_entry:read', 'stock_entry:write', 'stock_entry:create', 'purchase_receipt:read', 'purchase_receipt:submit', 'delivery_note:read', 'delivery_note:submit', 'batch:read', 'stock_reconciliation:read', 'shipment:read', 'shipment:write', 'shipment:create', 'notification:read'],
+  customer_service: ['customer:read', 'contact:read', 'ticket:read', 'ticket:write', 'ticket:create', 'sales_order:read', 'delivery_note:read', 'report:read', 'notification:read'],
+  accountant: ['journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'payment_entry:read', 'expense_claim:read', 'employee_advance:read', 'report:read', 'stock_ledger:read', 'budget:read', 'audit_log:read', 'approval:read', 'notification:read', 'integration:read'],
+  finance_manager: ['approval:read', 'approval:write', 'approval:approve', 'report:read', 'report:write', 'journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'journal_entry:approve', 'payment_entry:read', 'payment_entry:write', 'payment_entry:approve', 'expense_claim:read', 'budget:read', 'budget:write', 'period_closing_voucher:approve', 'integration:write', 'audit_log:read', 'notification:read'],
+  cashier: ['payment_entry:read', 'payment_entry:write', 'payment_entry:submit', 'journal_entry:read', 'report:read', 'approval:read', 'notification:read'],
+  hr_admin: ['employee_record:read', 'employee_record:read_own', 'employee_record:write', 'employee_record:create', 'employee.salary:read', 'employee.id_number:read', 'salary_slip:read', 'salary_slip:read_own', 'salary_slip:read_all', 'salary_slip:write', 'salary_slip:create', 'attendance:read', 'attendance:write', 'leave_application:read', 'leave_application:write', 'leave_application:approve', 'contract:read', 'asset:read', 'asset:write', 'notification:read', 'notification:write', 'document:read', 'approval:read'],
+  employee: ['expense_claim:read', 'expense_claim:create', 'expense_claim:write', 'employee_advance:read', 'employee_advance:create', 'travel_request:read', 'travel_request:create', 'leave_application:read', 'leave_application:create', 'salary_slip:read_own', 'employee_record:read_own', 'notification:read', 'document:read', 'office_supply:read', 'office_supply:create', 'approval:read'],
+  department_manager: ['approval:read', 'approval:approve', 'expense_claim:read', 'leave_application:read', 'leave_application:approve', 'purchase_order:read', 'budget:read', 'notification:read'],
+  auditor_template: [...permissionCatalog.filter(point => point.key.endsWith(':read') && point.key !== 'user_admin:read').map(point => point.key), 'audit_log:export', 'agent_tool:read'],
+  external_viewer: ['report:read', 'sales_order:read', 'item:read', 'listing:read', 'notification:read', 'document:read'],
 }
 
 const template = (
@@ -163,16 +168,19 @@ const template = (
   parentIds,
   legacyRole,
   permissions: [
-    ...safeTemplatePermissions(),
+    { permissionKey: 'user:read', effect: 'allow' as const, source: `模板 ${nameZh}` },
+    { permissionKey: 'user:write', effect: 'allow' as const, source: `模板 ${nameZh}` },
     ...(templatePermissions[id] ?? []).map(permissionKey => ({ permissionKey, effect: 'allow' as const, source: `模板 ${nameZh}` })),
     ...extra,
   ],
   defaultDataScopes,
   fieldRestrictions: ['employee', 'department_manager', 'external_viewer', 'store_operator', 'operations_manager', 'advertising', 'product_developer', 'purchaser', 'warehouse_logistics', 'customer_service'].includes(id)
     ? { cost: 'hidden', margin: 'hidden', salary: 'hidden', salaryDetail: 'hidden', idCard: 'hidden', bankAccount: 'hidden', buyerContact: 'masked' }
-    : id === 'auditor_template'
-      ? { salary: 'masked', salaryDetail: 'hidden', bankAccount: 'hidden', idCard: 'masked' }
-      : {},
+    : id === 'hr_admin'
+      ? { salary: 'visible', salaryDetail: 'visible', idCard: 'visible', bankAccount: 'visible' }
+      : id === 'auditor_template'
+        ? { salary: 'masked', salaryDetail: 'hidden', bankAccount: 'hidden', idCard: 'masked' }
+        : {},
   erpnextRefs,
   odooRefs,
 })

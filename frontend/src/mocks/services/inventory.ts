@@ -2,6 +2,7 @@ import type { Actor, MockDatabase, StockDoc, Warehouse, WarehouseKind } from '@/
 import { writeAudit } from '@/mocks/services/audit'
 import { FlowError } from '@/mocks/services/errors'
 import { mustFind, nextId } from '@/mocks/services/ids'
+import { requireActorPermission } from '@/utils/service-permissions'
 
 export interface MovementInput {
   warehouseId: string
@@ -61,6 +62,8 @@ export function postStockDoc(
   actor: Actor,
   refId: string,
 ) {
+  requireActorPermission(actor, docType === 'inbound' ? 'purchase_receipt:submit' : 'delivery_note:submit')
+
   const docId = nextId(db, 'doc')
 
   db.stockDocs.push({
@@ -136,6 +139,8 @@ function requireQty(qty: number, label: string) {
 }
 
 export function saveWarehouse(db: MockDatabase, input: WarehouseDraft, actor: Actor): Warehouse {
+  requireActorPermission(actor, input.id ? 'warehouse:write' : 'warehouse:create')
+
   const code = input.code.trim()
   const name = input.name.trim()
 
@@ -179,6 +184,7 @@ export function saveWarehouse(db: MockDatabase, input: WarehouseDraft, actor: Ac
 }
 
 export function setWarehouseActive(db: MockDatabase, ids: string[], active: boolean, actor: Actor) {
+  requireActorPermission(actor, 'warehouse:write')
   for (const id of ids) {
     const warehouse = mustFind(db.warehouses, id, '仓库')
 
@@ -188,6 +194,7 @@ export function setWarehouseActive(db: MockDatabase, ids: string[], active: bool
 }
 
 export function createStockDoc(db: MockDatabase, input: StockDocDraft, actor: Actor): StockDoc {
+  requireActorPermission(actor, input.docType === 'count' ? 'stock_reconciliation:create' : 'stock_entry:create')
   requireWarehouse(db, input.warehouseId)
   requireQty(input.qty, '数量')
 
@@ -244,6 +251,8 @@ export function createStockDoc(db: MockDatabase, input: StockDocDraft, actor: Ac
 }
 
 export function postDraftStockDoc(db: MockDatabase, id: string, actor: Actor): StockDoc {
+  requireActorPermission(actor, 'stock_entry:write')
+
   const doc = mustFind(db.stockDocs, id, '库存单据')
 
   if (doc.status !== 'draft')
@@ -281,6 +290,8 @@ export function postDraftStockDoc(db: MockDatabase, id: string, actor: Actor): S
 }
 
 export function postTransfer(db: MockDatabase, id: string, actor: Actor): StockDoc {
+  requireActorPermission(actor, 'stock_entry:write')
+
   const doc = mustFind(db.stockDocs, id, '调拨单')
 
   if (doc.docType !== 'transfer')
@@ -329,6 +340,8 @@ export function postTransfer(db: MockDatabase, id: string, actor: Actor): StockD
 }
 
 export function postStockCount(db: MockDatabase, id: string, actuals: CountActual[], actor: Actor): StockDoc {
+  requireActorPermission(actor, 'stock_reconciliation:write')
+
   const doc = mustFind(db.stockDocs, id, '盘点单')
 
   if (doc.docType !== 'count')

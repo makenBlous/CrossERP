@@ -1,4 +1,4 @@
-import { assertCan, database, delay } from '@/api/mock-client'
+import { assertPermission, database, delay } from '@/api/mock-client'
 import type { CurrencyCode } from '@/types/domain'
 import type { ApprovalEntity } from '@/types/entities'
 
@@ -6,7 +6,7 @@ import type { ApprovalEntity } from '@/types/entities'
 export async function submitPurchaseOrder(id: string) {
   await delay()
 
-  const actor = assertCan('update')
+  const actor = assertPermission('purchase_order:submit')
 
   return database().submitPurchase(id, actor)
 }
@@ -15,7 +15,7 @@ export async function submitPurchaseOrder(id: string) {
 export async function approvePurchaseOrder(id: string) {
   await delay()
 
-  const actor = assertCan('approve')
+  const actor = assertPermission('purchase_order:approve')
 
   return database().approvePurchase(id, actor)
 }
@@ -24,7 +24,7 @@ export async function approvePurchaseOrder(id: string) {
 export async function rejectPurchaseOrder(id: string) {
   await delay()
 
-  const actor = assertCan('approve')
+  const actor = assertPermission('purchase_order:approve')
 
   return database().rejectPurchase(id, actor)
 }
@@ -33,7 +33,7 @@ export async function rejectPurchaseOrder(id: string) {
 export async function receivePurchaseOrder(id: string, warehouseId: string) {
   await delay()
 
-  const actor = assertCan('receive')
+  const actor = assertPermission('purchase_receipt:submit')
 
   return database().receivePurchase(id, warehouseId, actor)
 }
@@ -42,7 +42,7 @@ export async function receivePurchaseOrder(id: string, warehouseId: string) {
 export async function departShipment(id: string) {
   await delay()
 
-  const actor = assertCan('ship')
+  const actor = assertPermission('shipment:write')
 
   return database().departFirstMile(id, actor)
 }
@@ -51,7 +51,7 @@ export async function departShipment(id: string) {
 export async function arriveShipment(id: string) {
   await delay()
 
-  const actor = assertCan('receive')
+  const actor = assertPermission('shipment:write')
 
   return database().arriveFirstMile(id, actor)
 }
@@ -60,7 +60,7 @@ export async function arriveShipment(id: string) {
 export async function shipSalesOrder(id: string) {
   await delay()
 
-  const actor = assertCan('ship')
+  const actor = assertPermission('delivery_note:submit')
 
   return database().shipOrder(id, actor)
 }
@@ -69,7 +69,7 @@ export async function shipSalesOrder(id: string) {
 export async function shipSalesOrders(ids: string[]) {
   await delay()
 
-  const actor = assertCan('ship')
+  const actor = assertPermission('delivery_note:submit')
   const failed: string[] = []
 
   for (const id of ids) {
@@ -88,7 +88,7 @@ export async function shipSalesOrders(ids: string[]) {
 export async function disposeSalesReturn(id: string, disposition: 'restock' | 'scrap') {
   await delay()
 
-  const actor = assertCan(disposition === 'restock' ? 'receive' : 'update')
+  const actor = assertPermission(disposition === 'restock' ? 'purchase_receipt:submit' : 'delivery_note:write')
 
   return database().disposeReturn(id, disposition, actor)
 }
@@ -97,7 +97,7 @@ export async function disposeSalesReturn(id: string, disposition: 'restock' | 's
 export async function registerSalesReturn(orderId: string, disposition: 'restock' | 'scrap') {
   await delay()
 
-  const actor = assertCan(disposition === 'restock' ? 'receive' : 'update')
+  const actor = assertPermission(disposition === 'restock' ? 'purchase_receipt:submit' : 'delivery_note:write')
 
   return database().registerReturn(orderId, disposition, actor)
 }
@@ -116,7 +116,7 @@ export interface SuggestionDraft {
 export async function submitAgentSuggestion(input: SuggestionDraft): Promise<ApprovalEntity> {
   await delay()
 
-  const actor = assertCan('suggest')
+  const actor = assertPermission('agent_suggestion:create')
 
   return database().suggest(input, actor)
 }

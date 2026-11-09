@@ -1,5 +1,5 @@
 import { projectAccount, projectAccounts } from '@/mocks/project'
-import { assertCan, currentActor, database, delay } from '@/api/mock-client'
+import { assertPermission, database, delay } from '@/api/mock-client'
 import { addMinor, convertMinor, toDisplay } from '@/utils/money'
 
 import type { LeadStage } from '@/types/crm-admin'
@@ -7,6 +7,7 @@ import type { LeadStage } from '@/types/crm-admin'
 // 未来: GET /api/v1/crm/accounts
 export async function fetchAccounts() {
   await delay()
+  assertPermission('customer:read')
 
   return projectAccounts(database().db)
 }
@@ -14,6 +15,7 @@ export async function fetchAccounts() {
 // 未来: GET /api/v1/crm/accounts/{id}
 export async function fetchAccount(id: string) {
   await delay()
+  assertPermission('customer:read')
 
   return projectAccount(database().db, id)
 }
@@ -21,6 +23,7 @@ export async function fetchAccount(id: string) {
 // 未来: GET /api/v1/crm/leads
 export async function fetchCrmLeads() {
   await delay()
+  assertPermission('lead:read')
 
   return database().db.crmLeads ?? []
 }
@@ -28,6 +31,7 @@ export async function fetchCrmLeads() {
 // 未来: GET /api/v1/crm/opportunities
 export async function fetchCrmOpportunities() {
   await delay()
+  assertPermission('lead:read')
 
   return database().db.crmOpportunities.map(item => ({ ...item, amount: toDisplay(item.amount, item.currency), accountName: database().db.crmAccounts.find(account => account.id === item.accountId)?.name ?? item.accountId }))
 }
@@ -35,6 +39,7 @@ export async function fetchCrmOpportunities() {
 // 未来: GET /api/v1/crm/contacts
 export async function fetchCrmContacts() {
   await delay()
+  assertPermission('contact:read')
 
   return database().db.crmContacts.map(item => ({ ...item, accountName: database().db.crmAccounts.find(account => account.id === item.accountId)?.name ?? item.accountId }))
 }
@@ -42,6 +47,7 @@ export async function fetchCrmContacts() {
 // 未来: GET /api/v1/crm/activities
 export async function fetchCrmActivities() {
   await delay()
+  assertPermission('contact:read')
 
   return database().db.crmActivities ?? []
 }
@@ -49,6 +55,7 @@ export async function fetchCrmActivities() {
 // 未来: GET /api/v1/crm/tickets
 export async function fetchCrmTickets() {
   await delay()
+  assertPermission('ticket:read')
 
   const db = database().db
 
@@ -58,6 +65,7 @@ export async function fetchCrmTickets() {
 // 未来: GET /api/v1/crm/reviews
 export async function fetchCrmReviews() {
   await delay()
+  assertPermission('ticket:read')
 
   return database().db.crmReviews ?? []
 }
@@ -65,6 +73,7 @@ export async function fetchCrmReviews() {
 // 未来: GET /api/v1/crm/dashboard
 export async function fetchCrmDashboard() {
   await delay()
+  assertPermission('customer:read')
 
   const db = database().db
 
@@ -74,6 +83,7 @@ export async function fetchCrmDashboard() {
 // 未来: GET /api/v1/crm/leads/{id}
 export async function fetchLead(id: string) {
   await delay()
+  assertPermission('lead:read')
 
   return database().db.crmLeads?.find(item => item.id === id) ?? null
 }
@@ -81,6 +91,7 @@ export async function fetchLead(id: string) {
 // 未来: GET /api/v1/crm/opportunities/{id}
 export async function fetchOpportunity(id: string) {
   await delay()
+  assertPermission('lead:read')
 
   const db = database().db
   const item = db.crmOpportunities.find(row => row.id === id)
@@ -91,6 +102,7 @@ export async function fetchOpportunity(id: string) {
 // 未来: GET /api/v1/crm/contacts/{id}
 export async function fetchContact(id: string) {
   await delay()
+  assertPermission('contact:read')
 
   const db = database().db
   const item = db.crmContacts.find(row => row.id === id)
@@ -101,6 +113,7 @@ export async function fetchContact(id: string) {
 // 未来: GET /api/v1/crm/tickets/{id}
 export async function fetchTicket(id: string) {
   await delay()
+  assertPermission('ticket:read')
 
   const db = database().db
   const item = db.crmTickets.find(row => row.id === id)
@@ -114,7 +127,7 @@ export async function fetchTicket(id: string) {
 export async function updateCrmLeadStage(id: string, stage: LeadStage) {
   await delay()
 
-  const actor = assertCan('update')
+  const actor = assertPermission('lead:write')
 
   return database().updateLeadStage(id, stage, actor)
 }
@@ -123,7 +136,7 @@ export async function updateCrmLeadStage(id: string, stage: LeadStage) {
 export async function convertCrmLead(id: string) {
   await delay()
 
-  const actor = assertCan('create')
+  const actor = assertPermission('lead:create')
 
   return database().convertLead(id, actor)
 }
@@ -134,7 +147,7 @@ export async function createCrmTicket(input: { accountId: string
   subject: string }) {
   await delay()
 
-  const actor = assertCan('create')
+  const actor = assertPermission('ticket:create')
 
   return database().addTicket(input, actor)
 }
@@ -143,7 +156,7 @@ export async function createCrmTicket(input: { accountId: string
 export async function updateCrmTicketStatus(id: string, status: string) {
   await delay()
 
-  const actor = assertCan('update')
+  const actor = assertPermission('ticket:write')
 
   return database().updateTicketStatus(id, status, actor)
 }
@@ -151,6 +164,7 @@ export async function updateCrmTicketStatus(id: string, status: string) {
 // 未来: GET /api/v1/crm/role-overrides
 export async function fetchRoleOverrides() {
   await delay()
+  assertPermission('permission:read')
 
   return JSON.parse(JSON.stringify(database().db.roleOverrides ?? []))
 }
@@ -158,11 +172,11 @@ export async function fetchRoleOverrides() {
 // 未来: PUT /api/v1/crm/role-overrides/{role}
 export async function saveCrmRoleOverride(role: Parameters<ReturnType<typeof database>['saveRoleOverride']>[0], hiddenGroups: string[], hiddenPageIds: string[]) {
   await delay()
-  database().saveRoleOverride(role, hiddenGroups, hiddenPageIds, currentActor())
+  database().saveRoleOverride(role, hiddenGroups, hiddenPageIds, assertPermission('permission:write'))
 }
 
 // 未来: DELETE /api/v1/crm/role-overrides/{role}
 export async function resetCrmRoleOverride(role: Parameters<ReturnType<typeof database>['resetRoleOverride']>[0]) {
   await delay()
-  database().resetRoleOverride(role, currentActor())
+  database().resetRoleOverride(role, assertPermission('permission:write'))
 }

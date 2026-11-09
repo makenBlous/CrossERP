@@ -2,8 +2,11 @@ import type { Actor, MockDatabase } from '@/types/entities'
 import type { LeadStage } from '@/types/crm-admin'
 import { nextId } from '@/mocks/services/ids'
 import { writeAudit } from '@/mocks/services/audit'
+import { requireActorPermission } from '@/utils/service-permissions'
 
 export function updateLeadStage(db: MockDatabase, id: string, stage: LeadStage, actor: Actor) {
+  requireActorPermission(actor, 'lead:write')
+
   const lead = db.crmLeads?.find(item => item.id === id)
   if (!lead)
     return null
@@ -14,6 +17,8 @@ export function updateLeadStage(db: MockDatabase, id: string, stage: LeadStage, 
 }
 
 export function convertLead(db: MockDatabase, id: string, actor: Actor) {
+  requireActorPermission(actor, 'lead:create')
+
   const lead = db.crmLeads?.find(item => item.id === id)
   if (!lead)
     return null
@@ -44,6 +49,8 @@ export function convertLead(db: MockDatabase, id: string, actor: Actor) {
 export function addTicket(db: MockDatabase, input: { accountId: string
   orderNo: string | null
   subject: string }, actor: Actor) {
+  requireActorPermission(actor, 'ticket:create')
+
   const ticket = { id: nextId(db, 'tkt'), accountId: input.accountId, subject: input.subject, status: 'open', orderNo: input.orderNo }
 
   db.crmTickets.push(ticket)
@@ -54,6 +61,8 @@ export function addTicket(db: MockDatabase, input: { accountId: string
 }
 
 export function updateTicketStatus(db: MockDatabase, id: string, status: string, actor: Actor) {
+  requireActorPermission(actor, 'ticket:write')
+
   const ticket = db.crmTickets.find(item => item.id === id)
   if (!ticket)
     return null
@@ -65,6 +74,7 @@ export function updateTicketStatus(db: MockDatabase, id: string, status: string,
 }
 
 export function saveRoleOverride(db: MockDatabase, role: Actor['role'], hiddenGroups: string[], hiddenPageIds: string[], actor: Actor) {
+  requireActorPermission(actor, 'permission:write')
   if (!db.roleOverrides)
     db.roleOverrides = []
   const existing = db.roleOverrides.find(item => item.role === role)
@@ -77,12 +87,14 @@ export function saveRoleOverride(db: MockDatabase, role: Actor['role'], hiddenGr
 }
 
 export function resetRoleOverride(db: MockDatabase, role: Actor['role'], actor: Actor) {
+  requireActorPermission(actor, 'permission:write')
   if (db.roleOverrides)
     db.roleOverrides = db.roleOverrides.filter(item => item.role !== role)
   writeAudit(db, actor, '恢复角色默认权限', 'role', role, '恢复默认菜单可见性')
 }
 
 export function createToken(db: MockDatabase, name: string, actor: Actor) {
+  requireActorPermission(actor, 'user:write')
   if (!db.accountTokens)
     db.accountTokens = []
   const secret = `csp_${Math.random().toString(36).slice(2, 18)}`
@@ -95,6 +107,8 @@ export function createToken(db: MockDatabase, name: string, actor: Actor) {
 }
 
 export function revokeToken(db: MockDatabase, id: string, actor: Actor) {
+  requireActorPermission(actor, 'user:write')
+
   const token = db.accountTokens?.find(item => item.id === id)
   if (!token)
     return null
@@ -105,5 +119,6 @@ export function revokeToken(db: MockDatabase, id: string, actor: Actor) {
 }
 
 export function changePassword(db: MockDatabase, actor: Actor) {
+  requireActorPermission(actor, 'user:write')
   writeAudit(db, actor, '修改密码', 'account', actor.name, '密码已更新，未记录明文')
 }
