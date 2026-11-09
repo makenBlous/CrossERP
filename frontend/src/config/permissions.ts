@@ -122,12 +122,29 @@ export const legacyRoleActions: Record<'admin' | 'operator' | 'finance' | 'viewe
   auditor: ['view', 'export'],
 }
 
-const basePermissions = (role: 'admin' | 'operator' | 'finance' | 'viewer' | 'auditor'): RolePermission[] => [
-  ...legacyRoleActions[role].map(action => ({ permissionKey: legacyPermissionKeys[action], effect: 'allow' as const, source: `旧角色 ${role}` })),
-  ...permissionCatalog.filter(point => point.key.endsWith(':read')).map(point => ({ permissionKey: point.key, effect: 'allow' as const, source: `模板 ${role}` })),
-]
+// 新模板只从安全的只读权限起步，再按模板补充明确权限；不再借用旧角色放大权限。
+const safeTemplatePermissions = (): RolePermission[] => permissionCatalog
+  .filter(point => point.key.endsWith(':read') && !point.sensitive && !['salary_slip:read', 'employee_record:read', 'permission:read'].includes(point.key))
+  .map(point => ({ permissionKey: point.key, effect: 'allow' as const, source: '模板基础只读' }))
 
-const isLegacyRole = (role: Role): role is 'admin' | 'operator' | 'finance' | 'viewer' | 'auditor' => ['admin', 'operator', 'finance', 'viewer', 'auditor'].includes(role)
+const templatePermissions: Record<string, string[]> = {
+  owner_manager: ['approval:read', 'report:read', 'notification:read', 'audit_log:read', 'permission:read'],
+  operations_manager: ['approval:read', 'approval:approve', 'report:read', 'notification:read'],
+  store_operator: ['approval:read', 'notification:read'],
+  advertising: ['notification:read'],
+  product_developer: ['notification:read'],
+  purchaser: ['approval:read', 'notification:read'],
+  warehouse_logistics: ['approval:read', 'notification:read'],
+  customer_service: ['approval:read', 'notification:read'],
+  accountant: ['approval:read', 'report:read', 'journal_entry:read', 'audit_log:read', 'notification:read'],
+  finance_manager: ['approval:read', 'approval:write', 'approval:approve', 'report:read', 'report:write', 'audit_log:read', 'permission:read', 'notification:read'],
+  cashier: ['approval:read', 'notification:read'],
+  hr_admin: ['approval:read', 'report:read', 'notification:read', 'audit_log:read'],
+  employee: ['approval:read', 'notification:read'],
+  department_manager: ['approval:read', 'approval:approve', 'notification:read'],
+  auditor_template: ['report:read', 'audit_log:read', 'notification:read', 'permission:read'],
+  external_viewer: ['report:read', 'notification:read'],
+}
 
 const template = (
   id: string,
@@ -145,9 +162,17 @@ const template = (
   nameEn,
   parentIds,
   legacyRole,
-  permissions: [...(legacyRole && isLegacyRole(legacyRole) ? basePermissions(legacyRole) : basePermissions('viewer')), ...extra],
+  permissions: [
+    ...safeTemplatePermissions(),
+    ...(templatePermissions[id] ?? []).map(permissionKey => ({ permissionKey, effect: 'allow' as const, source: `模板 ${nameZh}` })),
+    ...extra,
+  ],
   defaultDataScopes,
-  fieldRestrictions: {},
+  fieldRestrictions: ['employee', 'department_manager', 'external_viewer', 'store_operator', 'operations_manager', 'advertising', 'product_developer', 'purchaser', 'warehouse_logistics', 'customer_service'].includes(id)
+    ? { cost: 'hidden', margin: 'hidden', salary: 'hidden', salaryDetail: 'hidden', idCard: 'hidden', bankAccount: 'hidden', buyerContact: 'masked' }
+    : id === 'auditor_template'
+      ? { salary: 'masked', salaryDetail: 'hidden', bankAccount: 'hidden', idCard: 'masked' }
+      : {},
   erpnextRefs,
   odooRefs,
 })

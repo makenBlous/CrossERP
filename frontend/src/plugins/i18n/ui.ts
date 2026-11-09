@@ -1209,3 +1209,9 @@ export const uiMessages = {
   'zh-CN': zhCN,
   en,
 } as unknown as Record<AppLocale, typeof zhCN>
+
+// ---- 补齐批次 C ----
+export const gapCMessages = {
+  'zh-CN': { approvalCenter: '统一审批中心', permissionMatrix: '权限矩阵', effectivePermissions: '有效权限', auditTrace: '建议追溯' },
+  'en': { approvalCenter: 'Approval Center', permissionMatrix: 'Permission Matrix', effectivePermissions: 'Effective Permissions', auditTrace: 'Suggestion Trace' },
+}

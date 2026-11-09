@@ -1,5 +1,5 @@
 import type { HorizontalNavItems, VerticalNavItems } from '@layouts/types'
-import { menuGroups, pageCatalog } from '@/config/pages'
+import { canRoleOpen, menuGroups, pageCatalog } from '@/config/pages'
 import type { Role } from '@/types/domain'
 import { useMockDbStore } from '@/stores/mockdb'
 
@@ -12,7 +12,7 @@ export function buildNav(role: Role): VerticalNavItems {
       return []
 
     const children = pageCatalog
-      .filter(item => item.showInMenu && item.group === group.id && item.roles.includes(role) && !override?.hiddenPageIds.includes(item.id))
+      .filter(item => item.showInMenu && item.group === group.id && canRoleOpen(role, item) && !override?.hiddenPageIds.includes(item.id))
       .map(item => ({
         title: `page.${item.id}.name`,
 

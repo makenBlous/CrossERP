@@ -243,4 +243,18 @@
 
 批次 0 没有新增业务页面组件，98 条新路由统一复用现有 `components/PlaceholderPage.vue`。权限、AI 状态、渠道和校验属于共享地基，分别复用 Pinia、现有 `PermissionGate`、`AssistantDrawer`、`ChatLog` 与 `vue-i18n`；没有重复实现 Vuexy 页面或聊天卡片。
 
+## 补齐批次 C
+
+审计范围：`frontend/src/views/gap-c/GapCPage.vue`、21 个批次 C 路由壳、`src/api/gap-c.ts`、`src/mocks/services/gap-c.ts`。
+
+| 页面区块 | 复用组件 | 处理 | 原因 |
+| --- | --- | --- | --- |
+| 统一审批、通知、报表、权限与日志列表 | `components/biz/ListPage.vue`、`StatusChip`、`MoneyText` | 保留 | 列表筛选、分页、列设置和金额展示已由地基统一处理。 |
+| 建议追溯、日志保留、角色详情 | `components/biz/DetailPage.vue`、Vuetify `VTimeline`/`VTable` | 保留 | 详情轨迹和只读快照符合现有详情壳；时间线字段是业务专属。 |
+| 订阅、报表构建、临时授权、权限矩阵 | Vuetify `VCard`、`AppSelect`、`AppTextField`、`VSwitch` | 保留 | 这些是短表单或矩阵编辑，已有 Vuetify 控件与 Vuexy 表单模式直接匹配。 |
+| AI 建议页 | `AssistantDrawer`、页面顶部 `VAlert`、`PermissionGate` | 保留 | 遵循 AI 区统一规则；AI 关闭时抽屉与提示条隐藏。 |
+| 权限计算、字段裁剪、职责分离 | `utils/permission-engine.ts`、`PermissionGate` | 保留 | 属于权限和审计业务协议，Vuexy 没有等价实现；mock 服务在返回数据前裁剪字段。 |
+
+本批未新增通用 UI 组件；`GapCPage.vue` 只作为 21 个路由的页面编排壳，业务数据均通过 `src/api/gap-c.ts` 获取。
+
 

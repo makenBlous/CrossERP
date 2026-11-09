@@ -72,3 +72,10 @@ export const departments: Department[] = [
   { id: 'dept-ops', code: 'OPS', name: '运营部', parentId: null, managerUserId: 'demo-operator', active: true },
   { id: 'dept-fin', code: 'FIN', name: '财务部', parentId: null, managerUserId: 'demo-finance', active: true },
 ]
+
+// ---- 补齐批次 C ----
+export const gapCSeed = {
+  approvalThresholds: [{ type: '费用报销', firstLevel: 3000, secondLevel: 8000 }],
+  notificationCategories: ['approval', 'budget', 'agent', 'system'],
+  auditRetentionYears: { business: 10, ai: 3 },
+}

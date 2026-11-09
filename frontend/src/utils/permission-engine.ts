@@ -1,8 +1,11 @@
-import { legacyRoleMap, permissionCatalog, roleTemplates } from '@/config/permissions'
+/* eslint-disable indent */
+import { legacyPermissionKeys, legacyRoleActions, permissionCatalog, roleTemplates } from '@/config/permissions'
 import type { Role } from '@/types/domain'
 import type { DataScopeRuleType, EffectivePermission, PermissionSubject, RolePermission } from '@/types/foundation'
+import type { FieldAccess } from '@/types/gap-c'
 
 const templateById = new Map(roleTemplates.map(item => [item.id, item]))
+const legacyRoles = ['admin', 'operator', 'finance', 'viewer', 'auditor'] as const
 
 function activeAt(startsAt?: string, expiresAt?: string, now = Date.now()) {
   return !(startsAt && Date.parse(startsAt) > now) && !(expiresAt && Date.parse(expiresAt) <= now)
@@ -23,7 +26,10 @@ function collectRoleIds(roleIds: string[], seen = new Set<string>()): string[] {
 }
 
 function normalizePermissionSource(permission: RolePermission, roleId: string) {
-  return permission.source ?? `角色 ${templateById.get(roleId)?.nameZh ?? roleId}`
+  if (!permission.source || permission.source === '模板基础只读')
+    return `角色 ${templateById.get(roleId)?.nameZh ?? roleId}`
+
+  return permission.source
 }
 
 export function computeEffectivePermissions(subject: PermissionSubject, now = Date.now()): EffectivePermission[] {
@@ -42,9 +48,17 @@ export function computeEffectivePermissions(subject: PermissionSubject, now = Da
 
   for (const roleId of collectRoleIds(subject.roleIds)) {
     const role = templateById.get(roleId)
-    if (!role)
-      continue
-    for (const permission of role.permissions) {
+
+    const rolePermissions: RolePermission[] = role?.permissions ?? (legacyRoles.includes(roleId as typeof legacyRoles[number])
+      ? [
+          ...legacyRoleActions[roleId as typeof legacyRoles[number]].map(action => ({ permissionKey: legacyPermissionKeys[action], effect: 'allow' as const, source: `旧角色 ${roleId}` })),
+          ...permissionCatalog
+            .filter(point => point.key.endsWith(':read') || legacyRoleActions[roleId as typeof legacyRoles[number]].includes(point.key.split(':')[1] ?? ''))
+            .map(point => ({ permissionKey: point.key, effect: 'allow' as const, source: `旧角色 ${roleId}` })),
+        ]
+      : [])
+
+    for (const permission of rolePermissions) {
       const target = ensure(permission.permissionKey)
       const source = normalizePermissionSource(permission, roleId)
       if (permission.effect === 'deny') {
@@ -54,7 +68,7 @@ export function computeEffectivePermissions(subject: PermissionSubject, now = Da
       }
       else {
         target.allows.push(source)
-        for (const scope of permission.dataScopes ?? role.defaultDataScopes)
+        for (const scope of permission.dataScopes ?? role?.defaultDataScopes ?? [])
           target.scopes.add(scope)
       }
     }
@@ -107,12 +121,31 @@ export function narrowAiPermissions(effective: EffectivePermission[], allowedKey
 }
 
 export function roleSubject(role: Role, userId = `demo-${role}`): PermissionSubject {
-  const mapped = legacyRoleMap[role] ?? role
-  const template = roleTemplates.find(item => item.id === role) ?? roleTemplates.find(item => item.legacyRole === mapped)
+  // 旧五角色直接进入权限引擎，避免借用某个新模板造成权限放大。
+  if (legacyRoles.includes(role as typeof legacyRoles[number]))
+    return { userId, roleIds: [role] }
 
-  return { userId, roleIds: [template?.id ?? role] }
+  return { userId, roleIds: [role] }
 }
 
 export function canPermission(subject: PermissionSubject, permissionKey: string) {
   return effectivePermission(subject, permissionKey).allowed
+}
+
+/** 字段权限在 mock 返回数据前裁剪，页面层不能用视觉隐藏替代。 */
+export function fieldAccess(subject: PermissionSubject, fieldKey: string): FieldAccess {
+  const restrictions: FieldAccess[] = []
+  for (const roleId of collectRoleIds(subject.roleIds)) {
+    const restriction = templateById.get(roleId)?.fieldRestrictions[fieldKey]
+    if (restriction)
+      restrictions.push(restriction)
+  }
+  if (restrictions.includes('hidden'))
+    return 'hidden'
+  if (restrictions.includes('masked'))
+    return 'masked'
+  if (restrictions.includes('readonly'))
+    return 'readonly'
+
+  return 'visible'
 }
