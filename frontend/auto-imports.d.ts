@@ -63,6 +63,7 @@ declare global {
   const effectivePermission: typeof import('./src/utils/permission-engine')['effectivePermission']
   const emailValidator: typeof import('./src/@core/utils/validators')['emailValidator']
   const extendRef: typeof import('@vueuse/core')['extendRef']
+  const fieldAccess: typeof import('./src/utils/permission-engine')['fieldAccess']
   const formatDate: typeof import('./src/@core/utils/formatters')['formatDate']
   const formatDateToMonthShort: typeof import('./src/@core/utils/formatters')['formatDateToMonthShort']
   const formatInteger: typeof import('./src/utils/format')['formatInteger']
@@ -465,6 +466,7 @@ declare module 'vue' {
     readonly effectivePermission: UnwrapRef<typeof import('./src/utils/permission-engine')['effectivePermission']>
     readonly emailValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['emailValidator']>
     readonly extendRef: UnwrapRef<typeof import('@vueuse/core')['extendRef']>
+    readonly fieldAccess: UnwrapRef<typeof import('./src/utils/permission-engine')['fieldAccess']>
     readonly formatDate: UnwrapRef<typeof import('./src/@core/utils/formatters')['formatDate']>
     readonly formatDateToMonthShort: UnwrapRef<typeof import('./src/@core/utils/formatters')['formatDateToMonthShort']>
     readonly formatInteger: UnwrapRef<typeof import('./src/utils/format')['formatInteger']>
