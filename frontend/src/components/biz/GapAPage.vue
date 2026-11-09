@@ -8,6 +8,7 @@ import ListPage from '@/components/biz/ListPage.vue'
 import MoneyText from '@/components/biz/MoneyText.vue'
 import PermissionGate from '@/components/biz/PermissionGate.vue'
 import StatusChip from '@/components/biz/StatusChip.vue'
+import { EXPENSE_ACCOUNT_MAPPINGS } from '@/mocks/config/gap-a-expense-accounts'
 import { useAiModeStore } from '@/stores/ai-mode'
 import { useSessionStore } from '@/stores/session'
 import {
@@ -19,7 +20,8 @@ import {
   uploadGapARebateDocument, validateGapARebate,
 } from '@/api/gap-a'
 import type { BudgetRow, EmployeeLoan, ExpenseClaim, GapAPageKey } from '@/types/gap-a'
-import { minorFromDecimal } from '@/utils/money'
+import { formatMoney } from '@/utils/format'
+import { minorFromDecimal, minorToDecimal, percentRatio, toDisplay } from '@/utils/money'
 
 const props = defineProps<{ pageKey: GapAPageKey }>()
 interface TableRow { id: string; [key: string]: unknown }
@@ -48,6 +50,7 @@ const selectedPolicy = ref<TableRow | null>(null)
 const policyInput = ref('0')
 const policyDebitAccount = ref('')
 const policyCreditAccount = ref('其他应付款-员工')
+const expenseAccountOptions = [...new Set(EXPENSE_ACCOUNT_MAPPINGS.map(item => item.debitAccount))].map(account => ({ title: account, value: account }))
 const tripCreateMode = ref(false)
 const tripDraft = reactive({ destination: '', startOn: '2026-11-18', endOn: '2026-11-20', budget: '2400' })
 const selectedTripId = ref('')
@@ -112,6 +115,7 @@ const columns = computed(() => {
 
 function rowAmount(row: TableRow, key: string) { return Number(row[key] ?? 0) }
 function currency(row: TableRow) { return (row.currency as 'CNY' | 'USD' | 'EUR' | 'GBP' | 'JPY' | undefined) ?? 'CNY' }
+function displayMinor(amount: number, currencyCode: 'CNY' | 'USD' | 'EUR' | 'GBP' | 'JPY' = 'CNY') { return formatMoney(toDisplay(amount, currencyCode), currencyCode) }
 function navigate(id: string) {
   if (props.pageKey === 'EX01')
     router.push(`/expense/claims/${id}`); if (props.pageKey === 'EX04')
@@ -306,7 +310,7 @@ async function repayLoan() {
 }
 function openPolicy(row: TableRow) {
   selectedPolicy.value = row
-  policyInput.value = String(Number(row.limit ?? 0) / 10000)
+  policyInput.value = minorToDecimal(Number(row.limit ?? 0))
   policyDebitAccount.value = String(row.debitAccount ?? '')
   policyCreditAccount.value = String(row.creditAccount ?? '其他应付款-员工')
   policyDrawerOpen.value = true
@@ -596,7 +600,7 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               variant="tonal"
               class="mb-4"
             >
-              超过费用标准 {{ detailClaim.standardLimit / 10000 }} CNY，规则检查会拦截提交。
+              超过费用标准 {{ displayMinor(detailClaim.standardLimit, 'CNY') }}，规则检查会拦截提交。
             </VAlert><VTable density="comfortable">
               <thead>
                 <tr>
@@ -671,7 +675,7 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               >
                 <KpiCard
                   title="借款"
-                  :value="`${detailLoan.amount / 10000} CNY`"
+                  :value="displayMinor(detailLoan.amount, 'CNY')"
                   icon="tabler-cash"
                 />
               </VCol><VCol
@@ -680,7 +684,7 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               >
                 <KpiCard
                   title="已结算"
-                  :value="`${detailLoan.settled / 10000} CNY`"
+                  :value="displayMinor(detailLoan.settled, 'CNY')"
                   icon="tabler-check"
                   color="success"
                 />
@@ -690,7 +694,7 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               >
                 <KpiCard
                   title="未冲余额"
-                  :value="`${detailLoan.outstanding / 10000} CNY`"
+                  :value="displayMinor(detailLoan.outstanding, 'CNY')"
                   icon="tabler-clock"
                   color="warning"
                 />
@@ -724,7 +728,7 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               >
                 <KpiCard
                   title="预算"
-                  :value="`${detailBudget.budget / 10000} CNY`"
+                  :value="displayMinor(detailBudget.budget, 'CNY')"
                   icon="tabler-calculator"
                 />
               </VCol><VCol
@@ -733,7 +737,7 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               >
                 <KpiCard
                   title="实际"
-                  :value="`${detailBudget.actual / 10000} CNY`"
+                  :value="displayMinor(detailBudget.actual, 'CNY')"
                   icon="tabler-chart-bar"
                   color="info"
                 />
@@ -743,7 +747,7 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
               >
                 <KpiCard
                   title="使用率"
-                  :value="`${Math.round(detailBudget.actual / detailBudget.budget * 100)}%`"
+                  :value="`${percentRatio(detailBudget.actual, detailBudget.budget)}%`"
                   icon="tabler-alert-triangle"
                   color="warning"
                 />
@@ -1138,9 +1142,10 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
           label="费用上限（CNY）"
           type="number"
         />
-        <AppTextField
+        <AppSelect
           v-model="policyDebitAccount"
           label="借方费用科目（示例，待会计核实）"
+          :items="expenseAccountOptions"
         />
         <AppTextField
           v-model="policyCreditAccount"

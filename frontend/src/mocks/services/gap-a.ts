@@ -5,19 +5,15 @@ import type {
   TrialBalanceRow, VatReturnRow, VoucherSourceLink,
 } from '@/types/gap-a'
 import { demoIdentities, useSessionStore } from '@/stores/session'
-import { expenseAccountMappingForCategory } from '@/mocks/config/gap-a-expense-accounts'
-import { minorFromDecimal } from '@/utils/money'
+import { EXPENSE_ACCOUNT_MAPPINGS, expenseAccountMappingForCategory } from '@/mocks/config/gap-a-expense-accounts'
+import { minorFromDecimal, minorToDecimal, percentOf } from '@/utils/money'
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 const now = () => new Date().toISOString()
 const actor = () => useSessionStore().displayName
 const actorId = () => useSessionStore().userId
-
-function identityIdForName(name: string) {
-  const identity = Object.values(demoIdentities).find(item => item.name === name)
-
-  return identity?.id
-}
+const BUDGET_WARNING_BASIS_POINTS = 8000
+const EXPENSE_DEBIT_ACCOUNTS = new Set(EXPENSE_ACCOUNT_MAPPINGS.map(item => item.debitAccount))
 
 function identityNameForId(id: string | undefined, fallback: string) {
   const identity = Object.values(demoIdentities).find(item => item.id === id)
@@ -30,9 +26,9 @@ function audit(id: string, action: string, detail: string, origin: 'human' | 'ai
 }
 
 const seedAudit = (id: string): GapAAuditEvent[] => [
-  { id: `${id}-draft`, at: '2026-10-31T09:00:00Z', actor: '演示运营', action: '起草', detail: '按已存确定性金额生成凭证草稿。', origin: 'human' },
-  { id: `${id}-submit`, at: '2026-11-01T10:00:00Z', actor: '演示运营', action: '提交审批', detail: '借贷合计校验通过，提交统一审批中心。', origin: 'human' },
-  { id: `${id}-approve`, at: '2026-11-02T11:00:00Z', actor: '演示财务', action: '批准', detail: '财务复核通过，保留审计记录。', origin: 'human' },
+  { id: `${id}-draft`, at: '2026-10-31T09:00:00Z', actor: '演示运营', actorId: 'demo-operator', action: '起草', detail: '按已存确定性金额生成凭证草稿。', origin: 'human' },
+  { id: `${id}-submit`, at: '2026-11-01T10:00:00Z', actor: '演示运营', actorId: 'demo-operator', action: '提交审批', detail: '借贷合计校验通过，提交统一审批中心。', origin: 'human' },
+  { id: `${id}-approve`, at: '2026-11-02T11:00:00Z', actor: '演示财务', actorId: 'demo-finance', action: '批准', detail: '财务复核通过，保留审计记录。', origin: 'human' },
 ]
 
 function makeLine(id: string, amount: number, category = '交通'): ExpenseClaimLine {
@@ -69,7 +65,7 @@ function initialState(): GapAState {
     currency: 'CNY',
     sourceLinks: [{ sourceType: 'cogs', sourceId: 'cogs-001', label: '10 月成本结转', to: '/finance/cogs', amount: minorFromDecimal('18640.2'), currency: 'CNY' }],
     timeline: [
-      { id: 'vch-2-submit', at: '2026-11-03T09:00:00Z', actor: '演示运营', action: '提交审批', detail: '成本结转草稿待财务审批。', origin: 'human' },
+      { id: 'vch-2-submit', at: '2026-11-03T09:00:00Z', actor: '演示运营', actorId: 'demo-operator', action: '提交审批', detail: '成本结转草稿待财务审批。', origin: 'human' },
     ],
   }
 
@@ -112,22 +108,20 @@ function loadState() {
     const parsed = JSON.parse(saved) as GapAState
 
     parsed.rebates = parsed.rebates.map(item => ({ ...item, documents: item.documents ?? [] }))
-    parsed.claims = parsed.claims.map(item => ({
-      ...item,
-      claimantId: item.claimantId ?? identityIdForName(item.claimant),
-    }))
-    parsed.loans = parsed.loans.map(item => ({
-      ...item,
-      claimantId: item.claimantId ?? identityIdForName(item.claimant),
-    }))
-    parsed.trips = parsed.trips.map(item => ({
-      ...item,
-      claimantId: item.claimantId ?? identityIdForName(item.claimant),
-    }))
-    parsed.policies = parsed.policies.map(item => ({
-      ...expenseAccountMappingForCategory(item.category),
-      ...item,
-    }))
+    parsed.claims = parsed.claims.map(item => ({ ...item }))
+    parsed.loans = parsed.loans.map(item => ({ ...item }))
+    parsed.trips = parsed.trips.map(item => ({ ...item }))
+    parsed.policies = parsed.policies.map(item => {
+      const configured = expenseAccountMappingForCategory(item.category)
+
+      return {
+        ...configured,
+        ...item,
+        debitAccount: item.debitAccount && EXPENSE_DEBIT_ACCOUNTS.has(item.debitAccount) ? item.debitAccount : configured.debitAccount,
+        creditAccount: '其他应付款-员工' as const,
+        mappingNote: item.mappingNote ?? configured.note,
+      }
+    })
     parsed.vouchers = parsed.vouchers.map(item => ({
       ...item,
       createdById: item.createdById ?? 'demo-operator',
@@ -157,6 +151,8 @@ export function listTrips() { return clone(state.trips) }
 export function createTrip(input: Omit<TravelRequest, 'id' | 'status'>) {
   if (input.budget <= 0)
     throw new Error('差旅预算必须大于零')
+  if (!input.claimantId)
+    throw new Error('差旅申请必须提供稳定身份 ID')
   const item: TravelRequest = { ...input, claimant: identityNameForId(input.claimantId, input.claimant), id: nextId('trip'), status: 'draft' }
 
   state.trips.unshift(item)
@@ -188,14 +184,14 @@ export function suggestTripClaim(id: string) {
 
   const candidates = state.claims
     .map(claimItem => {
-      const sameClaimant = claimItem.claimant === item.claimant
+      const sameClaimant = Boolean(claimItem.claimantId && item.claimantId && claimItem.claimantId === item.claimantId)
       const inWindow = claimItem.lines.some(line => line.occurredOn >= start && line.occurredOn <= end)
       const withinBudget = claimItem.total <= item.budget
       const score = (sameClaimant ? 100 : 0) + (inWindow ? 50 : 0) + (withinBudget ? 20 : 0)
 
-      return { claim: claimItem, score }
+      return { claim: claimItem, score, sameClaimant }
     })
-    .filter(candidate => candidate.score > 0)
+    .filter(candidate => candidate.sameClaimant && candidate.score > 0)
     .sort((left, right) => right.score - left.score || left.claim.id.localeCompare(right.claim.id))
 
   const best = candidates[0]
@@ -234,14 +230,21 @@ export function savePolicy(id: string, limit: number, mapping?: { debitAccount?:
   const creditAccount = mapping?.creditAccount?.trim() || item.creditAccount || '其他应付款-员工'
   if (!debitAccount)
     throw new Error('借方费用科目不能为空')
+  if (!EXPENSE_DEBIT_ACCOUNTS.has(debitAccount))
+    throw new Error('借方费用科目必须来自示例映射配置，待会计核实')
   if (creditAccount !== '其他应付款-员工')
     throw new Error('报销贷方必须是其他应付款-员工')
   if (item.limit === limit && item.debitAccount === debitAccount && item.creditAccount === creditAccount)
     throw new Error('费用标准没有变化，不能重复保存')
+  const previousLimit = item.limit
+  const previousDebitAccount = item.debitAccount ?? expenseAccountMappingForCategory(item.category).debitAccount
+  const previousCreditAccount = item.creditAccount ?? '其他应付款-员工'
+
   item.limit = limit
   item.debitAccount = debitAccount
   item.creditAccount = creditAccount
   item.mappingNote = '示例映射，待会计核实；科目名称推断，待会计核实'
+  addAudit(audit('policy-update', '保存费用标准', `期间 ${item.effectiveFrom}，费用类别 ${item.category}；借方科目 ${previousDebitAccount} → ${debitAccount}，贷方科目 ${previousCreditAccount} → ${creditAccount}；限额 ${minorToDecimal(previousLimit)} → ${minorToDecimal(limit)} CNY。`), id)
   persist()
 
   return clone(item)
@@ -324,10 +327,12 @@ function expenseAccountForCategory(lines: ExpenseClaimLine[]) {
 export function createClaim(input: { claimant: string; claimantId?: string; department: string; attachmentName: string; line: Omit<ExpenseClaimLine, 'id'>; origin: 'human' | 'ai'; agentSuggestionId?: string }) {
   if (input.line.amount <= 0)
     throw new Error('报销明细金额必须大于零')
+  if (!input.claimantId)
+    throw new Error('报销必须提供稳定身份 ID')
   const id = `exp-${String(state.claims.length + 1).padStart(3, '0')}`
   const line = { ...input.line, id: `${id}-1` }
   const policy = state.policies.find(item => item.category === line.category && (item.department === input.department || item.department === '全公司'))
-  const claimantId = input.claimantId ?? identityIdForName(input.claimant)
+  const claimantId = input.claimantId
   const item: ExpenseClaim = { id, claimantId, claimant: identityNameForId(claimantId, input.claimant), department: input.department, status: 'draft', total: line.amount, currency: line.currency, standardLimit: policy?.limit ?? line.amount, overStandard: line.amount > (policy?.limit ?? line.amount), attachmentName: input.attachmentName, origin: input.origin, lines: [line], approvalSteps: [{ title: '部门主管', status: 'pending' }, { title: '财务', status: 'pending' }], budgetPeriod: '2026-11', createdAt: now() }
 
   state.claims.unshift(item)
@@ -379,7 +384,13 @@ export function decideClaim(id: string, step: 'manager' | 'finance', status: Ext
     item.status = 'finance_approved'; item.status = 'posted'
 
     const budget = state.budgets.find(row => row.period === item.budgetPeriod && row.department === item.department)
-    if (budget) { budget.actual += item.total; budget.status = budget.actual >= budget.budget ? 'exceeded' : budget.actual >= budget.budget * 0.8 ? 'warning' : 'normal' }
+    if (budget) {
+      budget.actual += item.total
+
+      const warningThreshold = percentOf(budget.budget, BUDGET_WARNING_BASIS_POINTS)
+
+      budget.status = budget.actual >= budget.budget ? 'exceeded' : budget.actual >= warningThreshold ? 'warning' : 'normal'
+    }
     const mapping = expenseAccountForCategory(item.lines)
 
     if (!state.vouchers.some(voucher => voucher.sourceLinks.some(link => link.sourceType === 'expense_claim' && link.sourceId === id)))
@@ -400,10 +411,13 @@ export function repayLoan(id: string, amount: number) {
     throw new Error('借款已还清，不能重复还款')
   if (amount > item.outstanding)
     throw new Error('还款金额不能超过未冲余额')
-  if (state.audits.some(event => event.action === '登记还款' && event.detail === `登记还款 ${amount / 10000} CNY。` && event.id.startsWith(`${id}-`)))
+  const repaymentAmounts = item.repaymentAmounts ?? (item.repaymentAmounts = [])
+  if (repaymentAmounts.includes(amount))
     throw new Error('相同还款记录不能重复登记')
+  repaymentAmounts.push(amount)
   item.settled += amount; item.outstanding = item.amount - item.settled; if (item.outstanding === 0)
-    item.status = 'repaid'; addAudit(audit('loan-repay', '登记还款', `登记还款 ${amount / 10000} CNY。`), id)
+    item.status = 'repaid'
+  addAudit(audit('loan-repay', '登记还款', `登记还款 ${minorToDecimal(amount)} CNY。`), id)
   persist()
 
   return clone(item)
@@ -530,6 +544,7 @@ export function closePeriod(period: string) {
 
   item.checks[0].passed = !hasPending; item.checks[0].detail = hasPending ? '存在待审批凭证，不能结账' : '无未审批凭证'; if (hasPending)
     throw new Error('有未审批凭证，不能结账'); item.status = 'closed'; item.closedAt = now(); item.checks.forEach(check => { check.passed = true })
+  addAudit(audit('period-closed', '期间结账', `期间 ${period} 已结账，状态 open → closed；${item.checks.map(check => `${check.label}：${check.passed ? '通过' : '未通过'}`).join('，')}。`), period)
   persist()
 
   return clone(item)
@@ -541,7 +556,12 @@ export function saveBudget(id: string, budget: number) {
     throw new Error('预算必须大于零')
   if (item.budget === budget)
     throw new Error('预算没有变化，不能重复调整')
-  item.budget = budget; item.status = item.actual >= budget ? 'exceeded' : item.actual >= budget * 0.8 ? 'warning' : 'normal'; addAudit(audit('budget-update', '调整预算', `预算调整为 ${budget / 10000} CNY。`), id)
+  const warningThreshold = percentOf(budget, BUDGET_WARNING_BASIS_POINTS)
+
+  item.budget = budget
+  item.status = item.actual >= budget ? 'exceeded' : item.actual >= warningThreshold ? 'warning' : 'normal'
+
+  addAudit(audit('budget-update', '调整预算', `预算调整为 ${minorToDecimal(budget)} CNY。`), id)
   persist()
 
   return clone(item)

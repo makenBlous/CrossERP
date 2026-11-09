@@ -57,6 +57,7 @@ export interface EmployeeLoan {
   outstanding: number
   currency: CurrencyCode
   dueOn: string
+  repaymentAmounts?: number[]
   audit: GapAAuditEvent[]
 }
 
