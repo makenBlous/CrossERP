@@ -85,8 +85,8 @@ const employeeSubject = roleSubject('employee', 'demo-employee')
 
 assert.equal(gapCReadHelpers.fieldAccess(employeeSubject, 'salary'), 'hidden')
 assert.deepEqual(gapCReadHelpers.projectGapCField(employeeSubject, { salary: 1200000, title: '运营专员' }), { title: '运营专员' })
-assert.equal(gapCReadHelpers.scopeAllows(employeeSubject, 'expense_claim:read', 'demo-employee', '运营部'), true)
-assert.equal(gapCReadHelpers.scopeAllows(employeeSubject, 'expense_claim:read', 'demo-finance', '财务部'), false)
+assert.equal(gapCReadHelpers.scopeAllows(employeeSubject, 'expense_claim:read', 'demo-employee', '运营部', 'shop-cn-01'), true)
+assert.equal(gapCReadHelpers.scopeAllows(employeeSubject, 'expense_claim:read', 'demo-finance', '财务部', 'shop-us-01'), false)
 
 const ai = narrowAiPermissions(computeEffectivePermissions(roleSubject('accountant'), now), ['journal_entry:read'])
 

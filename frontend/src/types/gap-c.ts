@@ -14,6 +14,7 @@ export interface GapCApprovalRow {
   submitter: string
   submitterId: string
   department: string
+  shopId: string
   amount: number
   currency: CurrencyCode
   status: GapCApprovalStatus

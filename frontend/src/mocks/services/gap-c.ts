@@ -1,4 +1,4 @@
-/* eslint-disable max-statements-per-line */
+/* eslint-disable indent, max-statements-per-line */
 import { currentActor, database } from '@/api/mock-client'
 import { permissionCatalog, roleTemplates } from '@/config/permissions'
 import { writeAudit } from '@/mocks/services/audit'
@@ -48,11 +48,11 @@ let subscriptions: GapCSubscription[] = [
 ]
 
 const approvals: GapCApprovalRow[] = [
-  { id: 'gc-apr-001', kind: 'expense', typeLabel: '费用报销', title: '差旅住宿报销 · EXP-2026-081', submitter: '演示运营', submitterId: 'demo-operator', department: '运营部', amount: 2800, currency: 'CNY', status: 'pending', origin: 'human', submittedAt: '2026-11-10 09:10', summary: '上海客户拜访住宿，票据已上传。', approvalLevel: 1, nextApprover: '部门主管' },
-  { id: 'gc-apr-002', kind: 'purchase', typeLabel: '采购申请', title: '补货采购 · PR-2026-014', submitter: '演示采购', submitterId: 'demo-purchaser', department: '供应链部', amount: 8000, currency: 'CNY', status: 'pending', origin: 'human', submittedAt: '2026-11-10 08:55', summary: '安全库存不足，申请采购 120 件。', approvalLevel: 2, nextApprover: '财务主管' },
-  { id: 'gc-apr-003', kind: 'agent', typeLabel: '智能体建议', title: '补货建议 · CN-1001', submitter: '演示运营', submitterId: 'demo-operator', department: '运营部', amount: 4200, currency: 'CNY', status: 'pending', origin: 'agent', agentSuggestionId: 'sug-001', submittedAt: '2026-11-10 08:40', summary: '智能体建议按安全库存补货，金额由系统已存字段提供。', approvalLevel: 1, nextApprover: '部门主管' },
-  { id: 'gc-apr-005', kind: 'agent', typeLabel: '智能体建议', title: '部门主管自提交建议 · SELF-005', submitter: '演示部门主管', submitterId: 'demo-department-manager', department: '运营部', amount: 1200, currency: 'CNY', status: 'pending', origin: 'agent', submittedAt: '2026-11-10 08:35', summary: '用于演示职责分离：提交人不能批准自己的单据。', approvalLevel: 1, nextApprover: '部门主管' },
-  { id: 'gc-apr-004', kind: 'leave', typeLabel: '请假申请', title: '年假 · LV-2026-033', submitter: '演示员工', submitterId: 'demo-employee', department: '运营部', amount: 0, currency: 'CNY', status: 'cc', origin: 'human', submittedAt: '2026-11-09 16:15', summary: '2026-11-18 至 2026-11-19 年假。', approvalLevel: 1, nextApprover: '部门主管' },
+  { id: 'gc-apr-001', kind: 'expense', typeLabel: '费用报销', title: '差旅住宿报销 · EXP-2026-081', submitter: '演示运营', submitterId: 'demo-operator', department: '运营部', shopId: 'shop-cn-01', amount: 2800, currency: 'CNY', status: 'pending', origin: 'human', submittedAt: '2026-11-10 09:10', summary: '上海客户拜访住宿，票据已上传。', approvalLevel: 1, nextApprover: '部门主管' },
+  { id: 'gc-apr-002', kind: 'purchase', typeLabel: '采购申请', title: '补货采购 · PR-2026-014', submitter: '演示采购', submitterId: 'demo-purchaser', department: '供应链部', shopId: 'shop-us-01', amount: 8000, currency: 'CNY', status: 'pending', origin: 'human', submittedAt: '2026-11-10 08:55', summary: '安全库存不足，申请采购 120 件。', approvalLevel: 2, nextApprover: '财务主管' },
+  { id: 'gc-apr-003', kind: 'agent', typeLabel: '智能体建议', title: '补货建议 · CN-1001', submitter: '演示运营', submitterId: 'demo-operator', department: '运营部', shopId: 'shop-cn-01', amount: 4200, currency: 'CNY', status: 'pending', origin: 'agent', agentSuggestionId: 'sug-001', submittedAt: '2026-11-10 08:40', summary: '智能体建议按安全库存补货，金额由系统已存字段提供。', approvalLevel: 1, nextApprover: '部门主管' },
+  { id: 'gc-apr-005', kind: 'agent', typeLabel: '智能体建议', title: '部门主管自提交建议 · SELF-005', submitter: '演示部门主管', submitterId: 'demo-department-manager', department: '运营部', shopId: 'shop-cn-01', amount: 1200, currency: 'CNY', status: 'pending', origin: 'agent', submittedAt: '2026-11-10 08:35', summary: '用于演示职责分离：提交人不能批准自己的单据。', approvalLevel: 1, nextApprover: '部门主管' },
+  { id: 'gc-apr-004', kind: 'leave', typeLabel: '请假申请', title: '年假 · LV-2026-033', submitter: '演示员工', submitterId: 'demo-employee', department: '运营部', shopId: 'shop-cn-01', amount: 0, currency: 'CNY', status: 'cc', origin: 'human', submittedAt: '2026-11-09 16:15', summary: '2026-11-18 至 2026-11-19 年假。', approvalLevel: 1, nextApprover: '部门主管' },
 ]
 
 const approvalRules: GapCApprovalRule[] = [
@@ -128,22 +128,53 @@ const demoDepartments: Record<string, string> = {
   'demo-purchaser': '供应链部',
 }
 
+// 模拟店铺绑定：真实系统应从用户与店铺关联表读取，mock 不代表生产配置。
+const demoShopBindings: Record<string, string[]> = {
+  'demo-admin': ['shop-cn-01', 'shop-us-01', 'shop-eu-01'],
+  'demo-finance': ['shop-cn-01', 'shop-us-01', 'shop-eu-01'],
+  'demo-auditor': ['shop-cn-01', 'shop-us-01', 'shop-eu-01'],
+  'demo-viewer': ['shop-cn-01'],
+  'demo-operator': ['shop-cn-01'],
+  'demo-external-viewer': ['shop-eu-01'],
+  'demo-store_operator': ['shop-cn-01'],
+}
+
 export function dataScopesFor(subject: PermissionSubject, permissionKey: string): DataScopeRuleType[] {
   return effectivePermission(subject, permissionKey).dataScopes
 }
 
-export function scopeAllows(subject: PermissionSubject, permissionKey: string, ownerId?: string, department?: string) {
+export function shopsForSubject(subject: PermissionSubject): string[] {
+  return [...(demoShopBindings[subject.userId] ?? [])]
+}
+
+export function scopeAllows(subject: PermissionSubject, permissionKey: string, ownerId?: string, department?: string, shopId?: string) {
   const permission = effectivePermission(subject, permissionKey)
   if (!permission.allowed)
     return false
-  if (permission.dataScopes.includes('all') || permission.dataScopes.includes('store'))
-    return true
-  if (permission.dataScopes.includes('self'))
-    return ownerId === subject.userId
-  if (permission.dataScopes.includes('department'))
-    return Boolean(department && department === demoDepartments[subject.userId])
+  if (permission.dataScopes.length === 0)
+    return false
 
-  return dataScopesFor(subject, permissionKey).length > 0
+  const supportedScopes = new Set<DataScopeRuleType>(['all', 'store', 'self', 'owner', 'department'])
+  if (permission.dataScopes.some(scope => !supportedScopes.has(scope)))
+    return false
+
+  const subjectDepartment = demoDepartments[subject.userId]
+
+  return permission.dataScopes.some(scope => {
+    switch (scope) {
+      case 'all':
+        return true
+      case 'store':
+        return Boolean(shopId && shopsForSubject(subject).includes(shopId))
+      case 'self':
+      case 'owner':
+        return ownerId === subject.userId
+      case 'department':
+        return Boolean(department && subjectDepartment && department === subjectDepartment)
+      default:
+        return false
+    }
+  })
 }
 
 function clone<T>(value: T): T {
@@ -169,7 +200,7 @@ export function listGapCApprovals(mode: 'all' | 'agent' | 'cc' = 'all') {
       return false
     if (mode === 'cc' && item.status !== 'cc')
       return false
-    if (!scopeAllows(subject, 'approval:read', item.submitterId, item.department))
+    if (!scopeAllows(subject, 'approval:read', item.submitterId, item.department, item.shopId))
       return false
     if (current.role === 'employee' || current.role === 'operator')
       return item.submitterId === useSessionStore().userId || item.status === 'cc'
@@ -514,4 +545,4 @@ export function projectGapCField<T extends Record<string, unknown>>(subject: Per
   return result
 }
 
-export const gapCReadHelpers = { subjectFor, fieldAccess, projectGapCField, dataScopesFor, scopeAllows }
+export const gapCReadHelpers = { subjectFor, fieldAccess, projectGapCField, dataScopesFor, shopsForSubject, scopeAllows }

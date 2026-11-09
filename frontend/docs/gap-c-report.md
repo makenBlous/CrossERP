@@ -41,8 +41,19 @@
 - `canPermission(subject, permissionKey)`：判断当前用户有效权限；权限合并后显式 `deny` 优先，临时授权按 `startsAt` / `expiresAt` 计算。
 - `fieldAccess(subject, fieldKey)`：返回 `hidden`、`masked`、`readonly` 或 `visible`。mock 返回数据前调用 `projectGapCField()`，隐藏字段删除，脱敏字段替换为 `***`。
 - `computeEffectivePermissions()` / `effectivePermission()`：读取来源、拒绝来源和数据范围；不要读取 `legacyRoleMap` 给新模板放大权限。
-- `dataScopesFor(subject, permissionKey)` 与 `scopeAllows(subject, permissionKey, ownerId, department)`（由 `gapCReadHelpers` 导出）：服务查询先按数据范围裁剪，再返回字段裁剪后的记录。
+- `dataScopesFor(subject, permissionKey)`、`shopsForSubject(subject)` 与 `scopeAllows(subject, permissionKey, ownerId, department, shopId)`（由 `gapCReadHelpers` 导出）：服务查询先按数据范围裁剪，再返回字段裁剪后的记录。
 - `requireActorPermission(actor, permissionKey)` / `actorCan(actor, permissionKey)`：供 `src/mocks/services` 直接调用；`src/api` 使用 `assertPermission()`，显式拒绝时抛错。
+
+### 数据范围语义
+
+| 范围 | 允许条件 | 记录缺少关联字段时 |
+|---|---|---|
+| 本人（`self` / `owner`） | `ownerId === subject.userId` | 只要有本人 `ownerId` 即可判断；缺少则拒绝 |
+| 部门（`department`） | 记录 `department` 存在且等于主体部门 | 拒绝 |
+| 店铺（`store`） | 记录 `shopId` 存在且属于 `shopsForSubject(subject)` | 拒绝 |
+| 全公司（`all`） | 直接允许 | 允许；这是明确的全公司授权 |
+
+同一权限的多个范围按并集计算，任一范围命中即可允许；范围为空或含未实现的未知范围时一律拒绝。店铺绑定目前只存在于 C 批次 mock 配置，并不代表真实后端用户与店铺关联表。
 
 权限 key 使用 `DocType/模型:动作`，例如 `expense_claim:read`、`journal_entry:read`、`employee_record:read`、`report:read`；字段权限使用 `对象.字段:动作`。人事和 D 批次共用以下 key：`employee.salary:read`、`employee.id_number:read`、`salary_slip:read_own`、`salary_slip:read_all`、`employee_record:read_own`。普通员工只授予 `salary_slip:read_own`（数据范围 `self`），人事模板授予员工薪资与证件字段权限；其他角色默认隐藏或脱敏。
 
@@ -68,7 +79,7 @@ gap-c permission checks passed
 - 旧角色的数据范围现在随有效权限写入：`admin`、`finance`、`auditor` 为 `all`，`operator` 为 `store + owner`，`viewer` 为 `store`。因此旧角色的 `allowed` 权限不会再出现空 `dataScopes` 导致的假拒绝。
 - `admin` 按 02 设计中“老板/总经理”的默认字段限制“无”处理：这是基于模板语义的**推断**，因此成本、毛利、薪资、证件和银行卡字段均可见。`owner_manager` 与旧 `admin` 的成本/毛利结果一致。
 - `finance` 按 02 设计中“会计/财务覆盖全部财务数据”的**推断**开放 SKU 成本和毛利；薪资、证件、银行卡仍没有字段权限，继续隐藏。财务角色不因此获得员工档案敏感字段。
-- `scoped-reads.ts` 不再按 `department_manager` 角色名判断部门范围，只依据 `effectivePermission(...).dataScopes`。没有店铺字段的演示记录遇到 `store` 范围时仍按 01 设计的**推断**处理：在真实店铺隔离接入前，接口代表当前公司全部店铺，因此 `store` 作为当前公司范围放行；接入真实店铺字段后应改为按店铺值过滤。
+- `scoped-reads.ts` 不再按 `department_manager` 角色名判断部门范围，只依据 `effectivePermission(...).dataScopes`；店铺范围要求记录带有 `shopId` 且命中主体的模拟店铺绑定，缺少店铺字段一律拒绝。
 - 普通员工按 02 设计“我的个人档案”获得本人一条员工记录；接口选择 `employee_record:read_own`，并继续按字段权限删除薪资、证件和银行卡。对 `employee_record:read` 的显式拒绝优先于本人范围授权，返回空结果。
 
 第三轮验收摘要：
@@ -92,3 +103,10 @@ gap-c permission checks passed
 审计依据：`docs/design/06-补齐开发批次.md` 第 3 节列出的批次 C 流程，及 `docs/design/01-前端页面设计.md` 第 20.11 节的 16 个预置模板。真实后端、真实文件存储、外部通知渠道和数据库账号权限仍未验证。
 
 点击验收脚本位于 `C:\Users\cimi\AppData\Local\Temp\cx-pw\gap-c-flows\flows.js`，结果写入同目录 `result.json`；本次 AI 正常/关闭各 10 条流程，共 20/20 通过。
+
+## 批次 C 第五轮店铺范围修复（2026-11-10）
+
+- `scopeAllows()` 保持四参数调用兼容，并增加可选 `shopId`；`all` 明确放行，`store` 只匹配主体绑定店铺，`self`/`owner` 按 `ownerId`，`department` 按主体部门；多个范围取并集。
+- 空范围、未知范围、缺少 `shopId` 或缺少部门时拒绝；`shopsForSubject()` 的绑定是 C 批次模拟配置，旧 `viewer`、`operator` 至少绑定一个店铺，`external_viewer` 只绑定少量店铺。
+- 订单 fixture 为 3 条、覆盖 3 个店铺且每条带 `shopId`；报销和员工档案 fixture 也带店铺关联，所有 scoped read 调用传入 `shopId`。
+- 独立 `xperm.ts`、`xperm2.ts`、`xperm3.ts` 均为 `== FAIL 0`；`check-gap-c-permissions.ts`、`gap-c-scoped-reads.ts`、`check-legacy-read-apis.ts`、typecheck、ESLint（0 errors）和 build 均通过。
