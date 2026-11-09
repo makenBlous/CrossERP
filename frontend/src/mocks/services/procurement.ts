@@ -3,7 +3,7 @@ import type { Actor, MockDatabase, PurchaseOrder, PurchaseReturn, Supplier, Supp
 import { writeAudit } from '@/mocks/services/audit'
 import { FlowError } from '@/mocks/services/errors'
 import { mustFind, nextId } from '@/mocks/services/ids'
-import { postStockDoc } from '@/mocks/services/inventory'
+import { applyMovement, postStockDoc } from '@/mocks/services/inventory'
 import { addMinor, minorFromDecimal, mulQty } from '@/utils/money'
 
 function findPo(db: MockDatabase, id: string) {
@@ -154,6 +154,7 @@ export interface PurchaseReturnDraft {
   supplierId: string
   purchaseOrderId: string
   amount: string
+  lines?: Array<{ internalSku: string; warehouseId?: string; batchNo?: string; qty: number }>
 }
 
 const currencies = new Set<CurrencyCode>(['USD', 'CNY', 'EUR', 'GBP', 'JPY'])
@@ -311,6 +312,22 @@ export function createPurchaseReturn(db: MockDatabase, input: PurchaseReturnDraf
   if (po.supplierId !== supplier.id)
     throw new FlowError('采购单不属于这个供应商')
 
+  const firstLine = db.purchaseOrderLines.find(line => line.purchaseOrderId === po.id)
+  if (!firstLine)
+    throw new FlowError('采购单没有可退货明细')
+  const fallbackBalance = db.balances.find(item => item.internalSku === firstLine.internalSku)
+  const lines = input.lines?.length
+    ? input.lines.map(line => ({ internalSku: line.internalSku, warehouseId: line.warehouseId ?? fallbackBalance?.warehouseId ?? 'wh-cn-sz', batchNo: line.batchNo ?? '待录入', qty: line.qty }))
+    : [{ internalSku: firstLine.internalSku, warehouseId: fallbackBalance?.warehouseId ?? 'wh-cn-sz', batchNo: 'B-2026-10-A', qty: 5 }]
+  if (lines.some(line => !Number.isInteger(line.qty) || line.qty <= 0))
+    throw new FlowError('退货数量必须是正整数')
+  const computedAmount = lines.reduce((sum, line) => {
+    const poLine = db.purchaseOrderLines.find(item => item.purchaseOrderId === po.id && item.internalSku === line.internalSku)
+    return poLine ? addMinor(sum, mulQty(poLine.unitCost, line.qty)) : sum
+  }, 0)
+  if (computedAmount <= 0)
+    throw new FlowError('退货明细没有匹配采购成本')
+
   const row: PurchaseReturn = {
     id: nextId(db, 'prt'),
     no: `PR-2026-${String(db.purchaseReturns.length + 1).padStart(3, '0')}`,
@@ -318,7 +335,9 @@ export function createPurchaseReturn(db: MockDatabase, input: PurchaseReturnDraf
     purchaseOrderId: po.id,
     status: 'draft',
     currency: po.currency,
-    amount: minorFromDecimal(input.amount),
+    amount: computedAmount,
+    lines,
+    payableReduction: computedAmount,
   }
 
   db.purchaseReturns.push(row)
@@ -333,8 +352,30 @@ export function confirmPurchaseReturn(db: MockDatabase, id: string, actor: Actor
   if (row.status !== 'draft')
     throw new FlowError('只有草稿采购退货可以确认')
 
+  const lines = row.lines ?? []
+  if (lines.length === 0)
+    throw new FlowError('退货缺少明细行，不能确认')
+  for (const line of lines) {
+    applyMovement(db, {
+      warehouseId: line.warehouseId,
+      internalSku: line.internalSku,
+      onHandDelta: -line.qty,
+      inTransitDelta: 0,
+      reason: 'purchase_return',
+      refType: 'purchase_return',
+      refId: row.id,
+      actor,
+    })
+    const poLine = db.purchaseOrderLines.find(item => item.purchaseOrderId === row.purchaseOrderId && item.internalSku === line.internalSku)
+    if (poLine)
+      poLine.receivedQty = Math.max(0, poLine.receivedQty - line.qty)
+  }
+  const invoice = db.apInvoices.find(item => item.supplierId === row.supplierId && item.status === 'open')
+  if (invoice)
+    invoice.amount = Math.max(0, invoice.amount - row.amount)
   row.status = 'confirmed'
-  writeAudit(db, actor, 'confirm', 'purchase_return', row.id, `确认采购退货 ${row.no}。单据没有退货行数量，这次只改状态，不猜数量、不改库存。`)
+  row.payableReduction = row.amount
+  writeAudit(db, actor, 'confirm', 'purchase_return', row.id, `确认采购退货 ${row.no}，${lines.map(line => `${line.internalSku} -${line.qty}`).join('；')}，库存与应付已同步冲减`)
 
   return row
 }

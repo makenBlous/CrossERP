@@ -157,6 +157,7 @@ async function confirmRow(row: PurchaseReturnRow) {
             v-if="item.status === 'draft'"
             size="small"
             variant="text"
+          data-test="confirm-purchase-return"
             @click="confirmRow(item)"
           >
             {{ t('procurement.confirmReturn') }}
@@ -175,6 +176,21 @@ async function confirmRow(row: PurchaseReturnRow) {
           :amount="selected.amount"
           :currency="selected.currency"
         />
+        <VAlert
+          type="info"
+          variant="tonal"
+          class="mt-4"
+          data-test="purchase-return-lines"
+        >
+          <div class="font-weight-medium mb-2">退货明细（确认后写入负数库存流水）</div>
+          <div
+            v-for="line in selected.lines ?? []"
+            :key="`${line.internalSku}-${line.batchNo}`"
+          >
+            {{ line.internalSku }} · {{ line.warehouseName }} · 批次 {{ line.batchNo }} · -{{ line.qty }} 件
+          </div>
+          <div class="mt-2">应付冲减：<MoneyText :amount="selected.payableReduction ?? selected.amount" :currency="selected.currency" /></div>
+        </VAlert>
         <p class="mt-4">
           {{ t('procurement.returnsSubtitle') }}
         </p>
@@ -205,6 +221,9 @@ async function confirmRow(row: PurchaseReturnRow) {
         :label="t('procurement.amount')"
         :rules="[requiredText(t('procurement.amount')), moneyText(t('procurement.amount'))]"
       />
+      <VAlert type="info" variant="tonal" class="mt-4">
+        原型默认退货 5 件；金额由采购明细单价 × 数量确定性计算，提交人不能改写库存或应付。
+      </VAlert>
     </FormDrawer>
   </div>
 </template>

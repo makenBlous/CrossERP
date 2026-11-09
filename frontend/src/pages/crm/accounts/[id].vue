@@ -179,7 +179,18 @@ watch(accountId, load)
                   v-for="item in account.relatedOrders"
                   :key="item.orderNo"
                 >
-                  <td>{{ item.orderNo }}</td>
+                  <td>
+                    <VBtn
+                      v-if="item.to"
+                      variant="text"
+                      size="small"
+                      :to="item.to"
+                      data-test="account-order-link"
+                    >
+                      {{ item.orderNo }}
+                    </VBtn>
+                    <span v-else>{{ item.orderNo }}</span>
+                  </td>
                   <td>{{ item.date }}</td>
                   <td class="text-end">
                     <MoneyText

@@ -126,6 +126,8 @@ export function projectOrder(db: MockDatabase, id: string): OrderDetail | null {
     fees.push({ type: '成本', amount: money(parts.cogs, order.currency), currency: order.currency })
   }
   const warehouse = db.warehouses.find(item => item.id === order.warehouseId)
+  const customer = order.customerId ? db.crmAccounts.find(item => item.id === order.customerId) : undefined
+  const opportunity = order.opportunityId ? db.crmOpportunities.find(item => item.id === order.opportunityId) : undefined
 
   return {
     ...summary,
@@ -144,6 +146,8 @@ export function projectOrder(db: MockDatabase, id: string): OrderDetail | null {
       trackingNo: order.trackingNo || '待生成',
       shippedAt: order.shippedAt ? utcLabel(order.shippedAt) : '未发货',
     },
+    customer: customer ? { id: customer.id, name: customer.name, to: `/crm/accounts/${customer.id}` } : undefined,
+    opportunity: opportunity ? { id: opportunity.id, name: opportunity.name, stage: opportunity.stage, to: `/crm/opportunities/${opportunity.id}` } : undefined,
     timeline: db.audit
       .filter(item => item.refId === order.id)
       .map(item => ({ time: utcLabel(item.at), title: item.action, detail: item.summary })),
@@ -164,6 +168,10 @@ export function projectOrder(db: MockDatabase, id: string): OrderDetail | null {
           label: item.id,
           to: '/orders/returns',
         })),
+      ...(customer ? [{ id: customer.id, type: '客户', label: customer.name, to: `/crm/accounts/${customer.id}` }] : []),
+      ...(opportunity ? [{ id: opportunity.id, type: '商机', label: `${opportunity.name}（${opportunity.stage}）`, to: `/crm/opportunities/${opportunity.id}` }] : []),
+      ...(order.shipmentId ? [{ id: order.shipmentId, type: '物流运单', label: order.trackingNo || order.shipmentId, to: `/logistics/shipments/${order.shipmentId}` }] : []),
+      ...(order.firstMileBatchId && order.firstMileBatchId !== order.shipmentId ? [{ id: order.firstMileBatchId, type: '头程批次', label: order.firstMileBatchId, to: `/logistics/shipments/${order.firstMileBatchId}` }] : []),
     ],
   }
 }
@@ -434,16 +442,17 @@ export function projectAccount(db: MockDatabase, id: string): CrmAccountDetail |
       currency: item.currency,
       stage: item.stage,
     })),
-    relatedOrders: db.crmTickets
-      .filter(item => item.accountId === id && item.orderNo)
-      .map(item => {
-        const order = db.orders.find(row => row.orderNo === item.orderNo)
+    relatedOrders: db.orders
+      .filter(item => item.customerId === id)
+      .map(order => {
 
         return {
-          orderNo: item.orderNo ?? '',
+          id: order.id,
+          orderNo: order.orderNo,
           amount: order ? money(orderGross(db, order.id), order.currency) : 0,
           currency: order?.currency ?? raw.currency,
-          date: order ? order.orderedAt.slice(0, 10) : '',
+          date: order.orderedAt.slice(0, 10),
+          to: `/orders/${order.id}`,
         }
       }),
     tickets: db.crmTickets.filter(item => item.accountId === id).map(item => ({

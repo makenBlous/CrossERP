@@ -10,6 +10,11 @@ const item = ref<any>(null)
 onMounted(async () => {
   item.value = await fetchOpportunity(String((route.params as Record<string, unknown>).id))
 })
+
+const related = computed(() => [
+  { id: item.value?.accountId ?? '', type: '客户', label: item.value?.accountName ?? '', to: item.value ? `/crm/accounts/${item.value.accountId}` : undefined },
+  ...(item.value?.relatedOrders ?? []).map((order: { id: string; orderNo: string }) => ({ id: order.id, type: '订单', label: order.orderNo, to: `/orders/${order.id}` })),
+])
 </script>
 
 <template>
@@ -19,7 +24,7 @@ onMounted(async () => {
     :subtitle="item.accountName"
     domain="crm"
     :status="item.stage"
-    :related="[{ id: item.accountId, type: '客户', label: item.accountName, to: `/crm/accounts/${item.accountId}` }]"
+    :related="related"
   >
     <VCard title="商机概览">
       <VCardText>

@@ -35,4 +35,25 @@ export interface GapBPageData {
   rows: GapBRow[]
   detail?: GapBDetail
   message?: string
+  audit: GapBAuditEvent[]
+  chain?: GapBChainNode[]
+}
+
+export interface GapBAuditEvent {
+  id: string
+  at: string
+  actor: string
+  action: string
+  refType: string
+  refId: string
+  summary: string
+  channel?: string
+}
+
+export interface GapBChainNode {
+  id: string
+  title: string
+  detail: string
+  status: 'connected' | 'pending'
+  to?: string
 }

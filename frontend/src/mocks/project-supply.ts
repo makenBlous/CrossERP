@@ -343,6 +343,13 @@ export function projectPurchaseReturns(db: MockDatabase): PurchaseReturnRow[] {
     status: item.status,
     currency: item.currency,
     amount: show(item.amount, item.currency),
+    lines: item.lines?.map(line => ({
+      internalSku: line.internalSku,
+      warehouseName: warehouseName(db, line.warehouseId),
+      batchNo: line.batchNo,
+      qty: line.qty,
+    })),
+    payableReduction: item.payableReduction == null ? undefined : show(item.payableReduction, item.currency),
   }))
 }
 

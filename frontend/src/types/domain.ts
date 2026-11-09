@@ -103,6 +103,8 @@ export interface OrderSummary {
 
 export interface OrderDetail extends OrderSummary {
   buyerRef: string
+  customer?: { id: string; name: string; to: string }
+  opportunity?: { id: string; name: string; stage: string; to: string }
   lines: OrderLine[]
   fees: OrderFee[]
   shipment: {
@@ -255,10 +257,12 @@ export interface CrmOpportunity {
 }
 
 export interface CrmRelatedOrder {
+  id?: string
   orderNo: string
   amount: number
   currency: CurrencyCode
   date: string
+  to?: string
 }
 
 export interface CrmTicket {
@@ -670,6 +674,8 @@ export interface PurchaseReturnRow {
   status: string
   currency: CurrencyCode
   amount: number
+  lines?: Array<{ internalSku: string; warehouseName: string; batchNo: string; qty: number }>
+  payableReduction?: number
 }
 
 export interface StatementRow {

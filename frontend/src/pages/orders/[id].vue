@@ -208,6 +208,38 @@ async function register(disposition: 'restock' | 'scrap') {
         </VCol>
       </VRow>
 
+      <VCard class="mb-6" variant="tonal" title="业务链关联">
+        <VCardText class="d-flex flex-wrap ga-3">
+          <VBtn
+            v-if="order.customer"
+            variant="text"
+            size="small"
+            :to="order.customer.to"
+            data-test="order-customer-link"
+          >
+            客户：{{ order.customer.name }}
+          </VBtn>
+          <VBtn
+            v-if="order.opportunity"
+            variant="text"
+            size="small"
+            :to="order.opportunity.to"
+            data-test="order-opportunity-link"
+          >
+            商机：{{ order.opportunity.name }}（{{ order.opportunity.stage }}）
+          </VBtn>
+          <VBtn
+            v-if="order.shipment.trackingNo !== '待生成'"
+            variant="text"
+            size="small"
+            :to="order.related.find(item => item.type === '物流运单')?.to"
+            data-test="order-shipment-link"
+          >
+            物流：{{ order.shipment.trackingNo }}
+          </VBtn>
+        </VCardText>
+      </VCard>
+
       <VCard>
         <VTabs
           v-model="tab"

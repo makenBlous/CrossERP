@@ -112,6 +112,11 @@ export interface SalesOrder {
   trackingNo: string
   shippedAt: string | null
   refund: Minor
+  /** 批次 B 业务链追溯字段；后端接入时改为正式外键。 */
+  customerId?: string
+  opportunityId?: string
+  shipmentId?: string
+  firstMileBatchId?: string
 }
 
 export interface SalesOrderLine {
@@ -259,6 +264,13 @@ export interface PurchaseReturn {
   status: string
   currency: CurrencyCode
   amount: Minor
+  lines?: Array<{
+    internalSku: string
+    warehouseId: string
+    batchNo: string
+    qty: number
+  }>
+  payableReduction?: Minor
 }
 
 export interface SupplierStatement {

@@ -134,6 +134,11 @@ async function saveForm() {
   try {
     if (props.pageKey === 'INT01') {
       if (wizardStep.value === 1) {
+        if (!uploadFile.value) {
+          message.value = '请先选择领星或赛狐导出文件。'
+
+          return
+        }
         await act('upload-import')
         wizardStep.value = 2
 
@@ -218,6 +223,15 @@ function rowStatus(row: GapBRow) {
     >
       AI 当前为降级模式，只提供只读建议；人工流程仍可继续。
     </VAlert>
+    <VAlert
+      v-if="data?.audit?.length"
+      type="info"
+      variant="tonal"
+      class="mb-4"
+      data-test="gap-b-audit"
+    >
+      最近审计：{{ data.audit[0].action }} · {{ data.audit[0].summary }}（{{ data.audit[0].actor }}）
+    </VAlert>
 
     <template v-if="loading">
       <LoadingState />
@@ -243,6 +257,20 @@ function rowStatus(row: GapBRow) {
               @click="confirmTransfer"
             >
               {{ data.detail.status === 'posted' ? '已确认调拨' : '确认调拨' }}
+            </VBtn>
+          </PermissionGate>
+          <PermissionGate
+            v-if="props.pageKey === 'I15'"
+            action="approve"
+          >
+            <VBtn
+              v-if="data.detail.status === 'submitted'"
+              variant="tonal"
+              color="success"
+              data-test="approve-count"
+              @click="act('approve-count', { id: data.detail.id })"
+            >
+              审批通过并过账
             </VBtn>
           </PermissionGate>
           <PermissionGate
@@ -630,7 +658,7 @@ function rowStatus(row: GapBRow) {
         :title="data.title"
         :subtitle="data.subtitle"
         domain="generic"
-        :timeline="chainItems.map((item, index) => ({ id: String(index), at: '已接通', ...item }))"
+        :timeline="(data.chain ?? chainItems.map((item, index) => ({ id: String(index), ...item, status: 'connected' as const }))).map(item => ({ id: item.id, at: item.status === 'connected' ? '已接通' : '待处理', title: item.title, detail: item.detail }))"
       >
         <VCard>
           <VCardText>
@@ -649,6 +677,42 @@ function rowStatus(row: GapBRow) {
                 追溯
               </VBtn>
             </div>
+            <VRow class="mb-2">
+              <VCol
+                v-for="item in data.chain ?? []"
+                :key="item.id"
+                cols="12"
+                sm="6"
+                md="4"
+              >
+                <VCard
+                  variant="tonal"
+                  :color="item.status === 'connected' ? 'success' : 'warning'"
+                >
+                  <VCardText>
+                    <div class="font-weight-medium">{{ item.title }}</div>
+                    <div class="text-body-2 mb-2">{{ item.detail }}</div>
+                    <VBtn
+                      v-if="item.to"
+                      :to="item.to"
+                      size="small"
+                      variant="text"
+                      data-test="chain-link"
+                    >
+                      打开关联单据
+                    </VBtn>
+                  </VCardText>
+                </VCard>
+              </VCol>
+            </VRow>
+            <VBtn
+              color="primary"
+              variant="tonal"
+              data-test="opportunity-win"
+              @click="act('win-opportunity')"
+            >
+              模拟商机赢单并生成订单草稿
+            </VBtn>
           </VCardText>
         </VCard>
       </DetailPage>
@@ -826,6 +890,16 @@ function rowStatus(row: GapBRow) {
             @click="act('submit-count', { id: item.id })"
           >
             提交差异审批
+          </VBtn>
+          <VBtn
+            v-if="props.pageKey === 'I15' && rowStatus(item) === 'submitted'"
+            size="small"
+            variant="text"
+            color="success"
+            data-test="approve-count-list"
+            @click="act('approve-count', { id: item.id })"
+          >
+            审批通过并过账
           </VBtn>
           <VBtn
             v-if="props.pageKey === 'W08' && Number(item.amount) <= 5000000"
