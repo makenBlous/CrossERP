@@ -3,16 +3,26 @@ import type { GapBDetail, GapBKey, GapBPageData, GapBRow } from '@/types/gap-b'
 const now = '2026-11-10 10:00'
 
 const titles: Record<GapBKey, [string, string]> = {
-  S09: ['询价单', '向多家供应商询价并跟踪报价'], S10: ['询价比价', '并排比较报价，人工选择供应商后转采购单'],
-  S11: ['采购合同', '合同、框架价与有效期'], S12: ['合同详情', '条款、价格表、附件与关联采购单'],
-  S13: ['供应商评估', '准时率、合格率与价格稳定性'], I12: ['批次与效期', '按批次查看数量、生产日期和到期日'],
-  I13: ['补货建议', '按安全库存和销量预测生成补货建议'], I14: ['调拨详情', '调出、在途、调入确认'],
-  I15: ['盘点详情', '录入实盘数、查看差异并提交审批'], D05: ['业务链追溯', '从订单追溯到采购、库存、物流和凭证'],
-  INT01: ['领星/赛狐导入向导', '选来源、上传、列映射、预览、导入'], INT02: ['平台同步', '查看平台同步任务和失败原因'],
-  INT03: ['金蝶导出设置', '维护账套、凭证字和科目对照'], INT04: ['ERPNext 账套', '配置审批后的可选推送目标'],
-  INT05: ['集成日志', '查看导入、同步和导出的结果'], W08: ['IM 审批卡片预览', '模拟飞书、企业微信和钉钉审批卡片'],
-  SYS19: ['我的渠道绑定', '绑定和解绑个人 IM 身份'], SYS20: ['IM 审批设置', '配置通道、审批类型和金额门槛'],
-  SYS25: ['通知渠道', '管理飞书、企业微信、钉钉、邮件和 Webhook'], SYS26: ['新增渠道', '配置渠道并测试发送'],
+  S09: ['询价单', '向多家供应商询价并跟踪报价'],
+  S10: ['询价比价', '并排比较报价，人工选择供应商后转采购单'],
+  S11: ['采购合同', '合同、框架价与有效期'],
+  S12: ['合同详情', '条款、价格表、附件与关联采购单'],
+  S13: ['供应商评估', '准时率、合格率与价格稳定性'],
+  I12: ['批次与效期', '按批次查看数量、生产日期和到期日'],
+  I13: ['补货建议', '按安全库存和销量预测生成补货建议'],
+  I14: ['调拨详情', '调出、在途、调入确认'],
+  I15: ['盘点详情', '录入实盘数、查看差异并提交审批'],
+  D05: ['业务链追溯', '从订单追溯到采购、库存、物流和凭证'],
+  INT01: ['领星/赛狐导入向导', '选来源、上传、列映射、预览、导入'],
+  INT02: ['平台同步', '查看平台同步任务和失败原因'],
+  INT03: ['金蝶导出设置', '维护账套、凭证字和科目对照'],
+  INT04: ['ERPNext 账套', '配置审批后的可选推送目标'],
+  INT05: ['集成日志', '查看导入、同步和导出的结果'],
+  W08: ['IM 审批卡片预览', '模拟飞书、企业微信和钉钉审批卡片'],
+  SYS19: ['我的渠道绑定', '绑定和解绑个人 IM 身份'],
+  SYS20: ['IM 审批设置', '配置通道、审批类型和金额门槛'],
+  SYS25: ['通知渠道', '管理飞书、企业微信、钉钉、邮件和 Webhook'],
+  SYS26: ['新增渠道', '配置渠道并测试发送'],
 }
 
 const state: Record<string, GapBRow[]> = {
@@ -68,14 +78,24 @@ const columns: Record<GapBKey, Array<{ key: string; title: string }>> = {
   W08: [{ key: 'channel', title: '渠道' }, { key: 'title', title: '审批事项' }, { key: 'amount', title: '金额' }, { key: 'threshold', title: '门槛' }, { key: 'status', title: '状态' }],
   SYS19: [{ key: 'channel', title: '渠道' }, { key: 'account', title: '外部账号' }, { key: 'boundAt', title: '绑定时间' }, { key: 'status', title: '状态' }],
   SYS25: [{ key: 'channel', title: '渠道' }, { key: 'capabilities', title: '能力' }, { key: 'enabled', title: '启用' }, { key: 'configured', title: '配置' }, { key: 'lastResult', title: '最近结果' }],
-  D05: [], S12: [], INT03: [], INT04: [], SYS20: [], SYS26: [],
+  D05: [],
+  S12: [],
+  INT03: [],
+  INT04: [],
+  SYS20: [],
+  SYS26: [],
 }
 
 function detailFor(key: GapBKey, id: string): GapBDetail | undefined {
-  if (key === 'S10') return { id, title: 'RFQ-2026-001 报价比较', status: 'open', summary: '三家供应商报价已收齐，选择后会生成采购单草稿。', fields: [{ label: '采购需求', value: 'CN-1001 × 20' }, { label: '历史最低价', value: '¥115.00 / 件（2026-09）' }], steps: [{ id: 's1', title: '发布询价', detail: '已向 3 家供应商发送', status: 'done' }, { id: 's2', title: '比较报价', detail: '代码已计算含税总额与交期', status: 'open' }, { id: 's3', title: '转采购单', detail: '必须由人选择供应商', status: 'blocked' }], related: [{ id: 'rfq-001', type: '询价单', label: 'RFQ-2026-001', to: '/procurement/rfqs' }] }
-  if (key === 'S12') return { id, title: 'CON-2026-001 采购合同', status: 'active', summary: '框架采购合同，关键条款由人工确认后生效。', fields: [{ label: '供应商', value: '宁波星海供应链' }, { label: '有效期', value: '2026-01-01 至 2026-12-31' }, { label: '付款条件', value: '月结 30 天' }], steps: [{ id: 's1', title: '上传合同', detail: '合同原件已归档', status: 'done' }, { id: 's2', title: '人工确认条款', detail: 'AI 仅提供摘要，不改变条款', status: 'open' }], related: [{ id: 'po-1001', type: '采购单', label: 'PO-2026-001', to: '/procurement/orders/po-1001' }] }
-  if (key === 'I14') return { id, title: 'TR-2026-001 调拨详情', status: 'in_transit', summary: '调拨确认会产生调出和调入两条库存流水。', fields: [{ label: '调出仓', value: '华东 FBA' }, { label: '调入仓', value: '广州海外仓' }, { label: 'SKU / 数量', value: 'CN-1001 / 80' }], steps: [{ id: 's1', title: '创建调拨', detail: '草稿已保存', status: 'done' }, { id: 's2', title: '确认调出', detail: '库存流水 -80', status: 'open' }, { id: 's3', title: '确认调入', detail: '在途入库后完成', status: 'blocked' }], related: [{ id: 'mov-001', type: '库存流水', label: '查看调拨流水', to: '/inventory/movements' }] }
-  if (key === 'I15') return { id, title: 'CT-2026-001 盘点详情', status: 'pending', summary: '差异过账前需提交盘点差异审批。', fields: [{ label: '仓库', value: '华东 FBA' }, { label: 'SKU', value: 'CN-1001' }, { label: '账面 / 实盘', value: '320 / 317（差异 -3）' }], steps: [{ id: 's1', title: '录入实盘', detail: '实盘数由人填写', status: 'done' }, { id: 's2', title: '提交差异审批', detail: '审批通过后才更新库存', status: 'open' }, { id: 's3', title: '过账', detail: '写入库存流水', status: 'blocked' }], related: [{ id: 'approval-count-001', type: '审批', label: '盘点差异审批', to: '/approvals' }] }
+  if (key === 'S10')
+    return { id, title: 'RFQ-2026-001 报价比较', status: 'open', summary: '三家供应商报价已收齐，选择后会生成采购单草稿。', fields: [{ label: '采购需求', value: 'CN-1001 × 20' }, { label: '历史最低价', value: '¥115.00 / 件（2026-09）' }], steps: [{ id: 's1', title: '发布询价', detail: '已向 3 家供应商发送', status: 'done' }, { id: 's2', title: '比较报价', detail: '代码已计算含税总额与交期', status: 'open' }, { id: 's3', title: '转采购单', detail: '必须由人选择供应商', status: 'blocked' }], related: [{ id: 'rfq-001', type: '询价单', label: 'RFQ-2026-001', to: '/procurement/rfqs' }] }
+  if (key === 'S12')
+    return { id, title: 'CON-2026-001 采购合同', status: 'active', summary: '框架采购合同，关键条款由人工确认后生效。', fields: [{ label: '供应商', value: '宁波星海供应链' }, { label: '有效期', value: '2026-01-01 至 2026-12-31' }, { label: '付款条件', value: '月结 30 天' }], steps: [{ id: 's1', title: '上传合同', detail: '合同原件已归档', status: 'done' }, { id: 's2', title: '人工确认条款', detail: 'AI 仅提供摘要，不改变条款', status: 'open' }], related: [{ id: 'po-1001', type: '采购单', label: 'PO-2026-001', to: '/procurement/orders/po-1001' }] }
+  if (key === 'I14')
+    return { id, title: 'TR-2026-001 调拨详情', status: 'in_transit', summary: '调拨确认会产生调出和调入两条库存流水。', fields: [{ label: '调出仓', value: '华东 FBA' }, { label: '调入仓', value: '广州海外仓' }, { label: 'SKU / 数量', value: 'CN-1001 / 80' }], steps: [{ id: 's1', title: '创建调拨', detail: '草稿已保存', status: 'done' }, { id: 's2', title: '确认调出', detail: '库存流水 -80', status: 'open' }, { id: 's3', title: '确认调入', detail: '在途入库后完成', status: 'blocked' }], related: [{ id: 'mov-001', type: '库存流水', label: '查看调拨流水', to: '/inventory/movements' }] }
+  if (key === 'I15')
+    return { id, title: 'CT-2026-001 盘点详情', status: 'pending', summary: '差异过账前需提交盘点差异审批。', fields: [{ label: '仓库', value: '华东 FBA' }, { label: 'SKU', value: 'CN-1001' }, { label: '账面 / 实盘', value: '320 / 317（差异 -3）' }], steps: [{ id: 's1', title: '录入实盘', detail: '实盘数由人填写', status: 'done' }, { id: 's2', title: '提交差异审批', detail: '审批通过后才更新库存', status: 'open' }, { id: 's3', title: '过账', detail: '写入库存流水', status: 'blocked' }], related: [{ id: 'approval-count-001', type: '审批', label: '盘点差异审批', to: '/approvals' }] }
+
   return undefined
 }
 
@@ -84,36 +104,96 @@ export function getGapBPage(key: GapBKey, id?: string): GapBPageData {
   const rows = state[key] ?? []
   const detail = id ? detailFor(key, id) : undefined
   const detailKeys: GapBKey[] = ['S10', 'S12', 'I14', 'I15']
+
   return { key, title, subtitle, kind: detailKeys.includes(key) ? 'detail' : ['INT01', 'INT03', 'INT04', 'SYS20', 'SYS26'].includes(key) ? 'form' : 'list', columns: columns[key], rows: rows.map(row => ({ ...row })), detail }
 }
 
 export function applyGapBAction(key: GapBKey, action: string, payload: Record<string, string | number | boolean> = {}): string {
   if (action === 'create-rfq') {
     state.S09.unshift({ id: `rfq-${Date.now()}`, no: `RFQ-2026-${String(state.S09.length + 1).padStart(3, '0')}`, subject: String(payload.subject || '新建补货询价'), supplierCount: Number(payload.supplierCount || 2), status: 'open', dueAt: '2026-11-20', amount: Number(payload.amount || 120000), currency: 'CNY' })
+
     return '询价单草稿已创建，等待人工发送。'
   }
   if (action === 'award-rfq') {
     state.S09[0].status = 'awarded'
+
     return '已选择供应商并生成采购单草稿，采购单仍需人工审批。'
   }
-  if (action === 'draft-replenishment') return '已按代码计算建议数量并生成采购单草稿，等待批准。'
-  if (action === 'confirm-transfer') { state.I14[0].status = 'posted'; return '调拨已确认，调出和调入库存流水均已记录。' }
-  if (action === 'submit-count') { state.I15[0].status = 'submitted'; return '盘点差异已提交审批，审批通过前不会改变库存。' }
-  if (action === 'upload-import') { state.INT01[0].status = 'mapped'; return '文件已上传，建议列映射已生成，请人工确认。' }
-  if (action === 'confirm-import') { state.INT01[0].status = 'imported'; return '列映射已确认，导入完成并写入集成日志。' }
-  if (action === 'start-sync') { state.INT02.unshift({ id: `sync-${Date.now()}`, platform: String(payload.platform || 'Amazon US'), type: '订单与库存', progress: '0%', status: 'running', startedAt: now, message: '任务已创建' }); return '同步任务已创建。' }
-  if (action === 'save-settings') return '设置已保存，敏感配置只显示「已配置」。'
+  if (action === 'draft-replenishment')
+    return '已按代码计算建议数量并生成采购单草稿，等待批准。'
+  if (action === 'confirm-transfer') {
+    state.I14[0].status = 'posted'
+
+    return '调拨已确认，调出和调入库存流水均已记录。'
+  }
+  if (action === 'submit-count') {
+    state.I15[0].status = 'submitted'
+
+    return '盘点差异已提交审批，审批通过前不会改变库存。'
+  }
+  if (action === 'upload-import') {
+    state.INT01[0].status = 'mapped'
+
+    return '文件已上传，建议列映射已生成，请人工确认。'
+  }
+  if (action === 'confirm-import') {
+    state.INT01[0].status = 'imported'
+
+    return '列映射已确认，导入完成并写入集成日志。'
+  }
+  if (action === 'start-sync') {
+    state.INT02.unshift({ id: `sync-${Date.now()}`, platform: String(payload.platform || 'Amazon US'), type: '订单与库存', progress: '0%', status: 'running', startedAt: now, message: '任务已创建' })
+
+    return '同步任务已创建。'
+  }
+  if (action === 'save-settings')
+    return '设置已保存，敏感配置只显示「已配置」。'
   if (action === 'approve-im') {
     const row = state.W08.find(item => item.id === String(payload.id))
-    if (!row) return '找不到审批卡片。'
-    if (Number(row.amount) > 5000000) return '金额超过 IM 门槛，只能去网页确认。'
-    row.status = 'approved'; return '已通过 IM 审批，审计渠道记录为飞书。'
+    if (!row)
+      return '找不到审批卡片。'
+    if (Number(row.amount) > 5000000)
+      return '金额超过 IM 门槛，只能去网页确认。'
+    row.status = 'approved'
+
+    return '已通过 IM 审批，审计渠道记录为飞书。'
   }
-  if (action === 'tamper-im') { const row = state.W08.find(item => item.id === String(payload.id)); if (row) row.status = 'tampered'; return '内容哈希不一致，卡片已阻止操作。' }
-  if (action === 'bind-channel') { const row = state.SYS19.find(item => item.id === String(payload.id)); if (row) { row.status = 'bound'; row.account = String(payload.account || 'demo@example.com'); row.boundAt = now.slice(0, 10) }; return '渠道身份已绑定。' }
-  if (action === 'unbind-channel') { const row = state.SYS19.find(item => item.id === String(payload.id)); if (row) { row.status = 'unbound'; row.account = '未绑定'; row.boundAt = '-' }; return '渠道已解绑。' }
-  if (action === 'test-channel') return '测试消息已发送，返回成功。'
-  if (action === 'create-channel') { state.SYS25.push({ id: `channel-${Date.now()}`, channel: String(payload.channel || '钉钉'), capabilities: '消息 / 审批卡片', enabled: false, configured: true, lastResult: '已配置，默认停用' }); return '渠道已保存，默认停用。' }
-  if (action === 'search-chain') return '已加载业务链，4 个断点均已接通。'
+  if (action === 'tamper-im') {
+    const row = state.W08.find(item => item.id === String(payload.id))
+    if (row)
+      row.status = 'tampered'
+
+    return '内容哈希不一致，卡片已阻止操作。'
+  }
+  if (action === 'bind-channel') {
+    const row = state.SYS19.find(item => item.id === String(payload.id))
+    if (row) {
+      row.status = 'bound'
+      row.account = String(payload.account || 'demo@example.com')
+      row.boundAt = now.slice(0, 10)
+    }
+
+    return '渠道身份已绑定。'
+  }
+  if (action === 'unbind-channel') {
+    const row = state.SYS19.find(item => item.id === String(payload.id))
+    if (row) {
+      row.status = 'unbound'
+      row.account = '未绑定'
+      row.boundAt = '-'
+    }
+
+    return '渠道已解绑。'
+  }
+  if (action === 'test-channel')
+    return '测试消息已发送，返回成功。'
+  if (action === 'create-channel') {
+    state.SYS25.push({ id: `channel-${Date.now()}`, channel: String(payload.channel || '钉钉'), capabilities: '消息 / 审批卡片', enabled: false, configured: true, lastResult: '已配置，默认停用' })
+
+    return '渠道已保存，默认停用。'
+  }
+  if (action === 'search-chain')
+    return '已加载业务链，4 个断点均已接通。'
+
   return '操作已记录。'
 }
