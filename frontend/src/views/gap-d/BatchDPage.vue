@@ -157,7 +157,7 @@ function openRow(row: GapDRecord) {
     router.push(`/hr/employees/${row.id}`)
   else if (props.pageId === 'HR07')
     router.push('/hr/payroll/payroll-2026-11')
-  else if (props.pageId === 'G24')
+  else if (props.pageId === 'G04' || props.pageId === 'G24')
     router.push(`/agent/tools/${row.id}`)
 }
 
