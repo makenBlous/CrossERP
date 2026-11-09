@@ -3,7 +3,7 @@ import type { Actor, AdsAllocation, AdsImportBatch, Finance2Data, MockDatabase, 
 import { submitSuggestion } from '@/mocks/services/approvals'
 import { writeAudit } from '@/mocks/services/audit'
 import { nextId } from '@/mocks/services/ids'
-import { type Minor, minorFromDecimal, minorToDecimal, toDisplay } from '@/utils/money'
+import { type Minor, addMinor, convertMinor, minorFromDecimal, minorToDecimal, toDisplay } from '@/utils/money'
 
 export type ImportBatchRow = Finance2Data['imports'][number]
 export type FeeMapRow = Finance2Data['feeMaps'][number]
@@ -341,7 +341,8 @@ export function createVoucherFromIssue(db: MockDatabase, issueId: string, actor:
 }
 
 export function createVoucherFromProfit(db: MockDatabase, actor: Actor) {
-  const total = db.profitSnapshots.filter(row => row.period === '2026-10').reduce((sum, row) => sum + row.profit, 0)
+  // 利润快照有多种币种，先按服务层汇率折算成凭证币种 CNY 再合计，不能直接相加。
+  const total = db.profitSnapshots.filter(row => row.period === '2026-10').reduce((sum, row) => addMinor(sum, convertMinor(row.profit, row.currency, 'CNY')), 0)
   const amount: Minor = total || minorFromDecimal('100.0000')
   const voucher: VoucherEntity = { id: nextId(db, 'vch'), no: `记-2026-10-${String(db.vouchers.length + 1).padStart(3, '0')}`, period: '2026-10', status: 'draft', debit: amount, credit: amount, currency: 'CNY', summary: '10 月利润结转草稿', submitter: actor.name }
 
