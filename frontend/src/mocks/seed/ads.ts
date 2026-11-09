@@ -13,6 +13,7 @@ export function seedAds(db: MockDatabase) {
     ],
     allocations: campaign ? [{ id: 'alloc-seed-1', campaign: campaign.name, sku, ratio: 50, spend: seededSpend, source: '广告分摊' }] : [],
   }
+
   const snapshot = db.profitSnapshots.find(item => item.internalSku === sku && item.period === '2026-10')
   if (snapshot) {
     snapshot.ads += seededSpend

@@ -13,6 +13,7 @@ const error = ref('')
 
 onMounted(async () => {
   const [allocationRows, campaignRows, profit] = await Promise.all([fetchAllocations(), fetchAdCampaigns(), fetchProfit()])
+
   rows.value = allocationRows
   campaigns.value = campaignRows
   skus.value = [...new Set(profit.rows.map(row => row.sku))]
@@ -21,6 +22,7 @@ onMounted(async () => {
 })
 
 const columns = [{ key: 'campaign', title: '活动' }, { key: 'sku', title: '内部 SKU' }, { key: 'ratio', title: '比例 %' }, { key: 'spendDisplay', title: '分摊花费' }, { key: 'source', title: '来源' }]
+
 async function save() {
   error.value = ''
   if (!sku.value)

@@ -46,7 +46,7 @@ export function recordImport(db: MockDatabase, fileName: string, actor: Actor) {
 }
 
 export function sourceRow(table: string, id: string) {
-  if (id !== 'row-42' && !/-row-1$/.test(id))
+  if (id !== 'row-42' && !id.endsWith('-row-1'))
     return null
 
   const settlementId = id.replace(/-row-1$/, '')
@@ -148,9 +148,11 @@ export function apRows(db: MockDatabase) {
 
 export function clearingRows(db: MockDatabase) {
   const data = financeData(db)
+
   if (!data.clearing.length) {
     db.settlements.slice(0, 6).forEach((settlement, index) => {
       const ar = db.arInvoices.find(item => item.storeId === settlement.storeId && item.currency === settlement.currency)
+
       data.clearing.push({ id: `clr-${index + 1}`, payout: settlement.externalId, ar: ar?.id ?? `AR-${settlement.storeId}`, currency: settlement.currency, payoutAmount: settlement.total, arAmount: ar?.amount ?? settlement.total, difference: settlement.total - (ar?.amount ?? settlement.total), status: index === 0 ? 'pending' : 'candidate' })
     })
   }
