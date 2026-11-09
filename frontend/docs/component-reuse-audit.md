@@ -290,3 +290,37 @@
 | 补货、询价、调拨、盘点、导入、渠道 | 统一批次 B 页面壳；步骤表单使用现成 `FormPage`/`VStepper`/`VFileInput` | 每个保存/审批/启停动作经 `src/api/gap-b.ts`，mock 服务追加审计 |
 
 本轮没有把静态 mock 误写成真实后端能力；真实文件、外部 IM 回调、ERPNext/金蝶连接仍按报告标为未接入。
+
+## 批次 B 增量复用审计（第二轮）
+
+审计范围：`c643461..3e88c5a` 中的前端页面、API、mock 服务和共享种子，重点检查 `GapBPage`、采购退货、库存调拨/盘点、订单与 CRM 关联，以及 `3e88c5a` 的 `mocks/seed/build.ts`。本轮只追加审计结论，没有扩大功能代码改动。
+
+### 组件和 API 复用
+
+- `GapBPage.vue` 继续复用 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer`、`StatusChip`、`MoneyText`、`PermissionGate`、`LoadingState` 和 `KpiCard`。询价比价、合同价格表、导入映射、库存步骤和业务链卡片是字段/流程专属布局，保留 Vuetify `VCard`、`VTable`、`VStepper`、`VFileInput` 属于安全的一对一复用范围。
+- 采购退货页面复用 `ListPage`、`RecordDrawer`、`FormDrawer`、`StatusChip`、`MoneyText`、`PermissionGate` 和 `useConfirm`；订单、CRM 客户/商机详情复用 `DetailPage`、`MoneyText` 和既有 API 出口。没有新增通用 `.vue` 组件，也没有页面直接绕过 `src/api` 调 mock 服务。
+- `submitGapBAction` 对已知动作做 `assertCan` 权限映射；库存、采购退货和 CRM 写 API 也在 API 层取得当前角色后再进入 mock 服务。权限门禁满足演示原型的入口控制，但服务函数本身仍接收可直接调用的 `Actor`/payload，后端接入时需把权限校验和动作白名单下沉到真实服务边界。
+
+### 写入、审批和审计检查
+
+| 检查项 | 结论 |
+| --- | --- |
+| 稳定 userId | `useSessionStore().userId` 按演示角色映射到稳定 ID，盘点提交和审批用该 ID 做提交人比较；这部分有效。 |
+| 防自审 | I15 盘点审批检查 `submitterId !== session.userId`，状态也限制为 `submitted`；但 W08 IM 审批行没有提交人/审批人 ID，`approve-im`/`reject-im` 只检查状态和门槛，采购单 `approvePurchaseOrder` 也没有提交人比较，防自审覆盖不完整。 |
+| 防跳级 | API 动作映射使用 `assertCan('approve'/'create'/'update')`，状态流限制了部分顺序；但 `applyGapBAction` 可被绕过 API 直接调用，真实服务需要在唯一写入口再次校验角色和状态。 |
+| 幂等 | 调拨、盘点、导入、IM 审批等状态迁移重复调用会被状态检查拦截；询价、同步、渠道创建、附件保存、测试发送、链路查询和绑定/解绑没有请求幂等键，重复请求会新增记录或重复审计，不能判定为完整幂等。 |
+| actorId 审计 | `currentActor()` 丢弃了 `session.userId`，`Actor`/`AuditEvent`/`writeAudit` 只保存 `actor` 名称和角色；`record()`、库存流水和采购服务均没有写入稳定 `actorId`。同名或角色切换时无法可靠追溯，未满足审计带 actorId 的要求。 |
+
+### 金额检查
+
+金额计算路径总体使用 `utils/money` 的整数 `Minor`、`minorFromDecimal`、`addMinor`、`mulQty`，采购退货金额由采购行单价乘数量确定性计算，未发现使用 `float` 算钱的新增代码。
+
+发现一处口径不一致：`utils/money` 的 `Minor` 是万分位整数（scale 10000），但批次 B 的 IM 门槛 `imThresholdMinor()` 使用 `threshold * 100`，表单又标为“元”，询价表单标为“分”，页面统一将这些数交给 `MoneyText minor` 按万分位展示。这样会使门槛比较和展示相差两个数量级；通用 `Number(payload.amount)` 也没有经过 `minorFromDecimal()`。这属于金额口径问题，已记录，未在本轮扩大修复。
+
+### 共享种子 VERSION 4 复核
+
+对当前 `buildSeed()` 与 `3e88c5a` 父版本用同一组 `projectDashboard()`/`projectProfit()` 读取并比较：订单总数仍为 100，版本由 3 变为 4，但 10 月订单由 28 增至 32，10 月利润快照行由 19 增至 22。共享页面统计随之变化：仪表盘销售额 `1975.68 → 2538.14 USD`、费用 `322.77 → 840.76 USD`、净利润 `639.64 → 421.41 USD`、匹配率 `76.92% → 80%`；`openIssues=9` 和 `pendingApprovals=5` 未变。结算金额也发生变化，例如 `amz-us 2456160 → 5580960`、`amz-jp 18555224 → 205110448`（均为存储最小单位），利润页 `amz-us` 利润 `80.45 → -235.52`、`amz-jp` `611 → 6822`。因此该种子改动确实对其他页面数据和金额口径有副作用，不能宣称已保持旧基线；后续应由产品确认新的基线或恢复原月份分布。本轮保留现有种子数据，没有擅自改回。
+
+### 本轮结论
+
+组件复用符合现有 Vuexy/Vuetify 薄封装约定，页面层没有发现适合安全一对一替换的重复通用组件。写入链路的权限入口和部分状态幂等有效，但 actorId、W08/采购单防自审、完整幂等及金额 scale 仍是未闭合问题；共享种子 VERSION 4 的统计变化已用实际构建数据核实并记录。
