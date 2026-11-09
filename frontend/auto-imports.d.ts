@@ -12,9 +12,11 @@ declare global {
   const EffectScope: typeof import('vue')['EffectScope']
   const FX_TO_USD: typeof import('./src/utils/money')['FX_TO_USD']
   const acceptHMRUpdate: typeof import('pinia')['acceptHMRUpdate']
+  const actorCan: typeof import('./src/utils/service-permissions')['actorCan']
   const addMinor: typeof import('./src/utils/money')['addMinor']
   const alphaDashValidator: typeof import('./src/@core/utils/validators')['alphaDashValidator']
   const alphaValidator: typeof import('./src/@core/utils/validators')['alphaValidator']
+  const assertHumanActor: typeof import('./src/utils/service-permissions')['assertHumanActor']
   const asyncComputed: typeof import('@vueuse/core')['asyncComputed']
   const autoResetRef: typeof import('@vueuse/core')['autoResetRef']
   const avatarText: typeof import('./src/@core/utils/formatters')['avatarText']
@@ -63,6 +65,7 @@ declare global {
   const effectivePermission: typeof import('./src/utils/permission-engine')['effectivePermission']
   const emailValidator: typeof import('./src/@core/utils/validators')['emailValidator']
   const extendRef: typeof import('@vueuse/core')['extendRef']
+  const fieldAccess: typeof import('./src/utils/permission-engine')['fieldAccess']
   const formatDate: typeof import('./src/@core/utils/formatters')['formatDate']
   const formatDateToMonthShort: typeof import('./src/@core/utils/formatters')['formatDateToMonthShort']
   const formatInteger: typeof import('./src/utils/format')['formatInteger']
@@ -154,6 +157,7 @@ declare global {
   const regexValidator: typeof import('./src/@core/utils/validators')['regexValidator']
   const registerPlugins: typeof import('./src/@core/utils/plugins')['registerPlugins']
   const registerPlugins_: typeof import('./src/@core/utils/plugins')['registerPlugins_']
+  const requireActorPermission: typeof import('./src/utils/service-permissions')['requireActorPermission']
   const requiredText: typeof import('./src/@core/utils/validators')['requiredText']
   const requiredValidator: typeof import('./src/@core/utils/validators')['requiredValidator']
   const resolveComponent: typeof import('vue')['resolveComponent']
@@ -162,6 +166,7 @@ declare global {
   const resolveVuetifyTheme: typeof import('./src/@core/utils/vuetify')['resolveVuetifyTheme']
   const rgbaToHex: typeof import('./src/@core/utils/colorConverter')['rgbaToHex']
   const roleSubject: typeof import('./src/utils/permission-engine')['roleSubject']
+  const sensitiveFieldPermissionKeys: typeof import('./src/utils/permission-engine')['sensitiveFieldPermissionKeys']
   const setActivePinia: typeof import('pinia')['setActivePinia']
   const setMapStoreSuffix: typeof import('pinia')['setMapStoreSuffix']
   const shallowReactive: typeof import('vue')['shallowReactive']
@@ -415,9 +420,11 @@ declare module 'vue' {
     readonly EffectScope: UnwrapRef<typeof import('vue')['EffectScope']>
     readonly FX_TO_USD: UnwrapRef<typeof import('./src/utils/money')['FX_TO_USD']>
     readonly acceptHMRUpdate: UnwrapRef<typeof import('pinia')['acceptHMRUpdate']>
+    readonly actorCan: UnwrapRef<typeof import('./src/utils/service-permissions')['actorCan']>
     readonly addMinor: UnwrapRef<typeof import('./src/utils/money')['addMinor']>
     readonly alphaDashValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['alphaDashValidator']>
     readonly alphaValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['alphaValidator']>
+    readonly assertHumanActor: UnwrapRef<typeof import('./src/utils/service-permissions')['assertHumanActor']>
     readonly asyncComputed: UnwrapRef<typeof import('@vueuse/core')['asyncComputed']>
     readonly autoResetRef: UnwrapRef<typeof import('@vueuse/core')['autoResetRef']>
     readonly avatarText: UnwrapRef<typeof import('./src/@core/utils/formatters')['avatarText']>
@@ -465,6 +472,7 @@ declare module 'vue' {
     readonly effectivePermission: UnwrapRef<typeof import('./src/utils/permission-engine')['effectivePermission']>
     readonly emailValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['emailValidator']>
     readonly extendRef: UnwrapRef<typeof import('@vueuse/core')['extendRef']>
+    readonly fieldAccess: UnwrapRef<typeof import('./src/utils/permission-engine')['fieldAccess']>
     readonly formatDate: UnwrapRef<typeof import('./src/@core/utils/formatters')['formatDate']>
     readonly formatDateToMonthShort: UnwrapRef<typeof import('./src/@core/utils/formatters')['formatDateToMonthShort']>
     readonly formatInteger: UnwrapRef<typeof import('./src/utils/format')['formatInteger']>
@@ -554,6 +562,7 @@ declare module 'vue' {
     readonly refWithControl: UnwrapRef<typeof import('@vueuse/core')['refWithControl']>
     readonly regexValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['regexValidator']>
     readonly registerPlugins: UnwrapRef<typeof import('./src/@core/utils/plugins')['registerPlugins']>
+    readonly requireActorPermission: UnwrapRef<typeof import('./src/utils/service-permissions')['requireActorPermission']>
     readonly requiredText: UnwrapRef<typeof import('./src/@core/utils/validators')['requiredText']>
     readonly requiredValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['requiredValidator']>
     readonly resolveComponent: UnwrapRef<typeof import('vue')['resolveComponent']>
@@ -562,6 +571,7 @@ declare module 'vue' {
     readonly resolveVuetifyTheme: UnwrapRef<typeof import('./src/@core/utils/vuetify')['resolveVuetifyTheme']>
     readonly rgbaToHex: UnwrapRef<typeof import('./src/@core/utils/colorConverter')['rgbaToHex']>
     readonly roleSubject: UnwrapRef<typeof import('./src/utils/permission-engine')['roleSubject']>
+    readonly sensitiveFieldPermissionKeys: UnwrapRef<typeof import('./src/utils/permission-engine')['sensitiveFieldPermissionKeys']>
     readonly setActivePinia: UnwrapRef<typeof import('pinia')['setActivePinia']>
     readonly setMapStoreSuffix: UnwrapRef<typeof import('pinia')['setMapStoreSuffix']>
     readonly shallowReactive: UnwrapRef<typeof import('vue')['shallowReactive']>
