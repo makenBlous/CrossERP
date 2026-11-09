@@ -37,6 +37,7 @@ const zhCN = {
     profile: '我的资料',
     tokens: 'API Token',
     sessions: '我的会话',
+    all: '全部',
     allStores: '全部店铺',
     view: '查看',
     status: '状态',
@@ -221,6 +222,8 @@ const zhCN = {
     payout: '打款',
     ship: '发货',
     selected: '当天事件',
+    filters: '事件类型',
+    allKinds: '全部类型',
   },
   inventory: {
     title: '库存总览',
@@ -365,6 +368,8 @@ const zhCN = {
   },
   foundation: {
     keyword: '关键字',
+    filters: '筛选',
+    perPage: '每页行数',
     dateFrom: '开始日期',
     dateTo: '结束日期',
     exportCsv: '导出 CSV',
@@ -441,6 +446,7 @@ const en: typeof zhCN = {
     profile: 'Profile',
     tokens: 'API tokens',
     sessions: 'Sessions',
+    all: 'All',
     allStores: 'All stores',
     view: 'View',
     status: 'Status',
@@ -625,6 +631,8 @@ const en: typeof zhCN = {
     payout: 'Payout',
     ship: 'Shipment',
     selected: 'Events',
+    filters: 'Event types',
+    allKinds: 'All types',
   },
   inventory: {
     title: 'On-hand',
@@ -769,6 +777,8 @@ const en: typeof zhCN = {
   },
   foundation: {
     keyword: 'Keyword',
+    filters: 'Filters',
+    perPage: 'Rows per page',
     dateFrom: 'From',
     dateTo: 'To',
     exportCsv: 'Export CSV',

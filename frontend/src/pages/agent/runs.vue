@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { fetchAgentRuns } from '@/api/agent'
-import type { AgentRun, AgentRunStatus } from '@/types/domain'
+import ListPage from '@/components/biz/ListPage.vue'
+import type { AgentRun } from '@/types/domain'
 
 const { t } = useI18n({ useScope: 'global' })
 const rows = ref<AgentRun[]>([])
@@ -9,21 +10,17 @@ onMounted(async () => {
   rows.value = await fetchAgentRuns()
 })
 
-const headers = computed(() => [
-  { title: t('runs.agent'), key: 'agentName' },
-  { title: t('runs.startedAt'), key: 'startedAt' },
-  { title: t('runs.duration'), key: 'durationMs', align: 'end' as const },
-  { title: t('runs.tokens'), key: 'tokens', align: 'end' as const },
-  { title: t('runs.cost'), key: 'costUsd', align: 'end' as const },
-  { title: t('common.status'), key: 'status' },
-  { title: t('runs.question'), key: 'question' },
+const columns = computed(() => [
+  { key: 'agentName', title: t('runs.agent') },
+  { key: 'startedAt', title: t('runs.startedAt') },
+  { key: 'durationMs', title: t('runs.duration'), align: 'end' as const },
+  { key: 'tokens', title: t('runs.tokens'), align: 'end' as const },
+  { key: 'costUsd', title: t('runs.cost'), align: 'end' as const },
+  { key: 'status', title: t('common.status') },
+  { key: 'question', title: t('runs.question') },
 ])
 
-function statusLabel(status: AgentRunStatus) {
-  return t(`runs.${status}`)
-}
-
-function statusColor(status: AgentRunStatus) {
+function statusColor(status: AgentRun['status']) {
   if (status === 'succeeded')
     return 'success'
   if (status === 'failed')
@@ -31,42 +28,43 @@ function statusColor(status: AgentRunStatus) {
 
   return 'info'
 }
+
+const filters = computed(() => [{
+  key: 'status',
+  label: t('common.status'),
+  items: [
+    { title: t('runs.succeeded'), value: 'succeeded' },
+    { title: t('runs.failed'), value: 'failed' },
+    { title: t('runs.running'), value: 'running' },
+  ],
+}])
 </script>
 
 <template>
-  <div>
-    <div class="mb-6">
-      <h4 class="text-h4">
-        {{ t('runs.title') }}
-      </h4>
-      <p class="text-body-1 text-medium-emphasis mb-0">
-        {{ t('runs.subtitle') }}
-      </p>
-    </div>
-    <VCard>
-      <VDataTable
-        :headers="headers"
-        :items="rows"
-        :items-per-page="10"
+  <ListPage
+    storage-key="agent-runs"
+    :title="t('runs.title')"
+    :subtitle="t('runs.subtitle')"
+    :items="rows"
+    :columns="columns"
+    :filters="filters"
+  >
+    <template #item.durationMs="{ item }">
+      {{ (item.durationMs / 1000).toFixed(1) }} s
+    </template>
+    <template #item.tokens="{ item }">
+      {{ item.tokens.toLocaleString('en-US') }}
+    </template>
+    <template #item.costUsd="{ item }">
+      ${{ item.costUsd.toFixed(3) }}
+    </template>
+    <template #item.status="{ item }">
+      <VChip
+        size="small"
+        :color="statusColor(item.status)"
       >
-        <template #item.durationMs="{ item }">
-          {{ (item.durationMs / 1000).toFixed(1) }} s
-        </template>
-        <template #item.tokens="{ item }">
-          {{ item.tokens.toLocaleString('en-US') }}
-        </template>
-        <template #item.costUsd="{ item }">
-          ${{ item.costUsd.toFixed(3) }}
-        </template>
-        <template #item.status="{ item }">
-          <VChip
-            size="small"
-            :color="statusColor(item.status)"
-          >
-            {{ statusLabel(item.status) }}
-          </VChip>
-        </template>
-      </VDataTable>
-    </VCard>
-  </div>
+        {{ t(`runs.${item.status}`) }}
+      </VChip>
+    </template>
+  </ListPage>
 </template>

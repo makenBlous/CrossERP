@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
 import { decideApproval, fetchApprovals } from '@/api/approvals'
+import ListPage from '@/components/biz/ListPage.vue'
+import MoneyText from '@/components/biz/MoneyText.vue'
 import { useSessionStore } from '@/stores/session'
 import type { ApprovalItem, ApprovalStatus } from '@/types/domain'
-import { formatMoney } from '@/utils/format'
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
@@ -16,15 +18,24 @@ onMounted(async () => {
   rows.value = await fetchApprovals()
 })
 
-const headers = computed(() => [
-  { title: t('approvals.detail'), key: 'title' },
-  { title: t('approvals.type'), key: 'type' },
-  { title: t('approvals.submitter'), key: 'submitter' },
-  { title: t('approvals.submittedAt'), key: 'submittedAt' },
-  { title: t('common.amount'), key: 'amount', align: 'end' as const },
-  { title: t('common.status'), key: 'status' },
-  { title: t('common.actions'), key: 'actions', sortable: false },
+const columns = computed(() => [
+  { key: 'title', title: t('approvals.detail') },
+  { key: 'type', title: t('approvals.type') },
+  { key: 'submitter', title: t('approvals.submitter') },
+  { key: 'submittedAt', title: t('approvals.submittedAt') },
+  { key: 'amount', title: t('common.amount'), align: 'end' as const },
+  { key: 'status', title: t('common.status') },
+  { key: 'actions', title: t('common.actions') },
 ])
+
+const filters = computed(() => [{
+  key: 'status',
+  label: t('common.status'),
+  items: (['pending', 'approved', 'rejected'] as ApprovalStatus[]).map(status => ({
+    title: t(`approvals.${status}`),
+    value: status,
+  })),
+}])
 
 function open(item: ApprovalItem) {
   selected.value = item
@@ -45,31 +56,10 @@ async function decide(status: ApprovalStatus) {
   }
   drawer.value = false
 }
-
-function statusLabel(status: ApprovalStatus) {
-  return t(`approvals.${status}`)
-}
-
-function statusColor(status: ApprovalStatus) {
-  if (status === 'approved')
-    return 'success'
-  if (status === 'rejected')
-    return 'error'
-
-  return 'warning'
-}
 </script>
 
 <template>
   <div>
-    <div class="mb-6">
-      <h4 class="text-h4">
-        {{ t('approvals.title') }}
-      </h4>
-      <p class="text-body-1 text-medium-emphasis mb-0">
-        {{ t('approvals.subtitle') }}
-      </p>
-    </div>
     <VAlert
       v-if="!canDecide"
       type="warning"
@@ -78,104 +68,118 @@ function statusColor(status: ApprovalStatus) {
     >
       {{ t('approvals.readonly') }}
     </VAlert>
-    <VCard>
-      <VDataTable
-        :headers="headers"
-        :items="rows"
-        :items-per-page="10"
-      >
-        <template #item.amount="{ item }">
-          {{ formatMoney(item.amount, item.currency) }}
-        </template>
-        <template #item.status="{ item }">
-          <VChip
-            size="small"
-            :color="statusColor(item.status)"
-          >
-            {{ statusLabel(item.status) }}
-          </VChip>
-        </template>
-        <template #item.actions="{ item }">
-          <VBtn
-            size="small"
-            variant="text"
-            @click="open(item)"
-          >
-            {{ t('approvals.decide') }}
-          </VBtn>
-        </template>
-      </VDataTable>
-    </VCard>
+    <ListPage
+      storage-key="approvals"
+      :title="t('approvals.title')"
+      :subtitle="t('approvals.subtitle')"
+      :items="rows"
+      :columns="columns"
+      :filters="filters"
+      @open="open"
+    >
+      <template #item.amount="{ item }">
+        <MoneyText
+          :amount="item.amount"
+          :currency="item.currency"
+        />
+      </template>
+      <template #item.status="{ item }">
+        <StatusChip
+          domain="approval"
+          :value="item.status"
+        />
+      </template>
+      <template #item.actions="{ item }">
+        <VBtn
+          size="small"
+          variant="text"
+          @click="open(item)"
+        >
+          {{ t('approvals.decide') }}
+        </VBtn>
+      </template>
+    </ListPage>
 
     <VNavigationDrawer
       v-model="drawer"
-      location="end"
+      data-allow-mismatch
       temporary
-      width="420"
+      location="end"
+      :width="400"
+      class="scrollable-content"
     >
-      <div
+      <AppDrawerHeaderSection
+        :title="selected?.title || t('approvals.decide')"
+        @cancel="drawer = false"
+      />
+      <VDivider />
+      <PerfectScrollbar
         v-if="selected"
-        class="pa-6"
+        :options="{ wheelPropagation: false }"
       >
-        <div class="text-h6 mb-1">
-          {{ selected.title }}
-        </div>
-        <div class="text-caption text-medium-emphasis mb-4">
-          {{ selected.submitter }} · {{ selected.submittedAt }}
-        </div>
-        <p>{{ selected.summary }}</p>
-        <div class="text-h6 mb-2">
-          {{ formatMoney(selected.amount, selected.currency) }}
-        </div>
-        <VTable
-          v-if="selected.lines.length"
-          density="compact"
-          class="mb-4"
-        >
-          <thead>
-            <tr>
-              <th>{{ t('approvals.account') }}</th>
-              <th class="text-end">
-                {{ t('approvals.debit') }}
-              </th>
-              <th class="text-end">
-                {{ t('approvals.credit') }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="line in selected.lines"
-              :key="line.account"
+        <VCard flat>
+          <VCardText>
+            <div class="text-caption text-medium-emphasis mb-4">
+              {{ selected.submitter }} · {{ selected.submittedAt }}
+            </div>
+            <p>{{ selected.summary }}</p>
+            <div class="text-h6 mb-2">
+              <MoneyText
+                :amount="selected.amount"
+                :currency="selected.currency"
+              />
+            </div>
+            <VTable
+              v-if="selected.lines.length"
+              density="compact"
+              class="mb-4"
             >
-              <td>{{ line.account }}</td>
-              <td class="text-end">
-                {{ line.debit || '—' }}
-              </td>
-              <td class="text-end">
-                {{ line.credit || '—' }}
-              </td>
-            </tr>
-          </tbody>
-        </VTable>
-        <div class="d-flex gap-3">
-          <VBtn
-            color="success"
-            :disabled="!canDecide || selected.status !== 'pending'"
-            @click="decide('approved')"
-          >
-            {{ t('approvals.approve') }}
-          </VBtn>
-          <VBtn
-            color="error"
-            variant="tonal"
-            :disabled="!canDecide || selected.status !== 'pending'"
-            @click="decide('rejected')"
-          >
-            {{ t('approvals.reject') }}
-          </VBtn>
-        </div>
-      </div>
+              <thead>
+                <tr>
+                  <th>{{ t('approvals.account') }}</th>
+                  <th class="text-end">
+                    {{ t('approvals.debit') }}
+                  </th>
+                  <th class="text-end">
+                    {{ t('approvals.credit') }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="line in selected.lines"
+                  :key="line.account"
+                >
+                  <td>{{ line.account }}</td>
+                  <td class="text-end">
+                    {{ line.debit || '—' }}
+                  </td>
+                  <td class="text-end">
+                    {{ line.credit || '—' }}
+                  </td>
+                </tr>
+              </tbody>
+            </VTable>
+            <div class="d-flex gap-3">
+              <VBtn
+                color="success"
+                :disabled="!canDecide || selected.status !== 'pending'"
+                @click="decide('approved')"
+              >
+                {{ t('approvals.approve') }}
+              </VBtn>
+              <VBtn
+                color="error"
+                variant="tonal"
+                :disabled="!canDecide || selected.status !== 'pending'"
+                @click="decide('rejected')"
+              >
+                {{ t('approvals.reject') }}
+              </VBtn>
+            </div>
+          </VCardText>
+        </VCard>
+      </PerfectScrollbar>
     </VNavigationDrawer>
   </div>
 </template>

@@ -14,27 +14,28 @@ const { t } = useI18n({ useScope: 'global' })
 </script>
 
 <template>
+  <!-- 左栏正文、右栏轨迹，改编自 ecommerce order details；页内标签用 user view 的 v-tabs-pill。 -->
   <div>
-    <div class="d-flex flex-wrap justify-space-between align-start gap-4 mb-6">
+    <div class="d-flex justify-space-between align-center flex-wrap gap-y-4 mb-6">
       <div>
-        <div class="d-flex flex-wrap align-center gap-3">
-          <h4 class="text-h4">
+        <div class="d-flex gap-2 align-center mb-2 flex-wrap">
+          <h5 class="text-h5">
             {{ title }}
-          </h4>
+          </h5>
           <StatusChip
             v-if="domain && status"
             :domain="domain"
             :value="status"
           />
         </div>
-        <p
+        <div
           v-if="subtitle"
-          class="text-body-1 text-medium-emphasis mb-0"
+          class="text-body-1"
         >
           {{ subtitle }}
-        </p>
+        </div>
       </div>
-      <div class="d-flex flex-wrap gap-2">
+      <div class="d-flex gap-4 align-center flex-wrap">
         <slot name="actions" />
       </div>
     </div>
@@ -42,23 +43,27 @@ const { t } = useI18n({ useScope: 'global' })
     <VRow>
       <VCol
         cols="12"
-        lg="8"
+        md="8"
       >
         <slot />
       </VCol>
       <VCol
         cols="12"
-        lg="4"
+        md="4"
       >
-        <VCard class="mb-4">
-          <VCardItem>
-            <VCardTitle>{{ t('foundation.timeline') }}</VCardTitle>
-          </VCardItem>
+        <VCard
+          class="mb-6"
+          :title="t('foundation.timeline')"
+        >
           <VCardText>
             <VTimeline
               v-if="timeline?.length"
-              density="compact"
+              truncate-line="both"
+              line-inset="9"
+              align="start"
               side="end"
+              line-color="primary"
+              density="compact"
             >
               <VTimelineItem
                 v-for="(item, index) in timeline"
@@ -66,15 +71,18 @@ const { t } = useI18n({ useScope: 'global' })
                 dot-color="primary"
                 size="x-small"
               >
-                <div class="text-subtitle-2">
-                  {{ item.title }}
+                <div class="d-flex justify-space-between align-center gap-2">
+                  <span class="app-timeline-title">
+                    {{ item.title }}
+                  </span>
+                  <span class="app-timeline-meta text-caption text-disabled">
+                    {{ item.at }}
+                  </span>
                 </div>
-                <div class="text-caption text-medium-emphasis">
-                  {{ item.at }} <span v-if="item.actor">· {{ item.actor }}</span>
-                </div>
-                <div class="text-body-2">
+                <p class="app-timeline-text mb-0 mt-2">
                   {{ item.detail }}
-                </div>
+                  <span v-if="item.actor"> · {{ item.actor }}</span>
+                </p>
               </VTimelineItem>
             </VTimeline>
             <EmptyState
@@ -83,10 +91,7 @@ const { t } = useI18n({ useScope: 'global' })
             />
           </VCardText>
         </VCard>
-        <VCard>
-          <VCardItem>
-            <VCardTitle>{{ t('foundation.related') }}</VCardTitle>
-          </VCardItem>
+        <VCard :title="t('foundation.related')">
           <VList v-if="related?.length">
             <VListItem
               v-for="item in related"

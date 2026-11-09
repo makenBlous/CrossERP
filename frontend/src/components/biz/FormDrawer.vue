@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
+
 const props = defineProps<{
   modelValue: boolean
   title: string
@@ -13,6 +15,10 @@ const emit = defineEmits<{
 const { t } = useI18n({ useScope: 'global' })
 const form = ref<{ validate: () => Promise<{ valid: boolean }> }>()
 
+function close() {
+  emit('update:modelValue', false)
+}
+
 async function submit() {
   const result = await form.value?.validate()
 
@@ -22,51 +28,60 @@ async function submit() {
   emit('save')
 }
 
-function close() {
-  emit('update:modelValue', false)
+function onModel(value: boolean) {
+  emit('update:modelValue', value)
 }
 </script>
 
 <template>
+  <!-- 结构改编自 Vuexy apps/user/list/AddNewUserDrawer。 -->
   <VNavigationDrawer
-    :model-value="props.modelValue"
-    location="end"
+    data-allow-mismatch
     temporary
-    width="420"
-    @update:model-value="emit('update:modelValue', $event)"
+    :width="400"
+    location="end"
+    class="scrollable-content"
+    :model-value="props.modelValue"
+    @update:model-value="onModel"
   >
-    <div class="pa-6">
-      <div class="d-flex align-center justify-space-between mb-6">
-        <h5 class="text-h5">
-          {{ title }}
-        </h5>
-        <VBtn
-          icon="tabler-x"
-          variant="text"
-          @click="close"
-        />
-      </div>
-      <VForm
-        ref="form"
-        @submit.prevent="submit"
-      >
-        <slot />
-        <div class="d-flex justify-end gap-3 mt-6">
-          <VBtn
-            variant="text"
-            @click="close"
+    <AppDrawerHeaderSection
+      :title="title"
+      @cancel="close"
+    />
+
+    <VDivider />
+
+    <PerfectScrollbar :options="{ wheelPropagation: false }">
+      <VCard flat>
+        <VCardText>
+          <VForm
+            ref="form"
+            @submit.prevent="submit"
           >
-            {{ t('foundation.cancel') }}
-          </VBtn>
-          <VBtn
-            color="primary"
-            type="submit"
-            :loading="saving"
-          >
-            {{ t('foundation.save') }}
-          </VBtn>
-        </div>
-      </VForm>
-    </div>
+            <VRow>
+              <VCol cols="12">
+                <slot />
+              </VCol>
+              <VCol cols="12">
+                <VBtn
+                  type="submit"
+                  class="me-3"
+                  :loading="saving"
+                >
+                  {{ t('foundation.save') }}
+                </VBtn>
+                <VBtn
+                  variant="tonal"
+                  color="error"
+                  @click="close"
+                >
+                  {{ t('foundation.cancel') }}
+                </VBtn>
+              </VCol>
+            </VRow>
+          </VForm>
+        </VCardText>
+      </VCard>
+    </PerfectScrollbar>
   </VNavigationDrawer>
 </template>

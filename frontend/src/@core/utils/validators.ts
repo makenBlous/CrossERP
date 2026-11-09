@@ -103,3 +103,43 @@ export const alphaDashValidator = (value: unknown) => {
 
   return /^[\w-]*$/.test(valueAsString) || 'All Character are not valid'
 }
+
+// 👉 Decimal Validator
+// full-version 只有 integerValidator，没有小数/金额校验。这里沿用它的写法。
+export const decimalValidator = (value: unknown) => {
+  if (isEmpty(value))
+    return true
+
+  return /^-?\d+(?:\.\d+)?$/.test(String(value).trim()) || 'This field must be a number'
+}
+
+// 👉 Money Validator
+// 金额最多 4 位小数，和 Money4 列一致。full-version 没有对应函数。
+export const moneyValidator = (value: unknown) => {
+  if (isEmpty(value))
+    return true
+
+  return /^-?\d+(?:\.\d{1,4})?$/.test(String(value).trim()) || 'This field must be a money amount with at most 4 decimal places'
+}
+
+export function requiredText(message: string) {
+  return (value: unknown) => requiredValidator(value) === true || message
+}
+
+export function numberText(message: string) {
+  return (value: unknown) => {
+    if (value === '' || value === null || value === undefined)
+      return true
+
+    return decimalValidator(value) === true || message
+  }
+}
+
+export function moneyText(message: string) {
+  return (value: unknown) => {
+    if (value === '' || value === null || value === undefined)
+      return true
+
+    return moneyValidator(value) === true || message
+  }
+}

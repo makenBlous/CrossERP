@@ -210,7 +210,10 @@ async function register(disposition: 'restock' | 'scrap') {
       </VRow>
 
       <VCard>
-        <VTabs v-model="tab">
+        <VTabs
+          v-model="tab"
+          class="v-tabs-pill"
+        >
           <VTab value="lines">
             {{ t('orders.lines') }}
           </VTab>

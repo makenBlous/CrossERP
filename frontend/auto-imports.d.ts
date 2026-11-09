@@ -45,6 +45,7 @@ declare global {
   const customRef: typeof import('vue')['customRef']
   const debouncedRef: typeof import('@vueuse/core')['debouncedRef']
   const debouncedWatch: typeof import('@vueuse/core')['debouncedWatch']
+  const decimalValidator: typeof import('./src/@core/utils/validators')['decimalValidator']
   const defineAsyncComponent: typeof import('vue')['defineAsyncComponent']
   const defineComponent: typeof import('vue')['defineComponent']
   const defineLoader: typeof import('vue-router/auto')['defineLoader']
@@ -94,6 +95,7 @@ declare global {
   const markRaw: typeof import('vue')['markRaw']
   const minorFromDecimal: typeof import('./src/utils/money')['minorFromDecimal']
   const moneyText: typeof import('./src/utils/form-rules')['moneyText']
+  const moneyValidator: typeof import('./src/@core/utils/validators')['moneyValidator']
   const mulQty: typeof import('./src/utils/money')['mulQty']
   const nextTick: typeof import('vue')['nextTick']
   const numberText: typeof import('./src/utils/form-rules')['numberText']
@@ -433,6 +435,7 @@ declare module 'vue' {
     readonly customRef: UnwrapRef<typeof import('vue')['customRef']>
     readonly debouncedRef: UnwrapRef<typeof import('@vueuse/core')['debouncedRef']>
     readonly debouncedWatch: UnwrapRef<typeof import('@vueuse/core')['debouncedWatch']>
+    readonly decimalValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['decimalValidator']>
     readonly defineAsyncComponent: UnwrapRef<typeof import('vue')['defineAsyncComponent']>
     readonly defineComponent: UnwrapRef<typeof import('vue')['defineComponent']>
     readonly definePage: UnwrapRef<typeof import('unplugin-vue-router/runtime')['definePage']>
@@ -479,6 +482,7 @@ declare module 'vue' {
     readonly mapWritableState: UnwrapRef<typeof import('pinia')['mapWritableState']>
     readonly markRaw: UnwrapRef<typeof import('vue')['markRaw']>
     readonly minorFromDecimal: UnwrapRef<typeof import('./src/utils/money')['minorFromDecimal']>
+    readonly moneyText: UnwrapRef<typeof import('./src/@core/utils/validators')['moneyText']>
     readonly moneyText: UnwrapRef<typeof import('./src/utils/form-rules')['moneyText']>
     readonly mulQty: UnwrapRef<typeof import('./src/utils/money')['mulQty']>
     readonly nextTick: UnwrapRef<typeof import('vue')['nextTick']>

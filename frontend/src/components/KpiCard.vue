@@ -1,45 +1,29 @@
 <script setup lang="ts">
-interface Props {
+withDefaults(defineProps<{
   title: string
   value: string
   icon: string
   color?: string
   hint?: string
-}
-
-withDefaults(defineProps<Props>(), {
+}>(), {
   color: 'primary',
 })
 </script>
 
 <template>
-  <VCard>
-    <VCardText class="d-flex justify-space-between align-start">
-      <div>
-        <div class="text-body-2 text-medium-emphasis">
-          {{ title }}
-        </div>
-        <div class="text-h5 mt-1">
-          {{ value }}
-        </div>
-        <div
-          v-if="hint"
-          class="text-caption text-medium-emphasis mt-1"
-        >
-          {{ hint }}
-        </div>
-      </div>
-      <VAvatar
-        :color="color"
-        variant="tonal"
-        rounded
-        size="42"
-      >
-        <VIcon
-          :icon="icon"
-          size="24"
-        />
-      </VAvatar>
-    </VCardText>
-  </VCard>
+  <!-- 统计区用 Vuexy CardStatisticsHorizontal。该组件没有 hint，所以只在下方补一行说明。 -->
+  <div>
+    <CardStatisticsHorizontal
+      :title="title"
+      :stats="value"
+      :icon="icon"
+      :color="color"
+    />
+    <div
+      v-if="hint"
+      class="text-caption text-medium-emphasis px-1 mt-1"
+    >
+      {{ hint }}
+    </div>
+  </div>
 </template>

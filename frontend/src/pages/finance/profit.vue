@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ApexOptions } from 'apexcharts'
 import { fetchProfit } from '@/api/finance'
+import ListPage from '@/components/biz/ListPage.vue'
 import { useChartTheme } from '@/composables/useChartTheme'
 import type { ProfitRow, StoreProfit } from '@/types/domain'
 import { formatMoney } from '@/utils/format'
@@ -34,15 +35,20 @@ const chartSeries = computed(() => [
   { name: t('profit.profit'), data: stores.value.map(item => item.profit) },
 ])
 
-const skuHeaders = computed(() => [
-  { title: t('orders.sku'), key: 'sku' },
-  { title: t('common.store'), key: 'storeName' },
-  { title: t('profit.revenue'), key: 'revenue', align: 'end' as const },
-  { title: t('profit.platformFee'), key: 'platformFee', align: 'end' as const },
-  { title: t('profit.ads'), key: 'ads', align: 'end' as const },
-  { title: t('profit.firstMile'), key: 'firstMile', align: 'end' as const },
-  { title: t('profit.cost'), key: 'cost', align: 'end' as const },
-  { title: t('profit.profit'), key: 'profit', align: 'end' as const },
+const skuItems = computed(() => rows.value.map(row => ({
+  ...row,
+  id: `${row.sku}-${row.storeId}`,
+})))
+
+const skuColumns = computed(() => [
+  { key: 'sku', title: t('orders.sku') },
+  { key: 'storeName', title: t('common.store') },
+  { key: 'revenue', title: t('profit.revenue'), align: 'end' as const },
+  { key: 'platformFee', title: t('profit.platformFee'), align: 'end' as const },
+  { key: 'ads', title: t('profit.ads'), align: 'end' as const },
+  { key: 'firstMile', title: t('profit.firstMile'), align: 'end' as const },
+  { key: 'cost', title: t('profit.cost'), align: 'end' as const },
+  { key: 'profit', title: t('profit.profit'), align: 'end' as const },
 ])
 </script>
 
@@ -133,34 +139,31 @@ const skuHeaders = computed(() => [
         </tbody>
       </VTable>
     </VCard>
-    <VCard>
-      <VCardItem>
-        <VCardTitle>{{ t('profit.bySku') }}</VCardTitle>
-      </VCardItem>
-      <VDataTable
-        :headers="skuHeaders"
-        :items="rows"
-        :items-per-page="10"
-      >
-        <template #item.revenue="{ item }">
-          {{ formatMoney(item.revenue, item.currency) }}
-        </template>
-        <template #item.platformFee="{ item }">
-          {{ formatMoney(item.platformFee, item.currency) }}
-        </template>
-        <template #item.ads="{ item }">
-          {{ formatMoney(item.ads, item.currency) }}
-        </template>
-        <template #item.firstMile="{ item }">
-          {{ formatMoney(item.firstMile, item.currency) }}
-        </template>
-        <template #item.cost="{ item }">
-          {{ formatMoney(item.cost, item.currency) }}
-        </template>
-        <template #item.profit="{ item }">
-          {{ formatMoney(item.profit, item.currency) }}
-        </template>
-      </VDataTable>
-    </VCard>
+    <ListPage
+      embedded
+      storage-key="finance-profit-sku"
+      :title="t('profit.bySku')"
+      :items="skuItems"
+      :columns="skuColumns"
+    >
+      <template #item.revenue="{ item }">
+        {{ formatMoney(item.revenue, item.currency) }}
+      </template>
+      <template #item.platformFee="{ item }">
+        {{ formatMoney(item.platformFee, item.currency) }}
+      </template>
+      <template #item.ads="{ item }">
+        {{ formatMoney(item.ads, item.currency) }}
+      </template>
+      <template #item.firstMile="{ item }">
+        {{ formatMoney(item.firstMile, item.currency) }}
+      </template>
+      <template #item.cost="{ item }">
+        {{ formatMoney(item.cost, item.currency) }}
+      </template>
+      <template #item.profit="{ item }">
+        {{ formatMoney(item.profit, item.currency) }}
+      </template>
+    </ListPage>
   </div>
 </template>

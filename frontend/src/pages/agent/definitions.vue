@@ -27,6 +27,7 @@ onMounted(async () => {
         cols="12"
         md="6"
       >
+        <!-- 卡片结构沿用 Vuexy apps/roles 的 VCard + VAvatar + VChip，没有单独的智能体卡片组件。 -->
         <VCard class="h-100">
           <VCardItem>
             <template #prepend>

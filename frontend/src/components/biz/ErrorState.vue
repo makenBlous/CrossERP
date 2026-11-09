@@ -11,6 +11,7 @@ const { t } = useI18n({ useScope: 'global' })
 </script>
 
 <template>
+  <!-- 失败提示沿用 Vuexy 页面里的 VAlert，不另做一套错误卡片。 -->
   <VAlert
     type="error"
     variant="tonal"

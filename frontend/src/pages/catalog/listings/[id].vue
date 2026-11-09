@@ -6,7 +6,7 @@ import MoneyText from '@/components/biz/MoneyText.vue'
 import PermissionGate from '@/components/biz/PermissionGate.vue'
 import { usePageContext } from '@/composables/usePageContext'
 import type { CurrencyCode, ListingListRow } from '@/types/domain'
-import { moneyText, requiredText } from '@/utils/form-rules'
+import { moneyText, requiredText } from '@core/utils/validators'
 import { readParam } from '@/utils/route-param'
 
 const route = useRoute()

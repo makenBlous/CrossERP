@@ -8,7 +8,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { usePageContext } from '@/composables/usePageContext'
 import { useSessionStore } from '@/stores/session'
 import type { LookupOption, SkuListRow } from '@/types/domain'
-import { requiredText } from '@/utils/form-rules'
+import { requiredText } from '@core/utils/validators'
 import { can } from '@/utils/permission'
 
 const { t } = useI18n({ useScope: 'global' })

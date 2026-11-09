@@ -6,7 +6,7 @@ import PermissionGate from '@/components/biz/PermissionGate.vue'
 import StatusChip from '@/components/biz/StatusChip.vue'
 import { useSessionStore } from '@/stores/session'
 import type { LookupOption, MappingRow } from '@/types/domain'
-import { requiredText } from '@/utils/form-rules'
+import { requiredText } from '@core/utils/validators'
 import { can } from '@/utils/permission'
 
 const { t } = useI18n({ useScope: 'global' })

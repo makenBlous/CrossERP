@@ -7,7 +7,7 @@ import PermissionGate from '@/components/biz/PermissionGate.vue'
 import { usePageContext } from '@/composables/usePageContext'
 import type { CostListRow, CurrencyCode, LookupOption } from '@/types/domain'
 import { downloadCsv } from '@/utils/download-csv'
-import { moneyText, requiredText } from '@/utils/form-rules'
+import { moneyText, requiredText } from '@core/utils/validators'
 
 const { t } = useI18n({ useScope: 'global' })
 const { setSelected } = usePageContext()

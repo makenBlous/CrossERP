@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { fetchReconRuns } from '@/api/finance'
+import ListPage from '@/components/biz/ListPage.vue'
 import type { ReconRun } from '@/types/domain'
 import { formatInteger, formatPercent } from '@/utils/format'
 
@@ -10,68 +11,70 @@ onMounted(async () => {
   runs.value = await fetchReconRuns()
 })
 
-const headers = computed(() => [
-  { title: t('common.store'), key: 'storeName' },
-  { title: t('common.period'), key: 'period' },
-  { title: t('recon.matched'), key: 'matched', align: 'end' as const },
-  { title: t('recon.unmatched'), key: 'unmatched', align: 'end' as const },
-  { title: t('recon.matchRate'), key: 'matchRate', align: 'end' as const },
-  { title: t('common.status'), key: 'status' },
-  { title: t('recon.finishedAt'), key: 'finishedAt' },
+const columns = computed(() => [
+  { key: 'storeName', title: t('common.store') },
+  { key: 'period', title: t('common.period') },
+  { key: 'matched', title: t('recon.matched'), align: 'end' as const },
+  { key: 'unmatched', title: t('recon.unmatched'), align: 'end' as const },
+  { key: 'matchRate', title: t('recon.matchRate'), align: 'end' as const },
+  { key: 'status', title: t('common.status') },
+  { key: 'finishedAt', title: t('recon.finishedAt') },
 ])
+
+const filters = computed(() => [{
+  key: 'storeName',
+  label: t('common.store'),
+  store: true,
+  items: [...new Set(runs.value.map(item => item.storeName))].map(name => ({ title: name, value: name })),
+}])
 </script>
 
 <template>
   <div>
-    <div class="d-flex flex-wrap justify-space-between align-center gap-4 mb-6">
-      <div>
-        <h4 class="text-h4">
-          {{ t('recon.title') }}
-        </h4>
-        <p class="text-body-1 text-medium-emphasis mb-0">
-          {{ t('recon.subtitle') }}
-        </p>
-      </div>
-      <VBtn
-        to="/finance/issues"
-        prepend-icon="tabler-alert-circle"
-      >
-        {{ t('recon.openIssues') }}
-      </VBtn>
-    </div>
-    <VRow class="mb-2">
-      <VCol
-        v-for="run in runs.slice(0, 4)"
-        :key="run.id"
-        cols="12"
-        sm="6"
-        lg="3"
-      >
-        <KpiCard
-          :title="`${run.storeName} ${run.period}`"
-          :value="formatPercent(run.matchRate)"
-          :hint="`${formatInteger(run.matched)} / ${formatInteger(run.unmatched)}`"
-          icon="tabler-arrows-join"
-          color="info"
-        />
-      </VCol>
-    </VRow>
-    <VCard>
-      <VDataTable
-        :headers="headers"
-        :items="runs"
-        :items-per-page="10"
-      >
-        <template #item.matched="{ item }">
-          {{ formatInteger(item.matched) }}
-        </template>
-        <template #item.unmatched="{ item }">
-          {{ formatInteger(item.unmatched) }}
-        </template>
-        <template #item.matchRate="{ item }">
-          {{ formatPercent(item.matchRate) }}
-        </template>
-      </VDataTable>
-    </VCard>
+    <ListPage
+      storage-key="finance-recon"
+      :title="t('recon.title')"
+      :subtitle="t('recon.subtitle')"
+      :items="runs"
+      :columns="columns"
+      :filters="filters"
+    >
+      <template #widgets>
+        <div class="d-flex justify-end mb-4">
+          <VBtn
+            to="/finance/issues"
+            prepend-icon="tabler-alert-circle"
+          >
+            {{ t('recon.openIssues') }}
+          </VBtn>
+        </div>
+        <VRow class="mb-6">
+          <VCol
+            v-for="run in runs.slice(0, 4)"
+            :key="run.id"
+            cols="12"
+            sm="6"
+            lg="3"
+          >
+            <KpiCard
+              :title="`${run.storeName} ${run.period}`"
+              :value="formatPercent(run.matchRate)"
+              :hint="`${formatInteger(run.matched)} / ${formatInteger(run.unmatched)}`"
+              icon="tabler-arrows-join"
+              color="info"
+            />
+          </VCol>
+        </VRow>
+      </template>
+      <template #item.matched="{ item }">
+        {{ formatInteger(item.matched) }}
+      </template>
+      <template #item.unmatched="{ item }">
+        {{ formatInteger(item.unmatched) }}
+      </template>
+      <template #item.matchRate="{ item }">
+        {{ formatPercent(item.matchRate) }}
+      </template>
+    </ListPage>
   </div>
 </template>

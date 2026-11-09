@@ -13,6 +13,7 @@ const { t } = useI18n({ useScope: 'global' })
 </script>
 
 <template>
+  <!-- Vuexy 没有金额展示组件，也不知道币种和折算额。这里只格式化，不计算。 -->
   <span>
     {{ formatMoney(amount, currency) }}
     <span

@@ -1,3 +1,4 @@
+// Vuexy 的 apps/chat 只渲染消息，没有只读查询/待审批建议的适配器。页面不直接调模型。
 import type { SuggestionDraft } from '@/api/workflows'
 
 export interface AgentPageContext {

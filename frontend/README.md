@@ -69,7 +69,7 @@ pnpm run typecheck
 1. 在 `src/config/pages.ts` 增加一条记录：路径、中英文名称、分组、图标、可见角色、目的、主要区块、阶段。
 2. 若要出现在左侧菜单，把 `showInMenu` 设为 `true`，并指定 `group`。`to` 使用 `{ path: '/你的路径' }`。
 3. 还没做界面时不用新建 `.vue`。路由会指向占位页，显示名称、目的、计划区块和阶段。
-4. 要做成真实静态页时，在 `src/pages/` 按路径建文件，并把该条的 `implemented` 设为 `true`。列表页优先用 `ListPage`，详情页优先用 `DetailPage`。
+4. 要做成真实静态页时，先在 Vuexy full-version 里找对应页面（列表、详情、抽屉、向导、日历、聊天），再在 `src/pages/` 按路径建文件，并把该条的 `implemented` 设为 `true`。列表页用 `ListPage`，详情页用 `DetailPage`，抽屉用 `FormDrawer`。
 5. 中英文菜单名来自配置。页面里的句子写进 `src/plugins/i18n/ui.ts` 的两种语言。
 6. 页面只调用 `src/api/`，不直接改 `src/mocks/`。
 
@@ -124,7 +124,7 @@ pnpm run typecheck
 
 ### FormDrawer / FormPage
 
-抽屉或整页表单。保存前走 Vuetify 校验。校验规则在 `src/utils/form-rules.ts`：`requiredText`、`numberText`、`moneyText`。`@save` 里调用 `src/api/`，不要在组件里写业务。
+抽屉改编自 Vuexy `AddNewUserDrawer`（`AppDrawerHeaderSection` + `PerfectScrollbar` + `VForm`）。整页表单改编自 ecommerce product add。保存前走 Vuetify 校验。规则在 `@core/utils/validators`：`requiredValidator`，以及带中文提示的 `requiredText`、`numberText`、`moneyText`。`@save` 里调用 `src/api/`，不要在组件里写业务。
 
 ```vue
 <FormDrawer v-model="open" title="新建采购单" :saving="saving" @save="save">
@@ -136,7 +136,7 @@ pnpm run typecheck
 
 `StatusChip` 按 `domain` + `value` 取 `src/config/status.ts`。`MoneyText` 只格式化。折算金额由调用方传入 `converted`，组件不猜汇率。
 
-`EmptyState`、`LoadingState`、`ErrorState` 用于空、加载中和失败。`useConfirm()` 弹出 `ConfirmHost`，返回 `Promise<boolean>`。
+`EmptyState` 用 `VEmptyState`，`LoadingState` 用 `VSkeletonLoader`，`ErrorState` 用 `VAlert`。`useConfirm()` 弹出 Vuexy `ConfirmDialog`（由 `ConfirmHost` 接入），返回 `Promise<boolean>`。
 
 ## 假数据中心
 
@@ -213,6 +213,49 @@ sendMessage(context, message, emit) => Promise<void>
 5. 需要写业务时，只调用 `submitAgentSuggestion()`，生成待审批建议。
 
 每个页面右下角都有助手按钮。它知道当前页面和路由参数里的记录 id。订单详情还会写入选中 id。
+
+## 组件来源对照表
+
+新页面先找 Vuexy 现成页面或组件，再考虑自写。只读参考在 `D:\make\write\vue\vuexy-10.11.1\vuexy-admin-v10.11.1\vue-version\typescript-version\full-version`。不要改那个目录。
+
+| 已实现页面 | 改编自 |
+|---|---|
+| `/dashboard` | dashboards/ecommerce 的统计卡（`CardStatisticsHorizontal`）+ Apex 图表 |
+| `/dashboard/todos` | `ListPage`（product list / user list） |
+| `/dashboard/stores` | `ListPage` + 图表卡 |
+| `/dashboard/calendar` | `pages/apps/calendar.vue`：左栏 `AppDateTimePicker`（inline）+ 类型筛选 + FullCalendar。不新建事件 |
+| `/catalog/skus`、`/catalog/brands`、`/catalog/categories`、`/catalog/bundles`、`/catalog/costs`、`/catalog/mappings`、`/catalog/listings` | `ListPage` + `FormDrawer`（`AddNewUserDrawer`） |
+| `/catalog/skus/:id`、`/catalog/listings/:id` | `DetailPage`（order details 左右栏 + `VTimeline`）+ `FormDrawer` |
+| `/orders`、`/orders/exceptions`、`/orders/fulfillment`、`/orders/returns`、`/orders/channels` | `ListPage`；渠道页顶部统计卡用 `CardStatisticsHorizontal` |
+| `/orders/:id` | order details 头部与时间线；页内 `VTabs` 用 user view 的 `v-tabs-pill` |
+| `/inventory/on-hand` | user list 统计卡 + `ListPage` |
+| `/finance/recon`、`/finance/issues`、`/finance/vouchers` | `ListPage`；对账页顶部统计卡 |
+| `/finance/profit` | dashboards 柱状图 + 嵌入式 `ListPage` |
+| `/approvals` | `ListPage`；右侧抽屉用 `AppDrawerHeaderSection` + `PerfectScrollbar`（同 AddNewUserDrawer 外壳，不是表单） |
+| `/crm/accounts` | user list / `ListPage` |
+| `/crm/accounts/:id` | user view：`DetailPage` + `v-tabs-pill` + `VWindow` |
+| `/agent/chat` | `pages/apps/chat.vue` + `views/apps/chat/ChatLog.vue` + 消息输入条 |
+| `/agent/definitions` | roles 卡片：`VCard` + `VAvatar` + `VChip` |
+| `/agent/runs` | `ListPage` |
+| 全局智能助手抽屉 | chat 气泡和输入条，套在 `VNavigationDrawer` 里 |
+
+`ListPage` 是 product list / user list / invoice list 的薄封装：可选统计卡插槽、筛选 `VCard`、`AppTextField` / `AppSelect` / `AppDateTimePicker`、`VDataTableServer`、`TablePagination`、批量操作。店铺筛选（`store` / `storeId` / `storeName`，或 `store: true`）的「全部」是「全部店铺」，其他筛选是「全部」。
+
+校验用 `@core/utils/validators`。`requiredText` / `numberText` / `moneyText` 只替换提示文案，判断仍走 `requiredValidator` / `decimalValidator` / `moneyValidator`。full-version 没有小数和金额校验，后两个按 `integerValidator` 的写法补在同一文件。
+
+### 仍自写的组件
+
+| 组件 | 原因 |
+|---|---|
+| `StatusChip` | Vuexy 的 `VChip` 没有本项目状态字典和中英文名 |
+| `MoneyText` | 没有币种 + 折算额展示组件，且不计算金额 |
+| `PermissionGate` / `can` | Vuexy CASL 不是这五种角色 |
+| `AgentAdapter` | chat 只渲染消息，没有只读查询和待审批建议 |
+| `ListPage` / `DetailPage` / `FormDrawer` / `FormPage` | 薄封装，业务数据仍由页面传入 |
+| `KpiCard` | 只把 `value` 映射到 `CardStatisticsHorizontal`，并补一行 hint |
+| `EmptyState` / `LoadingState` | 分别包 `VEmptyState` / `VSkeletonLoader`，文案走 i18n |
+| `ConfirmHost` | 把 `useConfirm()` 接到 Vuexy `ConfirmDialog` |
+| `views/apps/chat/ChatLog.vue`、`ChatMessageForm.vue` | 从 Vuexy chat 拆出，去掉演示 store，给助手抽屉和 `/agent/chat` 共用 |
 
 ## 许可证提醒
 

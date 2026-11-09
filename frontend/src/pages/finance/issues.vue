@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { fetchIssues } from '@/api/finance'
+import ListPage from '@/components/biz/ListPage.vue'
+import MoneyText from '@/components/biz/MoneyText.vue'
 import type { IssueCode, IssueRow } from '@/types/domain'
-import { formatMoney } from '@/utils/format'
 
 const { t } = useI18n({ useScope: 'global' })
 const rows = ref<IssueRow[]>([])
-const code = ref<IssueCode | 'all'>('all')
 
-const codes: Array<IssueCode | 'all'> = [
-  'all',
+const codes: IssueCode[] = [
   'DUPLICATE_ROW',
   'UNKNOWN_FEE_TYPE',
   'SETTLEMENT_UNBALANCED',
@@ -19,16 +18,14 @@ onMounted(async () => {
   rows.value = await fetchIssues()
 })
 
-const filtered = computed(() => rows.value.filter(item => code.value === 'all' || item.code === code.value))
-
-const headers = computed(() => [
-  { title: t('issues.code'), key: 'code' },
-  { title: t('issues.severity'), key: 'severity' },
-  { title: t('common.store'), key: 'storeName' },
-  { title: t('issues.refNo'), key: 'refNo' },
-  { title: t('common.amount'), key: 'amount', align: 'end' as const },
-  { title: t('common.status'), key: 'status' },
-  { title: t('issues.summary'), key: 'summary' },
+const columns = computed(() => [
+  { key: 'code', title: t('issues.code') },
+  { key: 'severity', title: t('issues.severity') },
+  { key: 'storeName', title: t('common.store') },
+  { key: 'refNo', title: t('issues.refNo') },
+  { key: 'amount', title: t('common.amount'), align: 'end' as const },
+  { key: 'status', title: t('common.status') },
+  { key: 'summary', title: t('issues.summary') },
 ])
 
 function severityLabel(value: IssueRow['severity']) {
@@ -48,47 +45,53 @@ function severityColor(value: IssueRow['severity']) {
 
   return 'info'
 }
+
+const filters = computed(() => [
+  {
+    key: 'code',
+    label: t('issues.code'),
+    items: codes.map(code => ({ title: code, value: code })),
+  },
+  {
+    key: 'severity',
+    label: t('issues.severity'),
+    items: [
+      { title: t('issues.high'), value: 'high' },
+      { title: t('issues.medium'), value: 'medium' },
+      { title: t('issues.low'), value: 'low' },
+    ],
+  },
+])
 </script>
 
 <template>
-  <div>
-    <div class="mb-6">
-      <h4 class="text-h4">
-        {{ t('issues.title') }}
-      </h4>
-      <p class="text-body-1 text-medium-emphasis mb-0">
-        {{ t('issues.subtitle') }}
-      </p>
-    </div>
-    <div class="d-flex flex-wrap gap-2 mb-4">
+  <ListPage
+    storage-key="finance-issues"
+    :title="t('issues.title')"
+    :subtitle="t('issues.subtitle')"
+    :items="rows"
+    :columns="columns"
+    :filters="filters"
+  >
+    <template #item.severity="{ item }">
       <VChip
-        v-for="item in codes"
-        :key="item"
-        :color="code === item ? 'primary' : undefined"
-        :variant="code === item ? 'flat' : 'outlined'"
-        @click="code = item"
+        size="small"
+        :color="severityColor(item.severity)"
       >
-        {{ item === 'all' ? t('issues.all') : item }}
+        {{ severityLabel(item.severity) }}
       </VChip>
-    </div>
-    <VCard>
-      <VDataTable
-        :headers="headers"
-        :items="filtered"
-        :items-per-page="10"
-      >
-        <template #item.severity="{ item }">
-          <VChip
-            size="small"
-            :color="severityColor(item.severity)"
-          >
-            {{ severityLabel(item.severity) }}
-          </VChip>
-        </template>
-        <template #item.amount="{ item }">
-          {{ formatMoney(item.amount, item.currency) }}
-        </template>
-      </VDataTable>
-    </VCard>
-  </div>
+    </template>
+    <template #item.amount="{ item }">
+      <MoneyText
+        :amount="item.amount"
+        :currency="item.currency"
+      />
+    </template>
+    <template #item.status="{ item }">
+      <StatusChip
+        domain="issue"
+        :value="item.status"
+      />
+    </template>
+  </ListPage>
 </template>

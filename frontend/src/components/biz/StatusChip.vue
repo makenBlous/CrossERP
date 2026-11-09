@@ -12,6 +12,7 @@ const label = computed(() => String(locale.value).startsWith('en') ? found.value
 </script>
 
 <template>
+  <!-- Vuexy 的 VChip 没有业务状态字典。颜色和中英文名来自 src/config/status.ts，这里只做薄封装。 -->
   <VChip
     :color="found.color"
     size="small"

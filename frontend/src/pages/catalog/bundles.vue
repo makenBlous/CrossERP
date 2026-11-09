@@ -6,7 +6,7 @@ import PermissionGate from '@/components/biz/PermissionGate.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useSessionStore } from '@/stores/session'
 import type { BundleRow, LookupOption } from '@/types/domain'
-import { numberText, requiredText } from '@/utils/form-rules'
+import { numberText, requiredText } from '@core/utils/validators'
 import { can } from '@/utils/permission'
 
 const { t } = useI18n({ useScope: 'global' })

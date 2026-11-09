@@ -9,6 +9,9 @@ export interface ListSelectFilter {
   key: string
   label: string
   items: { title: string; value: string }[]
+
+  /** 为 true 时「全部」写成「全部店铺」。默认只认 store / storeId / storeName。 */
+  store?: boolean
 }
 
 export interface ListBatchAction {
@@ -36,6 +39,7 @@ const props = withDefaults(defineProps<{
   loading?: boolean
   error?: string
   batchActions?: ListBatchAction[]
+  embedded?: boolean
 }>(), {
   subtitle: '',
   filters: () => [],
@@ -43,6 +47,7 @@ const props = withDefaults(defineProps<{
   loading: false,
   error: '',
   batchActions: () => [],
+  embedded: false,
 })
 
 const emit = defineEmits<{
@@ -61,6 +66,11 @@ const saved = ref<SavedView[]>([])
 const selected = ref<string[]>([])
 const saveOpen = ref(false)
 const viewName = ref('')
+const page = ref(1)
+const itemsPerPage = ref(10)
+const dateConfig = { dateFormat: 'Y-m-d', allowInput: true }
+const pageSizes = [10, 25, 50, 100]
+const storeKeys = new Set(['store', 'storeId', 'storeName'])
 
 const viewKey = computed(() => `crosserp-list-view:${props.storageKey}`)
 const columnKey = computed(() => `crosserp-list-cols:${props.storageKey}`)
@@ -113,6 +123,13 @@ function rowDate(item: T) {
   return cellText(item, props.dateKey).slice(0, 10)
 }
 
+function allTitle(filter: ListSelectFilter) {
+  if (filter.store || storeKeys.has(filter.key))
+    return t('common.allStores')
+
+  return t('common.all')
+}
+
 const filtered = computed(() => props.items.filter(item => {
   const text = props.columns.map(column => cellText(item, column.key)).join(' ').toLowerCase()
   const keywordOk = text.includes(keyword.value.trim().toLowerCase())
@@ -124,11 +141,25 @@ const filtered = computed(() => props.items.filter(item => {
   })
 
   const date = rowDate(item)
-  const fromOk = !dateFrom.value || !date || date >= dateFrom.value
-  const toOk = !dateTo.value || !date || date <= dateTo.value
+  const fromOk = !dateFrom.value || !date || date >= dateFrom.value.slice(0, 10)
+  const toOk = !dateTo.value || !date || date <= dateTo.value.slice(0, 10)
 
   return keywordOk && selectOk && fromOk && toOk
 }))
+
+const paged = computed(() => {
+  const start = (page.value - 1) * itemsPerPage.value
+
+  return filtered.value.slice(start, start + itemsPerPage.value)
+})
+
+watch([keyword, dateFrom, dateTo, itemsPerPage], () => {
+  page.value = 1
+})
+
+watch(selects, () => {
+  page.value = 1
+}, { deep: true })
 
 function selectedId(value: unknown) {
   if (typeof value === 'string' || typeof value === 'number')
@@ -223,91 +254,36 @@ function exportCsv() {
   link.click()
   URL.revokeObjectURL(url)
 }
+
+function setPageSize(value: unknown) {
+  const next = Number(value)
+
+  if (Number.isFinite(next) && next > 0)
+    itemsPerPage.value = next
+}
 </script>
 
 <template>
+  <!-- 薄封装：结构来自 Vuexy ecommerce product list / user list / invoice list。顶部统计走 #widgets。 -->
   <div>
-    <div class="d-flex flex-wrap justify-space-between align-center gap-4 mb-6">
+    <div
+      v-if="!embedded"
+      class="d-flex flex-wrap justify-space-between align-center gap-4 mb-6"
+    >
       <div>
         <h4 class="text-h4">
           {{ title }}
         </h4>
         <p
           v-if="subtitle"
-          class="text-body-1 text-medium-emphasis mb-0"
+          class="text-body-1 mb-0"
         >
           {{ subtitle }}
         </p>
       </div>
-      <div class="d-flex flex-wrap gap-2">
-        <VMenu>
-          <template #activator="{ props: menu }">
-            <VBtn
-              v-bind="menu"
-              variant="tonal"
-              prepend-icon="tabler-columns"
-            >
-              {{ t('foundation.columns') }}
-            </VBtn>
-          </template>
-          <VList>
-            <VListItem
-              v-for="column in columns"
-              :key="column.key"
-              @click="toggleColumn(column.key)"
-            >
-              <template #prepend>
-                <VCheckbox
-                  :model-value="!hidden.includes(column.key)"
-                  density="compact"
-                  hide-details
-                />
-              </template>
-              <VListItemTitle>{{ column.title }}</VListItemTitle>
-            </VListItem>
-          </VList>
-        </VMenu>
-        <VMenu>
-          <template #activator="{ props: menu }">
-            <VBtn
-              v-bind="menu"
-              variant="tonal"
-              prepend-icon="tabler-bookmark"
-            >
-              {{ t('foundation.savedViews') }}
-            </VBtn>
-          </template>
-          <VList>
-            <VListItem
-              v-for="view in saved"
-              :key="view.id"
-            >
-              <VListItemTitle @click="applyView(view)">
-                {{ view.name }}
-              </VListItemTitle>
-              <template #append>
-                <VBtn
-                  icon="tabler-x"
-                  size="x-small"
-                  variant="text"
-                  @click="removeView(view.id)"
-                />
-              </template>
-            </VListItem>
-            <VListItem @click="saveOpen = true">
-              <VListItemTitle>{{ t('foundation.saveView') }}</VListItemTitle>
-            </VListItem>
-          </VList>
-        </VMenu>
-        <VBtn
-          variant="tonal"
-          prepend-icon="tabler-download"
-          @click="exportCsv"
-        >
-          {{ t('foundation.exportCsv') }}
-        </VBtn>
-      </div>
     </div>
+
+    <slot name="widgets" />
 
     <ErrorState
       v-if="error"
@@ -317,39 +293,148 @@ function exportCsv() {
     />
 
     <VCard>
-      <VCardText class="d-flex flex-wrap gap-4">
+      <template v-if="(filters?.length ?? 0) > 0 || dateKey">
+        <VCardItem class="pb-4">
+          <VCardTitle>{{ t('foundation.filters') }}</VCardTitle>
+        </VCardItem>
+        <VCardText>
+          <VRow>
+            <VCol
+              v-for="filter in filters"
+              :key="filter.key"
+              cols="12"
+              sm="4"
+            >
+              <AppSelect
+                v-model="selects[filter.key]"
+                :items="[{ title: allTitle(filter), value: 'all' }, ...filter.items]"
+                :label="filter.label"
+                :placeholder="filter.label"
+              />
+            </VCol>
+            <VCol
+              v-if="dateKey"
+              cols="12"
+              sm="4"
+            >
+              <AppDateTimePicker
+                v-model="dateFrom"
+                :label="t('foundation.dateFrom')"
+                :placeholder="t('foundation.dateFrom')"
+                :config="dateConfig"
+                clearable
+              />
+            </VCol>
+            <VCol
+              v-if="dateKey"
+              cols="12"
+              sm="4"
+            >
+              <AppDateTimePicker
+                v-model="dateTo"
+                :label="t('foundation.dateTo')"
+                :placeholder="t('foundation.dateTo')"
+                :config="dateConfig"
+                clearable
+              />
+            </VCol>
+          </VRow>
+        </VCardText>
+        <VDivider />
+      </template>
+
+      <div class="d-flex flex-wrap gap-4 ma-6">
         <AppTextField
           v-model="keyword"
-          :label="t('foundation.keyword')"
-          style="max-width: 240px;"
+          :placeholder="t('foundation.keyword')"
+          style="inline-size: 15rem;"
         />
-        <AppSelect
-          v-for="filter in filters"
-          :key="filter.key"
-          v-model="selects[filter.key]"
-          :items="[{ title: t('common.allStores'), value: 'all' }, ...filter.items]"
-          :label="filter.label"
-          style="max-width: 220px;"
-        />
-        <AppTextField
-          v-if="dateKey"
-          v-model="dateFrom"
-          type="date"
-          :label="t('foundation.dateFrom')"
-          style="max-width: 180px;"
-        />
-        <AppTextField
-          v-if="dateKey"
-          v-model="dateTo"
-          type="date"
-          :label="t('foundation.dateTo')"
-          style="max-width: 180px;"
-        />
-      </VCardText>
+        <VSpacer />
+        <div class="d-flex gap-4 flex-wrap align-center">
+          <AppSelect
+            :model-value="itemsPerPage"
+            :items="pageSizes"
+            :label="t('foundation.perPage')"
+            style="inline-size: 8rem;"
+            @update:model-value="setPageSize"
+          />
+          <VMenu>
+            <template #activator="{ props: menu }">
+              <VBtn
+                v-bind="menu"
+                variant="tonal"
+                color="secondary"
+                prepend-icon="tabler-columns"
+              >
+                {{ t('foundation.columns') }}
+              </VBtn>
+            </template>
+            <VList>
+              <VListItem
+                v-for="column in columns"
+                :key="column.key"
+                @click="toggleColumn(column.key)"
+              >
+                <template #prepend>
+                  <VCheckbox
+                    :model-value="!hidden.includes(column.key)"
+                    density="compact"
+                    hide-details
+                  />
+                </template>
+                <VListItemTitle>{{ column.title }}</VListItemTitle>
+              </VListItem>
+            </VList>
+          </VMenu>
+          <VMenu>
+            <template #activator="{ props: menu }">
+              <VBtn
+                v-bind="menu"
+                variant="tonal"
+                color="secondary"
+                prepend-icon="tabler-bookmark"
+              >
+                {{ t('foundation.savedViews') }}
+              </VBtn>
+            </template>
+            <VList>
+              <VListItem
+                v-for="view in saved"
+                :key="view.id"
+              >
+                <VListItemTitle @click="applyView(view)">
+                  {{ view.name }}
+                </VListItemTitle>
+                <template #append>
+                  <IconBtn
+                    size="small"
+                    @click="removeView(view.id)"
+                  >
+                    <VIcon icon="tabler-x" />
+                  </IconBtn>
+                </template>
+              </VListItem>
+              <VListItem @click="saveOpen = true">
+                <VListItemTitle>{{ t('foundation.saveView') }}</VListItemTitle>
+              </VListItem>
+            </VList>
+          </VMenu>
+          <VBtn
+            variant="tonal"
+            color="secondary"
+            prepend-icon="tabler-upload"
+            @click="exportCsv"
+          >
+            {{ t('foundation.exportCsv') }}
+          </VBtn>
+        </div>
+      </div>
+
+      <VDivider />
 
       <div
         v-if="selectedRows.length"
-        class="d-flex flex-wrap align-center gap-3 px-6 pb-2"
+        class="d-flex flex-wrap align-center gap-3 px-6 py-3"
       >
         <span class="text-body-2">{{ t('foundation.selected') }} {{ selectedRows.length }}</span>
         <VBtn
@@ -367,16 +452,21 @@ function exportCsv() {
         />
       </div>
 
-      <LoadingState v-if="loading" />
-      <EmptyState v-else-if="filtered.length === 0" />
-      <VDataTable
+      <VSkeletonLoader
+        v-if="loading"
+        type="table-heading, table-thead, table-row@6"
+      />
+      <VDataTableServer
         v-else
-        v-model="selected"
+        v-model:model-value="selected"
+        v-model:items-per-page="itemsPerPage"
+        v-model:page="page"
         :headers="headers"
-        :items="filtered"
-        :items-per-page="10"
+        :items="paged"
+        :items-length="filtered.length"
         show-select
         item-value="id"
+        class="text-no-wrap"
         @click:row="onRowClick"
       >
         <template
@@ -391,38 +481,44 @@ function exportCsv() {
             {{ cellText(item, column.key) }}
           </slot>
         </template>
-      </VDataTable>
+        <template #no-data>
+          <EmptyState />
+        </template>
+        <template #bottom>
+          <TablePagination
+            v-model:page="page"
+            :items-per-page="itemsPerPage"
+            :total-items="filtered.length"
+          />
+        </template>
+      </VDataTableServer>
     </VCard>
 
     <VDialog
       v-model="saveOpen"
       max-width="420"
     >
-      <VCard>
-        <VCardItem>
-          <VCardTitle>{{ t('foundation.saveView') }}</VCardTitle>
-        </VCardItem>
+      <DialogCloseBtn @click="saveOpen = false" />
+      <VCard :title="t('foundation.saveView')">
         <VCardText>
           <AppTextField
             v-model="viewName"
             :label="t('foundation.viewName')"
+            :rules="[requiredValidator]"
           />
         </VCardText>
-        <VCardActions>
-          <VSpacer />
+        <VCardText class="d-flex justify-end gap-3">
           <VBtn
-            variant="text"
+            variant="tonal"
+            color="secondary"
             @click="saveOpen = false"
           >
             {{ t('foundation.cancel') }}
           </VBtn>
-          <VBtn
-            color="primary"
-            @click="saveView"
-          >
+          <VBtn @click="saveView">
             {{ t('foundation.save') }}
           </VBtn>
-        </VCardActions>
+        </VCardText>
       </VCard>
     </VDialog>
   </div>

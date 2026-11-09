@@ -8,7 +8,7 @@ import StatusChip from '@/components/biz/StatusChip.vue'
 import { usePageContext } from '@/composables/usePageContext'
 import { useSessionStore } from '@/stores/session'
 import type { CurrencyCode, ListingListRow, LookupOption } from '@/types/domain'
-import { moneyText, requiredText } from '@/utils/form-rules'
+import { moneyText, requiredText } from '@core/utils/validators'
 import { can } from '@/utils/permission'
 
 const { t } = useI18n({ useScope: 'global' })

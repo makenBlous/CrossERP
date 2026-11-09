@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
 import { fetchChat } from '@/api/agent'
 import { useSessionStore } from '@/stores/session'
 import type { ChatMessage, ChatThread } from '@/types/domain'
+import ChatLog from '@/views/apps/chat/ChatLog.vue'
+import ChatMessageForm from '@/views/apps/chat/ChatMessageForm.vue'
 
 definePage({
   meta: {
@@ -11,12 +14,21 @@ definePage({
 
 const { t } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
+const { isLeftSidebarOpen } = useResponsiveLeftSidebar()
 const threads = ref<ChatThread[]>([])
 const messages = ref<ChatMessage[]>([])
 const draft = ref('')
 const activeId = ref('th-1')
+const query = ref('')
 
 const canSubmit = computed(() => session.role === 'admin' || session.role === 'operator' || session.role === 'finance')
+const activeThread = computed(() => threads.value.find(item => item.id === activeId.value))
+
+const visibleThreads = computed(() => {
+  const text = query.value.trim().toLowerCase()
+
+  return threads.value.filter(item => item.title.toLowerCase().includes(text))
+})
 
 onMounted(async () => {
   const payload = await fetchChat()
@@ -50,66 +62,117 @@ function submitSuggestion(message: ChatMessage) {
 
   message.suggestion.status = 'submitted'
 }
+
+function openThread(id: string) {
+  activeId.value = id
+  isLeftSidebarOpen.value = false
+}
 </script>
 
 <template>
-  <VCard class="chat-shell d-flex">
-    <div class="chat-side pa-4">
-      <div class="text-h6 mb-4">
-        {{ t('chat.threads') }}
+  <!-- 布局改编自 Vuexy pages/apps/chat.vue + ChatLog / 消息输入条。 -->
+  <VLayout
+    class="chat-app-layout"
+    style="z-index: 0;"
+  >
+    <VNavigationDrawer
+      v-model="isLeftSidebarOpen"
+      data-allow-mismatch
+      absolute
+      touchless
+      location="start"
+      width="370"
+      class="chat-list-sidebar"
+      :temporary="$vuetify.display.smAndDown"
+      :permanent="$vuetify.display.mdAndUp"
+    >
+      <div class="chat-list-header d-flex align-center">
+        <AppTextField
+          v-model="query"
+          :placeholder="t('chat.threads')"
+          density="compact"
+        />
       </div>
-      <VList
-        nav
-        :selected="[activeId]"
+      <VDivider />
+      <PerfectScrollbar
+        tag="ul"
+        class="chat-contacts-list px-3 py-2"
+        :options="{ wheelPropagation: false }"
       >
-        <VListItem
-          v-for="thread in threads"
+        <li
+          v-for="thread in visibleThreads"
           :key="thread.id"
-          :value="thread.id"
-          @click="activeId = thread.id"
+          class="chat-contact cursor-pointer d-flex align-center"
+          :class="{ 'chat-contact-active': thread.id === activeId }"
+          @click="openThread(thread.id)"
         >
-          <VListItemTitle>{{ thread.title }}</VListItemTitle>
-          <VListItemSubtitle>{{ thread.updatedAt }}</VListItemSubtitle>
-        </VListItem>
-      </VList>
-    </div>
-    <div class="chat-main d-flex flex-column flex-grow-1">
-      <div class="pa-4 border-b">
-        <div class="text-h5">
-          {{ t('chat.title') }}
+          <VAvatar
+            size="40"
+            color="primary"
+            variant="tonal"
+          >
+            <span>{{ thread.title.slice(0, 1) }}</span>
+          </VAvatar>
+          <div class="flex-grow-1 ms-4 overflow-hidden">
+            <p class="text-base text-high-emphasis mb-0">
+              {{ thread.title }}
+            </p>
+            <p class="mb-0 text-truncate text-body-2">
+              {{ thread.updatedAt }}
+            </p>
+          </div>
+        </li>
+      </PerfectScrollbar>
+    </VNavigationDrawer>
+
+    <VMain class="chat-content-container">
+      <div class="d-flex flex-column h-100">
+        <div class="active-chat-header d-flex align-center text-medium-emphasis bg-surface">
+          <IconBtn
+            class="d-md-none me-3"
+            @click="isLeftSidebarOpen = true"
+          >
+            <VIcon icon="tabler-menu-2" />
+          </IconBtn>
+          <VAvatar
+            size="40"
+            color="primary"
+            variant="tonal"
+          >
+            <VIcon icon="tabler-message-chatbot" />
+          </VAvatar>
+          <div class="flex-grow-1 ms-4 overflow-hidden">
+            <div class="text-h6 mb-0 font-weight-regular">
+              {{ activeThread?.title || t('chat.title') }}
+            </div>
+            <p class="text-truncate mb-0 text-body-2">
+              {{ t('chat.subtitle') }}
+            </p>
+          </div>
         </div>
-        <div class="text-body-2 text-medium-emphasis">
-          {{ t('chat.subtitle') }}
-        </div>
-      </div>
-      <div class="flex-grow-1 pa-4 chat-log">
+        <VDivider />
         <VAlert
           type="warning"
           variant="tonal"
-          class="mb-4"
+          class="ma-4 mb-0"
         >
           {{ t('common.aiNoLedger') }}
         </VAlert>
-        <div
-          v-for="message in messages"
-          :key="message.id"
-          class="mb-4"
-          :class="message.role === 'user' ? 'd-flex justify-end' : ''"
+        <PerfectScrollbar
+          :options="{ wheelPropagation: false }"
+          class="flex-grow-1"
         >
-          <VCard
-            :color="message.role === 'user' ? 'primary' : undefined"
-            :variant="message.role === 'user' ? 'flat' : 'outlined'"
-            max-width="640"
+          <ChatLog
+            :messages="messages"
+            :contact-name="t('chat.title')"
+            :self-name="session.displayName"
           >
-            <VCardText>
-              <div :class="message.role === 'user' ? 'text-white' : ''">
-                {{ message.text }}
-              </div>
+            <template #after="{ message }">
               <VCard
                 v-if="message.toolCall"
                 variant="tonal"
                 color="info"
-                class="mt-3"
+                class="mt-2"
               >
                 <VCardItem>
                   <VCardTitle class="text-body-1">
@@ -137,7 +200,7 @@ function submitSuggestion(message: ChatMessage) {
                 v-if="message.suggestion"
                 variant="tonal"
                 color="warning"
-                class="mt-3"
+                class="mt-2"
               >
                 <VCardItem>
                   <VCardTitle class="text-body-1">
@@ -167,42 +230,52 @@ function submitSuggestion(message: ChatMessage) {
                   </VChip>
                 </VCardText>
               </VCard>
-            </VCardText>
-          </VCard>
-        </div>
-      </div>
-      <div class="pa-4 d-flex gap-3">
-        <AppTextField
+            </template>
+          </ChatLog>
+        </PerfectScrollbar>
+        <VDivider />
+        <ChatMessageForm
           v-model="draft"
           :placeholder="t('chat.placeholder')"
-          @keyup.enter="send"
+          :send-label="t('chat.send')"
+          @send="send"
         />
-        <VBtn @click="send">
-          {{ t('chat.send') }}
-        </VBtn>
       </div>
-    </div>
-  </VCard>
+    </VMain>
+  </VLayout>
 </template>
 
-<style scoped>
-.chat-shell {
-  min-height: 640px;
+<style lang="scss">
+@use "@styles/variables/vuetify";
+@use "@core/scss/base/mixins";
+
+$chat-app-header-height: 76px;
+
+%chat-header {
+  display: flex;
+  align-items: center;
+  min-block-size: $chat-app-header-height;
+  padding-inline: 1.5rem;
 }
 
-.chat-side {
-  width: 280px;
-  border-inline-end: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+.chat-app-layout {
+  border-radius: vuetify.$card-border-radius;
+
+  @include mixins.elevation(vuetify.$card-elevation);
+
+  .chat-list-header,
+  .active-chat-header {
+    @extend %chat-header;
+  }
 }
 
-.chat-log {
-  overflow: auto;
-  max-height: 560px;
-}
+.chat-contact {
+  border-radius: 0.375rem;
+  padding-block: 0.75rem;
+  padding-inline: 0.75rem;
 
-@media (max-width: 800px) {
-  .chat-side {
-    display: none;
+  &.chat-contact-active {
+    background: rgba(var(--v-theme-primary), 0.12);
   }
 }
 </style>

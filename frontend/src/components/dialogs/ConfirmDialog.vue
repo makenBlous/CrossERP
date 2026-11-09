@@ -6,6 +6,9 @@ interface Props {
   confirmMsg: string
   cancelTitle: string
   cancelMsg: string
+  confirmText?: string
+  cancelText?: string
+  okText?: string
 }
 
 interface Emit {
@@ -13,7 +16,11 @@ interface Emit {
   (e: 'confirm', value: boolean): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  confirmText: 'Confirm',
+  cancelText: 'Cancel',
+  okText: 'Ok',
+})
 
 const emit = defineEmits<Emit>()
 
@@ -66,7 +73,7 @@ const onCancel = () => {
           variant="elevated"
           @click="onConfirmation"
         >
-          Confirm
+          {{ props.confirmText }}
         </VBtn>
 
         <VBtn
@@ -74,7 +81,7 @@ const onCancel = () => {
           variant="tonal"
           @click="onCancel"
         >
-          Cancel
+          {{ props.cancelText }}
         </VBtn>
       </VCardText>
     </VCard>
@@ -110,7 +117,7 @@ const onCancel = () => {
           color="success"
           @click="unsubscribed = false"
         >
-          Ok
+          {{ props.okText }}
         </VBtn>
       </VCardText>
     </VCard>
@@ -143,7 +150,7 @@ const onCancel = () => {
           color="success"
           @click="cancelled = false"
         >
-          Ok
+          {{ props.okText }}
         </VBtn>
       </VCardText>
     </VCard>

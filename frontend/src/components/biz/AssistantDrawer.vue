@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
 import type { AgentCard, AgentPart } from '@/agent/adapter'
 import { createAgentAdapter } from '@/agent/index'
 import { submitAgentSuggestion } from '@/api/workflows'
 import PermissionGate from '@/components/biz/PermissionGate.vue'
-import { pageCatalog } from '@/config/pages'
 import { usePageContext } from '@/composables/usePageContext'
+import { pageCatalog } from '@/config/pages'
 import { useSessionStore } from '@/stores/session'
 import { can } from '@/utils/permission'
+import ChatLog from '@/views/apps/chat/ChatLog.vue'
+import ChatMessageForm from '@/views/apps/chat/ChatMessageForm.vue'
 
 interface Bubble {
   id: string
@@ -124,61 +127,45 @@ async function submit(bubble: Bubble) {
       location="end"
       temporary
       width="420"
+      class="scrollable-content"
     >
-      <div class="d-flex flex-column h-100">
-        <div class="pa-4">
-          <div class="d-flex align-center justify-space-between">
-            <h5 class="text-h5 mb-0">
-              {{ t('assistant.title') }}
-            </h5>
-            <VBtn
-              icon="tabler-x"
-              variant="text"
-              @click="open = false"
-            />
-          </div>
-          <div class="text-caption text-medium-emphasis mt-2">
-            {{ pageName }}
-            <span v-if="selectedId"> · {{ selectedId }}</span>
-            <span v-else> · {{ t('assistant.noSelection') }}</span>
-          </div>
-          <div class="text-caption mt-1">
-            {{ t('assistant.disclaimer') }}
-          </div>
+      <AppDrawerHeaderSection
+        :title="t('assistant.title')"
+        @cancel="open = false"
+      />
+      <div class="px-6 pb-4 text-caption text-medium-emphasis">
+        {{ pageName }}
+        <span v-if="selectedId"> · {{ selectedId }}</span>
+        <span v-else> · {{ t('assistant.noSelection') }}</span>
+        <div class="mt-1">
+          {{ t('assistant.disclaimer') }}
         </div>
-        <VDivider />
-        <div class="flex-grow-1 overflow-y-auto pa-4">
-          <div
-            v-for="bubble in bubbles"
-            :key="bubble.id"
-            class="mb-4"
-          >
-            <div
-              class="text-caption mb-1"
-              :class="bubble.role === 'user' ? 'text-primary' : 'text-medium-emphasis'"
-            >
-              {{ bubble.role === 'user' ? session.displayName : t('assistant.title') }}
-            </div>
-            <div
-              v-if="bubble.text"
-              class="text-body-2"
-            >
-              {{ bubble.text }}
-            </div>
+      </div>
+      <VDivider />
+      <PerfectScrollbar
+        :options="{ wheelPropagation: false }"
+        class="assistant-log"
+      >
+        <ChatLog
+          :messages="bubbles"
+          :contact-name="t('assistant.title')"
+          :self-name="session.displayName"
+        >
+          <template #after="{ message }">
             <VCard
-              v-if="bubble.card"
+              v-if="message.card"
               class="mt-2"
               variant="tonal"
             >
               <VCardItem>
                 <VCardTitle class="text-subtitle-1">
-                  {{ bubble.card.kind === 'suggestion' ? t('assistant.suggestion') : t('assistant.query') }}
+                  {{ message.card.kind === 'suggestion' ? t('assistant.suggestion') : t('assistant.query') }}
                 </VCardTitle>
-                <VCardSubtitle>{{ bubble.card.title }}</VCardSubtitle>
+                <VCardSubtitle>{{ message.card.title }}</VCardSubtitle>
               </VCardItem>
               <VCardText>
                 <div
-                  v-for="line in bubble.card.lines"
+                  v-for="line in message.card.lines"
                   :key="line.label"
                   class="d-flex justify-space-between gap-4 text-body-2"
                 >
@@ -186,44 +173,37 @@ async function submit(bubble: Bubble) {
                   <span>{{ line.value }}</span>
                 </div>
                 <PermissionGate
-                  v-if="bubble.card.draft"
+                  v-if="message.card.draft"
                   action="suggest"
                 >
                   <VBtn
                     class="mt-3"
                     size="small"
-                    :disabled="bubble.submitted"
-                    @click="submit(bubble)"
+                    :disabled="message.submitted"
+                    @click="submit(message)"
                   >
-                    {{ bubble.submitted ? t('assistant.submitted') : t('assistant.submit') }}
+                    {{ message.submitted ? t('assistant.submitted') : t('assistant.submit') }}
                   </VBtn>
                 </PermissionGate>
               </VCardText>
             </VCard>
-          </div>
-          <div
-            v-if="sending"
-            class="text-caption text-medium-emphasis"
-          >
-            {{ t('assistant.thinking') }}
-          </div>
+          </template>
+        </ChatLog>
+        <div
+          v-if="sending"
+          class="text-caption text-medium-emphasis px-6 pb-4"
+        >
+          {{ t('assistant.thinking') }}
         </div>
-        <VDivider />
-        <div class="pa-4 d-flex gap-2">
-          <AppTextField
-            v-model="draft"
-            :label="t('assistant.placeholder')"
-            @keydown.enter.prevent="send"
-          />
-          <VBtn
-            color="primary"
-            :loading="sending"
-            @click="send"
-          >
-            {{ t('assistant.send') }}
-          </VBtn>
-        </div>
-      </div>
+      </PerfectScrollbar>
+      <VDivider />
+      <ChatMessageForm
+        v-model="draft"
+        :placeholder="t('assistant.placeholder')"
+        :send-label="t('assistant.send')"
+        :loading="sending"
+        @send="send"
+      />
     </VNavigationDrawer>
   </div>
 </template>
@@ -233,5 +213,9 @@ async function submit(bubble: Bubble) {
   z-index: 1006;
   bottom: 92px;
   inset-inline-end: 24px;
+}
+
+.assistant-log {
+  max-block-size: calc(100vh - 220px);
 }
 </style>
