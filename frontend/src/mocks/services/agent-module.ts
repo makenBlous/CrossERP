@@ -77,7 +77,7 @@ export function recordAgentRun(db: MockDatabase, input: { question: string; agen
     { id: nextId(db, 'step'), runId: run.id, kind: 'tool', title: '只读工具调用', detail: '结果来自 CrossERP 已存储快照，入参已脱敏', at: actor.at.slice(11, 19), input: '{"record":"[REDACTED]"}', output: '{"source":"stored_snapshot"}', redacted: true },
     { id: nextId(db, 'step'), runId: run.id, kind: 'answer', title: '生成回答', detail: '回答明确金额来源和审批边界', at: actor.at.slice(11, 19), redacted: false },
   )
-  ext.usageCalls.unshift({ id: nextId(db, 'call'), runId: run.id, model: 'grok-3', createdAt: actor.at, inputTokens: 720, outputTokens: 520, totalTokens: 1240, costUsd: run.costUsd, redactionFlags: ['record_id'], injectionCheck: 'passed' })
+  ext.usageCalls.unshift({ id: nextId(db, 'call'), runId: run.id, model: 'placeholder-model-A', createdAt: actor.at, inputTokens: 720, outputTokens: 520, totalTokens: 1240, costUsd: run.costUsd, redactionFlags: ['record_id'], injectionCheck: 'passed' })
   writeAudit(db, actor, 'agent.run', 'agent_run', run.id, `智能体运行 ${run.id} 已记录。工具调用为只读。`)
 
   return run

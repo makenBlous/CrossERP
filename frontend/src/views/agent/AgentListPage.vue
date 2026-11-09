@@ -228,7 +228,7 @@ const promptColumns = computed(() => [{ key: 'version', title: t('agentModule.ve
       @open="open(`/agent/evals/${$event.id}`)"
     >
       <template #item.passRate="{ item }">
-        {{ Math.round(item.passRate * 100) }}%
+        {{ Math.round(item.passRate) }}%
       </template><template #item.status="{ item }">
         <VChip
           size="small"

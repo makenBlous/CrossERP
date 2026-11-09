@@ -15,7 +15,17 @@ export function delay(ms = 160) {
 }
 
 export function readMock<T>(data: T): Promise<T> {
-  return delay().then(() => structuredClone(data))
+  return delay().then(() => cloneMock(data))
+}
+
+// 服务层可能返回包含 Pinia 响应式代理的对象，structuredClone 无法复制代理，回退为 JSON 深拷贝（mock 数据本身按 JSON 持久化）。
+function cloneMock<T>(data: T): T {
+  try {
+    return structuredClone(data)
+  }
+  catch {
+    return data === undefined ? data : JSON.parse(JSON.stringify(data)) as T
+  }
 }
 
 export function currentActor(): Actor {

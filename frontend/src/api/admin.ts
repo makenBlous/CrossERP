@@ -71,7 +71,7 @@ export async function fetchSettings() {
 export async function fetchRoleOverrides() {
   await delay()
 
-  return structuredClone(database().db.roleOverrides ?? [])
+  return JSON.parse(JSON.stringify(database().db.roleOverrides ?? []))
 }
 
 // 未来: PUT /api/v1/admin/roles/{role}/visibility

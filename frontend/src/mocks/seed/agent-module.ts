@@ -29,8 +29,8 @@ export function addAgentModuleSeed(db: MockDatabase) {
     { id: 'prompt-v1', version: 'v1', name: '初始提示词', hash: 'sha256:1c20…9ea1', createdAt: '2026-10-28 09:00', author: '系统', active: false, content: '回答经营数据问题并给出来源。' },
   ]
   extended.evalRuns = [
-    { id: 'eval-2026-11-09', name: '财务问答回归集', model: 'grok-3', createdAt: '2026-11-09 08:00', passRate: 95, passed: 19, total: 20, baseline: 90, status: 'passed' },
-    { id: 'eval-2026-11-02', name: '财务问答回归集', model: 'grok-3-mini', createdAt: '2026-11-02 15:10', passRate: 85, passed: 17, total: 20, baseline: 90, status: 'warning' },
+    { id: 'eval-2026-11-09', name: '财务问答回归集', model: 'placeholder-model-A', createdAt: '2026-11-09 08:00', passRate: 95, passed: 19, total: 20, baseline: 90, status: 'passed' },
+    { id: 'eval-2026-11-02', name: '财务问答回归集', model: 'placeholder-model-B', createdAt: '2026-11-02 15:10', passRate: 85, passed: 17, total: 20, baseline: 90, status: 'warning' },
   ]
   extended.evalCases = [
     { id: 'case-1', runId: 'eval-2026-11-09', question: '10 月利润是多少？', expected: '引用利润快照并说明规则版本', actual: '已引用 10 月利润快照，规则 demo-rule-1', passed: true, citation: 'profitSnapshots/2026-10' },
@@ -46,9 +46,9 @@ export function addAgentModuleSeed(db: MockDatabase) {
     { id: 'step-8836-3', runId: 'run-8836', kind: 'answer', title: '返回利润出处', detail: '回答引用规则 demo-rule-1', at: '16:40:03', redacted: false },
   ]
   extended.usageCalls = [
-    { id: 'call-8841', runId: 'run-8841', model: 'grok-3', createdAt: '2026-11-09 01:12', inputTokens: 1280, outputTokens: 860, totalTokens: 2140, costUsd: 0.018, redactionFlags: ['store_id'], injectionCheck: 'passed' },
-    { id: 'call-8836', runId: 'run-8836', model: 'grok-3', createdAt: '2026-11-08 16:40', inputTokens: 620, outputTokens: 360, totalTokens: 980, costUsd: 0.007, redactionFlags: [], injectionCheck: 'passed' },
-    { id: 'call-8820', runId: 'run-8820', model: 'grok-3', createdAt: '2026-11-08 09:05', inputTokens: 1900, outputTokens: 1660, totalTokens: 3560, costUsd: 0.031, redactionFlags: ['order_id'], injectionCheck: 'blocked' },
+    { id: 'call-8841', runId: 'run-8841', model: 'placeholder-model-A', createdAt: '2026-11-09 01:12', inputTokens: 1280, outputTokens: 860, totalTokens: 2140, costUsd: 0.018, redactionFlags: ['store_id'], injectionCheck: 'passed' },
+    { id: 'call-8836', runId: 'run-8836', model: 'placeholder-model-A', createdAt: '2026-11-08 16:40', inputTokens: 620, outputTokens: 360, totalTokens: 980, costUsd: 0.007, redactionFlags: [], injectionCheck: 'passed' },
+    { id: 'call-8820', runId: 'run-8820', model: 'placeholder-model-A', createdAt: '2026-11-08 09:05', inputTokens: 1900, outputTokens: 1660, totalTokens: 3560, costUsd: 0.031, redactionFlags: ['order_id'], injectionCheck: 'blocked' },
   ]
   extended.securityEvents = [
     { id: 'sec-1', at: '2026-11-09 08:44', actor: '演示用户', actorRole: 'admin', event: 'login_success', summary: '登录成功', ip: '192.0.2.10' },

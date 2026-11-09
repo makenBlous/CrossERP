@@ -155,7 +155,7 @@ const taskTimeline = computed(() => task.value?.steps.map((step, index) => ({ id
   <DetailPage
     v-else-if="props.mode === 'eval' && evalRun"
     :title="evalRun.name"
-    :subtitle="`${evalRun.model} · ${Math.round(evalRun.passRate * 100)}%`"
+    :subtitle="`${evalRun.model} · ${Math.round(evalRun.passRate)}%`"
     :timeline="[]"
     :related="[]"
   >

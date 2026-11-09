@@ -823,10 +823,10 @@ function addAdmin(db: MockDatabase) {
 
 function addAgents(db: MockDatabase) {
   db.agentDefinitions = [
-    { id: 'recon-explainer', name: '对账解释员', duty: '用只读工具解释异常，并起草待审批建议。不算钱，不写账。', model: 'grok-3', status: 'active', source: 'DeerFlow', tools: ['list_issues', 'get_recon_summary', 'propose_issue_note'], storeScope: '全部店铺', kind: 'deerflow' },
-    { id: 'profit-analyst', name: '利润问答', duty: '按已算好的利润快照回答，并给出出处。', model: 'grok-3', status: 'active', source: 'DeerFlow', tools: ['get_profit', 'get_order'], storeScope: '全部店铺', kind: 'deerflow' },
-    { id: 'crm-drafter', name: '客户跟进草稿', duty: '根据客户档案起草跟进。不改订单金额。', model: 'grok-3-mini', status: 'paused', source: 'DeerFlow', tools: ['crm.get_account'], storeScope: 'CRM 客户', kind: 'deerflow' },
-    { id: 'auditor-readonly', name: '审计只读', duty: '核对审计轨迹和运行记录。没有写工具。', model: 'grok-3', status: 'active', source: 'DeerFlow', tools: ['audit.list'], storeScope: '只读，全公司', kind: 'builtin_ask' },
+    { id: 'recon-explainer', name: '对账解释员', duty: '用只读工具解释异常，并起草待审批建议。不算钱，不写账。', model: 'placeholder-model-A', status: 'active', source: 'DeerFlow', tools: ['list_issues', 'get_recon_summary', 'propose_issue_note'], storeScope: '全部店铺', kind: 'deerflow' },
+    { id: 'profit-analyst', name: '利润问答', duty: '按已算好的利润快照回答，并给出出处。', model: 'placeholder-model-A', status: 'active', source: 'DeerFlow', tools: ['get_profit', 'get_order'], storeScope: '全部店铺', kind: 'deerflow' },
+    { id: 'crm-drafter', name: '客户跟进草稿', duty: '根据客户档案起草跟进。不改订单金额。', model: 'placeholder-model-B', status: 'paused', source: 'DeerFlow', tools: ['crm.get_account'], storeScope: 'CRM 客户', kind: 'deerflow' },
+    { id: 'auditor-readonly', name: '审计只读', duty: '核对审计轨迹和运行记录。没有写工具。', model: 'placeholder-model-A', status: 'active', source: 'DeerFlow', tools: ['audit.list'], storeScope: '只读，全公司', kind: 'builtin_ask' },
   ]
   db.agentTools = [
     { name: 'get_profit', description: '读取利润快照', sideEffect: 'none', moduleCode: 'finance', active: true },
