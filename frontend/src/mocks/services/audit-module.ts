@@ -12,7 +12,7 @@ function stable(value: string) {
 }
 
 export function hashEvent(event: AuditEvent, prevHash: string) {
-  return `demo-${stable(`${prevHash}|${event.id}|${event.at}|${event.actor}|${event.action}|${event.refType}|${event.refId}|${event.summary}`)}`
+  return `demo-${stable(`${prevHash}|${event.id}|${event.at}|${event.actorId}|${event.actor}|${event.action}|${event.refType}|${event.refId}|${event.summary}`)}`
 }
 
 export function buildChain(db: MockDatabase, tamperedIndex = -1): AuditChainEntry[] {

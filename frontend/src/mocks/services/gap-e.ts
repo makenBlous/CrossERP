@@ -138,22 +138,33 @@ export function listReviews(db: MockDatabase, actor: Actor) {
 export function decideReview(db: MockDatabase, id: string, decision: 'approve' | 'reject', reason: string, actor: Actor) {
   requireCan(actor, 'approve')
 
-  const review = collections(db).kbReviews.find(item => item.id === id)
+  const c = collections(db)
+  const review = c.kbReviews.find(item => item.id === id)
   if (!review)
     throw new Error('审核记录不存在')
   if (review.status !== 'pending')
     throw new Error('审核记录已处理，不能重复审核')
   if (review.submittedBy === actorId(actor))
     throw new Error('提交人不能审核自己提交的内容')
-  review.status = decision === 'approve' ? 'approved' : 'rejected'; review.reason = reason; if (review.type === 'document') {
-    const doc = collections(db).kbDocuments.find(item => item.id === review.targetId); if (!doc)
-      throw new Error('审核目标文档不存在'); if (doc.status !== 'in_review')
-      throw new Error('文档当前状态不允许审核'); doc.status = decision === 'approve' ? 'published' : 'draft'; doc.versions[doc.versions.length - 1].status = doc.status
+  const doc = review.type === 'document' ? c.kbDocuments.find(item => item.id === review.targetId) : undefined
+  const qa = review.type === 'qa' ? c.kbQa.find(item => item.id === review.targetId) : undefined
+  if (review.type === 'document') {
+    if (!doc)
+      throw new Error('审核目标文档不存在')
+    if (doc.status !== 'in_review')
+      throw new Error('文档当前状态不允许审核')
   }
   else {
-    const qa = collections(db).kbQa.find(item => item.id === review.targetId); if (qa)
-      qa.status = decision === 'approve' ? 'published' : 'pending'
-  } writeAudit(db, actor, `kb.review.${decision}`, 'kb_review', id, decision === 'approve' ? '批准并发布' : `驳回：${reason || '未填写原因'}`)
+    if (!qa)
+      throw new Error('审核目标问答不存在')
+  }
+  review.status = decision === 'approve' ? 'approved' : 'rejected'; review.reason = reason
+  if (doc) {
+    doc.status = decision === 'approve' ? 'published' : 'draft'; doc.versions[doc.versions.length - 1].status = doc.status
+  }
+  if (qa)
+    qa.status = decision === 'approve' ? 'published' : 'pending'
+  writeAudit(db, actor, `kb.review.${decision}`, 'kb_review', id, decision === 'approve' ? '批准并发布' : `驳回：${reason || '未填写原因'}`)
 
   return review
 }
@@ -233,6 +244,8 @@ export function setSpaceFinanceOnly(db: MockDatabase, spaceId: string, financeOn
   if (!space)
     throw new Error('空间不存在')
   space.financeOnly = financeOnly
+  if (!financeOnly)
+    space.visibleRoles = undefined
   space.updatedAt = actor.at
   writeAudit(db, actor, 'kb.space.visibility_updated', 'kb_space', spaceId, `更新空间可见范围：${financeOnly ? '仅财务' : '公司'}`)
 

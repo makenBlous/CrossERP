@@ -5,6 +5,7 @@ const mem = () => { const m = new Map<string, string>(); return { getItem: (k: s
 const { createPinia, setActivePinia } = await import('pinia')
 setActivePinia(createPinia())
 const e: any = await import('@/api/gap-e')
+const { currentActor, database } = await import('@/api/mock-client')
 const { useSessionStore } = await import('@/stores/session')
 let fail = 0
 const ok = (c: boolean, m: string) => { if (!c) fail++; console.log(`${c ? 'PASS' : 'FAIL'} ${m}`) }
@@ -48,5 +49,37 @@ const sub2 = await rej(() => e.submitKbDocument(doc.id)); ok(sub2.ok, `已发布
 as('admin'); const d2 = await e.createKbDocument({ title: '财务自审验收', content: '内容2', kind: 'sop', spaceId: 'space-company', tags: [], expiresOn: null }); await e.submitKbDocument(d2.id)
 const rv2 = (await e.fetchKbReviews()).find((r: any) => JSON.stringify(r).includes(d2.id))
 const self2 = await rej(() => e.decideKbReview(rv2.id, 'approve')); ok(self2.ok, `admin 作者（有审核权）不能审核自己提交的文档（按身份 id）（${self2.r}）`)
+// 6 批次 E 审计回归：稳定 actorId、附件读回身份、审核原子性、关闭仅财务
+as('admin')
+const db: any = database().db
+const auditStart = db.audit.length
+const auditDoc = await e.createKbDocument({ title: 'actorId 回归文档', content: '内容', kind: 'policy', spaceId: 'space-company', tags: [], expiresOn: null })
+const createAudit = db.audit.slice(auditStart).find((item: any) => item.action === 'kb.document.created' && item.refId === auditDoc.id)
+ok(createAudit?.actorId === currentActor().id, `写审计持久化稳定 actorId（${createAudit?.actorId ?? '缺失'}）`)
+
+as('operator')
+const attachmentAuditStart = db.audit.length
+await e.uploadKbAttachment('doc-cert-demo', file())
+const attachmentViews = db.audit.slice(attachmentAuditStart).filter((item: any) => item.action === 'kb.document.viewed')
+ok(attachmentViews.length > 0 && attachmentViews.every((item: any) => item.actorRole === 'operator' && item.actorId === currentActor().id), '附件读回沿用原始身份，不伪装成管理员查看')
+
+as('admin')
+const invalidReview = { id: 'regression-review-missing-document', type: 'document', targetId: 'regression-missing-document', title: '无效目标', summary: '', submittedBy: 'demo-operator', submittedByName: '演示运营', submittedAt: new Date().toISOString(), status: 'pending' }
+db.kbReviews.unshift(invalidReview)
+const invalidDecision = await rej(() => e.decideKbReview(invalidReview.id, 'approve'))
+const unchangedReview = db.kbReviews.find((item: any) => item.id === invalidReview.id)
+ok(invalidDecision.ok && unchangedReview?.status === 'pending', '审核目标校验失败时审核记录保持 pending（原子更新）')
+db.kbReviews = db.kbReviews.filter((item: any) => item.id !== invalidReview.id)
+
+const financeSpaceBefore = await e.fetchKbSpace('space-finance')
+await e.saveKbSpaceMembers('space-finance', financeSpaceBefore?.members ?? [], ['finance'])
+await e.setKbSpaceFinanceOnly('space-finance', false)
+as('operator')
+const reopenedFinanceSpace = await e.fetchKbSpace('space-finance')
+const reopenedFinanceDocs = await e.fetchKbDocuments('space-finance')
+ok(Boolean(reopenedFinanceSpace) && !reopenedFinanceSpace.visibleRoles?.length && reopenedFinanceDocs.some((item: any) => item.id === 'doc-finance-close'), '关闭仅财务后清除 visibleRoles 并恢复非财务可见')
+as('admin')
+await e.saveKbSpaceMembers('space-finance', financeSpaceBefore?.members ?? [], financeSpaceBefore?.visibleRoles)
+await e.setKbSpaceFinanceOnly('space-finance', financeSpaceBefore?.financeOnly ?? true)
 console.log(`== FAIL ${fail}`)
 process.exit(fail ? 1 : 0)

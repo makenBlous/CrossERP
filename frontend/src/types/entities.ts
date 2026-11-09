@@ -510,6 +510,7 @@ export interface MessageEntity {
 export interface AuditEvent {
   id: string
   at: string
+  actorId: string
   actor: string
   actorRole: Role
   action: string

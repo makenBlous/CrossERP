@@ -12,6 +12,7 @@ export function writeAudit(
   db.audit.push({
     id: nextId(db, 'aud'),
     at: actor.at,
+    actorId: actor.id ?? `role:${actor.role}`,
     actor: actor.name,
     actorRole: actor.role,
     action,

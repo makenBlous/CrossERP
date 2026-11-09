@@ -190,9 +190,12 @@ export async function saveKbSpaceMembers(spaceId: string, members: KbSpaceMember
 // 未来: POST /api/v1/kb/docs/{id}/attachments
 export async function uploadKbAttachment(documentId: string, file: File): Promise<KbDocument> {
   await delay(); assertCan('update')
-  service.addDocumentAttachment(database().db, documentId, { fileName: file.name, contentType: file.type || 'application/octet-stream', size: `${Math.max(1, Math.ceil(file.size / 1024))} KB` }, currentActor())
 
-  const result = service.getDocument(database().db, documentId, { ...currentActor(), role: 'admin' })
+  const actor = currentActor()
+
+  service.addDocumentAttachment(database().db, documentId, { fileName: file.name, contentType: file.type || 'application/octet-stream', size: `${Math.max(1, Math.ceil(file.size / 1024))} KB` }, actor)
+
+  const result = service.getDocument(database().db, documentId, actor)
 
   database().persist()
 

@@ -4,6 +4,7 @@
 
 ## [Unreleased]
 
+- fix(frontend): 批次 E 审计 actorId、附件读回身份、审核原子更新与空间可见范围
 - feat(frontend): 补齐批次 E 企业知识库与新人上手页面、静态流程和权限演示
 - feat(frontend): 补齐批次 E 模拟附件、空间成员、通知中心和上手模板流程
 
