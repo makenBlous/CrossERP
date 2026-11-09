@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { fetchVouchers } from '@/api/finance'
+import { fetchGapAVouchers } from '@/api/gap-a'
 import ListPage from '@/components/biz/ListPage.vue'
 import MoneyText from '@/components/biz/MoneyText.vue'
 import type { VoucherRow, VoucherStatus } from '@/types/domain'
@@ -9,7 +9,17 @@ const router = useRouter()
 const rows = ref<VoucherRow[]>([])
 
 onMounted(async () => {
-  rows.value = await fetchVouchers()
+  rows.value = (await fetchGapAVouchers()).map(item => ({
+    id: item.id,
+    no: item.no,
+    period: item.period,
+    status: item.status,
+    debit: item.debit,
+    credit: item.credit,
+    currency: item.currency,
+    summary: item.summary,
+    submitter: '演示用户',
+  }))
 })
 
 const columns = computed(() => [

@@ -1205,6 +1205,14 @@ const en = {
   },
 }
 
+// ---- 补齐批次 A：页面提示词 ----
+Object.assign(zhCN, {
+  gapA: { aiPrefill: 'AI 预填', amountFromReceipt: '金额以票面为准，合计由代码计算', approvalRequired: '涉及金额的动作需要人工审批' },
+})
+Object.assign(en, {
+  gapA: { aiPrefill: 'AI prefill', amountFromReceipt: 'Amounts come from receipts; totals are deterministic', approvalRequired: 'Monetary actions require human approval' },
+})
+
 export const uiMessages = {
   'zh-CN': zhCN,
   en,

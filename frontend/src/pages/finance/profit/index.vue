@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ApexOptions } from 'apexcharts'
-import { draftVoucherFromProfit, fetchProfit } from '@/api/finance'
+import { fetchProfit } from '@/api/finance'
+import { createGapAProfitVoucher } from '@/api/gap-a'
 import ListPage from '@/components/biz/ListPage.vue'
 import MoneyText from '@/components/biz/MoneyText.vue'
 import { useChartTheme } from '@/composables/useChartTheme'
@@ -11,6 +12,7 @@ const chart = useChartTheme()
 const rows = ref<ProfitRow[]>([])
 const stores = ref<StoreProfit[]>([])
 const router = useRouter()
+const voucherPeriod = ref('2026-10')
 
 onMounted(async () => {
   const payload = await fetchProfit()
@@ -104,13 +106,19 @@ const skuColumns = computed(() => [
         />
       </VCol>
     </VRow>
-    <div class="d-flex justify-end mb-4">
+    <div class="d-flex justify-end align-end gap-3 mb-4">
+      <AppSelect
+        v-model="voucherPeriod"
+        label="利润凭证期间"
+        :items="[{ title: '2026-09', value: '2026-09' }, { title: '2026-10', value: '2026-10' }]"
+        style="inline-size: 12rem;"
+      />
       <VBtn
         variant="tonal"
         prepend-icon="tabler-notebook"
-        @click="draftVoucherFromProfit().then(voucher => voucher && router.push(`/finance/vouchers/${voucher.id}`))"
+        @click="createGapAProfitVoucher(voucherPeriod).then(voucher => voucher && router.push(`/finance/vouchers/${voucher.id}`))"
       >
-        生成凭证草稿
+        生成 {{ voucherPeriod }} 凭证草稿
       </VBtn>
     </div>
     <VCard class="mb-6">

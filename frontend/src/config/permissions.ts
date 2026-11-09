@@ -179,3 +179,11 @@ export const moduleRegistry = [
   { id: 'collaboration', nameZh: '协作', nameEn: 'Collaboration', enabled: true, defaultPhase: 'now' as const },
   { id: 'expense', nameZh: '费用', nameEn: 'Expenses', enabled: true, defaultPhase: 'now' as const },
 ] as const
+
+// ---- 补齐批次 A：费用与财务做深权限点 ----
+// 页面仍由有效权限引擎裁决；这些 key 仅作为未来后端权限目录的稳定标识。
+export const batchAPermissionKeys = [
+  'expense_claim:read', 'expense_claim:create', 'employee_advance:read', 'travel_request:read', 'expense_claim_type:read',
+  'report:read', 'period_closing_voucher:approve', 'stock_ledger:read', 'budget:read', 'exchange_rate_revaluation:read',
+  'vat_return:read', 'export_tax_rebate:read',
+] as const
