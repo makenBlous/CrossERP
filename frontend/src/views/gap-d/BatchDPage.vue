@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { calculateGapDPayrollRun, createGapDTool, fetchGapDAutonomyPolicies, fetchGapDPayrollRules, fetchGapDPayrollRun, fetchGapDRecords, fetchGapDTools, importGapDMcp, saveGapDAutonomy, setGapDAiMode } from '@/api/gap-d'
+import { calculateGapDPayrollRun, createGapDTool, fetchGapDAutonomyPolicies, fetchGapDPayrollRules, fetchGapDPayrollRun, fetchGapDRecords, fetchGapDTools, importGapDMcp, saveGapDAutonomy, setGapDAiMode, setGapDToolEnabled, uploadGapDInbox } from '@/api/gap-d'
 import { findPageById } from '@/config/pages'
 import DetailPage from '@/components/biz/DetailPage.vue'
 import FormPage from '@/components/biz/FormPage.vue'
@@ -30,6 +30,7 @@ const toolName = ref('自定义 HTTP 工具')
 const toolEndpoint = ref('https://example.test/read-only')
 const toolFrequency = ref(20)
 const toolSecret = ref(false)
+const inboxFile = ref<File | null>(null)
 const selectedRecord = computed(() => records.value[0])
 const page = computed(() => findPageById(props.pageId))
 const title = computed(() => page.value?.name['zh-CN'] ?? props.pageId)
@@ -115,6 +116,27 @@ async function importMcp(id: string) {
     await load()
   }
   catch (error) { message.value = error instanceof Error ? error.message : '导入失败' }
+}
+
+async function uploadInbox() {
+  if (!inboxFile.value)
+    return
+  try {
+    await uploadGapDInbox(inboxFile.value.name)
+    message.value = '票据已收件，等待确定性字段抽取；AI 关闭时仍可人工归档。'
+    inboxFile.value = null
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '上传失败' }
+}
+
+async function toggleTool(id: string, enabled: boolean) {
+  try {
+    await setGapDToolEnabled(id, enabled)
+    message.value = enabled ? '工具已启用；联网工具仍是只读且必须带出处。' : '工具已停用。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '更新工具失败' }
 }
 
 async function calculatePayroll() {
@@ -437,6 +459,48 @@ onMounted(load)
       </VAlert>
     </template>
 
+    <template v-else-if="props.pageId === 'G20'">
+      <div class="d-flex flex-wrap justify-space-between align-center gap-3 mb-6">
+        <div>
+          <h4 class="text-h4">
+            {{ title }}
+          </h4>
+          <p class="mb-0">
+            {{ subtitle }}
+          </p>
+        </div>
+        <div class="d-flex gap-3 align-center">
+          <VFileInput
+            v-model="inboxFile"
+            label="上传发票/报价单"
+            accept=".pdf,.jpg,.png,.csv"
+            hide-details
+          />
+          <VBtn
+            :disabled="!inboxFile"
+            @click="uploadInbox"
+          >
+            收件
+          </VBtn>
+        </div>
+      </div>
+      <ListPage
+        storage-key="gapd-inbox"
+        :title="title"
+        :subtitle="subtitle"
+        :items="records"
+        :columns="columns"
+        :loading="loading"
+      >
+        <template #item.status="{ item }">
+          <StatusChip
+            domain="generic"
+            :value="String(item.status)"
+          />
+        </template>
+      </ListPage>
+    </template>
+
     <template v-else-if="props.pageId === 'G26'">
       <ListPage
         storage-key="gapd-mcp"
@@ -473,6 +537,25 @@ onMounted(load)
               :amount="amount(selectedRecord)"
               :currency="currency(selectedRecord)"
             />
+          </VCardText>
+        </VCard>
+        <VCard
+          v-if="props.pageId === 'G24' && selectedRecord"
+          class="mt-4"
+          title="工具配置"
+        >
+          <VCardText>
+            <VSwitch
+              :model-value="selectedRecord.status === '已启用'"
+              label="启用工具"
+              @update:model-value="toggleTool(selectedRecord.id, Boolean($event))"
+            />
+            <VAlert
+              type="info"
+              variant="tonal"
+            >
+              密钥：{{ selectedRecord.secretConfigured ? '已配置' : '未配置' }}；读写类别：只读。
+            </VAlert>
           </VCardText>
         </VCard>
       </DetailPage>

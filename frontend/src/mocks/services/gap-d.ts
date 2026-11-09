@@ -115,6 +115,22 @@ export function saveGapDTool(input: Partial<GapDTool>, actor: Actor) {
   return tool
 }
 
+export function toggleGapDTool(id: string, enabled: boolean, actor: Actor) {
+  const tool = gapDTools.find(row => row.id === id)
+  if (!tool)
+    throw new Error('工具不存在')
+  tool.enabled = enabled
+  addAudit(enabled ? '启用智能体工具' : '停用智能体工具', actor, `${tool.name}：${enabled ? '启用' : '停用'}`)
+  return tool
+}
+
+export function ingestGapDInbox(fileName: string, actor: Actor) {
+  const record: GapDRecord = { id: `inbox-${Date.now()}`, title: fileName, status: '待识别', owner: actor.name, detail: '文件已收件，等待确定性字段抽取', updatedAt: new Date().toISOString() }
+  genericRows.G20 = [record, ...(genericRows.G20 ?? [])]
+  addAudit('上传票据', actor, fileName)
+  return record
+}
+
 export function importGapDMcpTool(serverId: string, actor: Actor) {
   const server = gapDMcpServers.find(row => row.id === serverId)
   if (!server)

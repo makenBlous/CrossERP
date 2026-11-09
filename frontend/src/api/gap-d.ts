@@ -1,5 +1,5 @@
 import { currentActor, database, delay } from '@/api/mock-client'
-import { calculateGapDPayroll, gapDAutonomyPolicies, gapDPayrollRules, gapDTools, getGapDPayrollRun, importGapDMcpTool, listGapDAudit, listGapDRecords, saveGapDTool, updateGapDAiMode, updateGapDAutonomy } from '@/mocks/services/gap-d'
+import { calculateGapDPayroll, gapDAutonomyPolicies, gapDPayrollRules, gapDTools, getGapDPayrollRun, importGapDMcpTool, ingestGapDInbox, listGapDAudit, listGapDRecords, saveGapDTool, toggleGapDTool, updateGapDAiMode, updateGapDAutonomy } from '@/mocks/services/gap-d'
 import type { AgentAutonomyLevel } from '@/types/foundation'
 import type { GapDAiState, GapDAuditEvent, GapDPageId, GapDPayrollRun, GapDRecord, GapDTool } from '@/types/gap-d'
 
@@ -54,6 +54,22 @@ export async function createGapDTool(input: Partial<GapDTool>): Promise<GapDTool
 
   database().persist()
 
+  return result
+}
+
+// 未来: PATCH /api/v1/agent/tools/{id}
+export async function setGapDToolEnabled(id: string, enabled: boolean): Promise<GapDTool> {
+  await delay()
+  const result = toggleGapDTool(id, enabled, currentActor())
+  database().persist()
+  return result
+}
+
+// 未来: POST /api/v1/agent/inbox
+export async function uploadGapDInbox(fileName: string): Promise<GapDRecord> {
+  await delay()
+  const result = ingestGapDInbox(fileName, currentActor())
+  database().persist()
   return result
 }
 
