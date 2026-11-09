@@ -77,8 +77,9 @@ const columns = [{ key: 'subject', title: '主题' }, { key: 'accountId', title:
         v-model="form.accountId"
         label="客户"
         :items="accounts.map(item => ({ title: item.name, value: item.id }))"
-      /><AppTextField
+      /><AppAutocomplete
         v-model="form.orderNo"
+        clearable
         label="关联订单（可选）"
         :items="orders.map(item => ({ title: item.orderNo, value: item.orderNo }))"
       /><AppTextField

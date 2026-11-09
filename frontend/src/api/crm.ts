@@ -93,7 +93,7 @@ export async function fetchContact(id: string) {
   const db = database().db
   const item = db.crmContacts.find(row => row.id === id)
 
-  return item ? { ...item, amount: toDisplay(item.amount, item.currency), accountName: db.crmAccounts.find(account => account.id === item.accountId)?.name ?? item.accountId } : null
+  return item ? { ...item, accountName: db.crmAccounts.find(account => account.id === item.accountId)?.name ?? item.accountId } : null
 }
 
 // 未来: GET /api/v1/crm/tickets/{id}

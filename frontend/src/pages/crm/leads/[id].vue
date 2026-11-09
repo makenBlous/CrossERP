@@ -11,6 +11,19 @@ const dialog = ref(false)
 onMounted(async () => {
   lead.value = await fetchLead(String((route.params as Record<string, unknown>).id))
 })
+
+const relatedLinks = computed(() => {
+  const item = lead.value
+  if (!item)
+    return []
+
+  return [
+    item.accountId ? { id: item.accountId, type: '客户', label: item.accountId, to: `/crm/accounts/${item.accountId}` } : null,
+    item.contactId ? { id: item.contactId, type: '联系人', label: item.contactId, to: `/crm/contacts/${item.contactId}` } : null,
+    item.opportunityId ? { id: item.opportunityId, type: '商机', label: item.opportunityId, to: `/crm/opportunities/${item.opportunityId}` } : null,
+  ].filter(Boolean) as { id: string; type: string; label: string; to: string }[]
+})
+
 async function convert() {
   const result = await convertCrmLead(String((route.params as Record<string, unknown>).id))
   if (result) {
@@ -27,6 +40,7 @@ async function convert() {
     :subtitle="`${lead.company} · ${lead.email}`"
     domain="crm"
     :status="lead.stage"
+    :related="relatedLinks"
   >
     <template #actions>
       <PermissionGate action="create">
