@@ -445,7 +445,6 @@ export function projectAccount(db: MockDatabase, id: string): CrmAccountDetail |
     relatedOrders: db.orders
       .filter(item => item.customerId === id)
       .map(order => {
-
         return {
           id: order.id,
           orderNo: order.orderNo,

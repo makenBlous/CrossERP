@@ -112,6 +112,7 @@ export interface SalesOrder {
   trackingNo: string
   shippedAt: string | null
   refund: Minor
+
   /** 批次 B 业务链追溯字段；后端接入时改为正式外键。 */
   customerId?: string
   opportunityId?: string
@@ -638,6 +639,7 @@ export interface ArInvoice {
 export interface ApInvoice {
   id: string
   supplierId: string
+  purchaseOrderId?: string
   amount: Minor
   currency: CurrencyCode
   status: string

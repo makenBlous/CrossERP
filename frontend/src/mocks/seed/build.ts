@@ -665,6 +665,7 @@ function addFinance(db: MockDatabase) {
   db.apInvoices = db.suppliers.slice(0, 4).map((supplier, index) => ({
     id: `ap-${index + 1}`,
     supplierId: supplier.id,
+    purchaseOrderId: db.purchaseOrders[index]?.id,
     amount: minorFromDecimal('8600.0000'),
     currency: supplier.currency,
     status: 'open',

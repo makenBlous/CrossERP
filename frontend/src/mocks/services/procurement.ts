@@ -4,10 +4,15 @@ import { writeAudit } from '@/mocks/services/audit'
 import { FlowError } from '@/mocks/services/errors'
 import { mustFind, nextId } from '@/mocks/services/ids'
 import { applyMovement, postStockDoc } from '@/mocks/services/inventory'
-import { addMinor, minorFromDecimal, mulQty } from '@/utils/money'
+import { addMinor, minorFromDecimal, minorToDecimal, mulQty } from '@/utils/money'
 
 function findPo(db: MockDatabase, id: string) {
-  return mustFind(db.purchaseOrders, id, '采购单')
+  const po = db.purchaseOrders.find(item => item.id === id)
+
+  if (!po)
+    throw new FlowError(`找不到采购单: ${id}`)
+
+  return po
 }
 
 export function submitPurchaseOrder(db: MockDatabase, id: string, actor: Actor): PurchaseOrder {
@@ -306,25 +311,49 @@ export function setSupplierStatus(db: MockDatabase, ids: string[], status: 'acti
 }
 
 export function createPurchaseReturn(db: MockDatabase, input: PurchaseReturnDraft, actor: Actor): PurchaseReturn {
-  const supplier = mustFind(db.suppliers, input.supplierId, '供应商')
+  const supplier = db.suppliers.find(item => item.id === input.supplierId)
+
+  if (!supplier)
+    throw new FlowError(`找不到供应商: ${input.supplierId}`)
+
   const po = findPo(db, input.purchaseOrderId)
 
   if (po.supplierId !== supplier.id)
     throw new FlowError('采购单不属于这个供应商')
 
-  const firstLine = db.purchaseOrderLines.find(line => line.purchaseOrderId === po.id)
-  if (!firstLine)
-    throw new FlowError('采购单没有可退货明细')
-  const fallbackBalance = db.balances.find(item => item.internalSku === firstLine.internalSku)
-  const lines = input.lines?.length
-    ? input.lines.map(line => ({ internalSku: line.internalSku, warehouseId: line.warehouseId ?? fallbackBalance?.warehouseId ?? 'wh-cn-sz', batchNo: line.batchNo ?? '待录入', qty: line.qty }))
-    : [{ internalSku: firstLine.internalSku, warehouseId: fallbackBalance?.warehouseId ?? 'wh-cn-sz', batchNo: 'B-2026-10-A', qty: 5 }]
+  if (!input.lines || input.lines.length === 0)
+    throw new FlowError('退货明细不能为空')
+
+  const lines = input.lines.map(line => ({
+    internalSku: line.internalSku,
+    warehouseId: line.warehouseId ?? '',
+    batchNo: line.batchNo ?? '',
+    qty: line.qty,
+  }))
+
   if (lines.some(line => !Number.isInteger(line.qty) || line.qty <= 0))
     throw new FlowError('退货数量必须是正整数')
+
   const computedAmount = lines.reduce((sum, line) => {
     const poLine = db.purchaseOrderLines.find(item => item.purchaseOrderId === po.id && item.internalSku === line.internalSku)
-    return poLine ? addMinor(sum, mulQty(poLine.unitCost, line.qty)) : sum
+
+    if (!poLine)
+      throw new FlowError(`退货明细找不到采购行: ${line.internalSku}`)
+
+    const returnedQty = db.purchaseReturns
+      .filter(item => item.purchaseOrderId === po.id && item.status === 'confirmed')
+      .flatMap(item => item.lines ?? [])
+      .filter(returnLine => returnLine.internalSku === line.internalSku)
+      .reduce((total, returnLine) => total + returnLine.qty, 0)
+
+    const availableQty = poLine.receivedQty - returnedQty
+
+    if (line.qty > availableQty)
+      throw new FlowError(`${line.internalSku} 退货数量超过已收货未退货数量（可退 ${availableQty} 件）`)
+
+    return addMinor(sum, mulQty(poLine.unitCost, line.qty))
   }, 0)
+
   if (computedAmount <= 0)
     throw new FlowError('退货明细没有匹配采购成本')
 
@@ -347,7 +376,10 @@ export function createPurchaseReturn(db: MockDatabase, input: PurchaseReturnDraf
 }
 
 export function confirmPurchaseReturn(db: MockDatabase, id: string, actor: Actor): PurchaseReturn {
-  const row = mustFind(db.purchaseReturns, id, '采购退货')
+  const row = db.purchaseReturns.find(item => item.id === id)
+
+  if (!row)
+    throw new FlowError(`找不到采购退货: ${id}`)
 
   if (row.status !== 'draft')
     throw new FlowError('只有草稿采购退货可以确认')
@@ -366,13 +398,30 @@ export function confirmPurchaseReturn(db: MockDatabase, id: string, actor: Actor
       refId: row.id,
       actor,
     })
+
     const poLine = db.purchaseOrderLines.find(item => item.purchaseOrderId === row.purchaseOrderId && item.internalSku === line.internalSku)
-    if (poLine)
-      poLine.receivedQty = Math.max(0, poLine.receivedQty - line.qty)
+
+    if (!poLine)
+      throw new FlowError(`退货明细找不到采购行: ${line.internalSku}`)
+
+    poLine.receivedQty -= line.qty
   }
-  const invoice = db.apInvoices.find(item => item.supplierId === row.supplierId && item.status === 'open')
-  if (invoice)
-    invoice.amount = Math.max(0, invoice.amount - row.amount)
+
+  const invoice = db.apInvoices.find(item => item.purchaseOrderId === row.purchaseOrderId && item.supplierId === row.supplierId && item.status === 'open')
+
+  if (!invoice) {
+    writeAudit(db, actor, 'pending_difference', 'purchase_return', row.id, `待处理应付差异：采购单 ${row.purchaseOrderId} 没有关联的未结应付发票，未冲减应付`)
+  }
+  else if (invoice.amount < row.amount) {
+    const difference = row.amount - invoice.amount
+
+    invoice.amount = 0
+    writeAudit(db, actor, 'pending_difference', 'purchase_return', row.id, `待处理应付差异：关联发票金额不足 ${minorToDecimal(difference)}`)
+  }
+  else {
+    invoice.amount -= row.amount
+  }
+
   row.status = 'confirmed'
   row.payableReduction = row.amount
   writeAudit(db, actor, 'confirm', 'purchase_return', row.id, `确认采购退货 ${row.no}，${lines.map(line => `${line.internalSku} -${line.qty}`).join('；')}，库存与应付已同步冲减`)

@@ -1,5 +1,10 @@
 import { currentActor, database } from '@/api/mock-client'
 import { writeAudit } from '@/mocks/services/audit'
+import { FlowError } from '@/mocks/services/errors'
+import { applyMovement } from '@/mocks/services/inventory'
+import { createPurchaseOrder } from '@/mocks/services/procurement'
+import { useSessionStore } from '@/stores/session'
+import { minorToDecimal } from '@/utils/money'
 import type { GapBAuditEvent, GapBChainNode, GapBDetail, GapBKey, GapBPageData, GapBRow } from '@/types/gap-b'
 
 const now = '2026-11-10 10:00'
@@ -10,9 +15,13 @@ let orderDraftCreated = false
 function record(action: string, refType: string, refId: string, summary: string, channel?: string) {
   const actor = currentActor()
   const db = database()
+
   writeAudit(db.db, actor, action, refType, refId, summary)
   db.persist()
+  persistState()
+
   const id = `gap-aud-${Date.now()}-${gapAudit.length}`
+
   gapAudit.unshift({ id, at: actor.at, actor: actor.name, action, refType, refId, summary, channel })
 }
 
@@ -39,7 +48,7 @@ const titles: Record<GapBKey, [string, string]> = {
   SYS26: ['新增渠道', '配置渠道并测试发送'],
 }
 
-const state: Record<string, GapBRow[]> = {
+let state: Record<string, GapBRow[]> = {
   S09: [
     { id: 'rfq-001', no: 'RFQ-2026-001', subject: 'Q4 CN-1001 补货询价', supplierCount: 3, status: 'open', dueAt: '2026-11-15', amount: 240000, currency: 'CNY' },
     { id: 'rfq-002', no: 'RFQ-2026-002', subject: '英国站包装材料', supplierCount: 2, status: 'awarded', dueAt: '2026-11-08', amount: 85000, currency: 'CNY' },
@@ -66,8 +75,8 @@ const state: Record<string, GapBRow[]> = {
     { id: 'replenish-001', sku: 'CN-1001', warehouse: '华东 FBA', onHand: 42, safetyStock: 80, dailySales: 12, stockoutAt: '3.5 天', suggestedQty: 260, status: 'open' },
     { id: 'replenish-002', sku: 'CN-1002', warehouse: '广州海外仓', onHand: 130, safetyStock: 100, dailySales: 8, stockoutAt: '16 天', suggestedQty: 0, status: 'covered' },
   ],
-  I14: [{ id: 'transfer-001', no: 'TR-2026-001', from: '华东 FBA', to: '广州海外仓', sku: 'CN-1001', qty: 80, status: 'in_transit', createdAt: now, movement: '待确认' }],
-  I15: [{ id: 'count-001', no: 'CT-2026-001', warehouse: '华东 FBA', sku: 'CN-1001', bookQty: 320, actualQty: 317, variance: -3, status: 'pending', createdAt: now, approval: '待提交' }],
+  I14: [{ id: 'transfer-001', no: 'TR-2026-001', from: '深圳备货仓', to: '宁波备货仓', fromWarehouseId: 'wh-cn-sz', toWarehouseId: 'wh-cn-nb', sku: 'CN-1001', qty: 80, status: 'in_transit', createdAt: now, movement: '待确认' }],
+  I15: [{ id: 'count-001', no: 'CT-2026-001', warehouse: '深圳备货仓', warehouseId: 'wh-cn-sz', sku: 'CN-1001', bookQty: 320, actualQty: 317, variance: -3, status: 'pending', createdAt: now, approval: '待提交' }],
   D05: [],
   INT01: [{ id: 'import-001', source: '领星', fileName: 'lingxing-2026-11.csv', rows: 248, mapped: '12/12', status: 'ready', importedAt: now }],
   INT02: [{ id: 'sync-001', platform: 'Amazon US', type: '订单与库存', progress: '100%', status: 'succeeded', startedAt: now, message: '同步完成 248 行' }, { id: 'sync-002', platform: 'Shopify', type: '打款', progress: '42%', status: 'running', startedAt: now, message: '正在读取分页 3/7' }],
@@ -76,6 +85,54 @@ const state: Record<string, GapBRow[]> = {
   SYS19: [{ id: 'binding-feishu', channel: '飞书', account: 'linxia@example.com', boundAt: '2026-10-01', status: 'bound' }, { id: 'binding-wecom', channel: '企业微信', account: '未绑定', boundAt: '-', status: 'unbound' }, { id: 'binding-dingtalk', channel: '钉钉', account: '未绑定', boundAt: '-', status: 'unbound' }],
   SYS20: [{ id: 'im-feishu', channel: '飞书', enabled: true, approvalTypes: '报销 / 采购 / 付款', threshold: 50000, callback: 'https://example.invalid/feishu/callback', signature: '已配置', status: 'active' }, { id: 'im-wecom', channel: '企业微信', enabled: false, approvalTypes: '报销', threshold: 50000, callback: '未配置', signature: '未配置', status: 'inactive' }],
   SYS25: [{ id: 'channel-feishu', channel: '飞书', capabilities: '消息 / 审批卡片 / 回调 / 身份绑定', enabled: true, configured: true, lastResult: '成功 · 2 分钟前' }, { id: 'channel-wecom', channel: '企业微信', capabilities: '消息 / 审批卡片 / 回调 / 身份绑定', enabled: true, configured: true, lastResult: '成功 · 1 小时前' }, { id: 'channel-dingtalk', channel: '钉钉', capabilities: '消息 / 审批卡片 / 回调 / 身份绑定', enabled: false, configured: false, lastResult: '未配置' }, { id: 'channel-email', channel: '邮件', capabilities: '消息', enabled: true, configured: true, lastResult: '成功 · 昨天' }],
+  INT03: [{ id: 'settings-int03', ledgerAccount: '默认账套', voucherType: '记', exportFormat: 'xlsx', accountMapping: '默认科目对照', status: 'active' }],
+}
+
+const GAP_B_STORAGE_KEY = 'crosserp-gap-b-v1'
+
+if (typeof localStorage !== 'undefined') {
+  try {
+    const raw = localStorage.getItem(GAP_B_STORAGE_KEY)
+
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, GapBRow[]>
+
+      state = { ...state, ...parsed }
+    }
+  }
+  catch {
+    localStorage.removeItem(GAP_B_STORAGE_KEY)
+  }
+}
+
+function persistState() {
+  if (typeof localStorage === 'undefined')
+    return
+
+  localStorage.setItem(GAP_B_STORAGE_KEY, JSON.stringify(state))
+}
+
+function requireRow(key: GapBKey, id: string) {
+  const row = (state[key] ?? []).find(item => item.id === id)
+
+  if (!row)
+    throw new FlowError(`找不到${titles[key][0]}: ${id}`)
+
+  return row
+}
+
+function resolveSku(db: ReturnType<typeof database>['db'], requested: string) {
+  return db.skus.find(item => item.internalSku === requested) ?? db.skus[0]
+}
+
+function imThresholdMinor(channel: string) {
+  const setting = state.SYS20.find(item => item.channel === channel && item.enabled !== false) ?? state.SYS20[0]
+  const threshold = Number(setting?.threshold)
+
+  if (!Number.isFinite(threshold) || threshold <= 0)
+    throw new FlowError('IM 审批门槛必须是正数')
+
+  return threshold * 100
 }
 
 const columns: Record<GapBKey, Array<{ key: string; title: string }>> = {
@@ -109,12 +166,12 @@ function detailFor(key: GapBKey, id: string): GapBDetail | undefined {
   if (key === 'I14') {
     const row = state.I14.find(item => item.id === id)
 
-    return { id, title: 'TR-2026-001 调拨详情', status: String(row?.status ?? 'in_transit'), summary: '调拨确认会产生调出和调入两条库存流水。', fields: [{ label: '调出仓', value: '华东 FBA' }, { label: '调入仓', value: '广州海外仓' }, { label: 'SKU / 数量', value: 'CN-1001 / 80' }, { label: '流水', value: String(row?.movement ?? '待确认') }], steps: [{ id: 's1', title: '创建调拨', detail: '草稿已保存', status: 'done' }, { id: 's2', title: '确认调出', detail: '库存流水 -80', status: row?.status === 'posted' ? 'done' : 'open' }, { id: 's3', title: '确认调入', detail: '在途入库后完成', status: row?.status === 'posted' ? 'done' : 'blocked' }], related: [{ id: 'mov-001', type: '库存流水', label: '查看调拨流水（-80 / +80）', to: '/inventory/movements' }] }
+    return { id, title: 'TR-2026-001 调拨详情', status: String(row?.status ?? 'in_transit'), summary: '调拨确认会产生调出和调入两条库存流水。', fields: [{ label: '调出仓', value: String(row?.from ?? '') }, { label: '调入仓', value: String(row?.to ?? '') }, { label: 'SKU / 数量', value: `${String(row?.sku ?? '')} / ${String(row?.qty ?? '')}` }, { label: '流水', value: String(row?.movement ?? '待确认') }], steps: [{ id: 's1', title: '创建调拨', detail: '草稿已保存', status: 'done' }, { id: 's2', title: '确认调出', detail: `库存流水 -${String(row?.qty ?? 0)}`, status: row?.status === 'posted' ? 'done' : 'open' }, { id: 's3', title: '确认调入', detail: `库存流水 +${String(row?.qty ?? 0)}`, status: row?.status === 'posted' ? 'done' : 'blocked' }], related: [{ id: 'mov-001', type: '库存流水', label: `查看调拨流水（-${String(row?.qty ?? 0)} / +${String(row?.qty ?? 0)}）`, to: '/inventory/movements' }] }
   }
   if (key === 'I15') {
     const row = state.I15.find(item => item.id === id)
 
-    return { id, title: 'CT-2026-001 盘点详情', status: String(row?.status ?? 'pending'), summary: '差异过账前需提交盘点差异审批。', fields: [{ label: '仓库', value: '华东 FBA' }, { label: 'SKU', value: 'CN-1001' }, { label: '账面 / 实盘', value: `320 / ${row?.actualQty ?? 317}（差异 ${row?.variance ?? -3}）` }, { label: '审批', value: String(row?.approval ?? '待提交') }], steps: [{ id: 's1', title: '录入实盘', detail: '实盘数由人填写', status: 'done' }, { id: 's2', title: '提交差异审批', detail: '审批通过后才更新库存', status: row?.status === 'submitted' || row?.status === 'approved' || row?.status === 'posted' ? 'done' : 'open' }, { id: 's3', title: '过账', detail: row?.status === 'posted' ? '写入库存流水 -3' : '需审批后过账', status: row?.status === 'posted' ? 'done' : 'blocked' }], related: [{ id: 'approval-count-001', type: '审批', label: '盘点差异审批', to: '/approvals' }, ...(row?.status === 'posted' ? [{ id: 'count-mov-001', type: '库存流水', label: '盘亏 -3', to: '/inventory/movements' }] : [])] }
+    return { id, title: 'CT-2026-001 盘点详情', status: String(row?.status ?? 'pending'), summary: '差异过账前需提交盘点差异审批。', fields: [{ label: '仓库', value: String(row?.warehouse ?? '') }, { label: 'SKU', value: String(row?.sku ?? '') }, { label: '账面 / 实盘', value: `${String(row?.bookQty ?? 0)} / ${row?.actualQty ?? 0}（差异 ${row?.variance ?? 0}）` }, { label: '审批', value: String(row?.approval ?? '待提交') }], steps: [{ id: 's1', title: '录入实盘', detail: '实盘数由人填写', status: 'done' }, { id: 's2', title: '提交差异审批', detail: '审批通过后才更新库存', status: row?.status === 'submitted' || row?.status === 'approved' || row?.status === 'posted' ? 'done' : 'open' }, { id: 's3', title: '过账', detail: row?.status === 'posted' ? `写入库存流水 ${String(row?.variance ?? 0)}` : '需审批后过账', status: row?.status === 'posted' ? 'done' : 'blocked' }], related: [{ id: 'approval-count-001', type: '审批', label: '盘点差异审批', to: '/approvals' }, ...(row?.status === 'posted' ? [{ id: 'count-mov-001', type: '库存流水', label: `盘点差异 ${String(row?.variance ?? 0)}`, to: '/inventory/movements' }] : [])] }
   }
 
   return undefined
@@ -125,6 +182,7 @@ export function getGapBPage(key: GapBKey, id?: string): GapBPageData {
   const rows = state[key] ?? []
   const detail = id ? detailFor(key, id) : undefined
   const detailKeys: GapBKey[] = ['S10', 'S12', 'I14', 'I15']
+  const pageRows = rows.map(row => key === 'W08' ? { ...row, thresholdMinor: imThresholdMinor(String(row.channel ?? '飞书')) } : { ...row })
 
   const chain: GapBChainNode[] = [
     { id: 'customer', title: '客户 / 商机', detail: 'Acme Europe · 赢单', status: 'connected', to: '/crm/accounts/acc-summit' },
@@ -134,161 +192,317 @@ export function getGapBPage(key: GapBKey, id?: string): GapBPageData {
     { id: 'voucher', title: '凭证', detail: 'VCH-2026-018 · 可回溯来源单据', status: 'connected', to: '/finance/vouchers' },
   ]
 
-  return { key, title, subtitle, kind: detailKeys.includes(key) ? 'detail' : ['INT01', 'INT03', 'INT04', 'SYS20', 'SYS26'].includes(key) ? 'form' : 'list', columns: columns[key], rows: rows.map(row => ({ ...row })), detail, audit: gapAudit.slice(0, 20), chain: key === 'D05' ? chain : undefined }
+  return { key, title, subtitle, kind: detailKeys.includes(key) ? 'detail' : ['INT01', 'INT03', 'INT04', 'SYS20', 'SYS26'].includes(key) ? 'form' : 'list', columns: columns[key], rows: pageRows, detail, audit: gapAudit.slice(0, 20), chain: key === 'D05' ? chain : undefined }
 }
 
 export function applyGapBAction(key: GapBKey, action: string, payload: Record<string, string | number | boolean> = {}): string {
   if (action === 'create-rfq') {
-    state.S09.unshift({ id: `rfq-${Date.now()}`, no: `RFQ-2026-${String(state.S09.length + 1).padStart(3, '0')}`, subject: String(payload.subject || '新建补货询价'), supplierCount: Number(payload.supplierCount || 2), status: 'open', dueAt: '2026-11-20', amount: Number(payload.amount || 120000), currency: 'CNY' })
+    const subject = String(payload.subject ?? '').trim()
 
-    const id = state.S09[0].id
+    if (!subject)
+      throw new FlowError('询价主题不能为空')
+
+    const supplierCount = Number(payload.supplierCount ?? 0)
+    const amount = Number(payload.amount ?? 0)
+
+    if (!Number.isInteger(supplierCount) || supplierCount <= 0)
+      throw new FlowError('供应商数量必须是正整数')
+
+    if (!Number.isInteger(amount) || amount <= 0)
+      throw new FlowError('预计金额必须是正整数')
+
+    const id = `rfq-${Date.now()}`
+
+    state.S09.unshift({ id, no: `RFQ-2026-${String(state.S09.length + 1).padStart(3, '0')}`, subject, supplierCount, status: 'open', dueAt: '2026-11-20', amount, currency: 'CNY' })
+
     record('create', 'request_for_quotation', String(id), '创建询价单草稿，等待人工发送')
 
     return '询价单草稿已创建，等待人工发送。已写入审计记录。'
   }
   if (action === 'award-rfq') {
-    const quote = state.S10.find(item => item.id === String(payload.id)) ?? state.S10.find(item => item.status === 'recommended')
-    state.S09[0].status = 'awarded'
-    for (const row of state.S10)
-      row.status = row.id === quote?.id ? 'recommended' : 'quoted'
+    const quoteId = String(payload.id ?? '').trim()
+    const quote = state.S10.find(item => item.id === quoteId || item.quoteId === quoteId)
+
+    if (!quote)
+      throw new FlowError(`找不到报价: ${quoteId}`)
+
+    const rfq = state.S09.find(item => item.id === quote.id || item.no === quote.no)
+
+    if (!rfq)
+      throw new FlowError(`找不到询价单: ${String(quote.no ?? quote.id)}`)
+
+    if (rfq.status !== 'open')
+      throw new FlowError('只有开放中的询价单可以选择供应商')
+
+    rfq.status = 'awarded'
+    for (const row of state.S10) {
+      if (row.no === quote.no)
+        row.status = row.id === quote.id ? 'recommended' : 'quoted'
+    }
+
     orderDraftCreated = true
-    record('select_supplier', 'request_for_quotation', String(quote?.id ?? 'rfq-001'), `人工选择 ${String(quote?.supplier ?? '供应商')}，生成采购单草稿（rfq_id=RFQ-2026-001，contract_id=CON-2026-001）`)
+    record('select_supplier', 'request_for_quotation', String(quote.id), `人工选择 ${String(quote.supplier ?? '供应商')}，生成采购单草稿（rfq_id=${String(rfq.no)}，contract_id=CON-2026-001）`)
 
     return '已选择供应商并生成采购单草稿（带 RFQ 与合同来源），采购单仍需人工审批。'
   }
   if (action === 'draft-replenishment') {
-    const row = state.I13.find(item => item.id === String(payload.id))
+    const row = payload.id
+      ? requireRow('I13', String(payload.id))
+      : state.I13.find(item => Number(item.suggestedQty) > 0 && item.status === 'open')
+
+    if (!row)
+      throw new FlowError('没有可起草的补货建议')
+
     const qty = Number(row?.suggestedQty ?? 0)
+
+    if (!Number.isInteger(qty) || qty <= 0)
+      throw new FlowError('补货数量必须是正整数')
+
     const mode = payload.mode === 'manual' ? '人工' : 'AI 建议'
-    const id = `po-replenish-${Date.now()}`
-    if (row) {
-      row.status = 'drafted'
-      row.purchaseOrderId = id
-    }
-    record('draft_purchase_order', 'purchase_order', id, `${mode}起草采购单，数量由安全库存与销量代码计算：${qty} 件；等待人工批准`)
+    const db = database()
+    const sku = resolveSku(db.db, String(row.sku ?? ''))
+    const supplier = db.db.suppliers.find(item => item.status === 'active')
+
+    if (!sku || !supplier)
+      throw new FlowError('补货建议缺少可用 SKU 或供应商')
+
+    const cost = db.db.skuCosts.find(item => item.internalSku === sku.internalSku)
+    const purchase = createPurchaseOrder(db.db, { supplierId: supplier.id, expectedAt: '2026-11-20', lines: [{ internalSku: sku.internalSku, qty, unitCost: minorToDecimal(cost?.unitCost ?? 0) }], submit: false }, currentActor())
+
+    row.status = 'drafted'
+    row.purchaseOrderId = purchase.id
+    db.persist()
+    persistState()
+    record('draft_purchase_order', 'purchase_order', purchase.id, `${mode}起草采购单，数量由安全库存与销量代码计算：${qty} 件；等待人工批准`)
 
     return `${mode}采购单草稿已保存（${qty} 件），等待人工批准。已写入审计记录。`
   }
   if (action === 'confirm-transfer') {
-    const row = state.I14.find(item => item.id === String(payload.id))
-    if (row) {
-      row.status = 'posted'
-      row.movement = '调出 -80；调入 +80'
-      record('post', 'stock_transfer', String(row.id), '调拨已确认，生成调出 -80 与调入 +80 两条库存流水')
-    }
+    const row = requireRow('I14', String(payload.id ?? ''))
+
+    if (row.status !== 'in_transit')
+      throw new FlowError('只有在途调拨可以确认，且每张调拨只能确认一次')
+
+    const qty = Number(row.qty)
+    const fromWarehouseId = String(row.fromWarehouseId ?? '')
+    const toWarehouseId = String(row.toWarehouseId ?? '')
+    const db = database()
+    const sku = resolveSku(db.db, String(row.sku ?? ''))
+
+    if (!Number.isInteger(qty) || qty <= 0 || !fromWarehouseId || !toWarehouseId || !sku)
+      throw new FlowError('调拨单缺少有效仓库、SKU 或数量')
+
+    const actor = currentActor()
+
+    applyMovement(db.db, { warehouseId: fromWarehouseId, internalSku: sku.internalSku, onHandDelta: -qty, inTransitDelta: 0, reason: 'transfer_out', refType: 'stock_transfer', refId: String(row.id), actor })
+    applyMovement(db.db, { warehouseId: toWarehouseId, internalSku: sku.internalSku, onHandDelta: qty, inTransitDelta: 0, reason: 'transfer_in', refType: 'stock_transfer', refId: String(row.id), actor })
+    row.status = 'posted'
+    row.movement = `调出 -${qty}；调入 +${qty}`
+    db.persist()
+    record('post', 'stock_transfer', String(row.id), `调拨已确认，生成调出 -${qty} 与调入 +${qty} 两条库存流水`)
 
     return '调拨已确认，调出和调入库存流水均已记录。已写入审计记录。'
   }
   if (action === 'submit-count') {
-    const row = state.I15.find(item => item.id === String(payload.id))
-    if (row) {
-      row.status = 'submitted'
-      row.approval = '待审批'
-      row.actualQty = Number(payload.actualQty ?? row.actualQty ?? 317)
-      row.variance = Number(row.actualQty) - Number(row.bookQty)
-      record('submit', 'stock_count', String(row.id), `提交盘点差异审批，差异 ${row.variance}，审批通过前不改库存`)
-    }
+    const row = requireRow('I15', String(payload.id ?? ''))
+
+    if (row.status !== 'pending')
+      throw new FlowError('只有待提交的盘点可以提交审批')
+
+    const actualQty = Number(payload.actualQty)
+
+    if (!Number.isInteger(actualQty) || actualQty < 0)
+      throw new FlowError('实盘数量必须是非负整数')
+
+    const session = useSessionStore()
+
+    row.status = 'submitted'
+    row.approval = '待审批'
+    row.actualQty = actualQty
+    row.variance = actualQty - Number(row.bookQty)
+    row.submitterId = session.userId
+    record('submit', 'stock_count', String(row.id), `提交盘点差异审批，差异 ${row.variance}，审批通过前不改库存`)
 
     return '盘点差异已提交审批，审批通过前不会改变库存。已写入审计记录。'
   }
   if (action === 'approve-count') {
-    const row = state.I15.find(item => item.id === String(payload.id))
-    if (!row || row.status !== 'submitted')
-      return '只有已提交的盘点差异才能审批。'
+    const row = requireRow('I15', String(payload.id ?? ''))
+
+    if (row.status !== 'submitted')
+      throw new FlowError('只有已提交的盘点差异才能审批')
+
+    const session = useSessionStore()
+
+    if (row.submitterId === session.userId)
+      throw new FlowError('盘点提交人不能审批自己的盘点差异')
+
+    const db = database()
+    const sku = resolveSku(db.db, String(row.sku ?? ''))
+    const warehouseId = String(row.warehouseId ?? '')
+
+    if (!sku || !warehouseId)
+      throw new FlowError('盘点单缺少有效仓库或 SKU')
+
+    const actor = currentActor()
+
+    applyMovement(db.db, { warehouseId, internalSku: sku.internalSku, onHandDelta: Number(row.variance), inTransitDelta: 0, reason: 'count_adjustment', refType: 'stock_count', refId: String(row.id), actor })
     row.status = 'posted'
     row.approval = '已批准并过账'
+    row.approverId = session.userId
+    db.persist()
     record('approve', 'stock_count', String(row.id), `盘点差异已批准并过账，库存流水 ${row.variance} 件`)
 
     return `盘点差异已批准，库存按代码更新 ${row.variance} 件。已写入审计记录。`
   }
   if (action === 'upload-import') {
-    state.INT01[0].status = 'mapped'
+    const row = requireRow('INT01', 'import-001')
+
+    row.status = 'mapped'
     record('upload', 'integration_import', 'import-001', '上传领星/赛狐文件，生成 AI 列映射建议，等待人工确认')
 
     return '文件已上传，建议列映射已生成，请人工确认。'
   }
   if (action === 'confirm-import') {
-    state.INT01[0].status = 'imported'
+    const row = requireRow('INT01', 'import-001')
+
+    if (row.status !== 'previewed')
+      throw new FlowError('只有生成预览后才能确认导入')
+
+    row.status = 'imported'
     record('confirm_mapping', 'integration_import', 'import-001', '人工确认列映射后导入，原始文件与映射版本可追溯')
 
     return '列映射已确认，导入完成并写入集成日志。'
   }
   if (action === 'preview-import') {
-    state.INT01[0].status = 'previewed'
+    const row = requireRow('INT01', 'import-001')
+
+    if (row.status !== 'mapped')
+      throw new FlowError('只有列映射确认后才能生成预览')
+
+    row.status = 'previewed'
     record('preview', 'integration_import', 'import-001', '生成导入预览，金额与数量仍由确定性代码读取')
 
     return '预览已生成，请人工确认后导入。'
   }
   if (action === 'start-sync') {
-    state.INT02.unshift({ id: `sync-${Date.now()}`, platform: String(payload.platform || 'Amazon US'), type: '订单与库存', progress: '0%', status: 'running', startedAt: now, message: '任务已创建' })
+    const id = `sync-${Date.now()}`
 
-    record('start_sync', 'integration_sync', String(state.INT02[0].id), '创建平台同步任务，结果写入集成日志')
+    state.INT02.unshift({ id, platform: String(payload.platform || 'Amazon US'), type: '订单与库存', progress: '0%', status: 'running', startedAt: now, message: '任务已创建' })
+
+    record('start_sync', 'integration_sync', id, '创建平台同步任务，结果写入集成日志')
 
     return '同步任务已创建，已写入审计记录。'
   }
   if (action === 'save-settings') {
+    if (key === 'SYS20') {
+      const row = requireRow('SYS20', String(payload.id ?? state.SYS20[0].id))
+      const rawThreshold = payload.threshold ?? row.threshold
+
+      if (typeof rawThreshold === 'boolean' || String(rawThreshold).trim() === '')
+        throw new FlowError('IM 审批门槛不能为空')
+
+      const threshold = Number(rawThreshold)
+
+      if (!Number.isFinite(threshold) || threshold <= 0)
+        throw new FlowError('IM 审批门槛必须是正数')
+
+      row.threshold = threshold
+      if (payload.endpoint !== undefined)
+        row.callback = String(payload.endpoint).trim() || row.callback
+    }
+    else if (key === 'INT03') {
+      const row = requireRow('INT03', 'settings-int03')
+      const ledgerAccount = String(payload.ledgerAccount ?? row.ledgerAccount ?? '').trim()
+      const voucherType = String(payload.voucherType ?? row.voucherType ?? '').trim()
+      const accountMapping = String(payload.accountMapping ?? payload.endpoint ?? row.accountMapping ?? '').trim()
+
+      if (!ledgerAccount || !voucherType || !accountMapping)
+        throw new FlowError('金蝶账套、凭证字和科目对照不能为空')
+
+      row.ledgerAccount = ledgerAccount
+      row.voucherType = voucherType
+      row.accountMapping = accountMapping
+      if (payload.exportFormat !== undefined)
+        row.exportFormat = String(payload.exportFormat)
+    }
+
     record('update', keyToRefType(key), key, '设置已保存，敏感配置只显示「已配置」')
 
     return '设置已保存，敏感配置只显示「已配置」。已写入审计记录。'
   }
   if (action === 'save-attachment') {
-    record('attach', 'purchase_contract', key, `合同附件 ${String(payload.fileName || '未命名文件')} 已保存到静态原型引用`)
+    const fileName = String(payload.fileName ?? '').trim()
+
+    if (!fileName)
+      throw new FlowError('合同附件文件名不能为空')
+
+    record('attach', 'purchase_contract', key, `合同附件 ${fileName} 已保存到静态原型引用`)
 
     return '合同附件已保存，文件引用已写入审计记录。'
   }
   if (action === 'approve-im') {
-    const row = state.W08.find(item => item.id === String(payload.id))
-    if (!row)
-      return '找不到审批卡片。'
-    if (Number(row.amount) > 5000000)
-      return '金额超过 IM 门槛，只能去网页确认。'
+    const row = requireRow('W08', String(payload.id ?? ''))
+
+    if (row.status !== 'pending')
+      throw new FlowError('只有待处理且哈希有效的 IM 卡片可以审批')
+
+    if (Number(row.amount) > imThresholdMinor(String(row.channel ?? '飞书')))
+      throw new FlowError('金额超过 IM 门槛，只能去网页确认')
+
     row.status = 'approved'
     record('approve', 'im_approval', String(row.id), '通过 IM 审批，内容哈希校验通过', '飞书')
 
     return '已通过 IM 审批，审计渠道记录为飞书。'
   }
   if (action === 'reject-im') {
-    const row = state.W08.find(item => item.id === String(payload.id))
-    if (row) {
-      row.status = 'rejected'
-      record('reject', 'im_approval', String(row.id), '驳回 IM 审批卡片', '飞书')
-    }
+    const row = requireRow('W08', String(payload.id ?? ''))
+
+    if (row.status !== 'pending')
+      throw new FlowError('只有待处理且哈希有效的 IM 卡片可以驳回')
+
+    if (Number(row.amount) > imThresholdMinor(String(row.channel ?? '飞书')))
+      throw new FlowError('金额超过 IM 门槛，只能去网页确认')
+
+    row.status = 'rejected'
+    record('reject', 'im_approval', String(row.id), '驳回 IM 审批卡片', '飞书')
 
     return '已驳回 IM 审批卡片，审计渠道记录为飞书。'
   }
   if (action === 'tamper-im') {
-    const row = state.W08.find(item => item.id === String(payload.id))
-    if (row) {
-      row.status = 'tampered'
-      record('blocked', 'im_approval', String(row.id), '内容哈希不一致，阻止 IM 审批操作', '飞书')
-    }
+    const row = requireRow('W08', String(payload.id ?? ''))
+
+    row.status = 'tampered'
+    record('blocked', 'im_approval', String(row.id), '内容哈希不一致，阻止 IM 审批操作', '飞书')
 
     return '内容哈希不一致，卡片已阻止操作。'
   }
   if (action === 'bind-channel') {
-    const row = state.SYS19.find(item => item.id === String(payload.id))
-    if (row) {
-      row.status = 'bound'
-      row.account = String(payload.account || 'demo@example.com')
-      row.boundAt = now.slice(0, 10)
-      record('bind', 'channel_binding', String(row.id), `绑定${row.channel}身份 ${row.account}`)
-    }
+    const row = requireRow('SYS19', String(payload.id ?? ''))
+    const account = String(payload.account ?? '').trim()
+
+    if (!account)
+      throw new FlowError('外部账号不能为空')
+
+    row.status = 'bound'
+    row.account = account
+    row.boundAt = now.slice(0, 10)
+    record('bind', 'channel_binding', String(row.id), `绑定${row.channel}身份 ${row.account}`)
 
     return '渠道身份已绑定。'
   }
   if (action === 'unbind-channel') {
-    const row = state.SYS19.find(item => item.id === String(payload.id))
-    if (row) {
-      row.status = 'unbound'
-      row.account = '未绑定'
-      row.boundAt = '-'
-      record('unbind', 'channel_binding', String(row.id), `解绑${row.channel}身份`)
-    }
+    const row = requireRow('SYS19', String(payload.id ?? ''))
+
+    row.status = 'unbound'
+    row.account = '未绑定'
+    row.boundAt = '-'
+    record('unbind', 'channel_binding', String(row.id), `解绑${row.channel}身份`)
 
     return '渠道已解绑。'
   }
   if (action === 'test-channel') {
     const row = state.SYS25.find(item => item.id === String(payload.id))
+
     if (row)
       row.lastResult = '测试成功 · 刚刚'
     record('test_send', 'notification_channel', String(payload.id ?? 'new'), `测试${String(payload.channel ?? row?.channel ?? '渠道')}发送成功`)
@@ -296,19 +510,24 @@ export function applyGapBAction(key: GapBKey, action: string, payload: Record<st
     return '测试消息已发送，返回成功。已写入审计记录。'
   }
   if (action === 'toggle-channel') {
-    const row = state.SYS25.find(item => item.id === String(payload.id))
-    if (row) {
-      row.enabled = Boolean(payload.enabled)
-      row.lastResult = row.enabled ? '已启用，等待下一次发送' : '已停用'
-      record(row.enabled ? 'enable' : 'disable', 'notification_channel', String(row.id), `${row.channel}${row.enabled ? '启用' : '停用'}`)
-    }
+    const row = requireRow('SYS25', String(payload.id ?? ''))
+
+    row.enabled = Boolean(payload.enabled)
+    row.lastResult = row.enabled ? '已启用，等待下一次发送' : '已停用'
+    record(row.enabled ? 'enable' : 'disable', 'notification_channel', String(row.id), `${row.channel}${row.enabled ? '启用' : '停用'}`)
 
     return row?.enabled ? '渠道已启用。' : '渠道已停用。'
   }
   if (action === 'create-channel') {
+    const channel = String(payload.channel ?? '').trim()
+
+    if (!channel)
+      throw new FlowError('渠道名称不能为空')
+
     const id = `channel-${Date.now()}`
-    state.SYS25.push({ id, channel: String(payload.channel || '钉钉'), capabilities: '消息 / 审批卡片 / 回调 / 身份绑定', enabled: false, configured: true, lastResult: '已配置，默认停用' })
-    record('create', 'notification_channel', id, `新增${String(payload.channel || '钉钉')}渠道，密钥仅保存服务端引用，默认停用`)
+
+    state.SYS25.push({ id, channel, capabilities: '消息 / 审批卡片 / 回调 / 身份绑定', enabled: false, configured: true, lastResult: '已配置，默认停用' })
+    record('create', 'notification_channel', id, `新增${channel}渠道，密钥仅保存服务端引用，默认停用`)
 
     return '渠道已保存，默认停用。'
   }
@@ -326,7 +545,7 @@ export function applyGapBAction(key: GapBKey, action: string, payload: Record<st
     return '商机已标记赢单，销售订单草稿已保存并带上客户/商机关联。'
   }
 
-  return '操作已记录。'
+  throw new FlowError(`未知操作: ${action}`)
 }
 
 function keyToRefType(key: GapBKey) {
@@ -334,5 +553,6 @@ function keyToRefType(key: GapBKey) {
     return 'integration'
   if (key.startsWith('SYS'))
     return 'channel_setting'
+
   return 'gap_b'
 }

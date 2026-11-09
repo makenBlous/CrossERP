@@ -698,8 +698,12 @@ function rowStatus(row: GapBRow) {
                   :color="item.status === 'connected' ? 'success' : 'warning'"
                 >
                   <VCardText>
-                    <div class="font-weight-medium">{{ item.title }}</div>
-                    <div class="text-body-2 mb-2">{{ item.detail }}</div>
+                    <div class="font-weight-medium">
+                      {{ item.title }}
+                    </div>
+                    <div class="text-body-2 mb-2">
+                      {{ item.detail }}
+                    </div>
                     <VBtn
                       v-if="item.to"
                       :to="item.to"
@@ -910,7 +914,7 @@ function rowStatus(row: GapBRow) {
             审批通过并过账
           </VBtn>
           <VBtn
-            v-if="props.pageKey === 'W08' && Number(item.amount) <= 5000000"
+            v-if="props.pageKey === 'W08' && Number(item.amount) <= Number(item.thresholdMinor)"
             size="small"
             variant="text"
             :disabled="rowStatus(item) !== 'pending'"
@@ -920,7 +924,7 @@ function rowStatus(row: GapBRow) {
             批准
           </VBtn>
           <VBtn
-            v-if="props.pageKey === 'W08' && Number(item.amount) <= 5000000"
+            v-if="props.pageKey === 'W08' && Number(item.amount) <= Number(item.thresholdMinor)"
             size="small"
             variant="text"
             :disabled="rowStatus(item) !== 'pending'"
@@ -929,7 +933,7 @@ function rowStatus(row: GapBRow) {
             驳回
           </VBtn>
           <VBtn
-            v-if="props.pageKey === 'W08' && Number(item.amount) > 5000000"
+            v-if="props.pageKey === 'W08' && Number(item.amount) > Number(item.thresholdMinor)"
             size="small"
             variant="text"
             to="/approvals"
@@ -1016,14 +1020,14 @@ function rowStatus(row: GapBRow) {
           </div>
           <PermissionGate action="approve">
             <VBtn
-              v-if="Number(selectedImRow.amount) <= 5000000 && rowStatus(selectedImRow) === 'pending'"
+              v-if="Number(selectedImRow.amount) <= Number(selectedImRow.thresholdMinor) && rowStatus(selectedImRow) === 'pending'"
               class="me-2"
               @click="act('approve-im', { id: selectedImRow.id })"
             >
               批准
             </VBtn>
             <VBtn
-              v-if="Number(selectedImRow.amount) <= 5000000 && rowStatus(selectedImRow) === 'pending'"
+              v-if="Number(selectedImRow.amount) <= Number(selectedImRow.thresholdMinor) && rowStatus(selectedImRow) === 'pending'"
               variant="tonal"
               @click="act('reject-im', { id: selectedImRow.id })"
             >
