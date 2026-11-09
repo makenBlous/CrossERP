@@ -13,7 +13,7 @@ import { seedFinance } from '@/mocks/seed/finance'
 import { type Minor, addMinor, convertMinor, minorFromDecimal, mulQty } from '@/utils/money'
 
 const SEED = 20261109
-const VERSION = 3
+const VERSION = 4
 
 function actor(name: string, role: Actor['role'], at: string): Actor {
   return { name, role, at }
@@ -482,7 +482,11 @@ function addOrders(db: MockDatabase) {
     if (!sku)
       return
 
-    const month = months[index % months.length]
+    // 每个店铺的 listing 在后续轮次补一笔 10 月订单，保证利润报表的行都有可追溯的详情数据。
+    const month = index > 0 && index % listings.length === 0
+      ? 10
+      : months[index % months.length]
+
     const day = (index % 27) + 1
     const orderId = nextId(db, 'ord')
 
