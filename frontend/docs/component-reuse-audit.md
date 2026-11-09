@@ -296,3 +296,33 @@
 新增的 `src/api/scoped-reads.ts` 与 `src/mocks/services/scoped-reads.ts` 只承载类型化 mock 读接口，页面仍只调用 `src/api/*`。数据范围和字段投影在服务层完成，页面不通过 CSS 隐藏敏感字段。`scripts/gap-c-scoped-reads.ts` 覆盖订单、报销和员工档案的部门/本人/无权限边界。
 
 所有本批按钮均有可观察行为：保存会调用 API 并提示，角色复制和归档会写 mock 审计，报表构建器会保存并运行结果，矩阵会显示影响用户并执行二次确认；真实文件存储、外部接口和后端审计链仍标为“未验证”。
+
+### 批次 C 第二轮增量复用审计（b1d45b9..6800112）
+
+审计范围为本范围新增或改动的 frontend 文件：`src/api/scoped-reads.ts`、`src/mocks/services/scoped-reads.ts`、`src/mocks/services/gap-c.ts`、`src/utils/permission-engine.ts`、`src/types/gap-c.ts` 及对应独立检查脚本。范围内没有新增或改动 `.vue` 页面，因此没有新的页面级 UI 需要替换；既有 C 批次页面仍由上一节记录的 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer`、`StatusChip`、`MoneyText` 和 `PermissionGate` 承载。本轮未读取 `.env`、密码文件或密钥，也没有启动预览或浏览器进程。
+
+#### 增量核对结果
+
+| 核对项 | 结论 | 证据 |
+| --- | --- | --- |
+| 页面/组件复用 | 通过 | 本范围无页面变更；新增范围读接口位于 `src/api/*` 和 mock service，未在页面复制权限或数据裁剪逻辑。 |
+| 权限判断集中 | 通过 | `scopeAllows`、`shopsForSubject`、`projectGapCField` 统一调用 `effectivePermission` / `fieldAccess`；页面没有新增权限判断。 |
+| 数据范围 | 通过 | `store` 必须有 `shopId` 且命中绑定，`self`/`owner` 必须命中 `ownerId`，`department` 必须命中主体部门；缺字段拒绝；多个范围按并集命中；`all` 明确允许缺关联字段。未知范围或空范围拒绝。 |
+| 旧五角色基线 | 通过 | `xperm.ts` 报告旧页面差异 `0`；`check-legacy-read-apis.ts` 检查 102 个旧读接口，`== FAIL 0`；旧角色敏感薪资、证件、银行卡字段仍隐藏。 |
+| 合法全公司授权 | 通过 | `xperm2.ts` 验证旧 `admin` 的订单、报销、员工集合覆盖所有主体可见集合，且 `admin` 成本/毛利为 `visible/visible`；旧 `finance` 报销集合与 `admin` 一致。 |
+| 店铺范围与并集 | 通过 | `xperm3.ts` 验证缺 `shopId` 拒绝、他店拒绝、本人店铺允许；`operator` 的 `store ∪ owner` 语义成立；`== FAIL 0`。 |
+| 金额 | 通过 | 本范围未引入金额计算；现有 mock 金额/工资值保持整数最小单位，展示仍由 `MoneyText`/`utils/money` 负责，未引入浮点计算或页面换算。 |
+| 写接口 | 部分通过，见缺口 | 本轮没有新增写接口；现有审批决定接口仍经服务层有效权限校验，使用 session `userId` 防自审，金额超过 5000 的财务审批限制仍在，已处理状态阻止重复决定。 |
+
+#### [必须修复] 审计记录没有持久化 actorId
+
+`src/mocks/services/gap-c.ts` 的 `audit()` 从 `currentActor()` 取得 `userId`，但 `src/mocks/services/audit.ts` 的 `writeAudit()` 只写入 `actor` 显示名和 `actorRole`，`AuditEvent` 也没有 `actorId` 字段。这样同名用户无法可靠追溯，不能满足“审计带 actorId”的要求。该问题属于现有 mock 审计模型，本轮只记录，不扩大功能改动；后续应让审计事件保存稳定用户 ID，并让导出/查询沿用该字段。
+
+另一个现有缺口是 `saveGapCMatrix()` 的二次确认人仍以可变显示名 `confirmer` 传入并比较，未使用确认人的稳定用户 ID；本轮没有改动该接口，保留给权限审计后续修复。
+
+#### 本轮验收命令摘要
+
+- `%TEMP%\\cx-pw\\xbatch\\xperm.ts`（复制到 `frontend/scripts/_xperm.ts` 执行后删除）：`== FAIL 0`，旧五角色页面差异 `0`。
+- `%TEMP%\\cx-pw\\xbatch\\xperm2.ts`（复制到 `frontend/scripts/_xperm2.ts` 执行后删除）：`== FAIL 0`。
+- `%TEMP%\\cx-pw\\xbatch\\xperm3.ts`（复制到 `frontend/scripts/_xperm3.ts` 执行后删除）：`== FAIL 0`。
+- `frontend/scripts/check-legacy-read-apis.ts`（复制到 `frontend/scripts/_xcheck-legacy-read-apis.ts` 执行后删除）：`== FAIL 0`，`legacy read APIs checked: 102`。
