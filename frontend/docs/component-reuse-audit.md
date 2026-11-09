@@ -274,3 +274,27 @@
 
 复核后仍沿用 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer`、`StatusChip`、`PermissionGate` 和 Vuetify `VList/VTreeview` 语义组合，没有新增通用业务组件。附件/档案上传复用原生文件 input + `FormDrawer`/详情抽屉；空间文件夹和成员区是空间专属编辑区，因需要同时展示树、角色范围和成员明细而保留在 `KnowledgePage`，数据操作全部经 `src/api/gap-e.ts`。消息中心复用 `ListPage`，管理员通知开关仍使用 Vuetify `VSwitch`。本轮已把此前「未补齐」的附件、成员/文件夹、通知推送、上手模板配置改为可保存、可校验、可追溯的 mock；真实存储和外部渠道仍明确标注为模拟。
 
+
+## 补齐批次 E 增量复用审计（第二轮）
+
+审计日期：2026-11-10
+审计范围：`b1cd3c3..137ec75` 的新增或改动文件，重点检查 `src/views/knowledge/KnowledgePage.vue`、`src/pages/agent/knowledge/[id].vue`、`src/plugins/1.router/index.ts`、`src/api/gap-e.ts`、`src/mocks/services/gap-e.ts`、`src/api/mock-client.ts` 及相关类型。
+
+### 复用结论
+
+- `KnowledgePage.vue` 继续组合 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer`、`StatusChip`、`PermissionGate` 和 `@core/components/TiptapEditor.vue`。本轮没有新增页面级通用组件，也没有把列表、详情、表单、抽屉或状态标签重新实现一遍。
+- `pages/agent/knowledge/[id].vue` 仍是旧路由薄包装；`plugins/1.router/index.ts` 只调整静态 `/kb/index` 路由的匹配顺序。两处没有重复业务 UI。
+- 页面写操作仍经 `src/api/gap-e.ts`，展示金额在本增量中没有新增或改写；因此没有发现需要替换为 `MoneyText` 或 `utils/money` 的金额块。
+
+### 权限、身份、幂等与审计核对
+
+- **[通过] 有效权限：** API 层调用 `assertCan`，服务层对创建、更新、审核、建议、归档、附件、员工档案、空间成员和文件夹等写操作再次执行 `can`/管理员校验；读取路径按空间可见范围过滤。
+- **[通过] 稳定身份与防自审：** `currentActor()` 使用会话的 `session.userId`，审核记录保存 `submittedBy`，服务层按稳定身份比较提交人与审核人，显示名不参与自审判断。
+- **[通过] 防重复审核和重复提交：** 审核只接受 `pending`，文档只接受 `draft` 且不存在待审记录；独立接口验收覆盖了越权、仅财务空间隔离、不存在 ID、自审和重复审核。
+- **[必须修复] 审计缺少 `actorId`：** `writeAudit()` 仍只保存显示名和角色。虽然本轮已把稳定 ID 传入 `Actor` 并用于自审判断，但新增文档、审核、空间权限、附件和员工档案等审计事件没有持久化 `actorId`，无法在显示名变化或同名身份下可靠追溯。
+- **[必须修复] 附件上传后的读回使用临时管理员身份：** `uploadKbAttachment()` 在服务层完成权限校验后，用 `{ ...currentActor(), role: 'admin' }` 调用 `getDocument()`。这会绕过读回路径的真实角色语义，并可能把同一次操作记录成管理员查看敏感文档，建议改为沿用原始 actor 或让服务层直接返回已授权结果。
+- **[必须修复] 审核状态更新顺序存在半更新风险：** `decideReview()` 先写入 `review.status`，再检查目标文档是否存在且处于 `in_review`。目标异常时会抛错，但审核记录已经被改成已处理，可能留下审核记录与文档状态不一致的结果。
+- **[必须修复] 关闭「仅财务」时可能残留角色过滤：** `saveSpaceMembers()` 会把 `visibleRoles` 保存为 `['finance']`，随后 `setSpaceFinanceOnly(false)` 只清除 `financeOnly`，不会清除旧的 `visibleRoles`。再次打开空间时，非财务角色仍可能被过滤，页面提示与实际可见范围不一致。
+- **[建议修改] 部分写接口没有请求级幂等键或重复提交保护：** 创建文档、创建版本、生成建议问答、创建文件夹、上传附件和上传员工档案在网络重试时会追加重复记录；审核和提交文档已有状态保护。后续接入真实 API 时应补充幂等键或业务去重约束。
+
+本轮只修复了验收脚本的 ESLint 总禁用规则，并记录以上审计结论；未扩大功能代码改动范围。真实文件存储、外部通知和生产级索引仍属于原有范围限制。

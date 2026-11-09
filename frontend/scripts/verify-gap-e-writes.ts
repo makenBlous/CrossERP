@@ -1,4 +1,4 @@
-/* eslint-disable */
+/* eslint-disable max-statements-per-line, newline-before-return, padding-line-between-statements, antfu/if-newline, @stylistic/ts/brace-style, prefer-template, lines-around-comment */
 // 批次 E 独立接口级验收（不是 Codex 写的）：写接口越权 / 作者不能自审 / 重复审核 / 不存在 id / 仅财务空间读隔离
 const mem = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, String(v)) }, removeItem: (k: string) => { m.delete(k) }, clear: () => m.clear(), key: (i: number) => [...m.keys()][i] ?? null, get length() { return m.size } } }
 ;(globalThis as any).sessionStorage = mem(); (globalThis as any).localStorage = mem()
