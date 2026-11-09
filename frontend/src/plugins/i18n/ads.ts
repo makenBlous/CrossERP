@@ -1,0 +1,4 @@
+export const adsMessages = {
+  'zh-CN': { campaigns: '广告活动', imports: '广告导入', performance: '广告效果', allocations: '广告分摊', spend: '花费', sales: '销售额', ratio: '比例', source: '来源', upload: '模拟上传', save: '保存分摊规则', validation: '比例必须为正整数，累计比例不能超过 100%。', salesSource: '销售额来自已存储订单/利润结果。' },
+  'en': { campaigns: 'Campaigns', imports: 'Ad imports', performance: 'Performance', allocations: 'Allocations', spend: 'Spend', sales: 'Sales', ratio: 'Ratio', source: 'Source', upload: 'Simulate upload', save: 'Save allocation rule', validation: 'Ratio must be a positive integer and total cannot exceed 100%.', salesSource: 'Sales come from stored order/profit results.' },
+} as const

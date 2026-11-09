@@ -1,12 +1,13 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import { fetchReconDetail } from '@/api/finance'
 import FinanceDetail from '@/views/finance/FinanceDetail.vue'
 
-const route = useRoute(); const row = ref<NonNullable<Awaited<ReturnType<typeof fetchReconDetail>>> | null>(null)
+const route = useRoute()
+const row = ref<NonNullable<Awaited<ReturnType<typeof fetchReconDetail>>> | null>(null)
 
-onMounted(async () => { row.value = await fetchReconDetail(String((route.params as Record<string, string>).id)) })
+onMounted(async () => {
+  row.value = await fetchReconDetail(String((route.params as Record<string, string>).id))
+})
 </script>
 
 <template>
@@ -15,7 +16,7 @@ onMounted(async () => { row.value = await fetchReconDetail(String((route.params 
     :title="`对账运行 ${row.id}`"
     :subtitle="`${row.storeName} · ${row.period}`"
     :status="row.status"
-    domain="issue"
+    domain="recon_run"
   >
     <VRow class="mb-6">
       <VCol cols="4">
@@ -59,5 +60,10 @@ onMounted(async () => { row.value = await fetchReconDetail(String((route.params 
         </tbody>
       </VTable>
     </VCard>
-  </FinanceDetail><EmptyState v-else />
+  </FinanceDetail>
+  <EmptyState
+    v-else
+    title="未找到对账运行"
+    back-to="/finance/recon"
+  />
 </template>

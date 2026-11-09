@@ -1,18 +1,26 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import { fetchAllocations, saveAdAllocation } from '@/api/ads'
 import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
-const rows = ref<Awaited<ReturnType<typeof fetchAllocations>>>([]); const sku = ref(''); const ratio = ref(10)
+const rows = ref<Awaited<ReturnType<typeof fetchAllocations>>>([])
+const sku = ref('')
+const ratio = ref(10)
+const error = ref('')
 
-onMounted(async () => { rows.value = await fetchAllocations() })
+onMounted(async () => {
+  rows.value = await fetchAllocations()
+})
 
-const columns = [{ key: 'campaign', title: '活动' }, { key: 'sku', title: '内部 SKU' }, { key: 'ratio', title: '比例 %' }, { key: 'spend', title: '分摊花费' }, { key: 'source', title: '来源' }]
+const columns = [{ key: 'campaign', title: '活动' }, { key: 'sku', title: '内部 SKU' }, { key: 'ratio', title: '比例 %' }, { key: 'spendDisplay', title: '分摊花费' }, { key: 'source', title: '来源' }]
 async function save() {
+  error.value = ''
   if (!sku.value)
-    sku.value = rows.value[0]?.sku ?? ''; const row = await saveAdAllocation(sku.value, ratio.value); if (row)
+    sku.value = rows.value[0]?.sku ?? ''
+  const row = await saveAdAllocation(sku.value, ratio.value)
+  if (row)
     rows.value = [...rows.value.filter(item => item.id !== row.id), row]
+  else
+    error.value = '比例必须为正整数，累计比例不能超过 100%。'
 }
 </script>
 
@@ -60,6 +68,14 @@ async function save() {
           class="mt-4"
         >
           广告金额只由服务层计算，页面不做金额运算。
+        </VAlert>
+        <VAlert
+          v-if="error"
+          type="error"
+          variant="tonal"
+          class="mt-4"
+        >
+          {{ error }}
         </VAlert>
       </VCardText>
     </VCard><FinanceTablePage

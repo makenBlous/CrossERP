@@ -1,12 +1,12 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import { fetchAdCampaigns } from '@/api/ads'
 import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchAdCampaigns>>>([])
 
-onMounted(async () => { rows.value = await fetchAdCampaigns() })
+onMounted(async () => {
+  rows.value = await fetchAdCampaigns()
+})
 
 const columns = [{ key: 'name', title: '活动' }, { key: 'storeName', title: '店铺' }, { key: 'status', title: '状态' }, { key: 'spendDisplay', title: '花费', align: 'end' as const }, { key: 'currency', title: '币种' }]
 </script>

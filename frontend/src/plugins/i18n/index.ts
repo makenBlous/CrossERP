@@ -1,6 +1,9 @@
 import type { App } from 'vue'
 import { createI18n } from 'vue-i18n'
 import { uiMessages } from './ui'
+import { approvalsMessages } from './approvals'
+import { adsMessages } from './ads'
+import { financeMessages } from './finance'
 import { pageCatalog } from '@/config/pages'
 import type { AppLocale } from '@/types/domain'
 import { themeConfig } from '@themeConfig'
@@ -17,6 +20,9 @@ function messagesFor(locale: AppLocale) {
 
   return {
     ...uiMessages[locale],
+    finance: financeMessages[locale],
+    ads: adsMessages[locale],
+    approvals: approvalsMessages[locale],
     page,
   }
 }

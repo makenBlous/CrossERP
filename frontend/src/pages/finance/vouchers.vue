@@ -42,6 +42,42 @@ const filters = computed(() => [{
     :filters="filters"
     @open="item => router.push(`/finance/vouchers/${item.id}`)"
   >
+    <template #widgets>
+      <VRow class="mb-6">
+        <VCol
+          cols="12"
+          sm="4"
+        >
+          <KpiCard
+            title="凭证总数"
+            :value="String(rows.length)"
+            icon="tabler-notebook"
+          />
+        </VCol>
+        <VCol
+          cols="12"
+          sm="4"
+        >
+          <KpiCard
+            title="待审批"
+            :value="String(rows.filter(item => item.status === 'pending').length)"
+            icon="tabler-clock"
+            color="warning"
+          />
+        </VCol>
+        <VCol
+          cols="12"
+          sm="4"
+        >
+          <KpiCard
+            title="已批准"
+            :value="String(rows.filter(item => item.status === 'approved' || item.status === 'posted').length)"
+            icon="tabler-check"
+            color="success"
+          />
+        </VCol>
+      </VRow>
+    </template>
     <template #item.status="{ item }">
       <StatusChip
         domain="voucher"
@@ -51,12 +87,14 @@ const filters = computed(() => [{
     <template #item.debit="{ item }">
       <MoneyText
         :amount="item.debit"
+        minor
         currency="CNY"
       />
     </template>
     <template #item.credit="{ item }">
       <MoneyText
         :amount="item.credit"
+        minor
         currency="CNY"
       />
       <VChip

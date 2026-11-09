@@ -1,12 +1,12 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import { fetchExports } from '@/api/finance'
 import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchExports>>>([])
 
-onMounted(async () => { rows.value = await fetchExports() })
+onMounted(async () => {
+  rows.value = await fetchExports()
+})
 
 const columns = [{ key: 'fileName', title: '文件' }, { key: 'target', title: '目标' }, { key: 'approvalId', title: '审批' }, { key: 'sha256', title: 'SHA-256' }, { key: 'createdAt', title: '生成时间' }, { key: 'status', title: '状态' }]
 </script>
@@ -20,12 +20,10 @@ const columns = [{ key: 'fileName', title: '文件' }, { key: 'target', title: '
     :columns="columns"
   >
     <template #item.status="{ item }">
-      <VChip
-        color="success"
-        size="small"
-      >
-        {{ item.status }}
-      </VChip>
+      <StatusChip
+        domain="export_artifact"
+        :value="String(item.status)"
+      />
     </template><template #actions>
       <VAlert
         type="info"

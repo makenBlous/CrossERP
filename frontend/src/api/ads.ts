@@ -1,4 +1,3 @@
-/* eslint-disable max-statements-per-line */
 import { assertCan, database, delay, readMock } from '@/api/mock-client'
 import { adsCampaigns, adsImportRows, adsPerformance, allocationRows, recordAdImport, saveAllocation } from '@/mocks/services/finance'
 
@@ -23,7 +22,8 @@ export async function fetchAllocations() {
   return readMock(allocationRows(database().db))
 }
 export async function saveAdAllocation(sku: string, ratio: number) {
-  const actor = assertCan('update'); const row = saveAllocation(database().db, sku, ratio, actor)
+  const actor = assertCan('update')
+  const row = saveAllocation(database().db, sku, ratio, actor)
 
   database().persist()
 

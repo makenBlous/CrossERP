@@ -15,7 +15,7 @@ const saving = ref(false)
 const canDecide = computed(() => Boolean(row.value && row.value.status === 'pending' && ['admin', 'finance'].includes(session.role) && row.value.submitter !== session.displayName))
 
 onMounted(async () => {
-  row.value = await fetchApproval(String(route.params.id))
+  row.value = await fetchApproval(String((route.params as Record<string, string>).id))
   comment.value = row.value?.comment ?? ''
 })
 
@@ -58,8 +58,12 @@ async function decide(status: 'approved' | 'rejected') {
           <thead>
             <tr>
               <th>科目</th>
-              <th class="text-end">借方</th>
-              <th class="text-end">贷方</th>
+              <th class="text-end">
+                借方
+              </th>
+              <th class="text-end">
+                贷方
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -72,6 +76,7 @@ async function decide(status: 'approved' | 'rejected') {
                 <MoneyText
                   v-if="line.debit"
                   :amount="line.debit"
+                  minor
                   :currency="row.currency"
                 />
                 <span v-else>—</span>
@@ -80,6 +85,7 @@ async function decide(status: 'approved' | 'rejected') {
                 <MoneyText
                   v-if="line.credit"
                   :amount="line.credit"
+                  minor
                   :currency="row.currency"
                 />
                 <span v-else>—</span>
@@ -127,14 +133,10 @@ async function decide(status: 'approved' | 'rejected') {
       </VCardText>
     </VCard>
   </DetailPage>
-  <div v-else>
-    <EmptyState title="未找到审批" text="该审批 ID 不存在。" />
-    <VBtn
-      class="mt-4"
-      variant="tonal"
-      @click="router.push('/approvals')"
-    >
-      返回审批台
-    </VBtn>
-  </div>
+  <EmptyState
+    v-else
+    title="未找到审批"
+    text="该审批 ID 不存在。"
+    back-to="/approvals"
+  />
 </template>

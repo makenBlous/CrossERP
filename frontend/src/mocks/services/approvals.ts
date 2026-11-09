@@ -64,9 +64,9 @@ export function decideApproval(db: MockDatabase, id: string, status: 'approved' 
     if (voucher) {
       voucher.status = status === 'approved' ? 'approved' : 'rejected'
       if (status === 'approved') {
-        const exports = db.finance2?.exports ?? []
-        if (!exports.some(item => item.approvalId === approval.id)) {
-          exports.push({
+        const artifacts = db.finance2?.exports ?? []
+        if (!artifacts.some(item => item.approvalId === approval.id)) {
+          artifacts.push({
             id: `exp-${approval.id}`,
             fileName: `${voucher.id}.xlsx`,
             approvalId: approval.id,
@@ -81,11 +81,17 @@ export function decideApproval(db: MockDatabase, id: string, status: 'approved' 
   }
   if (approval.targetType === 'clearing' && status === 'approved') {
     const ids = approval.targetId.split(',')
-    db.finance2?.clearing.filter(item => ids.includes(item.id)).forEach(item => { item.status = 'cleared' })
+
+    db.finance2?.clearing.filter(item => ids.includes(item.id)).forEach(item => {
+      item.status = 'cleared'
+    })
   }
   if (approval.targetType === 'allocation' && status === 'approved') {
-    db.ads?.allocations.filter(item => item.id === approval.targetId).forEach(item => { item.source = '广告分摊（已批准）' })
+    db.ads?.allocations.filter(item => item.id === approval.targetId).forEach(item => {
+      item.source = '广告分摊（已批准）'
+    })
   }
+
   writeAudit(db, actor, status, 'approval', approval.id, `${status === 'approved' ? '通过' : '驳回'}审批 ${approval.title}${approval.comment ? `：${approval.comment}` : ''}。演示不写账。`)
 
   return approval

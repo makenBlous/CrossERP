@@ -1,12 +1,13 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import { fetchSettlement } from '@/api/finance'
 import FinanceDetail from '@/views/finance/FinanceDetail.vue'
 
-const route = useRoute(); const row = ref<NonNullable<Awaited<ReturnType<typeof fetchSettlement>>> | null>(null)
+const route = useRoute()
+const row = ref<NonNullable<Awaited<ReturnType<typeof fetchSettlement>>> | null>(null)
 
-onMounted(async () => { row.value = await fetchSettlement(String((route.params as Record<string, string>).id)) })
+onMounted(async () => {
+  row.value = await fetchSettlement(String((route.params as Record<string, string>).id))
+})
 </script>
 
 <template>
@@ -58,5 +59,10 @@ onMounted(async () => { row.value = await fetchSettlement(String((route.params a
         </tbody>
       </VTable>
     </VCard>
-  </FinanceDetail><EmptyState v-else />
+  </FinanceDetail>
+  <EmptyState
+    v-else
+    title="未找到结算"
+    back-to="/finance/settlements"
+  />
 </template>

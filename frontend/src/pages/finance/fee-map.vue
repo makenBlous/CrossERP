@@ -1,15 +1,17 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import { confirmFee, fetchFeeMap } from '@/api/finance'
 import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchFeeMap>>>([])
 
-onMounted(async () => { rows.value = await fetchFeeMap() })
+onMounted(async () => {
+  rows.value = await fetchFeeMap()
+})
 
 const columns = [{ key: 'platform', title: '平台' }, { key: 'description', title: '费用描述' }, { key: 'category', title: '分类' }, { key: 'suggestion', title: 'AI 建议' }, { key: 'status', title: '状态' }, { key: 'actions', title: '操作' }]
-async function confirm(row: FinanceRow) { rows.value = await confirmFee(String(row.id), String(row.suggestion)) }
+async function confirm(row: FinanceRow) {
+  rows.value = await confirmFee(String(row.id), String(row.suggestion))
+}
 </script>
 
 <template>
@@ -21,12 +23,10 @@ async function confirm(row: FinanceRow) { rows.value = await confirmFee(String(r
     :columns="columns"
   >
     <template #item.status="{ item }">
-      <VChip
-        size="small"
-        :color="item.status === 'confirmed' ? 'success' : 'warning'"
-      >
-        {{ item.status }}
-      </VChip>
+      <StatusChip
+        domain="fee_map"
+        :value="String(item.status)"
+      />
     </template><template #item.actions="{ item }">
       <VBtn
         v-if="item.status === 'unmapped'"

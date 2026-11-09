@@ -6,7 +6,6 @@ import MoneyText from '@/components/biz/MoneyText.vue'
 import { useSessionStore } from '@/stores/session'
 
 const route = useRoute()
-const router = useRouter()
 const session = useSessionStore()
 const row = ref<NonNullable<Awaited<ReturnType<typeof fetchVoucherDetail>>> | null>(null)
 const submitting = ref(false)
@@ -15,14 +14,16 @@ const message = ref('')
 const canSubmit = computed(() => Boolean(row.value && ['draft', 'rejected'].includes(row.value.status) && ['admin', 'operator'].includes(session.role)))
 
 onMounted(async () => {
-  row.value = await fetchVoucherDetail(String(route.params.id))
+  row.value = await fetchVoucherDetail(String((route.params as Record<string, string>).id))
 })
 
 async function submit() {
   if (!row.value || !canSubmit.value)
     return
   submitting.value = true
+
   const approval = await submitVoucherApproval(row.value.id)
+
   submitting.value = false
   if (approval) {
     row.value = await fetchVoucherDetail(row.value.id)
@@ -38,7 +39,7 @@ async function submit() {
     :subtitle="`${row.period} · ${row.submitter}`"
     domain="voucher"
     :status="row.status"
-    :related="[{ id: row.id, type: '审批', label: '查看审批记录', to: `/approvals/${row.id}` }]"
+    :related="row.approvalId ? [{ id: row.approvalId, type: '审批', label: '查看审批记录', to: `/approvals/${row.approvalId}` }] : []"
   >
     <template #actions>
       <VBtn
@@ -95,6 +96,7 @@ async function submit() {
               <MoneyText
                 v-if="line.debit"
                 :amount="line.debit"
+                minor
                 currency="CNY"
               />
               <span v-else>—</span>
@@ -103,6 +105,7 @@ async function submit() {
               <MoneyText
                 v-if="line.credit"
                 :amount="line.credit"
+                minor
                 currency="CNY"
               />
               <span v-else>—</span>
@@ -117,8 +120,16 @@ async function submit() {
         >
           {{ row.balanced ? '借贷平衡' : `差额 ${row.difference}` }}
         </VChip>
-        <span class="text-body-2">借方合计：<MoneyText :amount="row.debit" currency="CNY" /></span>
-        <span class="text-body-2">贷方合计：<MoneyText :amount="row.credit" currency="CNY" /></span>
+        <span class="text-body-2">借方合计：<MoneyText
+          :amount="row.debit"
+          minor
+          currency="CNY"
+        /></span>
+        <span class="text-body-2">贷方合计：<MoneyText
+          :amount="row.credit"
+          minor
+          currency="CNY"
+        /></span>
       </VCardText>
     </VCard>
     <VAlert
@@ -128,14 +139,10 @@ async function submit() {
       过账由后端 ledger 服务执行；本页面不会直接写账。
     </VAlert>
   </DetailPage>
-  <div v-else>
-    <EmptyState title="未找到凭证" text="该凭证 ID 不存在。" />
-    <VBtn
-      class="mt-4"
-      variant="tonal"
-      @click="router.push('/finance/vouchers')"
-    >
-      返回凭证列表
-    </VBtn>
-  </div>
+  <EmptyState
+    v-else
+    title="未找到凭证"
+    text="该凭证 ID 不存在。"
+    back-to="/finance/vouchers"
+  />
 </template>

@@ -70,6 +70,40 @@ const skuColumns = computed(() => [
     >
       {{ t('profit.formula') }}
     </VAlert>
+    <VRow class="mb-6">
+      <VCol
+        cols="12"
+        sm="4"
+      >
+        <KpiCard
+          title="SKU 行数"
+          :value="String(rows.length)"
+          icon="tabler-chart-bar"
+        />
+      </VCol>
+      <VCol
+        cols="12"
+        sm="4"
+      >
+        <KpiCard
+          title="店铺数"
+          :value="String(stores.length)"
+          icon="tabler-building-store"
+          color="info"
+        />
+      </VCol>
+      <VCol
+        cols="12"
+        sm="4"
+      >
+        <KpiCard
+          title="广告来源"
+          value="广告分摊 / 演示计提"
+          icon="tabler-speakerphone"
+          color="success"
+        />
+      </VCol>
+    </VRow>
     <div class="d-flex justify-end mb-4">
       <VBtn
         variant="tonal"

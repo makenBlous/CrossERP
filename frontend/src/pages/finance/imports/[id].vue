@@ -1,12 +1,13 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import { fetchImport } from '@/api/finance'
 import FinanceDetail from '@/views/finance/FinanceDetail.vue'
 
-const route = useRoute(); const row = ref<NonNullable<Awaited<ReturnType<typeof fetchImport>>> | null>(null)
+const route = useRoute()
+const row = ref<NonNullable<Awaited<ReturnType<typeof fetchImport>>> | null>(null)
 
-onMounted(async () => { row.value = await fetchImport(String((route.params as Record<string, string>).id)) })
+onMounted(async () => {
+  row.value = await fetchImport(String((route.params as Record<string, string>).id))
+})
 </script>
 
 <template>
@@ -15,7 +16,7 @@ onMounted(async () => { row.value = await fetchImport(String((route.params as Re
     :title="row.fileName"
     :subtitle="`${row.connector} · ${row.importedAt}`"
     :status="row.status"
-    domain="issue"
+    domain="generic"
   >
     <VCard
       title="批次摘要"
@@ -55,5 +56,10 @@ onMounted(async () => { row.value = await fetchImport(String((route.params as Re
         </VBtn>
       </VCardText>
     </VCard>
-  </FinanceDetail><EmptyState v-else />
+  </FinanceDetail>
+  <EmptyState
+    v-else
+    title="未找到导入批次"
+    back-to="/finance/imports"
+  />
 </template>

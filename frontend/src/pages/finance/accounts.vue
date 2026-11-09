@@ -1,12 +1,12 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import { fetchAccounts } from '@/api/finance'
 import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchAccounts>>>([])
 
-onMounted(async () => { rows.value = await fetchAccounts() })
+onMounted(async () => {
+  rows.value = await fetchAccounts()
+})
 
 const columns = [{ key: 'code', title: '科目编码' }, { key: 'name', title: '科目名称' }, { key: 'direction', title: '方向' }, { key: 'active', title: '启用' }, { key: 'review', title: '核实' }]
 </script>

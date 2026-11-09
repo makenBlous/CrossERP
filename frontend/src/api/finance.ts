@@ -1,7 +1,6 @@
-/* eslint-disable max-statements-per-line */
 import { assertCan, database, delay, readMock } from '@/api/mock-client'
 import { projectIssues, projectProfit, projectRecon, projectVouchers } from '@/mocks/project'
-import { accounts, apRows, arRows, cashRows, clearingRows, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, settlementDetail, settlements, sourceRow, submitClearing, submitVoucher, voucherDetail } from '@/mocks/services/finance'
+import { accounts, addFxRate, apRows, arRows, cashRows, clearingRows, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, recordImport, settlementDetail, settlements, sourceRow, submitClearing, submitVoucher, voucherDetail } from '@/mocks/services/finance'
 
 // 未来: GET /api/v1/finance/profit
 export async function fetchProfit() {
@@ -40,6 +39,15 @@ export async function fetchImport(id: string) {
   await delay()
 
   return readMock(importDetail(database().db, id))
+}
+
+export async function uploadImport(fileName: string) {
+  const actor = assertCan('create')
+  const row = recordImport(database().db, fileName, actor)
+
+  database().persist()
+
+  return readMock(row)
 }
 export async function fetchSourceRow(table: string, id: string) {
   await delay()
@@ -81,6 +89,15 @@ export async function fetchFxRates() {
 
   return readMock(fxRates(database().db))
 }
+
+export async function addFxRateEntry(input: { period: string; fromCcy: 'USD' | 'CNY' | 'EUR' | 'GBP' | 'JPY'; toCcy: 'USD' | 'CNY' | 'EUR' | 'GBP' | 'JPY'; rate: string }) {
+  const actor = assertCan('update')
+  const row = addFxRate(database().db, input, actor)
+
+  database().persist()
+
+  return readMock(row)
+}
 export async function fetchFeeMap() {
   await delay()
 
@@ -119,26 +136,30 @@ export async function fetchCash() {
 export async function resolveIssue(id: string, action: 'explained' | 'ignored', note: string) {
   const actor = assertCan('update')
 
-  handleIssue(database().db, id, action, note, actor); database().persist()
+  handleIssue(database().db, id, action, note, actor)
+  database().persist()
 
   return fetchIssueDetail(id)
 }
 export async function confirmFee(id: string, category: string) {
   const actor = assertCan('update')
 
-  confirmFeeMap(database().db, id, category, actor); database().persist()
+  confirmFeeMap(database().db, id, category, actor)
+  database().persist()
 
   return fetchFeeMap()
 }
 export async function draftVoucherFromIssue(id: string) {
-  const actor = assertCan('create'); const row = createVoucherFromIssue(database().db, id, actor)
+  const actor = assertCan('create')
+  const row = createVoucherFromIssue(database().db, id, actor)
 
   database().persist()
 
   return row
 }
 export async function draftVoucherFromProfit() {
-  const actor = assertCan('create'); const row = createVoucherFromProfit(database().db, actor)
+  const actor = assertCan('create')
+  const row = createVoucherFromProfit(database().db, actor)
 
   database().persist()
 

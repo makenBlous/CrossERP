@@ -1,14 +1,20 @@
-/* eslint-disable max-statements-per-line */
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchImports } from '@/api/finance'
+import { fetchImports, uploadImport } from '@/api/finance'
 import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 import FinanceUpload from '@/views/finance/FinanceUpload.vue'
 import type { ImportBatchRow } from '@/mocks/services/finance'
 
 const rows = ref<ImportBatchRow[]>([])
 
-onMounted(async () => { rows.value = await fetchImports() })
+onMounted(async () => {
+  rows.value = await fetchImports()
+})
+
+async function addBatch(fileName: string) {
+  const row = await uploadImport(fileName)
+
+  rows.value = [row, ...rows.value]
+}
 
 const columns = [{ key: 'fileName', title: '文件' }, { key: 'connector', title: '连接器' }, { key: 'status', title: '状态' }, { key: 'rows', title: '行数', align: 'end' as const }, { key: 'errors', title: '错误', align: 'end' as const }, { key: 'importedAt', title: '导入时间' }]
 </script>
@@ -17,6 +23,7 @@ const columns = [{ key: 'fileName', title: '文件' }, { key: 'connector', title
   <FinanceUpload
     title="文件导入"
     subtitle="上传结算、打款、订单、成本和汇率文件。"
+    @uploaded="addBatch"
   >
     <FinanceTablePage
       storage-key="finance-imports"

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import DetailPage from '@/components/biz/DetailPage.vue'
+import type { StatusDomain } from '@/config/status'
 
 defineProps<{
   title: string
   subtitle?: string
   status?: string
-  domain?: 'approval' | 'issue' | 'voucher' | 'shipment' | 'mapping'
+  domain?: StatusDomain
   timeline?: Array<{ at: string; title: string; detail: string; actor?: string }>
 }>()
 </script>
