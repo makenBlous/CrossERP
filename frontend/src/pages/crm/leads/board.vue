@@ -1,11 +1,18 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchCrmLeads } from '@/api/crm'; import StageBoard from '@/components/biz/StageBoard.vue'; import { useMockDbStore } from '@/stores/mockdb'; import { useSessionStore } from '@/stores/session'; import type { Actor } from '@/types/entities'
+import { fetchCrmLeads, updateCrmLeadStage } from '@/api/crm'
+import StageBoard from '@/components/biz/StageBoard.vue'
 
-const router = useRouter(); const store = useMockDbStore(); const session = useSessionStore(); const cards = ref<any[]>([]); const columns = [{ key: 'new', label: '新线索', color: 'secondary' }, { key: 'qualified', label: '已确认需求', color: 'info' }, { key: 'proposal', label: '已报价', color: 'warning' }, { key: 'converted', label: '已转化', color: 'success' }]
-async function load() { cards.value = await fetchCrmLeads() }
+const router = useRouter()
+const cards = ref<any[]>([])
+const columns = [{ key: 'new', label: '新线索', color: 'secondary' }, { key: 'qualified', label: '已确认需求', color: 'info' }, { key: 'proposal', label: '已报价', color: 'warning' }, { key: 'converted', label: '已转化', color: 'success' }]
+async function load() {
+  cards.value = await fetchCrmLeads()
+}
 onMounted(load)
-function move(card: any, stage: string) { store.updateLeadStage(card.id, stage as never, { name: session.displayName, role: session.role, at: new Date().toISOString() } as Actor); card.stage = stage }
+async function move(card: any, stage: string) {
+  await updateCrmLeadStage(card.id, stage as never)
+  card.stage = stage
+}
 </script>
 
 <template>

@@ -1,10 +1,15 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchAdminUsers } from '@/api/admin'; import ModuleTable from '@/components/biz/ModuleTable.vue'
+import { fetchAdminUsers } from '@/api/admin'
+import ModuleTable from '@/components/biz/ModuleTable.vue'
 
-const router = useRouter(); const rows = ref<Array<{ id: string; [key: string]: unknown }>>([])
+const router = useRouter()
 
-onMounted(async () => { rows.value = await fetchAdminUsers() })
+const rows = ref<Array<{ id: string
+  [key: string]: unknown }>>([])
+
+onMounted(async () => {
+  rows.value = await fetchAdminUsers()
+})
 
 const columns = [{ key: 'name', title: '用户' }, { key: 'email', title: '邮箱' }, { key: 'role', title: '角色' }, { key: 'stores', title: '店铺范围' }, { key: 'status', title: '状态' }]
 </script>

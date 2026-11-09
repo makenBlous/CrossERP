@@ -1,3 +1,4 @@
+import { addAgentModuleSeed } from './agent-module'
 import type { CurrencyCode, IssueCode } from '@/types/domain'
 import type { Actor, MockDatabase, Platform, Shop } from '@/types/entities'
 import { submitSuggestion } from '@/mocks/services/approvals'
@@ -736,6 +737,52 @@ function addCrm(db: MockDatabase) {
     { id: 'msg-tkt-1', ticketId: 'tkt-1', author: '客服 Nina', text: '已联系仓库核对装箱单。', at: '2026-11-08 12:00', internal: false },
     { id: 'msg-tkt-2', ticketId: 'tkt-1', author: '仓库', text: '确认少发一箱，安排补发。', at: '2026-11-08 15:30', internal: true },
   ]
+
+  const owners = ['林夏', '周衡', '陈宁']
+  const accountIds = db.crmAccounts.map(account => account.id)
+  const stages = ['new', 'qualified', 'proposal', 'converted'] as const
+  for (let index = 4; index <= 30; index++) {
+    const accountId = accountIds[index % accountIds.length]
+    const account = db.crmAccounts.find(item => item.id === accountId)
+
+    db.crmLeads.push({
+      id: `lead-${index}`,
+      name: `${['Sofia', 'Lucas', 'Amelia', 'Noah', 'Mia'][index % 5]} ${index}`,
+      company: account?.name ?? 'New Trail Buyer',
+      email: `lead${index}@buyer.example`,
+      source: ['展会', '网站表单', '转介绍', '广告'][index % 4],
+      owner: owners[index % owners.length],
+      stage: stages[index % stages.length],
+      accountId: index % 4 === 0 ? accountId : null,
+      contactId: index % 4 === 0 ? `ctc-${accountId}` : null,
+      opportunityId: index % 4 === 0 ? `opp-${accountId}` : null,
+      createdAt: `2026-${String(10 + (index % 3)).padStart(2, '0')}-${String((index % 25) + 1).padStart(2, '0')}`,
+    })
+  }
+  for (let index = 1; index <= 17; index++) {
+    const accountId = accountIds[index % accountIds.length]
+    const account = db.crmAccounts.find(item => item.id === accountId)
+    if (index > 7)
+      db.crmContacts.push({ id: `ctc-extra-${index}`, accountId, name: ['Alex Morgan', '陈璐', 'Hiro Sato'][index % 3], title: index % 2 ? '采购经理' : '财务负责人', email: `contact${index}@buyer.example` })
+
+    if (index > 8)
+      db.crmOpportunities.push({ id: `opp-extra-${index}`, accountId, name: `${account?.name ?? '客户'} ${2027 + (index % 2)} 补货`, amount: minorFromDecimal(String(12000 + index * 1750)), currency: account?.currency ?? 'USD', stage: ['初步沟通', '需求确认', '报价', '谈判'][index % 4] })
+  }
+  for (let index = 4; index <= 40; index++)
+    db.crmActivities.push({ id: `act-${index}`, subject: ['跟进报价', '确认库存', '安排回访', '发送合同'][index % 4], kind: ['电话', '邮件', '会议'][index % 3] as '电话' | '邮件' | '会议', at: `2026-${String(10 + (index % 3)).padStart(2, '0')}-${String((index % 25) + 1).padStart(2, '0')} ${String(9 + (index % 8)).padStart(2, '0')}:00`, accountId: accountIds[index % accountIds.length], owner: owners[index % owners.length], status: index % 4 === 0 ? 'done' : 'planned' })
+
+  const orderRows = db.orders.slice(0, 20)
+  for (let index = 2; index <= 20; index++) {
+    const order = orderRows[index - 2]
+    const accountId = accountIds[index % accountIds.length]
+    const ticketId = `tkt-${index}`
+
+    db.crmTickets.push({ id: ticketId, accountId, subject: ['少件补发', '退货进度', '尺寸咨询', '物流延迟'][index % 4], status: index % 3 === 0 ? 'resolved' : 'open', orderNo: order?.orderNo ?? null })
+    db.crmTicketMessages.push({ id: `msg-${ticketId}-1`, ticketId, author: '客服 Nina', text: '已收到客户反馈，正在核对订单。', at: `2026-11-${String((index % 8) + 1).padStart(2, '0')} 10:00`, internal: false })
+    db.crmTicketMessages.push({ id: `msg-${ticketId}-2`, ticketId, author: '运营团队', text: index % 3 === 0 ? '问题已解决并通知客户。' : '等待仓库提供处理结果。', at: `2026-11-${String((index % 8) + 1).padStart(2, '0')} 15:30`, internal: true })
+  }
+  for (let index = 3; index <= 30; index++)
+    db.crmReviews.push({ id: `review-${index}`, source: ['Amazon US', 'Shopify', 'TikTok Shop'][index % 3], author: `Buyer ${index}`, rating: 1 + (index % 5), title: ['Great for camping', '包装需要改进', '轻便好用'][index % 3], content: '真实买家反馈样例，用于演示审核和回复流程。', sku: db.skus[index % db.skus.length].internalSku, status: index % 4 === 0 ? 'pending' : 'published' })
 }
 
 function addAdmin(db: MockDatabase) {
@@ -764,7 +811,10 @@ function addAdmin(db: MockDatabase) {
     { id: 'setting-2', key: 'audit_strict', label: '严格审计', value: true, description: '所有写操作必须记录审计轨迹。' },
     { id: 'setting-3', key: 'default_currency', label: '默认币种', value: 'USD', description: '报表默认展示币种。' },
   ]
-  db.accountTokens = []
+  db.accountTokens = [
+    { id: 'tok-1', name: 'MCP 只读', prefix: 'csp_demo…', createdAt: '2026-10-15 09:00', lastUsedAt: '2026-11-08 18:20', revoked: false },
+    { id: 'tok-2', name: '报表脚本（已撤销）', prefix: 'csp_old…', createdAt: '2026-08-02 11:30', lastUsedAt: '2026-10-01 07:45', revoked: true },
+  ]
   db.accountSessions = [
     { id: 'session-current', device: 'Chrome · Windows', location: '上海', ip: '192.0.2.10', lastSeenAt: '2026-11-09 09:00', current: true },
     { id: 'session-mobile', device: 'Safari · iPhone', location: '杭州', ip: '192.0.2.21', lastSeenAt: '2026-11-08 18:20', current: false },
@@ -903,6 +953,7 @@ export function buildSeed(): MockDatabase {
   addCrm(db)
   addAdmin(db)
   addAgents(db)
+  addAgentModuleSeed(db)
   addDraftStockDocs(db)
   addAlerts(db)
 

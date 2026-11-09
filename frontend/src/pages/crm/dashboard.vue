@@ -1,11 +1,15 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import { fetchCrmDashboard } from '@/api/crm'
 import KpiCard from '@/components/KpiCard.vue'
 
-const data = ref<{ leads: number; openTickets: number; opportunities: number; pipeline: number } | null>(null)
+const data = ref<{ leads: number
+  openTickets: number
+  opportunities: number
+  pipeline: number } | null>(null)
 
-onMounted(async () => { data.value = await fetchCrmDashboard() })
+onMounted(async () => {
+  data.value = await fetchCrmDashboard()
+})
 </script>
 
 <template>

@@ -1,10 +1,16 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchModules } from '@/api/admin'; import { database } from '@/api/mock-client'
+import { fetchModules } from '@/api/admin'
+import { database } from '@/api/mock-client'
 
 const rows = ref<any[]>([])
 
-onMounted(async () => { rows.value = await fetchModules() }); function toggle(item: any) { item.enabled = !item.enabled; database().persist() }
+onMounted(async () => {
+  rows.value = await fetchModules()
+})
+function toggle(item: any) {
+  item.enabled = !item.enabled
+  database().persist()
+}
 </script>
 
 <template>

@@ -1,10 +1,21 @@
-import { database, delay } from '@/api/mock-client'
+import { currentActor, database, delay } from '@/api/mock-client'
+import type { Role } from '@/types/domain'
 
 // 未来: GET /api/v1/admin/users
 export async function fetchAdminUsers() {
   await delay()
 
-  return database().db.agentDefinitions.map((item, index) => ({ id: `usr-${index + 1}`, name: ['林夏', '周衡', '审计员'][index % 3], email: `${item.id}@northwind.example`, role: ['admin', 'operator', 'auditor'][index % 3], status: item.status, stores: '全部店铺' }))
+  const names = ['林夏', '周衡', '陈宁', 'Nina Wu', '王可', 'Ethan Li', '赵敏', '审计员']
+  const roles = ['admin', 'operator', 'operator', 'finance', 'viewer', 'operator', 'finance', 'auditor']
+
+  return names.map((name, index) => ({
+    id: `usr-${index + 1}`,
+    name,
+    email: `${name.toLowerCase().replaceAll(' ', '.')}@northwind.example`,
+    role: roles[index],
+    status: index === 6 ? 'paused' : 'active',
+    stores: index % 3 === 0 ? '全部店铺' : index % 2 === 0 ? 'Amazon US、Shopify' : 'Amazon UK、DE',
+  }))
 }
 
 // 未来: GET /api/v1/admin/integrations
@@ -54,4 +65,23 @@ export async function fetchSettings() {
   await delay()
 
   return database().db.adminSettings ?? []
+}
+
+// 未来: GET /api/v1/admin/role-overrides
+export async function fetchRoleOverrides() {
+  await delay()
+
+  return structuredClone(database().db.roleOverrides ?? [])
+}
+
+// 未来: PUT /api/v1/admin/roles/{role}/visibility
+export async function saveRoleVisibility(role: Role, hiddenGroups: string[], hiddenPageIds: string[]) {
+  await delay()
+  database().saveRoleOverride(role, hiddenGroups, hiddenPageIds, currentActor())
+}
+
+// 未来: DELETE /api/v1/admin/roles/{role}/visibility
+export async function resetRoleVisibility(role: Role) {
+  await delay()
+  database().resetRoleOverride(role, currentActor())
 }

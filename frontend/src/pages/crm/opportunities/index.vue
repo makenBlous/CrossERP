@@ -1,10 +1,14 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchCrmOpportunities } from '@/api/crm'; import StageBoard from '@/components/biz/StageBoard.vue'
+import { fetchCrmOpportunities } from '@/api/crm'
+import StageBoard from '@/components/biz/StageBoard.vue'
 
-const router = useRouter(); const cards = ref<any[]>([]); const columns = [{ key: '初步沟通', label: '初步沟通', color: 'secondary' }, { key: '报价', label: '报价', color: 'info' }, { key: '谈判', label: '谈判', color: 'warning' }, { key: '赢单', label: '赢单', color: 'success' }]
+const router = useRouter()
+const cards = ref<any[]>([])
+const columns = [{ key: '初步沟通', label: '初步沟通', color: 'secondary' }, { key: '报价', label: '报价', color: 'info' }, { key: '谈判', label: '谈判', color: 'warning' }, { key: '赢单', label: '赢单', color: 'success' }]
 
-onMounted(async () => { cards.value = await fetchCrmOpportunities() })
+onMounted(async () => {
+  cards.value = await fetchCrmOpportunities()
+})
 </script>
 
 <template>

@@ -1,14 +1,51 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchRoles } from '@/api/admin'; import { menuGroups, pageCatalog } from '@/config/pages'; import { useMockDbStore } from '@/stores/mockdb'; import { useSessionStore } from '@/stores/session'; import type { Role } from '@/types/domain'; import type { Actor } from '@/types/entities'
+import { fetchRoleOverrides, fetchRoles, resetRoleVisibility, saveRoleVisibility } from '@/api/admin'
+import { menuGroups, pageCatalog } from '@/config/pages'
+import type { Role } from '@/types/domain'
 
-const roles = ref<{ role: string; label: string }[]>([]); const selected = ref<Role>('operator'); const store = useMockDbStore(); const session = useSessionStore(); const hiddenGroups = ref<string[]>([]); const hiddenPageIds = ref<string[]>([])
+const roles = ref<{ role: string
+  label: string }[]>([])
 
-onMounted(async () => { roles.value = (await fetchRoles()).map(item => ({ role: item.role, label: item.label ?? item.role })); loadRole() }); function loadRole() {
-  const saved = store.db.roleOverrides?.find(item => item.role === selected.value)
+const selected = ref<Role>('operator')
 
-  hiddenGroups.value = [...(saved?.hiddenGroups ?? [])]; hiddenPageIds.value = [...(saved?.hiddenPageIds ?? [])]
-}; function actor(): Actor { return { name: session.displayName, role: session.role, at: new Date().toISOString() } }; function save() { if (selected.value === 'admin') { hiddenGroups.value = []; hiddenPageIds.value = [] }; store.saveRoleOverride(selected.value, hiddenGroups.value, hiddenPageIds.value, actor()) }; function reset() { store.resetRoleOverride(selected.value, actor()); loadRole() }; function togglePage(id: string) { hiddenPageIds.value = hiddenPageIds.value.includes(id) ? hiddenPageIds.value.filter(item => item !== id) : [...hiddenPageIds.value, id] }
+const overrides = ref<{ role: Role
+  hiddenGroups: string[]
+  hiddenPageIds: string[] }[]>([])
+
+const hiddenGroups = ref<string[]>([])
+const hiddenPageIds = ref<string[]>([])
+
+onMounted(async () => {
+  roles.value = (await fetchRoles()).map(item => ({ role: item.role, label: item.label ?? item.role }))
+  overrides.value = await fetchRoleOverrides()
+  loadRole()
+})
+
+function loadRole() {
+  const saved = overrides.value.find(item => item.role === selected.value)
+
+  hiddenGroups.value = [...(saved?.hiddenGroups ?? [])]
+  hiddenPageIds.value = [...(saved?.hiddenPageIds ?? [])]
+}
+
+async function save() {
+  if (selected.value === 'admin') {
+    hiddenGroups.value = []
+    hiddenPageIds.value = []
+  }
+  await saveRoleVisibility(selected.value, hiddenGroups.value, hiddenPageIds.value)
+  overrides.value = await fetchRoleOverrides()
+}
+
+async function reset() {
+  await resetRoleVisibility(selected.value)
+  overrides.value = await fetchRoleOverrides()
+  loadRole()
+}
+
+function togglePage(id: string) {
+  hiddenPageIds.value = hiddenPageIds.value.includes(id) ? hiddenPageIds.value.filter(item => item !== id) : [...hiddenPageIds.value, id]
+}
 const { t } = useI18n({ useScope: 'global' })
 </script>
 

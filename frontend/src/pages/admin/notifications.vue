@@ -1,10 +1,13 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchNotifications } from '@/api/admin'; import ModuleTable from '@/components/biz/ModuleTable.vue'
+import { fetchNotifications } from '@/api/admin'
+import ModuleTable from '@/components/biz/ModuleTable.vue'
 
-const rows = ref<Array<{ id: string; [key: string]: unknown }>>([])
+const rows = ref<Array<{ id: string
+  [key: string]: unknown }>>([])
 
-onMounted(async () => { rows.value = await fetchNotifications() })
+onMounted(async () => {
+  rows.value = await fetchNotifications()
+})
 
 const columns = [{ key: 'channel', title: '渠道' }, { key: 'event', title: '事件' }, { key: 'target', title: '目标' }, { key: 'enabled', title: '状态' }]
 </script>

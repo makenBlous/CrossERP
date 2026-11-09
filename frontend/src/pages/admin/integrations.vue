@@ -1,10 +1,11 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import { fetchIntegrations } from '@/api/admin'
 
 const rows = ref<any[]>([])
 
-onMounted(async () => { rows.value = await fetchIntegrations() })
+onMounted(async () => {
+  rows.value = await fetchIntegrations()
+})
 </script>
 
 <template>

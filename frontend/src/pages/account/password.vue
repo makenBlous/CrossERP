@@ -1,10 +1,17 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { useSessionStore } from '@/stores/session'; import { writeAudit } from '@/mocks/services/audit'; import { useMockDbStore } from '@/stores/mockdb'
+import { changePassword } from '@/api/account'
 
-const session = useSessionStore(); const store = useMockDbStore(); const form = reactive({ current: '', next: '', confirm: '' }); const saved = ref(false); function save() {
+const form = reactive({ current: '', next: '', confirm: '' })
+const saved = ref(false)
+
+async function save() {
   if (!form.next || form.next !== form.confirm)
-    return; writeAudit(store.db, { name: session.displayName, role: session.role, at: new Date().toISOString() }, '修改密码', 'account', session.displayName, '密码已更新，未记录明文'); store.persist(); form.current = ''; form.next = ''; form.confirm = ''; saved.value = true
+    return
+  await changePassword()
+  form.current = ''
+  form.next = ''
+  form.confirm = ''
+  saved.value = true
 }
 </script>
 

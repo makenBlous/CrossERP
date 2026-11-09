@@ -1,10 +1,13 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchSessions } from '@/api/account'; import ModuleTable from '@/components/biz/ModuleTable.vue'
+import { fetchSessions } from '@/api/account'
+import ModuleTable from '@/components/biz/ModuleTable.vue'
 
-const rows = ref<Array<{ id: string; [key: string]: unknown }>>([])
+const rows = ref<Array<{ id: string
+  [key: string]: unknown }>>([])
 
-onMounted(async () => { rows.value = await fetchSessions() })
+onMounted(async () => {
+  rows.value = await fetchSessions()
+})
 
 const columns = [{ key: 'device', title: '设备' }, { key: 'location', title: '位置' }, { key: 'ip', title: 'IP' }, { key: 'lastSeenAt', title: '最近活动' }, { key: 'current', title: '当前会话' }]
 </script>

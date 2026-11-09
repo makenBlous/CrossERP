@@ -1,10 +1,19 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchProfile } from '@/api/account'; import { useSessionStore } from '@/stores/session'
+import { fetchProfile } from '@/api/account'
+import { useSessionStore } from '@/stores/session'
 
-const session = useSessionStore(); const profile = ref<Record<string, string>>({})
+const session = useSessionStore()
+const profile = ref<Record<string, string>>({})
 
-onMounted(async () => { profile.value = await fetchProfile() }); function save() { if (profile.value.name.trim()) { session.displayName = profile.value.name; session.login(profile.value.name) } }
+onMounted(async () => {
+  profile.value = await fetchProfile()
+})
+function save() {
+  if (profile.value.name.trim()) {
+    session.displayName = profile.value.name
+    session.login(profile.value.name)
+  }
+}
 </script>
 
 <template>

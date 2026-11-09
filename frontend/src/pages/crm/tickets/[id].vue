@@ -1,10 +1,21 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchTicket } from '@/api/crm'; import DetailPage from '@/components/biz/DetailPage.vue'; import PermissionGate from '@/components/biz/PermissionGate.vue'; import { useMockDbStore } from '@/stores/mockdb'; import { useSessionStore } from '@/stores/session'; import type { Actor } from '@/types/entities'
+import { fetchTicket, updateCrmTicketStatus } from '@/api/crm'
+import DetailPage from '@/components/biz/DetailPage.vue'
+import PermissionGate from '@/components/biz/PermissionGate.vue'
 
-const route = useRoute(); const router = useRouter(); const store = useMockDbStore(); const session = useSessionStore(); const item = ref<any>(null)
+const route = useRoute()
+const router = useRouter()
+const item = ref<any>(null)
 
-onMounted(async () => { item.value = await fetchTicket(String((route.params as Record<string, unknown>).id)) }); function actor(): Actor { return { name: session.displayName, role: session.role, at: new Date().toISOString() } }; function setStatus(status: string) { store.updateTicketStatus(String((route.params as Record<string, unknown>).id), status, actor()); item.value.status = status; item.value.messages = [...(item.value.messages ?? []), { author: session.displayName, text: `状态更新为：${status}`, at: new Date().toISOString() }] }
+onMounted(async () => {
+  item.value = await fetchTicket(String((route.params as Record<string, unknown>).id))
+})
+
+async function setStatus(status: string) {
+  await updateCrmTicketStatus(String((route.params as Record<string, unknown>).id), status)
+  item.value.status = status
+  item.value = await fetchTicket(String((route.params as Record<string, unknown>).id))
+}
 </script>
 
 <template>
@@ -14,7 +25,7 @@ onMounted(async () => { item.value = await fetchTicket(String((route.params as R
     :subtitle="`${item.account?.name ?? item.accountId} · 工单 ${item.id}`"
     domain="generic"
     :status="item.status"
-    :related="item.orderNo ? [{ id: item.orderNo, type: '订单', label: item.orderNo, to: `/orders/${item.orderNo}` }] : []"
+    :related="item.orderId ? [{ id: item.orderId, type: '订单', label: item.orderNo, to: `/orders/${item.orderId}` }] : []"
   >
     <template #actions>
       <PermissionGate action="update">

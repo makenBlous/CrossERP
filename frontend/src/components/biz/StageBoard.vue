@@ -1,10 +1,27 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-interface Card { id: string; title: string; subtitle?: string; amount?: number; currency?: string; stage: string }
-const props = defineProps<{ title: string; subtitle?: string; columns: { key: string; label: string; color: string }[]; cards: Card[] }>()
-const emit = defineEmits<{ move: [card: Card, stage: string]; open: [card: Card] }>()
+interface Card {
+  id: string
+  title: string
+  subtitle?: string
+  amount?: number
+  currency?: string
+  stage: string
+}
+
+const props = defineProps<{ title: string
+  subtitle?: string
+  columns: { key: string
+    label: string
+    color: string }[]
+  cards: Card[] }>()
+
+const emit = defineEmits<{ move: [card: Card, stage: string]
+  open: [card: Card] }>()
+
 function drop(event: DragEvent, stage: string) {
-  const id = event.dataTransfer?.getData('text/plain'); const card = props.cards.find(item => item.id === id); if (card)
+  const id = event.dataTransfer?.getData('text/plain')
+  const card = props.cards.find(item => item.id === id)
+  if (card)
     emit('move', card, stage)
 }
 </script>

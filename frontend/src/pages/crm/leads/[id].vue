@@ -1,12 +1,23 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchLead } from '@/api/crm'; import DetailPage from '@/components/biz/DetailPage.vue'; import PermissionGate from '@/components/biz/PermissionGate.vue'; import { useMockDbStore } from '@/stores/mockdb'; import { useSessionStore } from '@/stores/session'; import type { Actor } from '@/types/entities'
+import { convertCrmLead, fetchLead } from '@/api/crm'
+import DetailPage from '@/components/biz/DetailPage.vue'
+import PermissionGate from '@/components/biz/PermissionGate.vue'
 
-const route = useRoute(); const router = useRouter(); const store = useMockDbStore(); const session = useSessionStore(); const lead = ref<any>(null); const dialog = ref(false)
+const route = useRoute()
+const router = useRouter()
+const lead = ref<any>(null)
+const dialog = ref(false)
 
-onMounted(async () => { lead.value = await fetchLead(String((route.params as Record<string, unknown>).id)) })
-function actor(): Actor { return { name: session.displayName, role: session.role, at: new Date().toISOString() } }
-function convert() { const result = store.convertLead(String((route.params as Record<string, unknown>).id), actor()); if (result) { lead.value = result.lead; dialog.value = false } }
+onMounted(async () => {
+  lead.value = await fetchLead(String((route.params as Record<string, unknown>).id))
+})
+async function convert() {
+  const result = await convertCrmLead(String((route.params as Record<string, unknown>).id))
+  if (result) {
+    lead.value = result.lead
+    dialog.value = false
+  }
+}
 </script>
 
 <template>

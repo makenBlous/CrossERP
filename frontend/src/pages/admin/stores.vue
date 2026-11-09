@@ -1,10 +1,14 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchStores } from '@/api/dashboard'; import ModuleTable from '@/components/biz/ModuleTable.vue'
+import { fetchStores } from '@/api/dashboard'
+import ModuleTable from '@/components/biz/ModuleTable.vue'
 
-const rows = ref<Array<{ id: string; [key: string]: unknown }>>([])
+const rows = ref<Array<{ id: string
+  [key: string]: unknown }>>([])
 
-onMounted(async () => { rows.value = (await fetchStores()).map(item => ({ ...item })) as Array<{ id: string; [key: string]: unknown }> })
+onMounted(async () => {
+  rows.value = (await fetchStores()).map(item => ({ ...item })) as Array<{ id: string
+    [key: string]: unknown }>
+})
 
 const columns = [{ key: 'name', title: '店铺' }, { key: 'platform', title: '平台' }, { key: 'marketplace', title: '站点' }, { key: 'currency', title: '币种' }]
 </script>

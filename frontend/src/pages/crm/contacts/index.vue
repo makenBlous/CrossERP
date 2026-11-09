@@ -1,10 +1,15 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchCrmContacts } from '@/api/crm'; import ModuleTable from '@/components/biz/ModuleTable.vue'
+import { fetchCrmContacts } from '@/api/crm'
+import ModuleTable from '@/components/biz/ModuleTable.vue'
 
-const router = useRouter(); const rows = ref<Array<{ id: string; [key: string]: unknown }>>([])
+const router = useRouter()
 
-onMounted(async () => { rows.value = await fetchCrmContacts() })
+const rows = ref<Array<{ id: string
+  [key: string]: unknown }>>([])
+
+onMounted(async () => {
+  rows.value = await fetchCrmContacts()
+})
 
 const columns = [{ key: 'name', title: '联系人' }, { key: 'title', title: '职位' }, { key: 'accountName', title: '所属客户' }, { key: 'email', title: '邮箱' }]
 </script>

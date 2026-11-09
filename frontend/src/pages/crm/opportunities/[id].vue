@@ -1,10 +1,15 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchOpportunity } from '@/api/crm'; import DetailPage from '@/components/biz/DetailPage.vue'; import MoneyText from '@/components/biz/MoneyText.vue'
+import { fetchOpportunity } from '@/api/crm'
+import DetailPage from '@/components/biz/DetailPage.vue'
+import MoneyText from '@/components/biz/MoneyText.vue'
 
-const route = useRoute(); const router = useRouter(); const item = ref<any>(null)
+const route = useRoute()
+const router = useRouter()
+const item = ref<any>(null)
 
-onMounted(async () => { item.value = await fetchOpportunity(String((route.params as Record<string, unknown>).id)) })
+onMounted(async () => {
+  item.value = await fetchOpportunity(String((route.params as Record<string, unknown>).id))
+})
 </script>
 
 <template>

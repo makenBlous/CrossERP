@@ -1,10 +1,14 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchContact } from '@/api/crm'; import DetailPage from '@/components/biz/DetailPage.vue'
+import { fetchContact } from '@/api/crm'
+import DetailPage from '@/components/biz/DetailPage.vue'
 
-const route = useRoute(); const router = useRouter(); const item = ref<any>(null)
+const route = useRoute()
+const router = useRouter()
+const item = ref<any>(null)
 
-onMounted(async () => { item.value = await fetchContact(String((route.params as Record<string, unknown>).id)) })
+onMounted(async () => {
+  item.value = await fetchContact(String((route.params as Record<string, unknown>).id))
+})
 </script>
 
 <template>

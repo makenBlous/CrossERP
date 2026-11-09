@@ -1,10 +1,13 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchAdminUsers } from '@/api/admin'; import DetailPage from '@/components/biz/DetailPage.vue'
+import { fetchAdminUsers } from '@/api/admin'
+import DetailPage from '@/components/biz/DetailPage.vue'
 
-const route = useRoute(); const user = ref<Record<string, unknown> | null>(null)
+const route = useRoute()
+const user = ref<Record<string, unknown> | null>(null)
 
-onMounted(async () => { user.value = (await fetchAdminUsers()).find(item => item.id === String((route.params as Record<string, unknown>).id)) ?? null })
+onMounted(async () => {
+  user.value = (await fetchAdminUsers()).find(item => item.id === String((route.params as Record<string, unknown>).id)) ?? null
+})
 </script>
 
 <template>

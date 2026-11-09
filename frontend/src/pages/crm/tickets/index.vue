@@ -1,10 +1,39 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchAccounts, fetchCrmTickets } from '@/api/crm'; import { fetchOrders } from '@/api/orders'; import ModuleTable from '@/components/biz/ModuleTable.vue'; import FormDrawer from '@/components/biz/FormDrawer.vue'; import PermissionGate from '@/components/biz/PermissionGate.vue'; import { useMockDbStore } from '@/stores/mockdb'; import { useSessionStore } from '@/stores/session'; import type { Actor } from '@/types/entities'
+import { createCrmTicket, fetchAccounts, fetchCrmTickets } from '@/api/crm'
+import { fetchOrders } from '@/api/orders'
+import ModuleTable from '@/components/biz/ModuleTable.vue'
+import FormDrawer from '@/components/biz/FormDrawer.vue'
+import PermissionGate from '@/components/biz/PermissionGate.vue'
 
-const router = useRouter(); const store = useMockDbStore(); const session = useSessionStore(); const rows = ref<Array<{ id: string; [key: string]: unknown }>>([]); const accounts = ref<{ id: string; name: string }[]>([]); const orders = ref<{ id: string; orderNo: string }[]>([]); const open = ref(false); const form = reactive({ accountId: '', orderNo: '', subject: '' })
-async function load() { rows.value = await fetchCrmTickets(); accounts.value = (await fetchAccounts()).map(item => ({ id: item.id, name: item.name })); orders.value = (await fetchOrders()).map(item => ({ id: item.id, orderNo: item.orderNo })) }; onMounted(load)
-function actor(): Actor { return { name: session.displayName, role: session.role, at: new Date().toISOString() } }; function save() { store.addTicket({ accountId: form.accountId, orderNo: form.orderNo || null, subject: form.subject }, actor()); open.value = false; form.subject = ''; form.orderNo = ''; load() }
+const router = useRouter()
+
+const rows = ref<Array<{ id: string
+  [key: string]: unknown }>>([])
+
+const accounts = ref<{ id: string
+  name: string }[]>([])
+
+const orders = ref<{ id: string
+  orderNo: string }[]>([])
+
+const open = ref(false)
+const form = reactive({ accountId: '', orderNo: '', subject: '' })
+
+async function load() {
+  rows.value = await fetchCrmTickets()
+  accounts.value = (await fetchAccounts()).map(item => ({ id: item.id, name: item.name }))
+  orders.value = (await fetchOrders()).map(item => ({ id: item.id, orderNo: item.orderNo }))
+}
+
+onMounted(load)
+
+async function save() {
+  await createCrmTicket({ accountId: form.accountId, orderNo: form.orderNo || null, subject: form.subject })
+  open.value = false
+  form.subject = ''
+  form.orderNo = ''
+  await load()
+}
 const columns = [{ key: 'subject', title: '主题' }, { key: 'accountId', title: '客户' }, { key: 'orderNo', title: '关联订单' }, { key: 'status', title: '状态' }]
 </script>
 

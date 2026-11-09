@@ -1,4 +1,3 @@
-/* eslint-disable max-statements-per-line */
 import type { Actor, MockDatabase } from '@/types/entities'
 import type { LeadStage } from '@/types/crm-admin'
 import { nextId } from '@/mocks/services/ids'
@@ -33,13 +32,18 @@ export function convertLead(db: MockDatabase, id: string, actor: Actor) {
     opportunity = { id: nextId(db, 'opp'), accountId: account.id, name: `${lead.company || lead.name} 合作商机`, amount: 1860000, currency: 'USD', stage: '初步沟通' }
     db.crmOpportunities.push(opportunity)
   }
-  lead.accountId = account.id; lead.contactId = contact.id; lead.opportunityId = opportunity.id; lead.stage = 'converted'
+  lead.accountId = account.id
+  lead.contactId = contact.id
+  lead.opportunityId = opportunity.id
+  lead.stage = 'converted'
   writeAudit(db, actor, '线索转化', 'crm_lead', id, `已创建客户 ${account.name}、联系人 ${contact.name} 和商机 ${opportunity.name}`)
 
   return { lead, account, contact, opportunity }
 }
 
-export function addTicket(db: MockDatabase, input: { accountId: string; orderNo: string | null; subject: string }, actor: Actor) {
+export function addTicket(db: MockDatabase, input: { accountId: string
+  orderNo: string | null
+  subject: string }, actor: Actor) {
   const ticket = { id: nextId(db, 'tkt'), accountId: input.accountId, subject: input.subject, status: 'open', orderNo: input.orderNo }
 
   db.crmTickets.push(ticket)
@@ -64,7 +68,10 @@ export function saveRoleOverride(db: MockDatabase, role: Actor['role'], hiddenGr
   if (!db.roleOverrides)
     db.roleOverrides = []
   const existing = db.roleOverrides.find(item => item.role === role)
-  if (existing) { existing.hiddenGroups = hiddenGroups; existing.hiddenPageIds = hiddenPageIds }
+  if (existing) {
+    existing.hiddenGroups = hiddenGroups
+    existing.hiddenPageIds = hiddenPageIds
+  }
   else { db.roleOverrides.push({ role, hiddenGroups, hiddenPageIds }) }
   writeAudit(db, actor, '修改角色菜单权限', 'role', role, `隐藏分组 ${hiddenGroups.join(', ')}`)
 }
@@ -95,4 +102,8 @@ export function revokeToken(db: MockDatabase, id: string, actor: Actor) {
   writeAudit(db, actor, '撤销 API Token', 'account_token', id, token.name)
 
   return token
+}
+
+export function changePassword(db: MockDatabase, actor: Actor) {
+  writeAudit(db, actor, '修改密码', 'account', actor.name, '密码已更新，未记录明文')
 }

@@ -1,10 +1,13 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchPermissions } from '@/api/admin'; import ModuleTable from '@/components/biz/ModuleTable.vue'
+import { fetchPermissions } from '@/api/admin'
+import ModuleTable from '@/components/biz/ModuleTable.vue'
 
-const rows = ref<Array<{ id: string; [key: string]: unknown }>>([])
+const rows = ref<Array<{ id: string
+  [key: string]: unknown }>>([])
 
-onMounted(async () => { rows.value = await fetchPermissions() })
+onMounted(async () => {
+  rows.value = await fetchPermissions()
+})
 
 const columns = [{ key: 'code', title: '权限编码' }, { key: 'name', title: '名称' }, { key: 'id', title: '标识' }]
 </script>

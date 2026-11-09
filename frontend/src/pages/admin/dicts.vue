@@ -1,10 +1,13 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchDictionaries } from '@/api/admin'; import ModuleTable from '@/components/biz/ModuleTable.vue'
+import { fetchDictionaries } from '@/api/admin'
+import ModuleTable from '@/components/biz/ModuleTable.vue'
 
-const rows = ref<Array<{ id: string; [key: string]: unknown }>>([])
+const rows = ref<Array<{ id: string
+  [key: string]: unknown }>>([])
 
-onMounted(async () => { rows.value = await fetchDictionaries() })
+onMounted(async () => {
+  rows.value = await fetchDictionaries()
+})
 
 const columns = [{ key: 'group', title: '分组' }, { key: 'code', title: '编码' }, { key: 'label', title: '名称' }, { key: 'active', title: '启用' }]
 </script>

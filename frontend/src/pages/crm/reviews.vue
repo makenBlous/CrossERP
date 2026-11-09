@@ -1,10 +1,13 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchCrmReviews } from '@/api/crm'; import ModuleTable from '@/components/biz/ModuleTable.vue'
+import { fetchCrmReviews } from '@/api/crm'
+import ModuleTable from '@/components/biz/ModuleTable.vue'
 
-const rows = ref<Array<{ id: string; [key: string]: unknown }>>([])
+const rows = ref<Array<{ id: string
+  [key: string]: unknown }>>([])
 
-onMounted(async () => { rows.value = await fetchCrmReviews() })
+onMounted(async () => {
+  rows.value = await fetchCrmReviews()
+})
 
 const columns = [{ key: 'author', title: '评价人' }, { key: 'source', title: '来源' }, { key: 'rating', title: '评分' }, { key: 'title', title: '标题' }, { key: 'sku', title: 'SKU' }, { key: 'status', title: '状态' }]
 </script>

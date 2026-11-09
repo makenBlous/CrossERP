@@ -1,12 +1,29 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
-import { fetchTokens } from '@/api/account'; import { useMockDbStore } from '@/stores/mockdb'; import { useSessionStore } from '@/stores/session'; import type { Actor } from '@/types/entities'
+import { createAccountToken, fetchTokens, revokeAccountToken } from '@/api/account'
 
-const store = useMockDbStore(); const session = useSessionStore(); const rows = ref<any[]>([]); const dialog = ref(false); const name = ref(''); const plain = ref(''); async function load() { rows.value = await fetchTokens() }; onMounted(load); function actor(): Actor { return { name: session.displayName, role: session.role, at: new Date().toISOString() } }; function create() {
-  const result = store.createToken(name.value || '新 Token', actor())
+const rows = ref<any[]>([])
+const dialog = ref(false)
+const name = ref('')
+const plain = ref('')
 
-  plain.value = result?.secret ?? ''; dialog.value = false; name.value = ''; load()
-}; function revoke(id: string) { store.revokeToken(id, actor()); load() }
+async function load() {
+  rows.value = await fetchTokens()
+}
+onMounted(load)
+
+async function create() {
+  const result = await createAccountToken(name.value || '新 Token')
+
+  plain.value = result?.secret ?? ''
+  dialog.value = false
+  name.value = ''
+  await load()
+}
+
+async function revoke(id: string) {
+  await revokeAccountToken(id)
+  await load()
+}
 </script>
 
 <template>
