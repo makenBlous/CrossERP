@@ -1,10 +1,16 @@
-import { readMock } from '@/api/mock-client'
-import { crmAccounts, crmDetails } from '@/mocks/crm'
+import { database, delay } from '@/api/mock-client'
+import { projectAccount, projectAccounts } from '@/mocks/project'
 
-export function fetchAccounts() {
-  return readMock(crmAccounts)
+// 未来: GET /api/v1/crm/accounts
+export async function fetchAccounts() {
+  await delay()
+
+  return projectAccounts(database().db)
 }
 
-export function fetchAccount(id: string) {
-  return readMock(crmDetails[id] ?? null)
+// 未来: GET /api/v1/crm/accounts/{id}
+export async function fetchAccount(id: string) {
+  await delay()
+
+  return projectAccount(database().db, id)
 }

@@ -1,14 +1,23 @@
-import { readMock } from '@/api/mock-client'
-import { agentDefinitions, agentRuns, chatMessages, chatThreads } from '@/mocks/agent'
+import { database, delay } from '@/api/mock-client'
+import { projectAgentDefinitions, projectAgentRuns, projectChat } from '@/mocks/project'
 
-export function fetchAgentDefinitions() {
-  return readMock(agentDefinitions)
+// 未来: GET /api/v1/agent/definitions
+export async function fetchAgentDefinitions() {
+  await delay()
+
+  return projectAgentDefinitions(database().db)
 }
 
-export function fetchAgentRuns() {
-  return readMock(agentRuns)
+// 未来: GET /api/v1/agent/runs
+export async function fetchAgentRuns() {
+  await delay()
+
+  return projectAgentRuns(database().db)
 }
 
-export function fetchChat() {
-  return readMock({ threads: chatThreads, messages: chatMessages })
+// 未来: GET /api/v1/agent/threads
+export async function fetchChat() {
+  await delay()
+
+  return projectChat(database().db)
 }

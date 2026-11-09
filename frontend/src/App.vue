@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useTheme } from 'vuetify'
 import ScrollToTop from '@core/components/ScrollToTop.vue'
+import AssistantDrawer from '@/components/biz/AssistantDrawer.vue'
+import ConfirmHost from '@/components/biz/ConfirmHost.vue'
 import initCore from '@core/initCore'
 import { initConfigStore, useConfigStore } from '@core/stores/config'
 import { hexToRgb } from '@core/utils/colorConverter'
@@ -20,6 +22,8 @@ const configStore = useConfigStore()
     <VApp :style="`--v-global-theme-primary: ${hexToRgb(global.current.value.colors.primary)}`">
       <RouterView />
 
+      <AssistantDrawer />
+      <ConfirmHost />
       <ScrollToTop />
     </VApp>
   </VLocaleProvider>

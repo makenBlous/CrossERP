@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { fetchOrder } from '@/api/orders'
+import { shipSalesOrder } from '@/api/workflows'
+import PermissionGate from '@/components/biz/PermissionGate.vue'
+import StatusChip from '@/components/biz/StatusChip.vue'
+import { usePageContext } from '@/composables/usePageContext'
 import type { OrderDetail } from '@/types/domain'
 import { formatMoney } from '@/utils/format'
 
 const route = useRoute()
 const { t } = useI18n({ useScope: 'global' })
+const { setSelected } = usePageContext()
 const order = ref<OrderDetail | null>(null)
 const loaded = ref(false)
+const shipping = ref(false)
+const shipError = ref('')
 
 const orderId = computed(() => {
   const params = route.params as Record<string, string | string[] | undefined>
@@ -23,6 +30,26 @@ async function load() {
 
 onMounted(load)
 watch(orderId, load)
+watch(order, value => setSelected(value?.id ?? null))
+onUnmounted(() => setSelected(null))
+
+async function ship() {
+  if (!order.value)
+    return
+
+  shipping.value = true
+  shipError.value = ''
+  try {
+    await shipSalesOrder(order.value.id)
+    await load()
+  }
+  catch (err) {
+    shipError.value = err instanceof Error ? err.message : t('foundation.errorTitle')
+  }
+  finally {
+    shipping.value = false
+  }
+}
 </script>
 
 <template>
@@ -54,10 +81,31 @@ watch(orderId, load)
             {{ order.storeName }} · {{ order.platform }} {{ order.marketplace }} · {{ order.orderedAt }}
           </p>
         </div>
-        <VChip color="primary">
-          {{ order.status }}
-        </VChip>
+        <div class="d-flex flex-wrap align-center gap-3">
+          <StatusChip
+            domain="sales_order"
+            :value="order.statusCode || ''"
+          />
+          <PermissionGate action="ship">
+            <VBtn
+              v-if="order.statusCode === 'paid'"
+              color="primary"
+              :loading="shipping"
+              @click="ship"
+            >
+              {{ t('orders.ship') }}
+            </VBtn>
+          </PermissionGate>
+        </div>
       </div>
+      <VAlert
+        v-if="shipError"
+        type="error"
+        variant="tonal"
+        class="mb-4"
+      >
+        {{ shipError }}
+      </VAlert>
 
       <VRow class="mb-2">
         <VCol

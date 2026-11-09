@@ -1,96 +1,92 @@
 <script setup lang="ts">
 import { fetchOrders } from '@/api/orders'
+import ListPage from '@/components/biz/ListPage.vue'
+import MoneyText from '@/components/biz/MoneyText.vue'
+import StatusChip from '@/components/biz/StatusChip.vue'
 import type { OrderSummary } from '@/types/domain'
-import { formatMoney } from '@/utils/format'
 
 const { t } = useI18n({ useScope: 'global' })
 const orders = ref<OrderSummary[]>([])
-const keyword = ref('')
-const storeId = ref('all')
+const loading = ref(true)
+const error = ref('')
 
-onMounted(async () => {
-  orders.value = await fetchOrders()
-})
+async function load() {
+  loading.value = true
+  error.value = ''
+  try {
+    orders.value = await fetchOrders()
+  }
+  catch (err) {
+    error.value = err instanceof Error ? err.message : t('foundation.errorTitle')
+  }
+  finally {
+    loading.value = false
+  }
+}
 
-const storeItems = computed(() => {
-  const names = [...new Set(orders.value.map(item => item.storeId))]
+onMounted(load)
 
-  return [
-    { title: t('common.allStores'), value: 'all' },
-    ...names.map(id => ({
-      title: orders.value.find(item => item.storeId === id)?.storeName ?? id,
-      value: id,
-    })),
-  ]
-})
-
-const filtered = computed(() => orders.value.filter(item => {
-  const storeOk = storeId.value === 'all' || item.storeId === storeId.value
-  const text = `${item.orderNo} ${item.storeName}`.toLowerCase()
-
-  return storeOk && text.includes(keyword.value.trim().toLowerCase())
-}))
-
-const headers = computed(() => [
-  { title: t('orders.orderNo'), key: 'orderNo' },
-  { title: t('common.store'), key: 'storeName' },
-  { title: t('orders.date'), key: 'orderedAt' },
-  { title: t('common.status'), key: 'status' },
-  { title: t('orders.fulfillment'), key: 'fulfillment' },
-  { title: t('orders.itemTotal'), key: 'itemTotal', align: 'end' as const },
-  { title: t('orders.net'), key: 'net', align: 'end' as const },
-  { title: '', key: 'actions', sortable: false },
+const columns = computed(() => [
+  { key: 'orderNo', title: t('orders.orderNo') },
+  { key: 'storeName', title: t('common.store') },
+  { key: 'orderedAt', title: t('orders.date') },
+  { key: 'status', title: t('common.status') },
+  { key: 'fulfillment', title: t('orders.fulfillment') },
+  { key: 'itemTotal', title: t('orders.itemTotal'), align: 'end' as const },
+  { key: 'net', title: t('orders.net'), align: 'end' as const },
+  { key: 'actions', title: t('common.actions') },
 ])
+
+const filters = computed(() => {
+  const names = [...new Set(orders.value.map(item => item.storeName))]
+
+  return [{
+    key: 'storeName',
+    label: t('common.store'),
+    items: names.map(name => ({ title: name, value: name })),
+  }]
+})
 </script>
 
 <template>
-  <div>
-    <div class="mb-6">
-      <h4 class="text-h4">
-        {{ t('orders.title') }}
-      </h4>
-      <p class="text-body-1 text-medium-emphasis mb-0">
-        {{ t('orders.subtitle') }} {{ t('common.fromSystem') }}
-      </p>
-    </div>
-    <VCard>
-      <VCardText class="d-flex flex-wrap gap-4">
-        <AppTextField
-          v-model="keyword"
-          :label="t('orders.orderNo')"
-          style="max-width: 280px;"
-        />
-        <AppSelect
-          v-model="storeId"
-          :items="storeItems"
-          :label="t('common.store')"
-          style="max-width: 280px;"
-        />
-      </VCardText>
-      <VDataTable
-        :headers="headers"
-        :items="filtered"
-        :items-per-page="10"
+  <ListPage
+    storage-key="orders"
+    :title="t('orders.title')"
+    :subtitle="`${t('orders.subtitle')} ${t('common.fromSystem')}`"
+    :items="orders"
+    :columns="columns"
+    :filters="filters"
+    date-key="orderedAt"
+    :loading="loading"
+    :error="error"
+    @retry="load"
+  >
+    <template #item.status="{ item }">
+      <StatusChip
+        domain="sales_order"
+        :value="item.statusCode || ''"
+      />
+    </template>
+    <template #item.itemTotal="{ item }">
+      <MoneyText
+        :amount="item.itemTotal"
+        :currency="item.currency"
+      />
+    </template>
+    <template #item.net="{ item }">
+      <MoneyText
+        :amount="item.net"
+        :currency="item.currency"
+      />
+    </template>
+    <template #item.actions="{ item }">
+      <VBtn
+        size="small"
+        variant="text"
+        :to="{ path: `/orders/${item.id}` }"
       >
-        <template #item.itemTotal="{ item }">
-          {{ formatMoney(item.itemTotal, item.currency) }}
-        </template>
-        <template #item.net="{ item }">
-          {{ formatMoney(item.net, item.currency) }}
-        </template>
-        <template #item.actions="{ item }">
-          <VBtn
-            size="small"
-            variant="text"
-            :to="`/orders/${item.id}`"
-          >
-            {{ t('common.view') }}
-          </VBtn>
-        </template>
-        <template #no-data>
-          {{ t('common.noData') }}
-        </template>
-      </VDataTable>
-    </VCard>
-  </div>
+        {{ t('common.view') }}
+      </VBtn>
+    </template>
+  </ListPage>
 </template>

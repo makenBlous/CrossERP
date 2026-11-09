@@ -1,7 +1,42 @@
 /**
  * 静态原型的数据出口。
- * 以后把各领域函数里的 readMock 换成请求 /api/v1，页面不用改。
+ * 页面只调用 src/api 下的函数。以后把函数体换成请求 /api/v1，返回类型保持不变。
  */
+import { FlowError } from '@/mocks/services/errors'
+import { useMockDbStore } from '@/stores/mockdb'
+import { useSessionStore } from '@/stores/session'
+import type { Actor } from '@/types/entities'
+import { type AppAction, can } from '@/utils/permission'
+
+export function delay(ms = 160) {
+  return new Promise<void>(resolve => {
+    setTimeout(resolve, ms)
+  })
+}
+
 export function readMock<T>(data: T): Promise<T> {
-  return Promise.resolve(structuredClone(data))
+  return delay().then(() => structuredClone(data))
+}
+
+export function currentActor(): Actor {
+  const session = useSessionStore()
+
+  return {
+    name: session.displayName,
+    role: session.role,
+    at: new Date().toISOString(),
+  }
+}
+
+export function assertCan(action: AppAction) {
+  const actor = currentActor()
+
+  if (!can(actor.role, action))
+    throw new FlowError('当前角色不能执行这个操作')
+
+  return actor
+}
+
+export function database() {
+  return useMockDbStore()
 }

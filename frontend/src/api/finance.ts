@@ -1,18 +1,30 @@
-import { readMock } from '@/api/mock-client'
-import { issues, profitRows, reconRuns, storeProfits, vouchers } from '@/mocks/finance'
+import { database, delay } from '@/api/mock-client'
+import { projectIssues, projectProfit, projectRecon, projectVouchers } from '@/mocks/project'
 
-export function fetchProfit() {
-  return readMock({ rows: profitRows, stores: storeProfits })
+// 未来: GET /api/v1/finance/profit
+export async function fetchProfit() {
+  await delay()
+
+  return projectProfit(database().db)
 }
 
-export function fetchReconRuns() {
-  return readMock(reconRuns)
+// 未来: GET /api/v1/finance/recon-runs
+export async function fetchReconRuns() {
+  await delay()
+
+  return projectRecon(database().db)
 }
 
-export function fetchIssues() {
-  return readMock(issues)
+// 未来: GET /api/v1/finance/issues
+export async function fetchIssues() {
+  await delay()
+
+  return projectIssues(database().db)
 }
 
-export function fetchVouchers() {
-  return readMock(vouchers)
+// 未来: GET /api/v1/finance/vouchers
+export async function fetchVouchers() {
+  await delay()
+
+  return projectVouchers(database().db)
 }

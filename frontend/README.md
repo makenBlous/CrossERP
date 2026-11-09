@@ -1,6 +1,6 @@
 # CrossERP 前端静态原型
 
-这是 CrossERP 的浏览器静态原型。页面使用假数据，不连接后端。用来确认菜单、角色和主要页面长什么样。
+这是 CrossERP 的浏览器静态原型。页面使用假数据，不连接后端。这一阶段打好地基：共享业务组件、统一假数据中心、全局智能助手。以后只把假数据层换成 `/api/v1`，把智能助手换成 DeerFlow，页面本身不改。
 
 Vuexy 是商业模板。定制后的 `frontend/` 不要放进公开仓库，除非许可证允许。详见仓库 `docs/design/00-总览.md`。
 
@@ -38,36 +38,187 @@ pnpm run typecheck
 
 顶栏角色切换器有五种角色：管理员、运营、财务、只读、审计。切换后左侧菜单按 `src/config/pages.ts` 里的可见角色过滤。直接打开无权限地址会进入 `/not-authorized`。
 
+按钮是否显示，用 `PermissionGate` 或指令 `v-can`。规则在 `src/utils/permission.ts` 的 `can(role, action)`：
+
+| 角色 | 允许的动作 |
+|---|---|
+| 管理员 | 查看、新建、修改、删除、审批、导出、发货、收货、提交建议 |
+| 运营 | 查看、新建、修改、导出、发货、收货、提交建议 |
+| 财务 | 查看、审批、导出、提交建议 |
+| 只读 | 查看 |
+| 审计 | 查看、导出 |
+
+禁用而不是隐藏：`v-can.disable="'approve'"`。
+
 ## 目录
 
-- `src/config/pages.ts`：全部页面配置。菜单和占位页都从这里生成。
-- `src/mocks/`：按领域拆开的假数据。
-- `src/api/`：页面调用的薄封装，返回 `Promise`。
+- `src/config/pages.ts`：全部页面配置。菜单和占位页都从这里生成。菜单项的 `to` 必须是 `{ path }`，不要写成字符串。
+- `src/config/status.ts`：单据状态字典。每种状态有值、中文名、英文名、颜色。
+- `src/components/biz/`：共享业务组件。
+- `src/types/entities.ts`：假数据中心的实体类型，对照 `docs/design/04-数据模型.md`。
+- `src/mocks/seed/`：固定种子数据。
+- `src/mocks/services/`：业务流转。金额在这里按规则计算。
+- `src/stores/mockdb.ts`：内存数据，并写入 `localStorage`。
+- `src/api/`：页面只调用这里的函数。
+- `src/agent/`：智能助手适配器。现在是 `MockAgentAdapter`。
 - `src/pages/`：已经做成静态页的路由。没有单独 `.vue` 文件的地址由占位页渲染。
 - `src/plugins/i18n/`：中文和英文文案。
 
 ## 怎么加一个页面
 
 1. 在 `src/config/pages.ts` 增加一条记录：路径、中英文名称、分组、图标、可见角色、目的、主要区块、阶段。
-2. 若要出现在左侧菜单，把 `showInMenu` 设为 `true`，并指定 `group`。
+2. 若要出现在左侧菜单，把 `showInMenu` 设为 `true`，并指定 `group`。`to` 使用 `{ path: '/你的路径' }`。
 3. 还没做界面时不用新建 `.vue`。路由会指向占位页，显示名称、目的、计划区块和阶段。
-4. 要做成真实静态页时，在 `src/pages/` 按路径建文件，并把该条的 `implemented` 设为 `true`。
+4. 要做成真实静态页时，在 `src/pages/` 按路径建文件，并把该条的 `implemented` 设为 `true`。列表页优先用 `ListPage`，详情页优先用 `DetailPage`。
 5. 中英文菜单名来自配置。页面里的句子写进 `src/plugins/i18n/ui.ts` 的两种语言。
+6. 页面只调用 `src/api/`，不直接改 `src/mocks/`。
 
-## 假数据换成 `/api/v1`
+## 地基组件
 
-页面只调用 `src/api/` 下的函数，不直接读 `src/mocks/`。
+组件都在 `src/components/biz/`，文案走 i18n。
 
-以后把这些函数改成请求 `/api/v1`，返回类型保持不变，页面不用改。例如 `fetchOrders()` 现在是 `readMock(orderSummaries)`，以后换成对 `GET /api/v1/sales/orders` 的请求即可。
+### ListPage
 
-金额在假数据里已经算好。页面只展示，不在浏览器里重算利润或改写匹配结果。
+标题、筛选、已保存视图、列设置、批量操作、分页、导出 CSV。筛选和列设置保存在本机 `localStorage`，键名带 `storage-key`。导出的是当前筛选结果，不是当前页。CSV 由浏览器生成。
+
+```vue
+<ListPage
+  storage-key="orders"
+  :title="t('orders.title')"
+  :items="orders"
+  :columns="columns"
+  :filters="filters"
+  date-key="orderedAt"
+  :loading="loading"
+  :error="error"
+  :batch-actions="[{ key: 'export', label: '导出选中' }]"
+  @retry="load"
+  @batch="onBatch"
+>
+  <template #item.status="{ item }">
+    <StatusChip domain="sales_order" :value="item.statusCode" />
+  </template>
+</ListPage>
+```
+
+`columns` 形如 `{ key, title, align? }`。下拉筛选比较该列的文本。日期筛选要求该字段能取出 `YYYY-MM-DD`。
+
+### DetailPage
+
+头部放标题、`StatusChip` 和 `#actions`。左侧是默认插槽（放标签页或正文）。右侧是审计轨迹和关联单据。
+
+```vue
+<DetailPage
+  title="PO-2026-001"
+  domain="purchase_order"
+  status="approved"
+  :timeline="events"
+  :related="docs"
+>
+  <template #actions>
+    <VBtn>收货</VBtn>
+  </template>
+  <VTabs>...</VTabs>
+</DetailPage>
+```
+
+### FormDrawer / FormPage
+
+抽屉或整页表单。保存前走 Vuetify 校验。校验规则在 `src/utils/form-rules.ts`：`requiredText`、`numberText`、`moneyText`。`@save` 里调用 `src/api/`，不要在组件里写业务。
+
+```vue
+<FormDrawer v-model="open" title="新建采购单" :saving="saving" @save="save">
+  <AppTextField v-model="form.amount" :rules="[requiredText('请填写金额'), moneyText('金额最多 4 位小数')]" />
+</FormDrawer>
+```
+
+### StatusChip、MoneyText、状态页
+
+`StatusChip` 按 `domain` + `value` 取 `src/config/status.ts`。`MoneyText` 只格式化。折算金额由调用方传入 `converted`，组件不猜汇率。
+
+`EmptyState`、`LoadingState`、`ErrorState` 用于空、加载中和失败。`useConfirm()` 弹出 `ConfirmHost`，返回 `Promise<boolean>`。
+
+## 假数据中心
+
+实体类型在 `src/types/entities.ts`。金额在服务层用万分位整数（`src/utils/money.ts`），不用 `float` 做加减。展示时再四舍五入。
+
+种子由 `buildSeed()` 生成，随机序列固定为 `20261109`，每次重置都一样。同一批店铺、SKU、供应商、仓库、客户贯穿各域。
+
+大约规模：
+
+| 对象 | 数量 |
+|---|---|
+| 公司 | 1 |
+| 店铺 | 6（Amazon US / UK / DE / JP、Shopify、TikTok Shop） |
+| SKU | 40 |
+| 供应商 | 10 |
+| 仓库 | 8（FBA、海外仓、国内仓） |
+| 订单 | 100 |
+| 采购单 | 12 |
+| 头程 | 6 |
+
+Pinia 仓库 `useMockDbStore` 把整库放在内存，并写入 `localStorage` 键 `crosserp-mockdb-v1`。顶栏用户菜单里的「重置演示数据」会恢复种子并刷新页面。已保存的列表视图不在这次重置里。
+
+## 流转规则
+
+动作都在 `src/mocks/services/`，每个动作写审计轨迹：谁、何时、做了什么。页面通过 `src/api/workflows.ts` 调用。
+
+1. 采购单：草稿 → 提交（生成待审批）→ 批准 → 收货。收货生成收货记录、入库单和库存流水，库存增加。未批准不能收货。
+2. 头程：计划中 → 发运。始发仓可售减少，目的 FBA 在途增加。签收后在途转为可售，并生成入库单。
+3. 订单发货：待发货 → 已发货。生成出库单，履约仓库存减少。库存不足会拒绝。
+4. 订单利润：规则版本 `demo-rule-1`。只对已发货、部分退款、已退款的订单计算。
+   - 收入 = 商品金额 − 分摊退款
+   - 平台费：Amazon 15%，Shopify 3.4%，TikTok Shop 8%
+   - 广告计提：收入的 5%（演示规则，不是广告账单）
+   - 头程和成本：取 SKU 生效期成本，按演示月汇率折到订单币种
+   - 利润 = 收入 − 平台费 − 广告 − 头程 − 成本
+5. 智能体建议只创建待审批记录，不写账、不改金额。
+
+采购退货、调拨单和盘点单在种子里是草稿，这一阶段不改库存。
+
+## API 注释约定
+
+页面只调用 `src/api/`。每个函数上方写未来的真实接口，例如：
+
+```ts
+// 未来: GET /api/v1/sales/orders
+export async function fetchOrders() { ... }
+```
+
+函数返回 `Promise`，并模拟大约 160 ms 延迟。返回类型保持稳定。页面不要读 `src/mocks/`。
+
+## 换成真实接口
+
+1. 保持函数名和返回类型不变。
+2. 把函数体里的 `useMockDbStore()` 换成对 `/api/v1/...` 的请求。注释里的路径就是对照。
+3. 金额仍由服务端按确定性规则算好。页面只展示。
+4. 写操作仍走审批。前端不要自己改利润或匹配结果。
+
+## 换成 DeerFlow
+
+适配器接口在 `src/agent/adapter.ts`：
+
+```ts
+sendMessage(context, message, emit) => Promise<void>
+```
+
+`context` 带页面名、路由和选中记录 id。`emit` 分段吐出文本或卡片。
+
+现在 `src/agent/index.ts` 的 `createAgentAdapter()` 返回 `MockAgentAdapter`。换成 DeerFlow 时：
+
+1. 新建 `DeerFlowAdapter`，实现同一个接口。请求发到本机 DeerFlow（设计文档里的默认地址是 `127.0.0.1:2026`），不要把密钥写进仓库。
+2. 把 `createAgentAdapter()` 改成返回 `DeerFlowAdapter`。
+3. 助手抽屉和页面不用改。
+4. 适配器不计算金额。数字来自 CrossERP 只读结果。
+5. 需要写业务时，只调用 `submitAgentSuggestion()`，生成待审批建议。
+
+每个页面右下角都有助手按钮。它知道当前页面和路由参数里的记录 id。订单详情还会写入选中 id。
 
 ## 许可证提醒
 
 界面骨架来自 Vuexy 商业后台模板。不要把 `frontend/`、模板源码或商业图片提交到公开仓库。本原型只供内部演示。
 
-
-## 只看效果：用构建版（最快）
+## 只看效果：用构建版
 
 ```bash
 pnpm build

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { fetchApprovals } from '@/api/approvals'
+import { decideApproval, fetchApprovals } from '@/api/approvals'
 import { useSessionStore } from '@/stores/session'
 import type { ApprovalItem, ApprovalStatus } from '@/types/domain'
 import { formatMoney } from '@/utils/format'
@@ -31,11 +31,18 @@ function open(item: ApprovalItem) {
   drawer.value = true
 }
 
-function decide(status: ApprovalStatus) {
-  if (!selected.value || !canDecide.value)
+async function decide(status: ApprovalStatus) {
+  if (!selected.value || !canDecide.value || status === 'pending')
     return
 
-  selected.value.status = status
+  const next = await decideApproval(selected.value.id, status)
+
+  if (next) {
+    const index = rows.value.findIndex(item => item.id === next.id)
+
+    if (index >= 0)
+      rows.value[index] = next
+  }
   drawer.value = false
 }
 

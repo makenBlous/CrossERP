@@ -1,6 +1,9 @@
-import { readMock } from '@/api/mock-client'
-import { inventoryTotals, onHandRows } from '@/mocks/inventory'
+import { database, delay } from '@/api/mock-client'
+import { projectOnHand } from '@/mocks/project'
 
-export function fetchOnHand() {
-  return readMock({ rows: onHandRows, totals: inventoryTotals })
+// 未来: GET /api/v1/inventory/on-hand
+export async function fetchOnHand() {
+  await delay()
+
+  return projectOnHand(database().db)
 }

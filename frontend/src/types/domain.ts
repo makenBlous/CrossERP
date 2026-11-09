@@ -2,12 +2,12 @@ export type Role = 'admin' | 'operator' | 'finance' | 'viewer' | 'auditor'
 
 export type AppLocale = 'zh-CN' | 'en'
 
-export type CurrencyCode = 'USD' | 'CNY' | 'EUR' | 'GBP'
+export type CurrencyCode = 'USD' | 'CNY' | 'EUR' | 'GBP' | 'JPY'
 
 export interface Store {
   id: string
   name: string
-  platform: 'Amazon' | 'Shopify'
+  platform: 'Amazon' | 'Shopify' | 'TikTok Shop'
   marketplace: string
   currency: CurrencyCode
 }
@@ -82,6 +82,7 @@ export interface OrderSummary {
   marketplace: string
   orderedAt: string
   status: string
+  statusCode?: string
   currency: CurrencyCode
   itemTotal: number
   feeTotal: number

@@ -1,14 +1,33 @@
 <script setup lang="ts">
 import avatar1 from '@images/avatars/avatar-1.png'
+import { useConfirm } from '@/composables/useConfirm'
+import { useMockDbStore } from '@/stores/mockdb'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
+const mockdb = useMockDbStore()
 const router = useRouter()
 const { t } = useI18n({ useScope: 'global' })
+const { confirm } = useConfirm()
 
 function logout() {
   session.logout()
   router.push('/login')
+}
+
+async function resetDemo() {
+  const ok = await confirm({
+    title: t('foundation.resetDemo'),
+    text: t('foundation.resetDemoHint'),
+    confirmText: t('foundation.confirm'),
+    cancelText: t('foundation.cancel'),
+  })
+
+  if (!ok)
+    return
+
+  mockdb.reset()
+  window.location.reload()
 }
 </script>
 
@@ -78,6 +97,17 @@ function logout() {
           </VListItem>
 
           <VDivider class="my-2" />
+
+          <VListItem @click="resetDemo">
+            <template #prepend>
+              <VIcon
+                class="me-2"
+                icon="tabler-refresh"
+                size="22"
+              />
+            </template>
+            <VListItemTitle>{{ t('foundation.resetDemo') }}</VListItemTitle>
+          </VListItem>
 
           <VListItem @click="logout">
             <template #prepend>
