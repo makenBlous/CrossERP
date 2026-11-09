@@ -28,6 +28,21 @@ const draft = ref('')
 const sending = ref(false)
 const bubbles = ref<Bubble[]>([])
 const adapter = createAgentAdapter()
+const scrollbarRef = ref<unknown>(null)
+
+async function scrollLogToBottom() {
+  await nextTick()
+  const candidate = scrollbarRef.value as { $el?: HTMLElement } | HTMLElement | null
+  const el = candidate && '$el' in candidate ? candidate.$el : candidate
+  if (el) {
+    el.scrollTop = el.scrollHeight
+    el.scrollTo?.({ top: el.scrollHeight, behavior: 'smooth' })
+  }
+}
+
+watch(() => bubbles.value.length, scrollLogToBottom)
+watch(sending, scrollLogToBottom)
+watch(open, value => { if (value) scrollLogToBottom() })
 
 function matchPage(path: string) {
   const ranked = [...pageCatalog].filter(item => item.path !== '/*').sort((a, b) => b.path.length - a.path.length)
@@ -143,6 +158,7 @@ async function submit(bubble: Bubble) {
       </div>
       <VDivider />
       <PerfectScrollbar
+        ref="scrollbarRef"
         :options="{ wheelPropagation: false }"
         class="assistant-log"
       >

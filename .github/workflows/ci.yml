@@ -28,6 +28,34 @@ env:
   PYTHONUTF8: "1"
 
 jobs:
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      - name: 安装 Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: 安装 pnpm 10.6.1
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.6.1
+      - name: 安装前端依赖
+        run: pnpm install --frozen-lockfile
+      - name: 类型检查
+        run: pnpm run typecheck
+      - name: ESLint
+        run: pnpm exec eslint . -c .eslintrc.cjs --ext .ts,.js,.cjs,.vue,.tsx,.jsx
+      - name: 构建
+        run: pnpm run build
+
   eval-offline:
     name: eval-offline
     runs-on: ubuntu-latest

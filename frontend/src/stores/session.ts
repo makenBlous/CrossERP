@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia'
 import type { Role } from '@/types/domain'
+import { roleTemplates } from '@/config/permissions'
 
 const AUTH_KEY = 'crosserp-auth'
 const ROLE_KEY = 'crosserp-role'
 const NAME_KEY = 'crosserp-name'
 
-const roles: Role[] = ['admin', 'operator', 'finance', 'viewer', 'auditor']
+const legacyRoles: Role[] = ['admin', 'operator', 'finance', 'viewer', 'auditor']
+const roles: Role[] = [...legacyRoles, ...roleTemplates.map(item => item.id as Role)]
 
 /**
  * 每个演示角色对应一个独立的演示用户身份。
@@ -17,6 +19,22 @@ export const demoIdentities: Record<Role, { id: string; name: string }> = {
   finance: { id: 'demo-finance', name: '演示财务' },
   viewer: { id: 'demo-viewer', name: '演示只读' },
   auditor: { id: 'demo-auditor', name: '演示审计' },
+  owner_manager: { id: 'demo-owner-manager', name: '演示老板/总经理' },
+  operations_manager: { id: 'demo-operations-manager', name: '演示运营主管' },
+  store_operator: { id: 'demo-store-operator', name: '演示店铺运营' },
+  advertising: { id: 'demo-advertising', name: '演示广告投放' },
+  product_developer: { id: 'demo-product-developer', name: '演示产品开发/选品' },
+  purchaser: { id: 'demo-purchaser', name: '演示采购' },
+  warehouse_logistics: { id: 'demo-warehouse-logistics', name: '演示仓储/物流' },
+  customer_service: { id: 'demo-customer-service', name: '演示客服/售后' },
+  accountant: { id: 'demo-accountant', name: '演示会计' },
+  finance_manager: { id: 'demo-finance-manager', name: '演示财务主管' },
+  cashier: { id: 'demo-cashier', name: '演示出纳' },
+  hr_admin: { id: 'demo-hr-admin', name: '演示人事行政' },
+  employee: { id: 'demo-employee', name: '演示普通员工' },
+  department_manager: { id: 'demo-department-manager', name: '演示部门主管' },
+  auditor_template: { id: 'demo-auditor-template', name: '演示审计' },
+  external_viewer: { id: 'demo-external-viewer', name: '演示只读/外部顾问' },
 }
 
 function readStorage(key: string) {

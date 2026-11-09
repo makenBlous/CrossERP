@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import { sessionRoles, useSessionStore } from '@/stores/session'
+import { roleTemplates } from '@/config/permissions'
 
 const session = useSessionStore()
 const { t } = useI18n({ useScope: 'global' })
+const templateLabels = new Map(roleTemplates.map(item => [item.id, item.nameZh]))
+
+function roleLabel(role: string) {
+  return templateLabels.get(role) ?? t(`role.${role}`)
+}
 </script>
 
 <template>
@@ -11,7 +17,7 @@ const { t } = useI18n({ useScope: 'global' })
     color="default"
     prepend-icon="tabler-user-shield"
   >
-    {{ t(`role.${session.role}`) }}
+    {{ roleLabel(session.role) }}
     <VMenu
       activator="parent"
       location="bottom end"
@@ -28,7 +34,7 @@ const { t } = useI18n({ useScope: 'global' })
           :value="role"
           @click="session.setRole(role)"
         >
-          <VListItemTitle>{{ t(`role.${role}`) }}</VListItemTitle>
+          <VListItemTitle>{{ roleLabel(role) }}</VListItemTitle>
         </VListItem>
       </VList>
     </VMenu>

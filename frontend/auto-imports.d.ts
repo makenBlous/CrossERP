@@ -20,11 +20,16 @@ declare global {
   const avatarText: typeof import('./src/@core/utils/formatters')['avatarText']
   const betweenValidator: typeof import('./src/@core/utils/validators')['betweenValidator']
   const can: typeof import('./src/utils/permission')['can']
+  const canAi: typeof import('./src/utils/permission')['canAi']
+  const canField: typeof import('./src/utils/permission')['canField']
+  const canPermission: typeof import('./src/utils/permission-engine')['canPermission']
+  const computeEffectivePermissions: typeof import('./src/utils/permission-engine')['computeEffectivePermissions']
   const computed: typeof import('vue')['computed']
   const computedAsync: typeof import('@vueuse/core')['computedAsync']
   const computedEager: typeof import('@vueuse/core')['computedEager']
   const computedInject: typeof import('@vueuse/core')['computedInject']
   const computedWithControl: typeof import('@vueuse/core')['computedWithControl']
+  const configureValidatorI18n: typeof import('./src/@core/utils/validators')['configureValidatorI18n']
   const confirmedValidator: typeof import('./src/@core/utils/validators')['confirmedValidator']
   const controlledComputed: typeof import('@vueuse/core')['controlledComputed']
   const controlledRef: typeof import('@vueuse/core')['controlledRef']
@@ -54,6 +59,7 @@ declare global {
   const downloadCsv: typeof import('./src/utils/download-csv')['downloadCsv']
   const eagerComputed: typeof import('@vueuse/core')['eagerComputed']
   const effectScope: typeof import('vue')['effectScope']
+  const effectivePermission: typeof import('./src/utils/permission-engine')['effectivePermission']
   const emailValidator: typeof import('./src/@core/utils/validators')['emailValidator']
   const extendRef: typeof import('@vueuse/core')['extendRef']
   const formatDate: typeof import('./src/@core/utils/formatters')['formatDate']
@@ -98,6 +104,7 @@ declare global {
   const moneyText: typeof import('./src/@core/utils/validators')['moneyText']
   const moneyValidator: typeof import('./src/@core/utils/validators')['moneyValidator']
   const mulQty: typeof import('./src/utils/money')['mulQty']
+  const narrowAiPermissions: typeof import('./src/utils/permission-engine')['narrowAiPermissions']
   const nextTick: typeof import('vue')['nextTick']
   const numberText: typeof import('./src/@core/utils/validators')['numberText']
   const onActivated: typeof import('vue')['onActivated']
@@ -152,6 +159,7 @@ declare global {
   const resolveUnref: typeof import('@vueuse/core')['resolveUnref']
   const resolveVuetifyTheme: typeof import('./src/@core/utils/vuetify')['resolveVuetifyTheme']
   const rgbaToHex: typeof import('./src/@core/utils/colorConverter')['rgbaToHex']
+  const roleSubject: typeof import('./src/utils/permission-engine')['roleSubject']
   const setActivePinia: typeof import('pinia')['setActivePinia']
   const setMapStoreSuffix: typeof import('pinia')['setMapStoreSuffix']
   const shallowReactive: typeof import('vue')['shallowReactive']
@@ -411,11 +419,16 @@ declare module 'vue' {
     readonly avatarText: UnwrapRef<typeof import('./src/@core/utils/formatters')['avatarText']>
     readonly betweenValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['betweenValidator']>
     readonly can: UnwrapRef<typeof import('./src/utils/permission')['can']>
+    readonly canAi: UnwrapRef<typeof import('./src/utils/permission')['canAi']>
+    readonly canField: UnwrapRef<typeof import('./src/utils/permission')['canField']>
+    readonly canPermission: UnwrapRef<typeof import('./src/utils/permission-engine')['canPermission']>
+    readonly computeEffectivePermissions: UnwrapRef<typeof import('./src/utils/permission-engine')['computeEffectivePermissions']>
     readonly computed: UnwrapRef<typeof import('vue')['computed']>
     readonly computedAsync: UnwrapRef<typeof import('@vueuse/core')['computedAsync']>
     readonly computedEager: UnwrapRef<typeof import('@vueuse/core')['computedEager']>
     readonly computedInject: UnwrapRef<typeof import('@vueuse/core')['computedInject']>
     readonly computedWithControl: UnwrapRef<typeof import('@vueuse/core')['computedWithControl']>
+    readonly configureValidatorI18n: UnwrapRef<typeof import('./src/@core/utils/validators')['configureValidatorI18n']>
     readonly confirmedValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['confirmedValidator']>
     readonly controlledComputed: UnwrapRef<typeof import('@vueuse/core')['controlledComputed']>
     readonly controlledRef: UnwrapRef<typeof import('@vueuse/core')['controlledRef']>
@@ -444,6 +457,7 @@ declare module 'vue' {
     readonly downloadCsv: UnwrapRef<typeof import('./src/utils/download-csv')['downloadCsv']>
     readonly eagerComputed: UnwrapRef<typeof import('@vueuse/core')['eagerComputed']>
     readonly effectScope: UnwrapRef<typeof import('vue')['effectScope']>
+    readonly effectivePermission: UnwrapRef<typeof import('./src/utils/permission-engine')['effectivePermission']>
     readonly emailValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['emailValidator']>
     readonly extendRef: UnwrapRef<typeof import('@vueuse/core')['extendRef']>
     readonly formatDate: UnwrapRef<typeof import('./src/@core/utils/formatters')['formatDate']>
@@ -487,6 +501,7 @@ declare module 'vue' {
     readonly moneyText: UnwrapRef<typeof import('./src/@core/utils/validators')['moneyText']>
     readonly moneyValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['moneyValidator']>
     readonly mulQty: UnwrapRef<typeof import('./src/utils/money')['mulQty']>
+    readonly narrowAiPermissions: UnwrapRef<typeof import('./src/utils/permission-engine')['narrowAiPermissions']>
     readonly nextTick: UnwrapRef<typeof import('vue')['nextTick']>
     readonly numberText: UnwrapRef<typeof import('./src/@core/utils/validators')['numberText']>
     readonly onActivated: UnwrapRef<typeof import('vue')['onActivated']>
@@ -540,6 +555,7 @@ declare module 'vue' {
     readonly resolveUnref: UnwrapRef<typeof import('@vueuse/core')['resolveUnref']>
     readonly resolveVuetifyTheme: UnwrapRef<typeof import('./src/@core/utils/vuetify')['resolveVuetifyTheme']>
     readonly rgbaToHex: UnwrapRef<typeof import('./src/@core/utils/colorConverter')['rgbaToHex']>
+    readonly roleSubject: UnwrapRef<typeof import('./src/utils/permission-engine')['roleSubject']>
     readonly setActivePinia: UnwrapRef<typeof import('pinia')['setActivePinia']>
     readonly setMapStoreSuffix: UnwrapRef<typeof import('pinia')['setMapStoreSuffix']>
     readonly shallowReactive: UnwrapRef<typeof import('vue')['shallowReactive']>

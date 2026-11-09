@@ -1,14 +1,23 @@
 <script setup lang="ts">
 import { useSessionStore } from '@/stores/session'
+import { usePermissionStore } from '@/stores/permissions'
 import type { AppAction } from '@/utils/permission'
 import { can } from '@/utils/permission'
+import { roleSubject } from '@/utils/permission-engine'
 
 const props = defineProps<{
-  action: AppAction
+  action?: AppAction
+  permission?: string
 }>()
 
 const session = useSessionStore()
-const allowed = computed(() => can(session.role, props.action))
+const permissions = usePermissionStore()
+const allowed = computed(() => {
+  if (props.permission)
+    return permissions.effective(roleSubject(session.role, session.userId)).some(item => item.permissionKey === props.permission && item.allowed)
+
+  return props.action ? can(session.role, props.action) : false
+})
 </script>
 
 <template>

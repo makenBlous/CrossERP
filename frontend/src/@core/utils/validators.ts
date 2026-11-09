@@ -1,11 +1,32 @@
 import { isEmpty, isEmptyArray, isNullOrUndefined } from './helpers'
 
+type ValidatorTranslator = (key: string, params?: Record<string, unknown>) => string
+let translate: ValidatorTranslator = key => ({
+  'validation.required': '此字段为必填项',
+  'validation.email': '请输入有效的邮箱地址',
+  'validation.password': '密码至少 8 位，并包含大小写字母、数字和特殊字符',
+  'validation.confirmed': '两次输入的内容不一致',
+  'validation.between': '请输入 ${min} 到 ${max} 之间的数字',
+  'validation.integer': '请输入整数',
+  'validation.regex': '字段格式不正确',
+  'validation.alpha': '只能包含英文字母',
+  'validation.url': '请输入有效的网址',
+  'validation.length': '字段长度必须为 ${length} 个字符',
+  'validation.alphaDash': '只能包含字母、数字、下划线或连字符',
+  'validation.number': '请输入数字',
+  'validation.money': '请输入最多 4 位小数的金额',
+}[key] ?? key).replace(/\$\{(\w+)\}/g, (_, name) => String(params?.[name] ?? ''))
+
+export function configureValidatorI18n(fn: ValidatorTranslator) {
+  translate = fn
+}
+
 // 👉 Required Validator
 export const requiredValidator = (value: unknown) => {
   if (isNullOrUndefined(value) || isEmptyArray(value) || value === false)
-    return 'This field is required'
+    return translate('validation.required')
 
-  return !!String(value).trim().length || 'This field is required'
+  return !!String(value).trim().length || translate('validation.required')
 }
 
 // 👉 Email Validator
@@ -16,9 +37,9 @@ export const emailValidator = (value: unknown) => {
   const re = /^(?:[^<>()[\]\\.,;:\s@"]+(?:\.[^<>()[\]\\.,;:\s@"]+)*|".+")@(?:\[\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\]|(?:[a-z\-\d]+\.)+[a-z]{2,})$/i
 
   if (Array.isArray(value))
-    return value.every(val => re.test(String(val))) || 'The Email field must be a valid email'
+    return value.every(val => re.test(String(val))) || translate('validation.email')
 
-  return re.test(String(value)) || 'The Email field must be a valid email'
+  return re.test(String(value)) || translate('validation.email')
 }
 
 // 👉 Password Validator
@@ -27,19 +48,19 @@ export const passwordValidator = (password: string) => {
 
   const validPassword = regExp.test(password)
 
-  return validPassword || 'Field must contain at least one uppercase, lowercase, special character and digit with min 8 chars'
+  return validPassword || translate('validation.password')
 }
 
 // 👉 Confirm Password Validator
 export const confirmedValidator = (value: string, target: string) =>
 
-  value === target || 'The Confirm Password field confirmation does not match'
+  value === target || translate('validation.confirmed')
 
 // 👉 Between Validator
 export const betweenValidator = (value: unknown, min: number, max: number) => {
   const valueAsNumber = Number(value)
 
-  return (Number(min) <= valueAsNumber && Number(max) >= valueAsNumber) || `Enter number between ${min} and ${max}`
+  return (Number(min) <= valueAsNumber && Number(max) >= valueAsNumber) || translate('validation.between', { min, max })
 }
 
 // 👉 Integer Validator
@@ -48,9 +69,9 @@ export const integerValidator = (value: unknown) => {
     return true
 
   if (Array.isArray(value))
-    return value.every(val => /^-?\d+$/.test(String(val))) || 'This field must be an integer'
+    return value.every(val => /^-?\d+$/.test(String(val))) || translate('validation.integer')
 
-  return /^-?\d+$/.test(String(value)) || 'This field must be an integer'
+  return /^-?\d+$/.test(String(value)) || translate('validation.integer')
 }
 
 // 👉 Regex Validator
@@ -65,7 +86,7 @@ export const regexValidator = (value: unknown, regex: RegExp | string): string |
   if (Array.isArray(value))
     return value.every(val => regexValidator(val, regeX))
 
-  return regeX.test(String(value)) || 'The Regex field format is invalid'
+  return regeX.test(String(value)) || translate('validation.regex')
 }
 
 // 👉 Alpha Validator
@@ -73,7 +94,7 @@ export const alphaValidator = (value: unknown) => {
   if (isEmpty(value))
     return true
 
-  return /^[A-Z]*$/i.test(String(value)) || 'The Alpha field may only contain alphabetic characters'
+  return /^[A-Z]*$/i.test(String(value)) || translate('validation.alpha')
 }
 
 // 👉 URL Validator
@@ -83,7 +104,7 @@ export const urlValidator = (value: unknown) => {
 
   const re = /^https?:\/\/[^\s$.?#].\S*$/
 
-  return re.test(String(value)) || 'URL is invalid'
+  return re.test(String(value)) || translate('validation.url')
 }
 
 // 👉 Length Validator
@@ -91,7 +112,7 @@ export const lengthValidator = (value: unknown, length: number) => {
   if (isEmpty(value))
     return true
 
-  return String(value).length === length || `"The length of the Characters field must be ${length} characters."`
+  return String(value).length === length || translate('validation.length', { length })
 }
 
 // 👉 Alpha-dash Validator
@@ -101,7 +122,7 @@ export const alphaDashValidator = (value: unknown) => {
 
   const valueAsString = String(value)
 
-  return /^[\w-]*$/.test(valueAsString) || 'All Character are not valid'
+  return /^[\w-]*$/.test(valueAsString) || translate('validation.alphaDash')
 }
 
 // 👉 Decimal Validator
@@ -110,7 +131,7 @@ export const decimalValidator = (value: unknown) => {
   if (isEmpty(value))
     return true
 
-  return /^-?\d+(?:\.\d+)?$/.test(String(value).trim()) || 'This field must be a number'
+  return /^-?\d+(?:\.\d+)?$/.test(String(value).trim()) || translate('validation.number')
 }
 
 // 👉 Money Validator
@@ -119,7 +140,7 @@ export const moneyValidator = (value: unknown) => {
   if (isEmpty(value))
     return true
 
-  return /^-?\d+(?:\.\d{1,4})?$/.test(String(value).trim()) || 'This field must be a money amount with at most 4 decimal places'
+  return /^-?\d+(?:\.\d{1,4})?$/.test(String(value).trim()) || translate('validation.money')
 }
 
 export function requiredText(message: string) {

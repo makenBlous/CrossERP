@@ -7,6 +7,7 @@ import { financeMessages } from './finance'
 import { pageCatalog } from '@/config/pages'
 import type { AppLocale } from '@/types/domain'
 import { themeConfig } from '@themeConfig'
+import { configureValidatorI18n } from '@core/utils/validators'
 
 // 批次 2 的模块文案与 ui.ts 里已有的同名分组合并，避免覆盖第 1 批已有的键。
 function uiSection(locale: AppLocale, key: string): Record<string, unknown> {
@@ -43,6 +44,8 @@ const i18n = createI18n({
     'en': messagesFor('en'),
   },
 })
+
+configureValidatorI18n((key, params) => String(i18n.global.t(key, params as Record<string, unknown>)))
 
 export default function (app: App) {
   app.use(i18n)

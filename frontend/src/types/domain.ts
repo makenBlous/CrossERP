@@ -1,4 +1,13 @@
-export type Role = 'admin' | 'operator' | 'finance' | 'viewer' | 'auditor'
+/**
+ * 旧五角色继续保留，16 个模板角色使用稳定 slug。模板角色通过权限表引擎
+ * 映射到旧角色能力，确保现有 128 页的访问结果不变。
+ */
+export type Role =
+  | 'admin' | 'operator' | 'finance' | 'viewer' | 'auditor'
+  | 'owner_manager' | 'operations_manager' | 'store_operator' | 'advertising'
+  | 'product_developer' | 'purchaser' | 'warehouse_logistics' | 'customer_service'
+  | 'accountant' | 'finance_manager' | 'cashier' | 'hr_admin' | 'employee'
+  | 'department_manager' | 'auditor_template' | 'external_viewer'
 
 export type AppLocale = 'zh-CN' | 'en'
 
