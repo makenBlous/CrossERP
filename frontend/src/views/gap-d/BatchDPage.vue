@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { currentActor } from '@/api/mock-client'
 import { approveLeave, approvePayroll, calculateGapDPayrollRun, checkoutAsset, configureGapDToolSettings, createGapDTool, editContract, fetchGapDAutonomyPolicies, fetchGapDPayrollRules, fetchGapDPayrollRun, fetchGapDRecords, fetchGapDTools, importGapDMcp, publishPayslips, registerGapDMcp, registerMockImport, returnAsset, reviewPayroll, saveDeduction, saveGapDAutonomy, saveGapDOperation, savePayrollRule, setGapDAiMode, setGapDToolEnabled, submitLeave, testGapDToolCall, transitionEmployeeStatus, uploadGapDInbox } from '@/api/gap-d'
 import { findPageById } from '@/config/pages'
 import KpiCard from '@/components/KpiCard.vue'
@@ -12,6 +13,7 @@ import PermissionGate from '@/components/biz/PermissionGate.vue'
 import RecordDrawer from '@/components/biz/RecordDrawer.vue'
 import StatusChip from '@/components/biz/StatusChip.vue'
 import { useAiModeStore } from '@/stores/ai-mode'
+import { effectivePermission, roleSubject } from '@/utils/permission-engine'
 import type { AgentAutonomyLevel } from '@/types/foundation'
 import type { GapDPageId, GapDPayrollRule, GapDPayslip, GapDRecord } from '@/types/gap-d'
 
@@ -64,6 +66,19 @@ const isAgentPage = computed(() => props.pageId.startsWith('G'))
 const detailPage = computed(() => ['HR03', 'HR08', 'AM03', 'G24'].includes(props.pageId))
 const formPage = computed(() => ['G25', 'HR06', 'HR10', 'HR11', 'AM04'].includes(props.pageId))
 const canAddOperation = computed(() => operationPages.has(props.pageId))
+
+function canPermission(permissionKey: string) {
+  const actor = currentActor()
+
+  return effectivePermission(roleSubject(actor.role, actor.userId), permissionKey).allowed
+}
+
+const canSubmitLeave = computed(() => canPermission('leave_application:create'))
+const canApproveLeave = computed(() => canPermission('leave_application:approve_manager') || canPermission('leave_application:approve_hr'))
+const canCalculatePayroll = computed(() => canPermission('payroll_run:calculate'))
+const canReviewPayroll = computed(() => canPermission('salary_slip:review'))
+const canApprovePayroll = computed(() => canPermission('salary_slip:approve'))
+const canPublishPayslips = computed(() => canPermission('salary_slip:write'))
 
 const payrollColumns: ListColumn[] = [
   { key: 'employeeName', title: '员工' },
@@ -598,6 +613,7 @@ onMounted(load)
           <div>
             <VBtn
               :loading="saving"
+              :disabled="!canCalculatePayroll"
               @click="calculatePayroll"
             >
               发起算薪
@@ -606,6 +622,7 @@ onMounted(load)
           <VBtn
             v-if="payrollRun?.status === '待审批'"
             variant="tonal"
+            :disabled="!canApprovePayroll"
             @click="approveCurrentPayroll"
           >
             财务审批
@@ -613,6 +630,7 @@ onMounted(load)
           <VBtn
             v-if="payrollRun?.status === '已出凭证' && !payrollRun.publishedAt"
             variant="tonal"
+            :disabled="!canPublishPayslips"
             @click="publishCurrentPayslips"
           >
             发布工资条
@@ -704,7 +722,7 @@ onMounted(load)
         <VCardActions v-if="props.pageId === 'HR09'">
           <div>
             <VBtn
-              :disabled="!payrollRun"
+              :disabled="!payrollRun || !canReviewPayroll"
               @click="openReview"
             >
               填写复核原因并提交审批
@@ -713,6 +731,7 @@ onMounted(load)
           <VBtn
             v-if="payrollRun?.status === '待审批'"
             variant="tonal"
+            :disabled="!canApprovePayroll"
             @click="approveCurrentPayroll"
           >
             财务审批
@@ -720,6 +739,7 @@ onMounted(load)
           <VBtn
             v-if="payrollRun?.status === '已出凭证' && !payrollRun.publishedAt"
             variant="tonal"
+            :disabled="!canPublishPayslips"
             @click="publishCurrentPayslips"
           >
             发布工资条
@@ -970,6 +990,7 @@ onMounted(load)
       <FormPage
         :title="title"
         :subtitle="subtitle"
+        :save-disabled="props.pageId === 'HR06' && !canSubmitLeave"
         @save="saveFormDraft"
         @cancel="router.back()"
       >
@@ -1017,6 +1038,7 @@ onMounted(load)
             v-if="props.pageId === 'HR06'"
             class="mt-3"
             variant="tonal"
+            :disabled="!canApproveLeave"
             @click="approveSelectedLeave"
           >
             推进请假审批
@@ -1025,6 +1047,7 @@ onMounted(load)
             v-if="props.pageId === 'HR06'"
             class="mt-3"
             variant="tonal"
+            :disabled="!canSubmitLeave"
             @click="saveFormDraft"
           >
             提交请假
@@ -1306,6 +1329,7 @@ onMounted(load)
     <FormDrawer
       v-model="reviewDrawerOpen"
       title="薪资复核"
+      :save-disabled="!canReviewPayroll"
       @save="submitReview"
     >
       <VAlert
@@ -1323,6 +1347,7 @@ onMounted(load)
       />
       <VBtn
         class="mt-3"
+        :disabled="!canReviewPayroll"
         @click="submitReview"
       >
         提交复核

@@ -77,6 +77,7 @@ export interface GapDEmployee {
   email: string
   status: '在职' | '试用' | '离职'
   manager?: string
+  managerUserId: string
   leaveBalanceDays: number
   salaryCents?: number
   idNumber?: string

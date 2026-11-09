@@ -25,16 +25,19 @@ export const gapDAutonomyPolicies = [
 ]
 
 export const gapDDepartments = [
-  { id: 'dept-company', name: 'CrossERP', manager: '演示老板/总经理', parentId: null },
-  { id: 'dept-ops', name: '运营部', manager: '演示运营主管', parentId: 'dept-company' },
-  { id: 'dept-finance', name: '财务部', manager: '演示财务主管', parentId: 'dept-company' },
-  { id: 'dept-hr', name: '人事行政部', manager: '演示人事行政', parentId: 'dept-company' },
+  { id: 'dept-company', name: 'CrossERP', manager: '演示老板/总经理', managerUserId: 'demo-admin', parentId: null },
+  { id: 'dept-ops', name: '运营部', manager: '演示运营主管', managerUserId: 'demo-ops-manager', parentId: 'dept-company' },
+  { id: 'dept-finance', name: '财务部', manager: '演示财务主管', managerUserId: 'demo-fin-manager', parentId: 'dept-company' },
+  { id: 'dept-hr', name: '人事行政部', manager: '演示人事行政', managerUserId: 'demo-admin', parentId: 'dept-company' },
 ]
 
 export const gapDEmployees: GapDEmployee[] = [
-  { id: 'demo-admin', userId: 'demo-admin', name: '演示管理员', department: '人事行政部', title: '系统管理员', email: 'admin@example.test', status: '在职', manager: '演示老板/总经理', leaveBalanceDays: 8, salaryCents: 3000000, idNumber: '仅人事可见' },
-  { id: 'demo-employee', userId: 'demo-employee', name: '演示普通员工', department: '运营部', title: '运营专员', email: 'employee@example.test', status: '在职', manager: '演示运营主管', leaveBalanceDays: 5, salaryCents: 1200000, idNumber: '仅人事可见' },
-  { id: 'demo-finance', userId: 'demo-finance', name: '演示财务', department: '财务部', title: '会计', email: 'finance@example.test', status: '在职', manager: '演示财务主管', leaveBalanceDays: 6, salaryCents: 1800000, idNumber: '仅人事可见' },
+  { id: 'demo-admin', userId: 'demo-admin', name: '演示管理员', department: '人事行政部', title: '系统管理员', email: 'admin@example.test', status: '在职', manager: '演示老板/总经理', managerUserId: 'demo-admin', leaveBalanceDays: 8, salaryCents: 3000000, idNumber: '仅人事可见' },
+  { id: 'demo-ops-manager', userId: 'demo-ops-manager', name: '演示运营主管', department: '运营部', title: '运营主管', email: 'ops-manager@example.test', status: '在职', manager: '演示管理员', managerUserId: 'demo-admin', leaveBalanceDays: 8, salaryCents: 2200000, idNumber: '仅人事可见' },
+  { id: 'demo-employee', userId: 'demo-employee', name: '演示普通员工', department: '运营部', title: '运营专员', email: 'employee@example.test', status: '在职', manager: '演示运营主管', managerUserId: 'demo-ops-manager', leaveBalanceDays: 5, salaryCents: 1200000, idNumber: '仅人事可见' },
+  { id: 'demo-other-employee', userId: 'demo-other-employee', name: '演示其他员工', department: '运营部', title: '运营专员', email: 'other-employee@example.test', status: '在职', manager: '演示运营主管', managerUserId: 'demo-ops-manager', leaveBalanceDays: 5, salaryCents: 1250000, idNumber: '仅人事可见' },
+  { id: 'demo-fin-manager', userId: 'demo-fin-manager', name: '演示财务主管', department: '财务部', title: '财务主管', email: 'fin-manager@example.test', status: '在职', manager: '演示管理员', managerUserId: 'demo-admin', leaveBalanceDays: 8, salaryCents: 2400000, idNumber: '仅人事可见' },
+  { id: 'demo-finance', userId: 'demo-finance', name: '演示财务', department: '财务部', title: '会计', email: 'finance@example.test', status: '在职', manager: '演示财务主管', managerUserId: 'demo-fin-manager', leaveBalanceDays: 6, salaryCents: 1800000, idNumber: '仅人事可见' },
 ]
 
 export const gapDContracts: GapDContract[] = [
@@ -146,12 +149,13 @@ export const gapDPermissionKeys = {
   employeeRecordWrite: 'employee_record:write',
   attendanceWrite: 'attendance:write',
   leaveCreate: 'leave_application:create',
-  leaveApprove: 'leave_application:approve',
+  leaveApproveManager: 'leave_application:approve_manager',
+  leaveApproveHr: 'leave_application:approve_hr',
   contractWrite: 'contract:write',
   assetWrite: 'asset:write',
   toolCreate: 'agent_tool:create',
   toolWrite: 'agent_tool:write',
-  payrollReview: 'salary_slip:approve',
+  payrollReview: 'salary_slip:review',
   payslipPublish: 'salary_slip:write',
 } as const
 
@@ -192,8 +196,14 @@ function canReadEmployeeField(employee: GapDEmployee, actor: Actor, permissionKe
 
 function visibleEmployees(actor: Actor) {
   const result = permission(actor, gapDPermissionKeys.employeeRecordRead)
-  if (!result.allowed)
+  const ownResult = permission(actor, 'employee_record:read_own')
+  if (!result.allowed && !ownResult.allowed)
     return []
+  if (!result.allowed && ownResult.dataScopes.includes('self')) {
+    const own = gapDEmployees.find(employee => isOwnEmployee(employee, actor))
+
+    return own ? [own] : []
+  }
   if (result.dataScopes.includes('all'))
     return gapDEmployees
   if (result.dataScopes.includes('self'))
@@ -209,6 +219,10 @@ function visibleEmployees(actor: Actor) {
 
 function findEmployee(employeeId: string) {
   return gapDEmployees.find(employee => employee.id === employeeId)
+}
+
+function findEmployeeByUserId(userId: string) {
+  return gapDEmployees.find(employee => employee.userId === userId)
 }
 
 function ownPayslips(run: GapDPayrollRun, actor: Actor) {
@@ -591,6 +605,7 @@ export function submitGapDLeave(input: { employeeId?: string; startDate: string;
 
 export function approveGapDLeave(id: string, actor: Actor, origin: GapDWriteOrigin = 'human') {
   assertHumanActor(origin)
+
   const request = gapDLeaveRequests.find(row => row.id === id)
   if (!request)
     throw new Error('请假申请不存在')
@@ -599,16 +614,25 @@ export function approveGapDLeave(id: string, actor: Actor, origin: GapDWriteOrig
     throw new Error('申请员工不存在')
   if (actor.userId === employee.userId)
     throw new Error('不能审批自己提交的请假')
-  writeGuard(actor, gapDPermissionKeys.leaveApprove, origin)
+
   if (request.status === '待主管审批') {
-    if (actor.role !== 'department_manager' && actor.role !== 'admin' && actor.role !== 'owner_manager')
-      throw new Error('请先由部门主管审批，财务不能跳过主管')
+    const managerPermission = permission(actor, gapDPermissionKeys.leaveApproveManager)
+    if (!managerPermission.allowed)
+      throw new Error(`当前用户没有权限：${gapDPermissionKeys.leaveApproveManager}；请先由部门主管审批，财务不能跳过主管`)
+    const approver = findEmployeeByUserId(actor.userId)
+    if (!employee.department || !employee.managerUserId || !approver?.department)
+      throw new Error('申请员工或审批人缺少部门/直属主管绑定')
+    const sameDepartment = managerPermission.dataScopes.includes('department') && approver.department === employee.department
+    const directManager = actor.userId === employee.managerUserId
+    if (!managerPermission.dataScopes.includes('all') && !sameDepartment && !directManager)
+      throw new Error('审批人的数据范围不包含申请员工所在部门')
     request.managerApprovedBy = actor.userId
     request.status = '待人事审批'
   }
   else if (request.status === '待人事审批') {
-    if (!['hr_admin', 'admin', 'owner_manager'].includes(actor.role))
-      throw new Error('请先由人事审批，财务不能跳过人事')
+    const hrPermission = permission(actor, gapDPermissionKeys.leaveApproveHr)
+    if (!hrPermission.allowed)
+      throw new Error(`当前用户没有权限：${gapDPermissionKeys.leaveApproveHr}；请先由人事审批，财务不能跳过人事`)
     request.hrApprovedBy = actor.userId
     request.status = '已批准'
   }
@@ -694,7 +718,7 @@ export function reviewGapDPayroll(runId: string, reason: string, actor: Actor, o
 }
 
 export function approveGapDPayroll(runId: string, actor: Actor, origin: GapDWriteOrigin = 'human') {
-  writeGuard(actor, gapDPermissionKeys.payrollReview, origin)
+  writeGuard(actor, gapDPermissionKeys.payrollApprove, origin)
 
   const run = gapDPayrollRuns.find(row => row.id === runId)
   if (!run)
@@ -703,8 +727,6 @@ export function approveGapDPayroll(runId: string, actor: Actor, origin: GapDWrit
     throw new Error('薪资批次必须先完成人事复核，不能跳级审批')
   if (actor.userId === run.reviewedBy)
     throw new Error('不能由复核人自审批薪资批次')
-  if (!['finance', 'finance_manager', 'accountant', 'admin', 'owner_manager'].includes(actor.role))
-    throw new Error('只有财务审批角色可以审批薪资批次')
   run.status = '已出凭证'
   run.approvedBy = actor.userId
   gapDApprovals.push({ id: `approval-${Date.now()}`, targetType: 'payroll', targetId: run.id, level: 2, approverUserId: actor.userId, status: 'approved', decidedAt: new Date().toISOString() })

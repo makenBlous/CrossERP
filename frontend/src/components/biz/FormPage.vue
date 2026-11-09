@@ -3,6 +3,7 @@ defineProps<{
   title: string
   subtitle?: string
   saving?: boolean
+  saveDisabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -48,6 +49,7 @@ async function submit() {
         </VBtn>
         <VBtn
           :loading="saving"
+          :disabled="saveDisabled"
           @click="submit"
         >
           {{ t('foundation.save') }}

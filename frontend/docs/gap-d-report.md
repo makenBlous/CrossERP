@@ -10,7 +10,7 @@
 - AI 总开关：正常、降级、关闭均可切换；降级只读并暂停 L3，关闭后 AI 提示区隐藏，人工页面仍可操作。
 - 工具注册表：自定义 HTTP 工具默认停用、只读；密钥只保留“已配置”状态；MCP 工具导入后默认停用。
 - 算薪：规则费率存放在 mock 配置，按累计预扣法由代码计算；HR 复核入口和工资凭证前的状态展示已提供。工资字段由 mock 服务按 userId 绑定和有效权限裁剪，员工只返回本人数据。
-- 权限依赖：当前地基的 `permission-engine.ts` 已能计算有效权限，但角色模板尚未提供员工档案字段权限（`employee.salary`、证件号）及工资批次专用权限（`payroll_entry:approve`、`salary_slip:read_all/read_own`）的授权契约。本批服务只读调用现有有效权限计算，不复制权限引擎；`scripts/verify-gap-d-security.ts` 中对应“普通员工只看本人”和“人事可见”断言会在批次 C 合并前失败，并标注“依赖批次 C 的权限契约”。
+- 权限契约：D 服务层调用 C 的有效权限计算，不复制范围判断。员工档案和工资条按稳定 `userId` 裁剪；请假一审使用 `leave_application:approve_manager` 加部门/直属主管范围，人事二审使用 `leave_application:approve_hr`；薪资人事复核使用 `salary_slip:review`，财务审批使用 `salary_slip:approve`。
 
 ## 复用情况
 
@@ -22,7 +22,8 @@
 - `pnpm run typecheck`：通过。
 - `cmd /c "pnpm exec eslint . -c .eslintrc.cjs --ext .ts,.js,.cjs,.vue,.tsx,.jsx"`：0 error（基线存在 23 条 warning）。
 - `pnpm run build`：通过。
-- `pnpm exec tsx scripts/verify-gap-d-security.ts`：财务档案脱敏、无权限空/拒绝、AI 不越权通过；普通员工本人工资条和人事档案可见性断言因缺少批次 C 权限契约失败。
+- `pnpm exec tsx scripts/verify-gap-d-security.ts`：全部通过，覆盖财务脱敏、本人档案/工资条、请假部门范围、AI 拒写和工具权限。
+- 批次 D 独立断言 `xd.ts`：0 FAIL；批次 C `xperm.ts`：0 FAIL。`xperm2.ts` 依赖当前工作树不存在的 `@/mocks/services/scoped-reads` 和 `gap-c`，按原命令运行时无法加载，未伪造通过结果。
 
 ## Playwright
 
@@ -38,6 +39,8 @@
 
 本轮适配批次 C 最终权限契约；D 的员工、薪资 mock 读接口使用稳定 `userId ↔ employeeId` 绑定，敏感字段通过 `fieldAccess` 裁剪。新增统一服务层权限断言、状态检查、幂等和审计；AI 写入直接拒绝，只允许起草。
 
+本轮补充 `demo-other-employee`、`demo-ops-manager`、`demo-fin-manager` 的员工档案和部门主管绑定，验证同部门员工只能看到本人档案和工资条；请假审批拒绝跨部门主管及缺少部门/绑定的审批人；工资条复核和审批不能由同一 userId 完成，发布仍需审批后且只允许一次。薪资、个税、社保继续标注“模拟规则，待人事/会计核实”。
+
 已补齐模拟写操作：资产领用/归还、合同状态编辑、员工入离职状态流转、请假提交与主管→人事审批、考勤/合同模拟导入登记、HTTP 工具默认停用只读/密钥已配置状态/频率上限/启停/测试调用、MCP 登记与工具导入默认停用、社保个税规则与专项扣除保存、算薪→HR 复核→财务审批→工资条发布。薪资和规则均标注“模拟规则，待人事/会计核实”。
 
-`pnpm exec tsx scripts/verify-gap-d-security.ts`：9/9 通过。最近一次 Playwright 12 条（AI 正常/关闭各 6 条）实测结果为 4/12 通过；工具、MCP、AI 开关通过，工具/请假/算薪/资产流程仍有页面点击定位或状态问题，不能宣称浏览器全流程完成。
+`pnpm exec tsx scripts/verify-gap-d-security.ts`：全部通过。页面请假、算薪、复核、审批、发布按钮按服务层对应权限键禁用；本轮未启动预览服务器或浏览器。

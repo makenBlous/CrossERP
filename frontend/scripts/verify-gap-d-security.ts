@@ -12,6 +12,8 @@ const employee: Actor = { userId: 'demo-employee', name: '演示普通员工', r
 const hr: Actor = { userId: 'demo-hr-admin', name: '演示人事行政', role: 'hr_admin', at }
 const noPermission: Actor = { userId: 'demo-external-viewer', name: '演示外部顾问', role: 'external_viewer', at }
 const otherEmployee: Actor = { userId: 'demo-other-employee', name: '演示其他员工', role: 'employee', at }
+const opsManager: Actor = { userId: 'demo-ops-manager', name: '演示运营主管', role: 'department_manager', at }
+const financeManager: Actor = { userId: 'demo-fin-manager', name: '演示财务主管', role: 'department_manager', at }
 
 const payslips: GapDPayslip[] = gapDEmployees.map((item, index) => ({
   id: `verify-payslip-${item.id}`,
@@ -90,9 +92,14 @@ check('AI 代普通员工查询看不到别人的工资', () => {
   assert(visible.every(record => record.id === 'verify-payslip-demo-employee'))
 })
 
-check('其他员工没有本人绑定时看不到任何工资条或他人档案', () => {
-  assert.deepEqual(listGapDRecords('HR12', otherEmployee), [])
-  assert.deepEqual(listGapDRecords('HR02', otherEmployee), [])
+check('其他员工按 userId 只看到本人档案和本人工资条', () => {
+  const employeeRecords = listGapDRecords('HR02', otherEmployee)
+  const payslipRecords = listGapDRecords('HR12', otherEmployee)
+
+  assert(employeeRecords.length >= 1)
+  assert(employeeRecords.every(record => record.userId === 'demo-other-employee'))
+  assert(payslipRecords.length === 1)
+  assert.equal(payslipRecords[0]?.id, 'verify-payslip-demo-other-employee')
 })
 
 check('AI 只能起草，不能直接提交请假或审批', () => {
@@ -102,6 +109,14 @@ check('AI 只能起草，不能直接提交请假或审批', () => {
 
 check('财务不能跳过主管审批请假', () => {
   assert.throws(() => approveGapDLeave('leave-001', finance), /不能跳过主管/)
+})
+
+check('跨部门主管不能审批运营部请假', () => {
+  assert.throws(() => approveGapDLeave('leave-001', financeManager), /范围|部门/)
+})
+
+check('运营部主管可以按部门范围一审请假', () => {
+  assert.equal(approveGapDLeave('leave-001', opsManager).status, '待人事审批')
 })
 
 check('工具写接口默认停用只读且需要有效权限', () => {
