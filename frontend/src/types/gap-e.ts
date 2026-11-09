@@ -9,7 +9,34 @@ export interface KbSpace {
   description: string
   memberCount: number
   financeOnly: boolean
+  visibleRoles?: Role[]
+  folders?: KbFolder[]
+  members?: KbSpaceMember[]
   updatedAt: string
+}
+
+export interface KbFolder {
+  id: string
+  spaceId: string
+  name: string
+  parentId: string | null
+}
+
+export interface KbSpaceMember {
+  id: string
+  spaceId: string
+  name: string
+  role: Role
+  scope: 'read' | 'edit' | 'admin'
+}
+
+export interface KbAttachment {
+  id: string
+  fileName: string
+  contentType: string
+  size: string
+  uploadedBy: string
+  uploadedAt: string
 }
 
 export interface KbVersion {
@@ -35,6 +62,7 @@ export interface KbDocument {
   owner: string
   currentVersion: number
   versions: KbVersion[]
+  attachments?: KbAttachment[]
   sourceRef?: string
   updatedAt: string
 }
@@ -105,6 +133,19 @@ export interface EmployeeFile {
   sensitive: boolean
   uploadedAt: string
   size: string
+  contentType?: string
+  uploadedBy?: string
+}
+
+export interface InboxNotification {
+  id: string
+  title: string
+  detail: string
+  type: 'expiry' | 'review' | 'system'
+  href?: string
+  at: string
+  isRead: boolean
+  role: Role
 }
 
 export interface OnboardingChecklistItem {

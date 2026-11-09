@@ -1,7 +1,7 @@
 /* eslint-disable max-statements-per-line */
 import { assertCan, currentActor, database, delay, readMock } from '@/api/mock-client'
 import * as service from '@/mocks/services/gap-e'
-import type { EmployeeFile, KbAccessLog, KbDocument, KbExpiryItem, KbQaItem, KbReviewItem, KbSearchResult, KbSpace, KbVersion, OnboardingAnswer, OnboardingChecklistItem } from '@/types/gap-e'
+import type { EmployeeFile, InboxNotification, KbAccessLog, KbDocument, KbExpiryItem, KbFolder, KbQaItem, KbReviewItem, KbSearchResult, KbSpace, KbSpaceMember, KbVersion, OnboardingAnswer, OnboardingChecklistItem } from '@/types/gap-e'
 
 // 未来: GET /api/v1/kb/spaces
 export async function fetchKbSpaces(): Promise<KbSpace[]> {
@@ -142,6 +142,39 @@ export async function setKbSpaceFinanceOnly(id: string, financeOnly: boolean): P
   return readMock(space)
 }
 
+// 未来: POST /api/v1/kb/spaces/{id}/folders
+export async function createKbFolder(spaceId: string, name: string): Promise<KbFolder> {
+  await delay(); assertCan('update')
+  const result = service.addFolder(database().db, spaceId, name, currentActor())
+  database().persist()
+  return readMock(result)
+}
+
+// 未来: PATCH /api/v1/kb/folders/{id}
+export async function renameKbFolder(id: string, name: string): Promise<KbFolder> {
+  await delay(); assertCan('update')
+  const result = service.renameFolder(database().db, id, name, currentActor())
+  database().persist()
+  return readMock(result)
+}
+
+// 未来: PUT /api/v1/kb/spaces/{id}/members
+export async function saveKbSpaceMembers(spaceId: string, members: KbSpaceMember[], visibleRoles: KbSpace['visibleRoles']): Promise<KbSpace> {
+  await delay(); assertCan('update')
+  const result = service.saveSpaceMembers(database().db, spaceId, members, visibleRoles, currentActor())
+  database().persist()
+  return readMock(result)
+}
+
+// 未来: POST /api/v1/kb/docs/{id}/attachments
+export async function uploadKbAttachment(documentId: string, file: File): Promise<KbDocument> {
+  await delay(); assertCan('update')
+  service.addDocumentAttachment(database().db, documentId, { fileName: file.name, contentType: file.type || 'application/octet-stream', size: `${Math.max(1, Math.ceil(file.size / 1024))} KB` }, currentActor())
+  const result = service.getDocument(database().db, documentId, { ...currentActor(), role: 'admin' })
+  database().persist()
+  return readMock(result!)
+}
+
 // 未来: GET /api/v1/kb/personal/{employeeId}
 export async function fetchEmployeeFiles(employeeId: string): Promise<EmployeeFile[]> {
   await delay()
@@ -157,6 +190,14 @@ export async function downloadEmployeeFile(employeeId: string, id: string): Prom
 
   database().persist()
 
+  return readMock(result)
+}
+
+// 未来: POST /api/v1/kb/personal/{employeeId}/files
+export async function uploadEmployeeFile(employeeId: string, file: File, kind: EmployeeFile['kind']): Promise<EmployeeFile> {
+  await delay(); assertCan('update')
+  const result = service.uploadEmployeeFile(database().db, employeeId, { name: file.name, kind, size: `${Math.max(1, Math.ceil(file.size / 1024))} KB`, contentType: file.type || 'application/octet-stream' }, currentActor())
+  database().persist()
   return readMock(result)
 }
 
@@ -190,4 +231,20 @@ export async function fetchKbVersions(id: string): Promise<KbVersion[]> {
   await delay()
 
   return readMock((service.getDocument(database().db, id, currentActor())?.versions ?? []))
+}
+
+// 未来: GET /api/v1/notifications
+export async function fetchInboxNotifications(): Promise<InboxNotification[]> {
+  await delay()
+  const result = service.listNotifications(database().db, currentActor())
+  database().persist()
+  return readMock(result)
+}
+
+// 未来: POST /api/v1/notifications/{id}/read
+export async function markInboxNotificationRead(id: string): Promise<InboxNotification> {
+  await delay()
+  const result = service.markNotificationRead(database().db, id, currentActor())
+  database().persist()
+  return readMock(result)
 }

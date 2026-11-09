@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
-import { askOnboarding, createKbDocument, createKbVersion, decideKbReview, downloadEmployeeFile, fetchEmployeeFiles, fetchKbAccessLogs, fetchKbDocument, fetchKbDocuments, fetchKbExpiring, fetchKbQa, fetchKbReviews, fetchKbSpace, fetchKbSpaces, fetchKbVersions, fetchOnboarding, rebuildKbIndex, saveOnboarding, searchKb, setKbSpaceFinanceOnly, submitKbDocument, suggestKbQa } from '@/api/gap-e'
+import { askOnboarding, createKbDocument, createKbFolder, createKbVersion, decideKbReview, downloadEmployeeFile, fetchEmployeeFiles, fetchKbAccessLogs, fetchKbDocument, fetchKbDocuments, fetchKbExpiring, fetchKbQa, fetchKbReviews, fetchKbSpace, fetchKbSpaces, fetchKbVersions, fetchOnboarding, rebuildKbIndex, renameKbFolder, saveKbSpaceMembers, saveOnboarding, searchKb, setKbSpaceFinanceOnly, submitKbDocument, suggestKbQa, uploadEmployeeFile, uploadKbAttachment } from '@/api/gap-e'
 import TiptapEditor from '@core/components/TiptapEditor.vue'
 import DetailPage from '@/components/biz/DetailPage.vue'
 import FormDrawer from '@/components/biz/FormDrawer.vue'
@@ -11,7 +11,8 @@ import RecordDrawer from '@/components/biz/RecordDrawer.vue'
 import StatusChip from '@/components/biz/StatusChip.vue'
 import { useAiModeStore } from '@/stores/ai-mode'
 import { useSessionStore } from '@/stores/session'
-import type { EmployeeFile, KbAccessLog, KbDocument, KbExpiryItem, KbQaItem, KbReviewItem, KbSearchResult, KbSpace, KbVersion, OnboardingChecklistItem } from '@/types/gap-e'
+import type { Role } from '@/types/domain'
+import type { EmployeeFile, KbAccessLog, KbDocument, KbExpiryItem, KbFolder, KbQaItem, KbReviewItem, KbSearchResult, KbSpace, KbSpaceMember, KbVersion, OnboardingChecklistItem } from '@/types/gap-e'
 
 type Mode = 'home' | 'doc' | 'space' | 'edit' | 'review' | 'qa' | 'expiring' | 'index' | 'access' | 'employee' | 'onboarding' | 'onboarding-admin'
 const props = defineProps<{ mode: Mode }>()
@@ -52,6 +53,14 @@ const versionOpen = ref(false)
 const selectedVersion = ref<KbVersion | null>(null)
 const spaceSettingsOpen = ref(false)
 const spaceFinanceOnlyDraft = ref(false)
+const visibleRolesDraft = ref<Role[]>([])
+const spaceMembersDraft = ref<KbSpaceMember[]>([])
+const folderName = ref('')
+const selectedFolder = ref<KbFolder | null>(null)
+const renameName = ref('')
+const memberRole = ref('operator')
+const memberName = ref('')
+const memberScope = ref<'read' | 'edit' | 'admin'>('read')
 const qaOpen = ref(false)
 const selectedQa = ref<KbQaItem | null>(null)
 const accessOpen = ref(false)
@@ -60,6 +69,10 @@ const fileOpen = ref(false)
 const selectedFile = ref<EmployeeFile | null>(null)
 const onboardingOpen = ref(false)
 const onboardingDraft = ref<OnboardingChecklistItem | null>(null)
+const onboardingRole = ref('purchaser')
+const employeeFileKind = ref<EmployeeFile['kind']>('certificate')
+const employeeUploadInput = ref<HTMLInputElement | null>(null)
+const attachmentInput = ref<HTMLInputElement | null>(null)
 
 const id = computed(() => String((route.params as Record<string, unknown>).id ?? ''))
 const employeeId = computed(() => id.value || session.userId)
@@ -144,6 +157,8 @@ function openSpaceSettings() {
     return
 
   spaceFinanceOnlyDraft.value = space.value.financeOnly
+  visibleRolesDraft.value = [...(space.value.visibleRoles ?? [])]
+  spaceMembersDraft.value = [...(space.value.members ?? [])]
   spaceSettingsOpen.value = true
 }
 async function saveSpaceSettings() {
@@ -151,26 +166,63 @@ async function saveSpaceSettings() {
     return
 
   await run(async () => {
+    if (spaceFinanceOnlyDraft.value)
+      visibleRolesDraft.value = ['finance']
+    space.value = await saveKbSpaceMembers(space.value!.id, spaceMembersDraft.value, visibleRolesDraft.value)
     space.value = await setKbSpaceFinanceOnly(space.value!.id, spaceFinanceOnlyDraft.value)
     spaceSettingsOpen.value = false
     message.value = space.value?.financeOnly ? '已限制为仅财务可见。' : '已恢复空间成员可见。'
   })
 }
 async function download(file: EmployeeFile) { await run(async () => { await downloadEmployeeFile(employeeId.value, file.id); message.value = '下载记录已写入敏感文档访问日志。' }) }
+async function uploadEmployee(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file)
+    return
+  await run(async () => { const saved = await uploadEmployeeFile(employeeId.value, file, employeeFileKind.value); files.value.unshift(saved); message.value = '文件元数据已登记（模拟存储），上传审计已写入。' })
+  if (employeeUploadInput.value)
+    employeeUploadInput.value.value = ''
+}
+async function uploadAttachment(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file || !document.value)
+    return
+  await run(async () => { document.value = await uploadKbAttachment(document.value!.id, file); message.value = '附件元数据已登记（模拟存储），上传审计已写入。' })
+  if (attachmentInput.value)
+    attachmentInput.value.value = ''
+}
+async function addFolder() {
+  if (!space.value || !folderName.value.trim())
+    return
+  await run(async () => { await createKbFolder(space.value!.id, folderName.value); space.value = await fetchKbSpace(space.value!.id); folderName.value = ''; message.value = '文件夹已新增（模拟），并写入审计。' })
+}
+async function renameSelectedFolder() {
+  if (!selectedFolder.value || !renameName.value.trim() || !space.value)
+    return
+  await run(async () => { await renameKbFolder(selectedFolder.value!.id, renameName.value); space.value = await fetchKbSpace(space.value!.id); renameName.value = ''; message.value = '文件夹已重命名（模拟），并写入审计。' })
+}
+function addMember() {
+  if (!memberName.value.trim() || !space.value)
+    return
+  spaceMembersDraft.value.push({ id: `draft-${Date.now()}`, spaceId: space.value.id, name: memberName.value.trim(), role: memberRole.value as KbSpaceMember['role'], scope: memberScope.value })
+  memberName.value = ''
+}
 async function ask() { await run(async () => { answer.value = await askOnboarding(query.value) }) }
 async function saveItem(item: OnboardingChecklistItem) { await run(async () => { await saveOnboarding({ ...item }); message.value = '上手清单已保存。' }) }
 function openVersion(version: KbVersion) { selectedVersion.value = version; versionOpen.value = true }
 function openQa(item: KbQaItem) { selectedQa.value = item; qaOpen.value = true }
 function openAccess(item: KbAccessLog) { selectedAccess.value = item; accessOpen.value = true }
 function openFile(item: EmployeeFile) { selectedFile.value = item; fileOpen.value = true }
-function editOnboarding(item: OnboardingChecklistItem) { onboardingDraft.value = { ...item }; onboardingOpen.value = true }
+function editOnboarding(item: OnboardingChecklistItem) { onboardingDraft.value = { ...item }; onboardingRole.value = item.roleId; onboardingOpen.value = true }
+function addOnboardingItem() { onboardingDraft.value = { id: `draft-${Date.now()}`, roleId: onboardingRole.value, title: '', description: '', route: '/dashboard', done: false }; onboardingOpen.value = true }
+async function loadOnboardingRole(value: unknown) { onboardingRole.value = String(value); await run(async () => { onboarding.value = await fetchOnboarding(onboardingRole.value) }) }
 async function saveOnboardingDraft() {
   if (!onboardingDraft.value)
     return
 
   await run(async () => {
     await saveOnboarding({ ...onboardingDraft.value! })
-    onboarding.value = await fetchOnboarding('purchaser')
+    onboarding.value = await fetchOnboarding(onboardingRole.value)
     onboardingOpen.value = false
     message.value = '上手清单已保存。'
   })
@@ -355,6 +407,45 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         </VCard>
         <VCard
           class="mt-6"
+          title="附件（模拟存储）"
+        >
+          <VCardText>
+            <VAlert
+              type="info"
+              variant="tonal"
+              class="mb-4"
+            >
+              只登记文件名、类型、大小和上传人；真实文件不会上传。查看和下载动作会写审计。
+            </VAlert>
+            <VList
+              v-if="document.attachments?.length"
+              density="compact"
+            >
+              <VListItem
+                v-for="attachment in document.attachments"
+                :key="attachment.id"
+                :title="attachment.fileName"
+                :subtitle="`${attachment.contentType} · ${attachment.size} · ${attachment.uploadedBy}`"
+              />
+            </VList>
+            <VBtn
+              v-if="document.status === 'draft'"
+              variant="tonal"
+              prepend-icon="tabler-paperclip"
+              @click="attachmentInput?.click()"
+            >
+              登记附件
+            </VBtn>
+            <input
+              ref="attachmentInput"
+              type="file"
+              class="d-none"
+              @change="uploadAttachment"
+            >
+          </VCardText>
+        </VCard>
+        <VCard
+          class="mt-6"
           title="版本历史"
         >
           <ListPage
@@ -418,6 +509,96 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
             </VAlert>
           </VCardText>
         </VCard>
+        <VCard
+          class="mt-6"
+          title="文件夹树与空间成员（模拟）"
+        >
+          <VCardText>
+            <div class="d-flex flex-wrap gap-3 align-center mb-4">
+              <AppTextField
+                v-model="folderName"
+                label="新文件夹名称"
+                style="max-inline-size: 18rem;"
+              />
+              <VBtn
+                prepend-icon="tabler-folder-plus"
+                @click="addFolder"
+              >
+                新增文件夹
+              </VBtn>
+            </div>
+            <VList
+              density="compact"
+              class="mb-4"
+            >
+              <VListItem
+                v-for="folder in space.folders"
+                :key="folder.id"
+                :title="folder.name"
+                prepend-icon="tabler-folder"
+                @click="selectedFolder = folder; renameName = folder.name"
+              >
+                <template #append>
+                  <VChip
+                    v-if="selectedFolder?.id === folder.id"
+                    size="small"
+                    color="primary"
+                    variant="tonal"
+                  >已选择</VChip>
+                </template>
+              </VListItem>
+            </VList>
+            <div class="d-flex flex-wrap gap-3 align-center mb-4">
+              <AppTextField
+                v-model="renameName"
+                label="重命名已选文件夹"
+                style="max-inline-size: 18rem;"
+              />
+              <VBtn
+                variant="tonal"
+                :disabled="!selectedFolder"
+                @click="renameSelectedFolder"
+              >
+                重命名
+              </VBtn>
+            </div>
+            <VDivider class="my-4" />
+            <div class="text-subtitle-2 mb-2">成员与可见范围</div>
+            <div class="d-flex flex-wrap gap-3 align-center mb-3">
+              <AppTextField
+                v-model="memberName"
+                label="成员名称"
+                style="max-inline-size: 14rem;"
+              />
+              <AppSelect
+                v-model="memberRole"
+                label="角色"
+                :items="[{ title: '运营', value: 'operator' }, { title: '财务', value: 'finance' }, { title: '普通员工', value: 'employee' }, { title: '审计', value: 'auditor' }]"
+                style="max-inline-size: 12rem;"
+              />
+              <AppSelect
+                v-model="memberScope"
+                label="范围"
+                :items="[{ title: '只读', value: 'read' }, { title: '可编辑', value: 'edit' }, { title: '空间管理员', value: 'admin' }]"
+                style="max-inline-size: 12rem;"
+              />
+              <VBtn
+                variant="tonal"
+                @click="addMember"
+              >
+                添加成员
+              </VBtn>
+            </div>
+            <VList density="compact">
+              <VListItem
+                v-for="member in spaceMembersDraft"
+                :key="member.id"
+                :title="member.name"
+                :subtitle="`${member.role} · ${member.scope}`"
+              />
+            </VList>
+          </VCardText>
+        </VCard>
         <ListPage
           embedded
           storage-key="kb-space-documents"
@@ -454,6 +635,24 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         >
           变更会记录审计，并同步影响文档列表和检索问答的权限过滤。
         </VAlert>
+        <VCheckbox
+          v-model="visibleRolesDraft"
+          value="operator"
+          label="运营可见"
+          hide-details
+        />
+        <VCheckbox
+          v-model="visibleRolesDraft"
+          value="employee"
+          label="普通员工可见"
+          hide-details
+        />
+        <VCheckbox
+          v-model="visibleRolesDraft"
+          value="finance"
+          label="财务可见"
+          hide-details
+        />
       </FormDrawer>
     </template>
 
@@ -744,6 +943,33 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         >
           合同、证件和证书属于敏感资料。每次下载都会写入访问审计。
         </VAlert>
+        <div class="d-flex flex-wrap gap-3 align-center mb-4">
+          <AppSelect
+            v-model="employeeFileKind"
+            label="档案类型"
+            :items="[{ title: '合同', value: 'contract' }, { title: '身份证复印件', value: 'id_copy' }, { title: '证书', value: 'certificate' }]"
+            style="max-inline-size: 14rem;"
+          />
+          <VBtn
+            prepend-icon="tabler-upload"
+            @click="employeeUploadInput?.click()"
+          >
+            模拟上传档案
+          </VBtn>
+          <input
+            ref="employeeUploadInput"
+            type="file"
+            class="d-none"
+            @change="uploadEmployee"
+          >
+        </div>
+        <VAlert
+          type="info"
+          variant="tonal"
+          class="mb-4"
+        >
+          模拟上传只登记文件名、类型、大小、上传人和时间，不保存真实文件；查看/下载会写访问审计。
+        </VAlert>
         <ListPage
           embedded
           storage-key="employee-files"
@@ -866,6 +1092,21 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
     </template>
 
     <template v-else-if="mode === 'onboarding-admin'">
+      <div class="d-flex flex-wrap gap-3 align-center mb-4">
+        <AppSelect
+          v-model="onboardingRole"
+          label="角色模板"
+          :items="[{ title: '采购', value: 'purchaser' }, { title: '运营', value: 'operator' }, { title: '普通员工', value: 'employee' }, { title: '人事行政', value: 'hr_admin' }]"
+          style="max-inline-size: 16rem;"
+          @update:model-value="loadOnboardingRole"
+        />
+        <VBtn
+          prepend-icon="tabler-plus"
+          @click="addOnboardingItem"
+        >
+          新增清单步骤
+        </VBtn>
+      </div>
       <ListPage
         storage-key="onboarding-admin"
         title="上手清单与引导配置"
@@ -898,6 +1139,12 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
             v-if="onboardingDraft"
             v-model="onboardingDraft.route"
             label="引导页面"
+          />
+          <AppSelect
+            v-if="onboardingDraft"
+            v-model="onboardingDraft.roleId"
+            label="角色模板"
+            :items="[{ title: '采购', value: 'purchaser' }, { title: '运营', value: 'operator' }, { title: '普通员工', value: 'employee' }, { title: '人事行政', value: 'hr_admin' }]"
           />
         </FormDrawer>
       </PermissionGate>
