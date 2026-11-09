@@ -210,4 +210,3 @@ export interface GapAState {
   audits: GapAAuditEvent[]
   orderRules: Array<{ storeId: string; store: string; granularity: 'per_order' | 'per_settlement' | 'per_period_summary' }>
 }
-

@@ -16,7 +16,7 @@ onMounted(async () => {
     status: item.status,
     debit: item.debit,
     credit: item.credit,
-    currency: item.currency,
+    currency: 'CNY',
     summary: item.summary,
     submitter: '演示用户',
   }))

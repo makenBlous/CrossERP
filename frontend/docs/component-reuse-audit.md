@@ -243,4 +243,14 @@
 
 批次 0 没有新增业务页面组件，98 条新路由统一复用现有 `components/PlaceholderPage.vue`。权限、AI 状态、渠道和校验属于共享地基，分别复用 Pinia、现有 `PermissionGate`、`AssistantDrawer`、`ChatLog` 与 `vue-i18n`；没有重复实现 Vuexy 页面或聊天卡片。
 
+## 补齐批次 A
+
+| 页面/组件 | 复用内容 | 新增原因 |
+|---|---|---|
+| `components/biz/GapAPage.vue` | `ListPage`、`DetailPage`、`KpiCard`、`MoneyText`、`StatusChip`、`AssistantDrawer` | 批次 A 的费用、总账、报表和结账共用一套确定性 mock 状态；现有单一领域页面无法表达这些跨页流程，因此新增批次专用编排壳。 |
+| `pages/expense/claims/new.vue` | `AppTextField`、`AppTextarea`、`VForm` | 复用现有表单控件；AI 预填只显示 `VAlert`/`VChip`，没有新增 AI 对话界面。 |
+| `pages/finance/vouchers/[id].vue` | `DetailPage`、`MoneyText`、`VTimeline` | 凭证来源追溯需要把结算单、订单和审计时间轴放在同一详情页，现有凭证详情字段不足。 |
+
+订单到凭证、报销审批和利润凭证都通过 `src/api/gap-a.ts` 调用批次专用 mock；金额展示统一使用 `MoneyText`，金额生成和审批护栏在服务层完成。
+
 

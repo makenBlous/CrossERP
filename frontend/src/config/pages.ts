@@ -2300,5 +2300,3 @@ export function canRoleOpen(role: Role, item: PageDef) {
 
   return item.roles.includes(legacyRole as Role)
 }
-
-
