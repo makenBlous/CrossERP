@@ -57,7 +57,7 @@ onMounted(async () => {
             v-for="line in row.lines"
             :key="line.id"
           >
-            <td>{{ line.type }}</td><td>{{ line.description }}</td><td class="text-end">
+            <td>{{ line.type }}</td><td><span>{{ line.description }}</span> <RouterLink :to="`/finance/rows/settlement/${row.rawRowId}`" class="text-primary text-caption">原始行</RouterLink></td><td class="text-end">
               <MoneyText
                 :amount="line.amount"
                 :currency="row.currency"

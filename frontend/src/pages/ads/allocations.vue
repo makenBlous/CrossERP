@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { fetchAdCampaigns, fetchAllocations, saveAdAllocation } from '@/api/ads'
 import { fetchProfit } from '@/api/finance'
+import MoneyText from '@/components/biz/MoneyText.vue'
 import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchAllocations>>>([])
@@ -31,7 +32,7 @@ async function save() {
   if (row)
     rows.value = [...rows.value.filter(item => item.id !== row.id), row]
   else
-    error.value = '比例必须为正整数，累计比例不能超过 100%。'
+    error.value = '比例必须为正整数，且同一活动的累计比例必须恰好为 100%。'
 }
 </script>
 
@@ -92,6 +93,6 @@ async function save() {
       title="分摊结果"
       :rows="rows as unknown as FinanceRow[]"
       :columns="columns"
-    />
+    ><template #item.spendDisplay="{ item }"><MoneyText :amount="Number(item.spend)" :currency="item.currency as any" minor /></template></FinanceTablePage>
   </div>
 </template>
