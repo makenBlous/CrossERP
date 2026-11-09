@@ -86,6 +86,18 @@ function emptyDb(): MockDatabase {
       lastError: '',
       configRef: 'local-vault:deerflow',
     },
+    crmLeads: [],
+    crmActivities: [],
+    crmReviews: [],
+    crmTicketMessages: [],
+    roleOverrides: [],
+    adminIntegrations: [],
+    adminModules: [],
+    adminDicts: [],
+    adminNotifications: [],
+    adminSettings: [],
+    accountTokens: [],
+    accountSessions: [],
   }
 }
 
@@ -706,6 +718,57 @@ function addCrm(db: MockDatabase) {
     status: 'open',
     orderNo: sample?.orderNo ?? null,
   })
+  db.crmLeads = [
+    { id: 'lead-1', name: 'Mia Chen', company: 'Summit Trail LLC', email: 'mia@summit.example', source: '展会', owner: '周衡', stage: 'qualified', accountId: 'acc-summit', contactId: 'ctc-acc-summit', opportunityId: null, createdAt: '2026-11-02' },
+    { id: 'lead-2', name: 'Oliver Smith', company: 'Ridge & Co. Ltd', email: 'oliver@ridge.example', source: '网站表单', owner: '林夏', stage: 'new', accountId: null, contactId: null, opportunityId: null, createdAt: '2026-11-04' },
+    { id: 'lead-3', name: 'Yuki Tanaka', company: '木曾户外株式会社', email: 'yuki@kiso.example', source: '转介绍', owner: '周衡', stage: 'proposal', accountId: 'acc-kiso', contactId: 'ctc-acc-kiso', opportunityId: 'opp-acc-kiso', createdAt: '2026-10-25' },
+  ]
+  db.crmActivities = [
+    { id: 'act-1', subject: '确认春季补货数量', kind: '电话', at: '2026-11-12 10:00', accountId: 'acc-summit', owner: '周衡', status: 'planned' },
+    { id: 'act-2', subject: '发送报价单', kind: '邮件', at: '2026-11-13 15:30', accountId: 'acc-ridge', owner: '林夏', status: 'planned' },
+    { id: 'act-3', subject: '德国客户季度回顾', kind: '会议', at: '2026-11-08 09:00', accountId: 'acc-alpine', owner: '林夏', status: 'done' },
+  ]
+  db.crmReviews = [
+    { id: 'review-1', source: 'Shopify', author: 'Emma R.', rating: 5, title: '轻便又结实', content: '帐篷搭建很快，适合周末露营。', sku: 'NW-TENT-2P-OLV', status: 'published' },
+    { id: 'review-2', source: 'Amazon US', author: 'Daniel K.', rating: 3, title: '包装有改进空间', content: '产品不错，但外箱略有破损。', sku: 'NW-LAMP-OLV', status: 'pending' },
+  ]
+  db.crmTicketMessages = [
+    { id: 'msg-tkt-1', ticketId: 'tkt-1', author: '客服 Nina', text: '已联系仓库核对装箱单。', at: '2026-11-08 12:00', internal: false },
+    { id: 'msg-tkt-2', ticketId: 'tkt-1', author: '仓库', text: '确认少发一箱，安排补发。', at: '2026-11-08 15:30', internal: true },
+  ]
+}
+
+function addAdmin(db: MockDatabase) {
+  db.adminIntegrations = [
+    { id: 'int-amazon', name: 'Amazon SP-API', platform: 'Amazon', status: 'connected', account: 'Northwind US', lastSync: '2026-11-09 08:45' },
+    { id: 'int-shopify', name: 'Shopify Admin', platform: 'Shopify', status: 'connected', account: 'northwind-outdoor.com', lastSync: '2026-11-09 08:30' },
+    { id: 'int-tiktok', name: 'TikTok Shop', platform: 'TikTok Shop', status: 'needs_attention', account: 'Northwind TikTok US', lastSync: '2026-11-08 17:10' },
+  ]
+  db.adminModules = [
+    { id: 'crm', name: 'CRM', description: '客户、线索、商机与售后工单', enabled: true },
+    { id: 'finance', name: '财务', description: '结算、对账与利润', enabled: true },
+    { id: 'agent', name: '智能体', description: '只读问答和待审批建议', enabled: true },
+    { id: 'ads', name: '广告', description: '广告花费和分摊（后续模块）', enabled: false },
+  ]
+  db.adminDicts = [
+    { id: 'dict-1', group: '工单状态', code: 'open', label: '处理中', active: true },
+    { id: 'dict-2', group: '工单状态', code: 'resolved', label: '已解决', active: true },
+    { id: 'dict-3', group: '线索来源', code: 'event', label: '展会', active: true },
+  ]
+  db.adminNotifications = [
+    { id: 'notify-1', channel: '飞书机器人', event: '审批待办', enabled: true, target: '配置引用：vault:feishu-approval' },
+    { id: 'notify-2', channel: '邮件', event: '导入失败', enabled: false, target: 'ops@example.invalid' },
+  ]
+  db.adminSettings = [
+    { id: 'setting-1', key: 'single_user_mode', label: '单人模式', value: true, description: '演示环境允许提交人审批自己的建议。' },
+    { id: 'setting-2', key: 'audit_strict', label: '严格审计', value: true, description: '所有写操作必须记录审计轨迹。' },
+    { id: 'setting-3', key: 'default_currency', label: '默认币种', value: 'USD', description: '报表默认展示币种。' },
+  ]
+  db.accountTokens = []
+  db.accountSessions = [
+    { id: 'session-current', device: 'Chrome · Windows', location: '上海', ip: '192.0.2.10', lastSeenAt: '2026-11-09 09:00', current: true },
+    { id: 'session-mobile', device: 'Safari · iPhone', location: '杭州', ip: '192.0.2.21', lastSeenAt: '2026-11-08 18:20', current: false },
+  ]
 }
 
 function addAgents(db: MockDatabase) {
@@ -838,6 +901,7 @@ export function buildSeed(): MockDatabase {
   addOrders(db)
   addFinance(db)
   addCrm(db)
+  addAdmin(db)
   addAgents(db)
   addDraftStockDocs(db)
   addAlerts(db)

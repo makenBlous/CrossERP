@@ -26,6 +26,7 @@ import { disposeReturn, registerReturn, shipSalesOrder } from '@/mocks/services/
 import { approvePurchaseOrder, receivePurchaseOrder, rejectPurchaseOrder, submitPurchaseOrder } from '@/mocks/services/procurement'
 import { MOCK_DB_VERSION, buildSeed } from '@/mocks/seed/build'
 import type { Actor, MockDatabase } from '@/types/entities'
+import { addTicket, convertLead, createToken, resetRoleOverride, revokeToken, saveRoleOverride, updateLeadStage, updateTicketStatus } from '@/mocks/services/crm-admin'
 
 const STORAGE_KEY = 'crosserp-mockdb-v1'
 
@@ -50,8 +51,35 @@ function loadDatabase(): MockDatabase {
 
     const parsed: unknown = JSON.parse(raw)
 
-    if (isDatabase(parsed))
+    if (isDatabase(parsed)) {
+      const fresh = buildSeed()
+      if (!Array.isArray(parsed.crmLeads))
+        parsed.crmLeads = fresh.crmLeads
+      if (!Array.isArray(parsed.crmActivities))
+        parsed.crmActivities = fresh.crmActivities
+      if (!Array.isArray(parsed.crmReviews))
+        parsed.crmReviews = fresh.crmReviews
+      if (!Array.isArray(parsed.crmTicketMessages))
+        parsed.crmTicketMessages = fresh.crmTicketMessages
+      if (!Array.isArray(parsed.roleOverrides))
+        parsed.roleOverrides = fresh.roleOverrides
+      if (!Array.isArray(parsed.adminIntegrations))
+        parsed.adminIntegrations = fresh.adminIntegrations
+      if (!Array.isArray(parsed.adminModules))
+        parsed.adminModules = fresh.adminModules
+      if (!Array.isArray(parsed.adminDicts))
+        parsed.adminDicts = fresh.adminDicts
+      if (!Array.isArray(parsed.adminNotifications))
+        parsed.adminNotifications = fresh.adminNotifications
+      if (!Array.isArray(parsed.adminSettings))
+        parsed.adminSettings = fresh.adminSettings
+      if (!Array.isArray(parsed.accountTokens))
+        parsed.accountTokens = fresh.accountTokens
+      if (!Array.isArray(parsed.accountSessions))
+        parsed.accountSessions = fresh.accountSessions
+
       return parsed
+    }
   }
   catch {
     // 损坏的演示缓存直接丢弃，回到种子。
@@ -225,6 +253,56 @@ export const useMockDbStore = defineStore('mockdb', {
     },
     registerReturn(orderId: string, disposition: 'restock' | 'scrap', actor: Actor) {
       const result = registerReturn(this.db, orderId, disposition, actor)
+
+      this.persist()
+
+      return result
+    },
+    updateLeadStage(id: string, stage: Parameters<typeof updateLeadStage>[2], actor: Actor) {
+      const result = updateLeadStage(this.db, id, stage, actor)
+
+      this.persist()
+
+      return result
+    },
+    convertLead(id: string, actor: Actor) {
+      const result = convertLead(this.db, id, actor)
+
+      this.persist()
+
+      return result
+    },
+    addTicket(input: { accountId: string; orderNo: string | null; subject: string }, actor: Actor) {
+      const result = addTicket(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    updateTicketStatus(id: string, status: string, actor: Actor) {
+      const result = updateTicketStatus(this.db, id, status, actor)
+
+      this.persist()
+
+      return result
+    },
+    saveRoleOverride(role: Actor['role'], hiddenGroups: string[], hiddenPageIds: string[], actor: Actor) {
+      saveRoleOverride(this.db, role, hiddenGroups, hiddenPageIds, actor)
+      this.persist()
+    },
+    resetRoleOverride(role: Actor['role'], actor: Actor) {
+      resetRoleOverride(this.db, role, actor)
+      this.persist()
+    },
+    createToken(name: string, actor: Actor) {
+      const result = createToken(this.db, name, actor)
+
+      this.persist()
+
+      return result
+    },
+    revokeToken(id: string, actor: Actor) {
+      const result = revokeToken(this.db, id, actor)
 
       this.persist()
 

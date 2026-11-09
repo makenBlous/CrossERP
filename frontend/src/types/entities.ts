@@ -1,5 +1,6 @@
 import type { CurrencyCode, IssueCode, Role } from '@/types/domain'
 import type { Minor } from '@/utils/money'
+import type { AccountSession, AccountToken, AdminDictionary, AdminIntegration, AdminModule, AdminNotification, AdminSetting, CrmActivity, CrmLead, CrmReview, CrmTicketMessage, RoleOverride } from '@/types/crm-admin'
 
 export type Platform = 'Amazon' | 'Shopify' | 'TikTok Shop'
 export type WarehouseKind = 'fba' | 'overseas' | 'domestic'
@@ -620,4 +621,16 @@ export interface MockDatabase {
   apInvoices: ApInvoice[]
   knowledgeBases: KnowledgeBase[]
   deerflow: DeerflowConnection
+  crmLeads?: CrmLead[]
+  crmActivities?: CrmActivity[]
+  crmReviews?: CrmReview[]
+  crmTicketMessages?: CrmTicketMessage[]
+  roleOverrides?: RoleOverride[]
+  adminIntegrations?: AdminIntegration[]
+  adminModules?: AdminModule[]
+  adminDicts?: AdminDictionary[]
+  adminNotifications?: AdminNotification[]
+  adminSettings?: AdminSetting[]
+  accountTokens?: AccountToken[]
+  accountSessions?: AccountSession[]
 }

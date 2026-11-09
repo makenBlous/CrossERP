@@ -2,6 +2,7 @@ import type { Router } from 'vue-router'
 import { canRoleOpen, findPageByPath } from '@/config/pages'
 import { useSessionStore } from '@/stores/session'
 import type { Role } from '@/types/domain'
+import { useMockDbStore } from '@/stores/mockdb'
 
 export function setupGuards(router: Router) {
   let subscribed = false
@@ -36,6 +37,9 @@ export function setupGuards(router: Router) {
       }
     }
 
+    const override = useMockDbStore().db.roleOverrides?.find(item => item.role === session.role)
+    if (page && (override?.hiddenGroups.includes(page.group ?? '') || override?.hiddenPageIds.includes(page.id)))
+      return '/not-authorized'
     if (page && !canRoleOpen(session.role, page))
       return '/not-authorized'
   })

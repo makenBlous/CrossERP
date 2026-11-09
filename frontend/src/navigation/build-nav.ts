@@ -1,11 +1,18 @@
 import type { HorizontalNavItems, VerticalNavItems } from '@layouts/types'
 import { menuGroups, pageCatalog } from '@/config/pages'
 import type { Role } from '@/types/domain'
+import { useMockDbStore } from '@/stores/mockdb'
 
 export function buildNav(role: Role): VerticalNavItems {
+  const db = useMockDbStore()
+  const override = db.db.roleOverrides?.find(item => item.role === role)
+
   return menuGroups.flatMap(group => {
+    if (override?.hiddenGroups.includes(group.id))
+      return []
+
     const children = pageCatalog
-      .filter(item => item.showInMenu && item.group === group.id && item.roles.includes(role))
+      .filter(item => item.showInMenu && item.group === group.id && item.roles.includes(role) && !override?.hiddenPageIds.includes(item.id))
       .map(item => ({
         title: `page.${item.id}.name`,
 
