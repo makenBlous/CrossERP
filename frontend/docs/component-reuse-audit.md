@@ -288,3 +288,11 @@
 - 保留的 Vuetify VTable 只出现在订阅渠道开关、报表结果、AI 追溯和有效权限等字段专属块；它们被 FormPage/DetailPage 包住，没有重新实现通用筛选、分页或抽屉。
 - AI 关闭时 App.vue 隐藏 AssistantDrawer，但 W05 的 ListPage、RecordDrawer、PermissionGate 和人工批准/驳回 API 路径仍可用。
 - 真实后端 /api/v1、真实数据库审计链和真实角色数据仍未接入；本批只验证静态前端与 mock 服务，相关事实标为“未验证”。
+
+### 批次 C 缺口补齐复用审计
+
+本轮继续以 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer`、`PermissionGate`、`StatusChip` 和 `KpiCard` 为 UI 边界。SYS21 的复制表单复用 `FormDrawer`，RP03/U08 继续复用 `FormPage`，权限矩阵和字段/范围表继续复用 `ListPage` 的行插槽；没有新增通用组件。角色页原有页面可见性矩阵保留，并在顶部复用 `FormDrawer` 增加批次 C 角色复制入口。
+
+新增的 `src/api/scoped-reads.ts` 与 `src/mocks/services/scoped-reads.ts` 只承载类型化 mock 读接口，页面仍只调用 `src/api/*`。数据范围和字段投影在服务层完成，页面不通过 CSS 隐藏敏感字段。`scripts/gap-c-scoped-reads.ts` 覆盖订单、报销和员工档案的部门/本人/无权限边界。
+
+所有本批按钮均有可观察行为：保存会调用 API 并提示，角色复制和归档会写 mock 审计，报表构建器会保存并运行结果，矩阵会显示影响用户并执行二次确认；真实文件存储、外部接口和后端审计链仍标为“未验证”。

@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { copyGapCRole } from '@/api/gap-c'
 import { fetchRoleOverrides, fetchRoles, resetRoleVisibility, saveRoleVisibility } from '@/api/admin'
+import FormDrawer from '@/components/biz/FormDrawer.vue'
 import { menuGroups, pageCatalog } from '@/config/pages'
+import type { DataScopeRuleType } from '@/types/foundation'
 import type { Role } from '@/types/domain'
 
 const roles = ref<{ role: string
@@ -14,6 +17,13 @@ const overrides = ref<{ role: Role
 
 const hiddenGroups = ref<string[]>([])
 const hiddenPageIds = ref<string[]>([])
+const copyDrawer = ref(false)
+const copyName = ref('')
+const copyNameEn = ref('')
+const copyScope = ref<DataScopeRuleType>('store')
+const copyUsers = ref('demo-operator')
+const notice = ref('')
+const error = ref('')
 
 onMounted(async () => {
   roles.value = (await fetchRoles()).map(item => ({ role: item.role, label: item.label ?? item.role }))
@@ -37,6 +47,21 @@ async function save() {
   overrides.value = await fetchRoleOverrides()
 }
 
+async function saveCopy() {
+  error.value = ''
+  try {
+    await copyGapCRole({ sourceRoleId: 'store_operator', nameZh: copyName.value, nameEn: copyNameEn.value || copyName.value, dataScopes: [copyScope.value], memberUserIds: copyUsers.value.split(/[,，]/).map(item => item.trim()).filter(Boolean) })
+    notice.value = `角色已复制、保存并模拟指派：${copyName.value}`
+    copyDrawer.value = false
+    copyName.value = ''
+    copyNameEn.value = ''
+    copyUsers.value = 'demo-operator'
+  }
+  catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '角色复制失败'
+  }
+}
+
 async function reset() {
   await resetRoleVisibility(selected.value)
   overrides.value = await fetchRoleOverrides()
@@ -51,6 +76,22 @@ const { t } = useI18n({ useScope: 'global' })
 
 <template>
   <div>
+    <VAlert
+      v-if="notice"
+      type="success"
+      variant="tonal"
+      class="mb-4"
+    >
+      {{ notice }}；菜单和数据范围会按新角色刷新（静态原型）。
+    </VAlert>
+    <VAlert
+      v-if="error"
+      type="error"
+      variant="tonal"
+      class="mb-4"
+    >
+      {{ error }}
+    </VAlert>
     <div class="d-flex justify-space-between align-center mb-6">
       <div>
         <h4 class="text-h4">
@@ -59,6 +100,12 @@ const { t } = useI18n({ useScope: 'global' })
           修改菜单可见性会立即影响左侧导航和直接访问。
         </p>
       </div><div class="d-flex gap-3">
+        <VBtn
+          variant="tonal"
+          @click="copyDrawer = true"
+        >
+          复制并保存角色
+        </VBtn>
         <VBtn
           variant="tonal"
           @click="reset"
@@ -140,5 +187,39 @@ const { t } = useI18n({ useScope: 'global' })
         </VCard>
       </VCol>
     </VRow>
+    <FormDrawer
+      v-model="copyDrawer"
+      title="复制并保存角色（模拟）"
+      @save="saveCopy"
+    >
+      <VAlert
+        type="info"
+        variant="tonal"
+        class="mb-4"
+      >
+        从「店铺运营」复制，保存父角色继承、数据范围、用户指派和审计记录。
+      </VAlert>
+      <AppTextField
+        v-model="copyName"
+        label="新角色中文名"
+        class="mb-4"
+        :rules="[requiredValidator]"
+      />
+      <AppTextField
+        v-model="copyNameEn"
+        label="新角色英文名"
+        class="mb-4"
+      />
+      <AppSelect
+        v-model="copyScope"
+        label="数据范围"
+        :items="[{ title: '欧洲店铺', value: 'store' }, { title: '本部门', value: 'department' }, { title: '本人', value: 'self' }, { title: '全部', value: 'all' }]"
+        class="mb-4"
+      />
+      <AppTextField
+        v-model="copyUsers"
+        label="指派用户（逗号分隔）"
+      />
+    </FormDrawer>
   </div>
 </template>

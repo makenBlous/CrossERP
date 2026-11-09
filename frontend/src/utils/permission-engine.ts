@@ -7,6 +7,14 @@ import type { FieldAccess } from '@/types/gap-c'
 const templateById = new Map(roleTemplates.map(item => [item.id, item]))
 const legacyRoles = ['admin', 'operator', 'finance', 'viewer', 'auditor'] as const
 
+const legacyDefaultDataScopes: Record<typeof legacyRoles[number], DataScopeRuleType[]> = {
+  admin: ['all'],
+  operator: ['store', 'owner'],
+  finance: ['all'],
+  viewer: ['store'],
+  auditor: ['all'],
+}
+
 /** 敏感字段的唯一登记表；新增敏感字段必须先登记权限点。 */
 export const sensitiveFieldPermissionKeys: Record<string, string> = {
   cost: 'sku.cost:read',
@@ -91,7 +99,7 @@ export function computeEffectivePermissions(subject: PermissionSubject, now = Da
       }
       else {
         target.allows.push(source)
-        for (const scope of permission.dataScopes ?? role?.defaultDataScopes ?? [])
+        for (const scope of permission.dataScopes ?? role?.defaultDataScopes ?? legacyDefaultDataScopes[roleId as typeof legacyRoles[number]] ?? [])
           target.scopes.add(scope)
       }
     }

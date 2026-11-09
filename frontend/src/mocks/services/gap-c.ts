@@ -51,6 +51,7 @@ const approvals: GapCApprovalRow[] = [
   { id: 'gc-apr-001', kind: 'expense', typeLabel: '费用报销', title: '差旅住宿报销 · EXP-2026-081', submitter: '演示运营', submitterId: 'demo-operator', department: '运营部', amount: 2800, currency: 'CNY', status: 'pending', origin: 'human', submittedAt: '2026-11-10 09:10', summary: '上海客户拜访住宿，票据已上传。', approvalLevel: 1, nextApprover: '部门主管' },
   { id: 'gc-apr-002', kind: 'purchase', typeLabel: '采购申请', title: '补货采购 · PR-2026-014', submitter: '演示采购', submitterId: 'demo-purchaser', department: '供应链部', amount: 8000, currency: 'CNY', status: 'pending', origin: 'human', submittedAt: '2026-11-10 08:55', summary: '安全库存不足，申请采购 120 件。', approvalLevel: 2, nextApprover: '财务主管' },
   { id: 'gc-apr-003', kind: 'agent', typeLabel: '智能体建议', title: '补货建议 · CN-1001', submitter: '演示运营', submitterId: 'demo-operator', department: '运营部', amount: 4200, currency: 'CNY', status: 'pending', origin: 'agent', agentSuggestionId: 'sug-001', submittedAt: '2026-11-10 08:40', summary: '智能体建议按安全库存补货，金额由系统已存字段提供。', approvalLevel: 1, nextApprover: '部门主管' },
+  { id: 'gc-apr-005', kind: 'agent', typeLabel: '智能体建议', title: '部门主管自提交建议 · SELF-005', submitter: '演示部门主管', submitterId: 'demo-department-manager', department: '运营部', amount: 1200, currency: 'CNY', status: 'pending', origin: 'agent', submittedAt: '2026-11-10 08:35', summary: '用于演示职责分离：提交人不能批准自己的单据。', approvalLevel: 1, nextApprover: '部门主管' },
   { id: 'gc-apr-004', kind: 'leave', typeLabel: '请假申请', title: '年假 · LV-2026-033', submitter: '演示员工', submitterId: 'demo-employee', department: '运营部', amount: 0, currency: 'CNY', status: 'cc', origin: 'human', submittedAt: '2026-11-09 16:15', summary: '2026-11-18 至 2026-11-19 年假。', approvalLevel: 1, nextApprover: '部门主管' },
 ]
 
@@ -153,6 +154,9 @@ function audit(action: string, objectType: string, objectId: string, reason: str
   const current = actor()
 
   writeAudit(database().db, current, action, objectType, objectId, reason)
+  aiAudit.unshift({ id: `gap-audit-${Date.now()}`, at: current.at, actor: current.name, actorType: 'human', action, objectType, objectId, reason, ipDevice: 'mock-browser' })
+  if (action.startsWith('permission.'))
+    changes.unshift({ id: `gap-change-${Date.now()}`, at: current.at, actor: current.name, target: objectId, action, before: '待修改', after: reason, sensitive: true })
   database().persist()
 }
 
@@ -302,7 +306,11 @@ export function saveGapCReport(input: { name: string; description: string; permi
 export function listGapCAudit() {
   requirePermission('audit_log:read')
 
-  return clone(aiAudit)
+  const dynamic = database().db.audit
+    .map(item => ({ id: item.id, at: item.at, actor: item.actor, actorType: 'human' as const, action: item.action, objectType: item.refType, objectId: item.refId, reason: item.summary, ipDevice: 'mock-browser' }))
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+
+  return clone([...dynamic, ...aiAudit])
 }
 export function getGapCAgentTrace(id: string) {
   requirePermission('audit_log:read')
@@ -471,7 +479,12 @@ export function listGapCEffective(userId = useSessionStore().userId): GapCEffect
 export function listGapCPermissionChanges() {
   requirePermission('permission:read')
 
-  return clone(changes)
+  const dynamic = database().db.audit
+    .filter(item => item.action.startsWith('permission.'))
+    .map(item => ({ id: item.id, at: item.at, actor: item.actor, target: item.refId, action: item.action, before: '待修改', after: item.summary, sensitive: true }))
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+
+  return clone([...dynamic, ...changes])
 }
 export function listGapCSodRules() {
   requirePermission('permission:read')
