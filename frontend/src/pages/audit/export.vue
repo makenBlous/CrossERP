@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import AuditWorkspacePage from './components/AuditWorkspacePage.vue'
+import AuditExportPage from '@/views/audit/AuditExportPage.vue'
 </script>
 
 <template>
-  <AuditWorkspacePage mode="export" />
+  <AuditExportPage />
 </template>

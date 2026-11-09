@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fetchCrmOpportunities } from '@/api/crm'
-import StageBoard from '@/components/biz/StageBoard.vue'
+import CrmKanbanBoard from '@/views/crm/kanban/CrmKanbanBoard.vue'
 
 const router = useRouter()
 const cards = ref<any[]>([])
@@ -12,7 +12,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <StageBoard
+  <CrmKanbanBoard
     title="商机看板"
     subtitle="按销售阶段查看预计金额。金额由系统存储并格式化。"
     :columns="columns"

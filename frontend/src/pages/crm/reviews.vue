@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fetchCrmReviews } from '@/api/crm'
-import ModuleTable from '@/components/biz/ModuleTable.vue'
+import ListPage from '@/components/biz/ListPage.vue'
 
 const rows = ref<Array<{ id: string
   [key: string]: unknown }>>([])
@@ -13,16 +13,16 @@ const columns = [{ key: 'author', title: '评价人' }, { key: 'source', title: 
 </script>
 
 <template>
-  <ModuleTable
+  <ListPage
     storage-key="crm-reviews"
     title="评价"
     subtitle="汇总独立站或已同步的评价。"
-    :rows="rows"
+    :items="rows"
     :columns="columns"
   >
-    <template #cell.rating="{ item }">
+    <template #item.rating="{ item }">
       <span class="text-warning">{{ '★'.repeat(Number(item.rating)) }}</span>
-    </template><template #cell.status="{ item }">
+    </template><template #item.status="{ item }">
       <VChip
         size="small"
         :color="item.status === 'published' ? 'success' : 'warning'"
@@ -31,5 +31,5 @@ const columns = [{ key: 'author', title: '评价人' }, { key: 'source', title: 
         {{ item.status === 'published' ? '已发布' : '待处理' }}
       </VChip>
     </template>
-  </ModuleTable>
+  </ListPage>
 </template>

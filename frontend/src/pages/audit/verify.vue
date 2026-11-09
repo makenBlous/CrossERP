@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import AuditWorkspacePage from './components/AuditWorkspacePage.vue'
+import AuditVerifyPage from '@/views/audit/AuditVerifyPage.vue'
 </script>
 
 <template>
-  <AuditWorkspacePage mode="verify" />
+  <AuditVerifyPage />
 </template>

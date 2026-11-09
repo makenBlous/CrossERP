@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import AgentWorkspacePage from './components/AgentWorkspacePage.vue'
+import AgentSetupPage from '@/views/agent/AgentSetupPage.vue'
 </script>
 
 <template>
-  <AgentWorkspacePage mode="deerflow" />
+  <AgentSetupPage />
 </template>

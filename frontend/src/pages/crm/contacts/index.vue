@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fetchCrmContacts } from '@/api/crm'
-import ModuleTable from '@/components/biz/ModuleTable.vue'
+import ListPage from '@/components/biz/ListPage.vue'
 
 const router = useRouter()
 
@@ -15,11 +15,11 @@ const columns = [{ key: 'name', title: '联系人' }, { key: 'title', title: '�
 </script>
 
 <template>
-  <ModuleTable
+  <ListPage
     storage-key="crm-contacts"
     title="联系人"
     subtitle="管理具体联系人和所属客户。"
-    :rows="rows"
+    :items="rows"
     :columns="columns"
     @open="router.push(`/crm/contacts/${$event.id}`)"
   />

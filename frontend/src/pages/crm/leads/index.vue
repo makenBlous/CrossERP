@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fetchCrmLeads } from '@/api/crm'
-import ModuleTable from '@/components/biz/ModuleTable.vue'
+import ListPage from '@/components/biz/ListPage.vue'
 
 const router = useRouter()
 
@@ -17,15 +17,15 @@ const columns = computed(() => [{ key: 'name', title: '联系人' }, { key: 'com
 </script>
 
 <template>
-  <ModuleTable
+  <ListPage
     storage-key="crm-leads"
     title="线索"
     subtitle="记录尚未成交的潜在客户。"
-    :rows="rows"
+    :items="rows"
     :columns="columns"
     @open="router.push(`/crm/leads/${$event.id}`)"
   >
-    <template #cell.stageLabel="{ item }">
+    <template #item.stageLabel="{ item }">
       <VChip
         size="small"
         color="primary"
@@ -34,5 +34,5 @@ const columns = computed(() => [{ key: 'name', title: '联系人' }, { key: 'com
         {{ item.stageLabel }}
       </VChip>
     </template>
-  </ModuleTable>
+  </ListPage>
 </template>

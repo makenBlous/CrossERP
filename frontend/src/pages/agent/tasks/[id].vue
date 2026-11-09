@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import AgentWorkspacePage from '../components/AgentWorkspacePage.vue'
+import AgentDetailPage from '@/views/agent/AgentDetailPage.vue'
 </script>
 
 <template>
-  <AgentWorkspacePage mode="task-detail" />
+  <AgentDetailPage mode="task" />
 </template>

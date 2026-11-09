@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fetchNotifications } from '@/api/admin'
-import ModuleTable from '@/components/biz/ModuleTable.vue'
+import ListPage from '@/components/biz/ListPage.vue'
 
 const rows = ref<Array<{ id: string
   [key: string]: unknown }>>([])
@@ -13,19 +13,19 @@ const columns = [{ key: 'channel', title: '渠道' }, { key: 'event', title: '�
 </script>
 
 <template>
-  <ModuleTable
+  <ListPage
     storage-key="admin-notifications"
     title="通知"
     subtitle="通知开关和安全的配置引用。"
-    :rows="rows"
+    :items="rows"
     :columns="columns"
   >
-    <template #cell.enabled="{ item }">
+    <template #item.enabled="{ item }">
       <VSwitch
         v-model="item.enabled"
         color="primary"
         hide-details
       />
     </template>
-  </ModuleTable>
+  </ListPage>
 </template>

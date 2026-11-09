@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import AgentWorkspacePage from './components/AgentWorkspacePage.vue'
+import AgentListPage from '@/views/agent/AgentListPage.vue'
 </script>
 
 <template>
-  <AgentWorkspacePage mode="threads" />
+  <AgentListPage mode="threads" />
 </template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fetchStores } from '@/api/dashboard'
-import ModuleTable from '@/components/biz/ModuleTable.vue'
+import ListPage from '@/components/biz/ListPage.vue'
 
 const rows = ref<Array<{ id: string
   [key: string]: unknown }>>([])
@@ -14,11 +14,11 @@ const columns = [{ key: 'name', title: '店铺' }, { key: 'platform', title: '�
 </script>
 
 <template>
-  <ModuleTable
+  <ListPage
     storage-key="admin-stores"
     title="店铺"
     subtitle="维护 Amazon、Shopify 和 TikTok Shop 店铺。"
-    :rows="rows"
+    :items="rows"
     :columns="columns"
   />
 </template>

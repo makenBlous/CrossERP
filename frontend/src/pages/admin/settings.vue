@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fetchSettings } from '@/api/admin'
-import ModuleTable from '@/components/biz/ModuleTable.vue'
+import ListPage from '@/components/biz/ListPage.vue'
 
 const rows = ref<Array<{ id: string
   [key: string]: unknown }>>([])
@@ -13,14 +13,14 @@ const columns = [{ key: 'label', title: '参数' }, { key: 'key', title: '键' }
 </script>
 
 <template>
-  <ModuleTable
+  <ListPage
     storage-key="admin-settings"
     title="系统参数"
     subtitle="全局开关和默认展示设置。"
-    :rows="rows"
+    :items="rows"
     :columns="columns"
   >
-    <template #cell.value="{ item }">
+    <template #item.value="{ item }">
       <VSwitch
         v-if="typeof item.value === 'boolean'"
         v-model="item.value"
@@ -34,5 +34,5 @@ const columns = [{ key: 'label', title: '参数' }, { key: 'key', title: '键' }
         {{ item.value }}
       </VChip>
     </template>
-  </ModuleTable>
+  </ListPage>
 </template>

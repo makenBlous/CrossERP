@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fetchDictionaries } from '@/api/admin'
-import ModuleTable from '@/components/biz/ModuleTable.vue'
+import ListPage from '@/components/biz/ListPage.vue'
 
 const rows = ref<Array<{ id: string
   [key: string]: unknown }>>([])
@@ -13,14 +13,14 @@ const columns = [{ key: 'group', title: '分组' }, { key: 'code', title: '编�
 </script>
 
 <template>
-  <ModuleTable
+  <ListPage
     storage-key="admin-dicts"
     title="数据字典"
     subtitle="原因码、工单状态和来源等可配置项。"
-    :rows="rows"
+    :items="rows"
     :columns="columns"
   >
-    <template #cell.active="{ item }">
+    <template #item.active="{ item }">
       <VChip
         size="small"
         :color="item.active ? 'success' : 'secondary'"
@@ -29,5 +29,5 @@ const columns = [{ key: 'group', title: '分组' }, { key: 'code', title: '编�
         {{ item.active ? '启用' : '停用' }}
       </VChip>
     </template>
-  </ModuleTable>
+  </ListPage>
 </template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fetchSessions } from '@/api/account'
-import ModuleTable from '@/components/biz/ModuleTable.vue'
+import ListPage from '@/components/biz/ListPage.vue'
 
 const rows = ref<Array<{ id: string
   [key: string]: unknown }>>([])
@@ -13,14 +13,14 @@ const columns = [{ key: 'device', title: '设备' }, { key: 'location', title: '
 </script>
 
 <template>
-  <ModuleTable
+  <ListPage
     storage-key="account-sessions"
     title="我的会话"
     subtitle="查看最近设备并识别异常登录。"
-    :rows="rows"
+    :items="rows"
     :columns="columns"
   >
-    <template #cell.current="{ item }">
+    <template #item.current="{ item }">
       <VChip
         size="small"
         :color="item.current ? 'success' : 'secondary'"
@@ -29,5 +29,5 @@ const columns = [{ key: 'device', title: '设备' }, { key: 'location', title: '
         {{ item.current ? '当前' : '其他设备' }}
       </VChip>
     </template>
-  </ModuleTable>
+  </ListPage>
 </template>

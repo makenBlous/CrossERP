@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { createCrmTicket, fetchAccounts, fetchCrmTickets } from '@/api/crm'
 import { fetchOrders } from '@/api/orders'
-import ModuleTable from '@/components/biz/ModuleTable.vue'
+import ListPage from '@/components/biz/ListPage.vue'
 import FormDrawer from '@/components/biz/FormDrawer.vue'
 import PermissionGate from '@/components/biz/PermissionGate.vue'
 
@@ -55,20 +55,20 @@ const columns = [{ key: 'subject', title: '主题' }, { key: 'accountId', title:
           新建工单
         </VBtn>
       </PermissionGate>
-    </div><ModuleTable
+    </div><ListPage
       storage-key="crm-tickets"
       title="工单列表"
-      :rows="rows"
+      :items="rows"
       :columns="columns"
       @open="router.push(`/crm/tickets/${$event.id}`)"
     >
-      <template #cell.status="{ item }">
+      <template #item.status="{ item }">
         <StatusChip
           domain="generic"
           :value="String(item.status)"
         />
       </template>
-    </ModuleTable><FormDrawer
+    </ListPage><FormDrawer
       v-model="open"
       title="新建售后工单"
       @save="save"

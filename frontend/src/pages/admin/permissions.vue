@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fetchPermissions } from '@/api/admin'
-import ModuleTable from '@/components/biz/ModuleTable.vue'
+import ListPage from '@/components/biz/ListPage.vue'
 
 const rows = ref<Array<{ id: string
   [key: string]: unknown }>>([])
@@ -13,11 +13,11 @@ const columns = [{ key: 'code', title: '权限编码' }, { key: 'name', title: '
 </script>
 
 <template>
-  <ModuleTable
+  <ListPage
     storage-key="admin-permissions"
     title="权限点"
     subtitle="系统动作权限目录。"
-    :rows="rows"
+    :items="rows"
     :columns="columns"
   />
 </template>

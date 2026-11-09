@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fetchCrmActivities } from '@/api/crm'
-import ModuleTable from '@/components/biz/ModuleTable.vue'
+import ListPage from '@/components/biz/ListPage.vue'
 
 const rows = ref<Array<{ id: string
   [key: string]: unknown }>>([])
@@ -54,10 +54,10 @@ const columns = [{ key: 'at', title: '时间' }, { key: 'kind', title: '类型' 
           </VCardText>
         </VCard>
       </VCol>
-    </VRow><ModuleTable
+    </VRow><ListPage
       storage-key="crm-activities"
       title="跟进记录"
-      :rows="rows"
+      :items="rows"
       :columns="columns"
     />
   </div>

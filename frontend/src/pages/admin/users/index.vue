@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fetchAdminUsers } from '@/api/admin'
-import ModuleTable from '@/components/biz/ModuleTable.vue'
+import ListPage from '@/components/biz/ListPage.vue'
 
 const router = useRouter()
 
@@ -15,15 +15,15 @@ const columns = [{ key: 'name', title: '用户' }, { key: 'email', title: '邮�
 </script>
 
 <template>
-  <ModuleTable
+  <ListPage
     storage-key="admin-users"
     title="用户"
     subtitle="管理登录账号与店铺范围。"
-    :rows="rows"
+    :items="rows"
     :columns="columns"
     @open="router.push(`/admin/users/${$event.id}`)"
   >
-    <template #cell.role="{ item }">
+    <template #item.role="{ item }">
       <VChip
         size="small"
         color="primary"
@@ -32,5 +32,5 @@ const columns = [{ key: 'name', title: '用户' }, { key: 'email', title: '邮�
         {{ item.role }}
       </VChip>
     </template>
-  </ModuleTable>
+  </ListPage>
 </template>

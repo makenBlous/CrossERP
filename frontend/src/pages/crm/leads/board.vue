@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fetchCrmLeads, updateCrmLeadStage } from '@/api/crm'
-import StageBoard from '@/components/biz/StageBoard.vue'
+import CrmKanbanBoard from '@/views/crm/kanban/CrmKanbanBoard.vue'
 
 const router = useRouter()
 const cards = ref<any[]>([])
@@ -16,7 +16,7 @@ async function move(card: any, stage: string) {
 </script>
 
 <template>
-  <StageBoard
+  <CrmKanbanBoard
     title="线索看板"
     subtitle="拖动卡片推进阶段，变更会写入审计轨迹。"
     :columns="columns"
