@@ -34,7 +34,6 @@ import {
   saveGapCSodRule,
   saveGapCSubscriptions,
 } from '@/api/gap-c'
-import AssistantDrawer from '@/components/biz/AssistantDrawer.vue'
 import DetailPage from '@/components/biz/DetailPage.vue'
 import ListPage, { type ListColumn } from '@/components/biz/ListPage.vue'
 import MoneyText from '@/components/biz/MoneyText.vue'
@@ -85,7 +84,7 @@ const grantReason = ref('')
 const grantExpires = ref('2026-11-17T00:00:00Z')
 
 const title = computed(() => page.value?.name['zh-CN'] ?? props.pageId)
-const listPageIds = new Set(['W05', 'W06', 'W07', 'N01', 'RP01', 'U05', 'U07', 'SYS14', 'SYS15', 'SYS16', 'SYS17', 'SYS18', 'SYS22', 'SYS24'])
+const listPageIds = new Set(['W05', 'W06', 'W07', 'N01', 'RP01', 'U05', 'U07', 'SYS14', 'SYS15', 'SYS17', 'SYS18', 'SYS24'])
 const isList = computed(() => listPageIds.has(props.pageId))
 
 function row(value: object): RowRecord {
@@ -551,6 +550,10 @@ onMounted(load)
         >
           创建授权
         </VBtn>
+        <VTable class="mt-6">
+          <thead><tr><th>用户</th><th>权限点</th><th>原因</th><th>到期</th><th>状态</th></tr></thead>
+          <tbody><tr v-for="item in temporaryGrants" :key="item.id"><td>{{ item.userName }}</td><td>{{ item.permissionKey }}</td><td>{{ item.reason }}</td><td>{{ item.expiresAt }}</td><td>{{ item.status }}</td></tr></tbody>
+        </VTable>
       </VCardText>
     </VCard>
 
@@ -682,7 +685,6 @@ onMounted(load)
     >
       智能体只创建建议，审批必须由真人完成；关闭 AI 总开关后，人工审批路径仍可继续。
     </VAlert>
-    <AssistantDrawer v-if="props.pageId === 'W05' && aiMode.isEnabled" />
     <PermissionGate
       v-if="loading"
       action="view"

@@ -7,6 +7,18 @@ import type { FieldAccess } from '@/types/gap-c'
 const templateById = new Map(roleTemplates.map(item => [item.id, item]))
 const legacyRoles = ['admin', 'operator', 'finance', 'viewer', 'auditor'] as const
 
+function legacyAllowsAction(role: typeof legacyRoles[number], action: string) {
+  const actions = legacyRoleActions[role]
+  if (actions.includes(action))
+    return true
+  if (action === 'write' && actions.includes('update'))
+    return true
+  if (action === 'submit' && (actions.includes('ship') || actions.includes('receive')))
+    return true
+
+  return action === 'create' && actions.includes('suggest')
+}
+
 function activeAt(startsAt?: string, expiresAt?: string, now = Date.now()) {
   return !(startsAt && Date.parse(startsAt) > now) && !(expiresAt && Date.parse(expiresAt) <= now)
 }
@@ -53,7 +65,7 @@ export function computeEffectivePermissions(subject: PermissionSubject, now = Da
       ? [
           ...legacyRoleActions[roleId as typeof legacyRoles[number]].map(action => ({ permissionKey: legacyPermissionKeys[action], effect: 'allow' as const, source: `旧角色 ${roleId}` })),
           ...permissionCatalog
-            .filter(point => point.key.endsWith(':read') || legacyRoleActions[roleId as typeof legacyRoles[number]].includes(point.key.split(':')[1] ?? ''))
+            .filter(point => point.key.endsWith(':read') || legacyAllowsAction(roleId as typeof legacyRoles[number], point.key.split(':')[1] ?? ''))
             .map(point => ({ permissionKey: point.key, effect: 'allow' as const, source: `旧角色 ${roleId}` })),
         ]
       : [])

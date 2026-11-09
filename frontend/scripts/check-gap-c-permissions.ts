@@ -6,6 +6,7 @@ const now = Date.parse('2026-11-10T00:00:00.000Z')
 // 新模板只使用自身权限，不能因为 legacyRoleMap 获得管理员权限。
 assert.equal(effectivePermission(roleSubject('hr_admin'), 'permission:write', now).allowed, false)
 assert.equal(effectivePermission(roleSubject('employee'), 'salary_slip:read', now).allowed, false)
+assert.equal(effectivePermission(roleSubject('admin'), 'permission:write', now).allowed, true)
 
 const inherited = effectivePermission({ userId: 'u-1', roleIds: ['operations_manager'] }, 'sales_order:read', now)
 
