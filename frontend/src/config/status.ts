@@ -11,6 +11,8 @@ export type StatusDomain =
   | 'supplier'
   | 'crm'
   | 'generic'
+  | 'return'
+  | 'mapping'
 
 export interface StatusDef {
   value: string
@@ -84,6 +86,15 @@ export const statusDictionary: Record<StatusDomain, StatusDef[]> = {
     row('active', '启用', 'Active', 'success'),
     row('paused', '暂停', 'Paused', 'warning'),
     row('disabled', '停用', 'Disabled', 'secondary'),
+  ],
+  return: [
+    row('posted', '待处理', 'Posted', 'info'),
+    row('restocked', '已入库', 'Restocked', 'success'),
+    row('scrapped', '已报废', 'Scrapped', 'warning'),
+  ],
+  mapping: [
+    row('confirmed', '已确认', 'Confirmed', 'success'),
+    row('suggested', '待确认', 'Suggested', 'warning'),
   ],
 }
 

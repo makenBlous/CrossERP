@@ -1,31 +1,39 @@
 <script setup lang="ts">
 import { fetchOrder } from '@/api/orders'
-import { shipSalesOrder } from '@/api/workflows'
+import { registerSalesReturn, shipSalesOrder } from '@/api/workflows'
+import DetailPage from '@/components/biz/DetailPage.vue'
+import MoneyText from '@/components/biz/MoneyText.vue'
 import PermissionGate from '@/components/biz/PermissionGate.vue'
-import StatusChip from '@/components/biz/StatusChip.vue'
+import { useConfirm } from '@/composables/useConfirm'
 import { usePageContext } from '@/composables/usePageContext'
 import type { OrderDetail } from '@/types/domain'
 import { formatMoney } from '@/utils/format'
+import { readParam } from '@/utils/route-param'
 
 const route = useRoute()
 const { t } = useI18n({ useScope: 'global' })
+const { confirm } = useConfirm()
 const { setSelected } = usePageContext()
 const order = ref<OrderDetail | null>(null)
 const loaded = ref(false)
-const shipping = ref(false)
-const shipError = ref('')
+const acting = ref(false)
+const error = ref('')
+const tab = ref('lines')
 
-const orderId = computed(() => {
-  const params = route.params as Record<string, string | string[] | undefined>
-  const value = params.id
-
-  return Array.isArray(value) ? value[0] ?? '' : value ?? ''
-})
+const orderId = computed(() => readParam(route.params, 'id'))
 
 async function load() {
   loaded.value = false
-  order.value = await fetchOrder(orderId.value)
-  loaded.value = true
+  error.value = ''
+  try {
+    order.value = await fetchOrder(orderId.value)
+  }
+  catch (err) {
+    error.value = err instanceof Error ? err.message : t('foundation.errorTitle')
+  }
+  finally {
+    loaded.value = true
+  }
 }
 
 onMounted(load)
@@ -33,21 +41,51 @@ watch(orderId, load)
 watch(order, value => setSelected(value?.id ?? null))
 onUnmounted(() => setSelected(null))
 
+const canReturn = computed(() => order.value?.statusCode === 'shipped' || order.value?.statusCode === 'partial_refund')
+
 async function ship() {
   if (!order.value)
     return
 
-  shipping.value = true
-  shipError.value = ''
+  acting.value = true
+  error.value = ''
   try {
     await shipSalesOrder(order.value.id)
     await load()
   }
   catch (err) {
-    shipError.value = err instanceof Error ? err.message : t('foundation.errorTitle')
+    error.value = err instanceof Error ? err.message : t('foundation.errorTitle')
   }
   finally {
-    shipping.value = false
+    acting.value = false
+  }
+}
+
+async function register(disposition: 'restock' | 'scrap') {
+  if (!order.value)
+    return
+
+  const ok = await confirm({
+    title: disposition === 'restock' ? t('orders.restock') : t('orders.scrap'),
+    text: order.value.orderNo,
+    confirmText: disposition === 'restock' ? t('orders.restock') : t('orders.scrap'),
+    cancelText: t('foundation.cancel'),
+  })
+
+  if (!ok)
+    return
+
+  acting.value = true
+  error.value = ''
+  try {
+    await registerSalesReturn(order.value.id, disposition)
+    await load()
+  }
+  catch (err) {
+    error.value = err instanceof Error ? err.message : t('foundation.errorTitle')
+  }
+  finally {
+    acting.value = false
   }
 }
 </script>
@@ -58,54 +96,68 @@ async function ship() {
       variant="text"
       class="mb-4"
       prepend-icon="tabler-arrow-left"
-      to="/orders"
+      :to="{ path: '/orders' }"
     >
       {{ t('orders.title') }}
     </VBtn>
-
     <VAlert
-      v-if="loaded && !order"
+      v-if="error"
+      type="error"
+      variant="tonal"
+      class="mb-4"
+    >
+      {{ error }}
+    </VAlert>
+    <LoadingState v-if="!loaded" />
+    <VAlert
+      v-else-if="!order"
       type="warning"
       variant="tonal"
     >
       {{ t('orders.missing') }}
     </VAlert>
-
-    <template v-else-if="order">
-      <div class="d-flex flex-wrap justify-space-between gap-4 mb-6">
-        <div>
-          <h4 class="text-h4">
-            {{ order.orderNo }}
-          </h4>
-          <p class="text-body-1 text-medium-emphasis mb-0">
-            {{ order.storeName }} · {{ order.platform }} {{ order.marketplace }} · {{ order.orderedAt }}
-          </p>
-        </div>
-        <div class="d-flex flex-wrap align-center gap-3">
-          <StatusChip
-            domain="sales_order"
-            :value="order.statusCode || ''"
-          />
-          <PermissionGate action="ship">
-            <VBtn
-              v-if="order.statusCode === 'paid'"
-              color="primary"
-              :loading="shipping"
-              @click="ship"
-            >
-              {{ t('orders.ship') }}
-            </VBtn>
-          </PermissionGate>
-        </div>
-      </div>
-      <VAlert
-        v-if="shipError"
-        type="error"
-        variant="tonal"
-        class="mb-4"
-      >
-        {{ shipError }}
-      </VAlert>
+    <DetailPage
+      v-else
+      :title="order.orderNo"
+      :subtitle="`${order.storeName} · ${order.platform} ${order.marketplace} · ${order.orderedAt}`"
+      domain="sales_order"
+      :status="order.statusCode || ''"
+      :timeline="order.timeline.map(item => ({ at: item.time, title: item.title, detail: item.detail }))"
+      :related="order.related"
+    >
+      <template #actions>
+        <PermissionGate action="ship">
+          <VBtn
+            v-if="order.statusCode === 'paid'"
+            color="primary"
+            :loading="acting"
+            @click="ship"
+          >
+            {{ t('orders.ship') }}
+          </VBtn>
+        </PermissionGate>
+        <PermissionGate action="receive">
+          <VBtn
+            v-if="canReturn"
+            variant="tonal"
+            :loading="acting"
+            @click="register('restock')"
+          >
+            {{ t('orders.restock') }}
+          </VBtn>
+        </PermissionGate>
+        <PermissionGate action="update">
+          <VBtn
+            v-if="canReturn"
+            variant="tonal"
+            color="warning"
+            :loading="acting"
+            @click="register('scrap')"
+          >
+            {{ t('orders.scrap') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
 
       <VRow class="mb-2">
         <VCol
@@ -157,15 +209,20 @@ async function ship() {
         </VCol>
       </VRow>
 
-      <VRow>
-        <VCol
-          cols="12"
-          lg="7"
-        >
-          <VCard class="mb-6">
-            <VCardItem>
-              <VCardTitle>{{ t('orders.lines') }}</VCardTitle>
-            </VCardItem>
+      <VCard>
+        <VTabs v-model="tab">
+          <VTab value="lines">
+            {{ t('orders.lines') }}
+          </VTab>
+          <VTab value="fees">
+            {{ t('orders.feeSplit') }}
+          </VTab>
+          <VTab value="ship">
+            {{ t('orders.logistics') }}
+          </VTab>
+        </VTabs>
+        <VWindow v-model="tab">
+          <VWindowItem value="lines">
             <VTable>
               <thead>
                 <tr>
@@ -191,18 +248,19 @@ async function ship() {
                   </td>
                   <td>{{ line.qty }}</td>
                   <td class="text-end">
-                    {{ formatMoney(line.unitPrice, line.currency) }}
+                    <MoneyText
+                      :amount="line.unitPrice"
+                      :currency="line.currency"
+                    />
                   </td>
                 </tr>
               </tbody>
             </VTable>
-          </VCard>
-
-          <VCard>
-            <VCardItem>
-              <VCardTitle>{{ t('orders.feeSplit') }}</VCardTitle>
-              <VCardSubtitle>{{ t('common.fromSystem') }}</VCardSubtitle>
-            </VCardItem>
+          </VWindowItem>
+          <VWindowItem value="fees">
+            <VCardSubtitle class="px-4 pt-4">
+              {{ t('common.fromSystem') }}
+            </VCardSubtitle>
             <VTable>
               <thead>
                 <tr>
@@ -214,70 +272,39 @@ async function ship() {
               </thead>
               <tbody>
                 <tr
-                  v-for="fee in order.fees"
-                  :key="fee.type"
+                  v-for="(fee, index) in order.fees"
+                  :key="`${fee.type}-${index}`"
                 >
                   <td>{{ fee.type }}</td>
                   <td class="text-end">
-                    {{ formatMoney(fee.amount, fee.currency) }}
+                    <MoneyText
+                      :amount="fee.amount"
+                      :currency="fee.currency"
+                    />
                   </td>
                 </tr>
               </tbody>
             </VTable>
-          </VCard>
-        </VCol>
-        <VCol
-          cols="12"
-          lg="5"
-        >
-          <VCard class="mb-6">
-            <VCardItem>
-              <VCardTitle>{{ t('orders.logistics') }}</VCardTitle>
-            </VCardItem>
+          </VWindowItem>
+          <VWindowItem value="ship">
             <VCardText>
               <div class="mb-2">
-                <span class="text-medium-emphasis">{{ t('orders.warehouse') }}：</span>{{ order.shipment.warehouse }}
+                {{ t('orders.buyer') }}：{{ order.buyerRef }}
               </div>
               <div class="mb-2">
-                <span class="text-medium-emphasis">{{ t('orders.carrier') }}：</span>{{ order.shipment.carrier }}
+                {{ t('orders.warehouse') }}：{{ order.shipment.warehouse }}
               </div>
               <div class="mb-2">
-                <span class="text-medium-emphasis">{{ t('orders.tracking') }}：</span>{{ order.shipment.trackingNo }}
+                {{ t('orders.carrier') }}：{{ order.shipment.carrier }}
               </div>
-              <div><span class="text-medium-emphasis">{{ order.fulfillment }}</span> · {{ order.shipment.shippedAt }}</div>
+              <div class="mb-2">
+                {{ t('orders.tracking') }}：{{ order.shipment.trackingNo }}
+              </div>
+              <div>{{ order.fulfillment }} · {{ order.shipment.shippedAt }}</div>
             </VCardText>
-          </VCard>
-          <VCard>
-            <VCardItem>
-              <VCardTitle>{{ t('orders.timeline') }}</VCardTitle>
-            </VCardItem>
-            <VCardText>
-              <VTimeline
-                side="end"
-                density="compact"
-                truncate-line="both"
-              >
-                <VTimelineItem
-                  v-for="event in order.timeline"
-                  :key="event.time"
-                  dot-color="primary"
-                  size="x-small"
-                >
-                  <div class="text-caption text-medium-emphasis">
-                    {{ event.time }}
-                  </div>
-                  <div class="font-weight-medium">
-                    {{ event.title }}
-                  </div>
-                  <div class="text-body-2">
-                    {{ event.detail }}
-                  </div>
-                </VTimelineItem>
-              </VTimeline>
-            </VCardText>
-          </VCard>
-        </VCol>
-      </VRow>
-    </template>
+          </VWindowItem>
+        </VWindow>
+      </VCard>
+    </DetailPage>
   </div>
 </template>

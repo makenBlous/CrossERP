@@ -14,6 +14,7 @@ export interface Store {
 
 export interface DashboardKpi {
   sales: number
+  fees: number
   netProfit: number
   grossMargin: number
   refundRate: number
@@ -102,6 +103,7 @@ export interface OrderDetail extends OrderSummary {
     shippedAt: string
   }
   timeline: OrderEvent[]
+  related: Array<{ id: string; type: string; label: string; to?: string }>
 }
 
 export type StockAlert = 'ok' | 'low' | 'stockout'
@@ -313,4 +315,167 @@ export interface ChatMessage {
   text: string
   toolCall?: ChatToolCall
   suggestion?: ChatSuggestion
+}
+
+export interface SkuListRow {
+  id: string
+  internalSku: string
+  title: string
+  brandName: string
+  categoryName: string
+  status: string
+  listingCount: number
+}
+
+export interface SkuCostPoint {
+  id: string
+  validFrom: string
+  validTo: string
+  unitCost: number
+  freight: number
+  currency: CurrencyCode
+}
+
+export interface SkuDetailView {
+  id: string
+  internalSku: string
+  title: string
+  titleEn: string
+  brandName: string
+  brandId: string
+  categoryName: string
+  categoryId: string
+  status: string
+  costs: SkuCostPoint[]
+  profits: Array<{ period: string; storeName: string; profit: number; currency: CurrencyCode }>
+  orders: Array<{ id: string; orderNo: string; orderedAt: string; qty: number; status: string }>
+  mappings: Array<{ id: string; storeName: string; platformSku: string; status: string }>
+}
+
+export interface CostListRow {
+  id: string
+  internalSku: string
+  title: string
+  validFrom: string
+  validTo: string
+  unitCost: number
+  freight: number
+  currency: CurrencyCode
+}
+
+export interface ListingListRow {
+  id: string
+  storeId: string
+  storeName: string
+  platform: string
+  marketplace: string
+  title: string
+  platformListingId: string
+  skuId: string
+  internalSku: string
+  status: string
+  price: number
+  currency: CurrencyCode
+}
+
+export interface CategoryRow {
+  id: string
+  name: string
+  parentId: string
+  parentName: string
+  sortNo: number
+  status: string
+}
+
+export interface BrandRow {
+  id: string
+  name: string
+  skuCount: number
+  status: string
+}
+
+export interface MappingRow {
+  id: string
+  storeId: string
+  storeName: string
+  platform: string
+  platformSku: string
+  internalSku: string
+  status: string
+}
+
+export interface BundleRow {
+  id: string
+  parentInternalSku: string
+  parentTitle: string
+  childInternalSku: string
+  childTitle: string
+  qty: number
+}
+
+export interface ReturnRow {
+  id: string
+  orderId: string
+  orderNo: string
+  storeName: string
+  amount: number
+  currency: CurrencyCode
+  postedAt: string
+  status: string
+}
+
+export interface ExceptionRow {
+  id: string
+  code: string
+  severity: string
+  storeName: string
+  refNo: string
+  orderId: string
+  amount: number
+  currency: CurrencyCode
+  status: string
+  summary: string
+}
+
+export interface ChannelRow {
+  id: string
+  platform: string
+  currency: CurrencyCode
+  orders: number
+  sales: number
+  refunds: number
+}
+
+export interface FulfillmentRow {
+  id: string
+  orderNo: string
+  storeName: string
+  status: string
+  fulfillment: string
+  warehouse: string
+  carrier: string
+  trackingNo: string
+  shippedAt: string
+}
+
+export interface TodoRow {
+  id: string
+  kind: string
+  title: string
+  detail: string
+  at: string
+  to: string
+}
+
+export interface CalendarEventRow {
+  id: string
+  title: string
+  start: string
+  kind: string
+  to: string
+}
+
+export interface LookupOption {
+  id: string
+  label: string
 }

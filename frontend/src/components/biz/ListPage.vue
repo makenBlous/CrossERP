@@ -48,6 +48,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   retry: []
   batch: [action: string, rows: T[]]
+  open: [row: T]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -191,6 +192,18 @@ function applyView(view: SavedView) {
 function removeView(id: string) {
   saved.value = saved.value.filter(item => item.id !== id)
   persistViews()
+}
+
+function onRowClick(event: Event, payload: { item: T & { raw?: T } }) {
+  const target = event.target
+
+  if (target instanceof Element && target.closest('button, a, input, .v-selection-control'))
+    return
+
+  const item = payload.item.raw ?? payload.item
+
+  if (item?.id)
+    emit('open', item)
 }
 
 function exportCsv() {
@@ -364,6 +377,7 @@ function exportCsv() {
         :items-per-page="10"
         show-select
         item-value="id"
+        @click:row="onRowClick"
       >
         <template
           v-for="column in visibleColumns"

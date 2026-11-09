@@ -1,7 +1,28 @@
 import { defineStore } from 'pinia'
 import { type SuggestionInput, decideApproval, submitSuggestion } from '@/mocks/services/approvals'
+import {
+  type BundleDraft,
+  type CostDraft,
+  type ListingDraft,
+  type MappingDraft,
+  type NamedDraft,
+  type SkuDraft,
+  addSkuCost,
+  confirmMappings,
+  removeBundles,
+  saveBrand,
+  saveBundle,
+  saveCategory,
+  saveListing,
+  saveMapping,
+  saveSku,
+  setBrandActive,
+  setCategoryActive,
+  setListingStatus,
+  setSkuActive,
+} from '@/mocks/services/catalog'
 import { arriveShipment, departShipment } from '@/mocks/services/logistics'
-import { shipSalesOrder } from '@/mocks/services/orders'
+import { disposeReturn, registerReturn, shipSalesOrder } from '@/mocks/services/orders'
 import { approvePurchaseOrder, receivePurchaseOrder, rejectPurchaseOrder, submitPurchaseOrder } from '@/mocks/services/procurement'
 import { MOCK_DB_VERSION, buildSeed } from '@/mocks/seed/build'
 import type { Actor, MockDatabase } from '@/types/entities'
@@ -117,6 +138,93 @@ export const useMockDbStore = defineStore('mockdb', {
     },
     decide(id: string, status: 'approved' | 'rejected', actor: Actor) {
       const result = decideApproval(this.db, id, status, actor)
+
+      this.persist()
+
+      return result
+    },
+    saveSku(input: SkuDraft & { id?: string }, actor: Actor) {
+      const result = saveSku(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    setSkuActive(ids: string[], active: boolean, actor: Actor) {
+      setSkuActive(this.db, ids, active, actor)
+      this.persist()
+    },
+    addSkuCost(input: CostDraft, actor: Actor) {
+      const result = addSkuCost(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    saveListing(input: ListingDraft, actor: Actor) {
+      const result = saveListing(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    setListingStatus(ids: string[], status: string, actor: Actor) {
+      setListingStatus(this.db, ids, status, actor)
+      this.persist()
+    },
+    saveCategory(input: NamedDraft, actor: Actor) {
+      const result = saveCategory(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    setCategoryActive(ids: string[], active: boolean, actor: Actor) {
+      setCategoryActive(this.db, ids, active, actor)
+      this.persist()
+    },
+    saveBrand(input: NamedDraft, actor: Actor) {
+      const result = saveBrand(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    setBrandActive(ids: string[], active: boolean, actor: Actor) {
+      setBrandActive(this.db, ids, active, actor)
+      this.persist()
+    },
+    saveMapping(input: MappingDraft, actor: Actor) {
+      const result = saveMapping(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    confirmMappings(ids: string[], actor: Actor) {
+      confirmMappings(this.db, ids, actor)
+      this.persist()
+    },
+    saveBundle(input: BundleDraft, actor: Actor) {
+      const result = saveBundle(this.db, input, actor)
+
+      this.persist()
+
+      return result
+    },
+    removeBundles(ids: string[], actor: Actor) {
+      removeBundles(this.db, ids, actor)
+      this.persist()
+    },
+    disposeReturn(id: string, disposition: 'restock' | 'scrap', actor: Actor) {
+      const result = disposeReturn(this.db, id, disposition, actor)
+
+      this.persist()
+
+      return result
+    },
+    registerReturn(orderId: string, disposition: 'restock' | 'scrap', actor: Actor) {
+      const result = registerReturn(this.db, orderId, disposition, actor)
 
       this.persist()
 

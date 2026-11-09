@@ -64,6 +64,43 @@ export async function shipSalesOrder(id: string) {
   return database().shipOrder(id, actor)
 }
 
+// 未来: POST /api/v1/sales/orders/ship
+export async function shipSalesOrders(ids: string[]) {
+  await delay()
+
+  const actor = assertCan('ship')
+  const failed: string[] = []
+
+  for (const id of ids) {
+    try {
+      database().shipOrder(id, actor)
+    }
+    catch (error) {
+      failed.push(error instanceof Error ? error.message : id)
+    }
+  }
+
+  return failed
+}
+
+// 未来: POST /api/v1/sales/returns/{id}/dispose
+export async function disposeSalesReturn(id: string, disposition: 'restock' | 'scrap') {
+  await delay()
+
+  const actor = assertCan(disposition === 'restock' ? 'receive' : 'update')
+
+  return database().disposeReturn(id, disposition, actor)
+}
+
+// 未来: POST /api/v1/sales/orders/{id}/returns
+export async function registerSalesReturn(orderId: string, disposition: 'restock' | 'scrap') {
+  await delay()
+
+  const actor = assertCan(disposition === 'restock' ? 'receive' : 'update')
+
+  return database().registerReturn(orderId, disposition, actor)
+}
+
 export interface SuggestionDraft {
   title: string
   summary: string

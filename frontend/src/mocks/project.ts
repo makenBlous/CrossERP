@@ -153,6 +153,24 @@ export function projectOrder(db: MockDatabase, id: string): OrderDetail | null {
     timeline: db.audit
       .filter(item => item.refId === order.id)
       .map(item => ({ time: utcLabel(item.at), title: item.action, detail: item.summary })),
+    related: [
+      ...db.stockDocs
+        .filter(doc => doc.remark.includes(order.orderNo))
+        .map(doc => ({
+          id: doc.id,
+          type: doc.docType === 'outbound' ? '出库单' : '入库单',
+          label: `${doc.docNo} ${doc.remark}`,
+          to: doc.docType === 'outbound' ? '/inventory/outbound' : '/inventory/inbound',
+        })),
+      ...db.returns
+        .filter(item => item.orderId === order.id)
+        .map(item => ({
+          id: item.id,
+          type: '退货',
+          label: item.id,
+          to: '/orders/returns',
+        })),
+    ],
   }
 }
 
@@ -204,20 +222,20 @@ function monthKey(value: string) {
   return value.slice(0, 7)
 }
 
-export function projectDashboard(db: MockDatabase, storeId = 'all'): DashboardPayload {
+export function projectDashboard(db: MockDatabase, storeId = 'all', period = '2026-10'): DashboardPayload {
   const inScope = (id: string) => storeId === 'all' || id === storeId
-  const octoberOrders = db.orders.filter(order => inScope(order.storeId) && monthKey(order.orderedAt) === '2026-10' && order.status !== 'cancelled')
+  const periodOrders = db.orders.filter(order => inScope(order.storeId) && monthKey(order.orderedAt) === period && order.status !== 'cancelled')
   let sales = 0
   let refunds = 0
 
-  for (const order of octoberOrders) {
+  for (const order of periodOrders) {
     sales += convertMinor(orderGross(db, order.id), order.currency, 'USD')
     refunds += convertMinor(order.refund, order.currency, 'USD')
   }
 
-  const profit = db.profitSnapshots
-    .filter(row => row.period === '2026-10' && inScope(row.storeId))
-    .reduce((sum, row) => sum + convertMinor(row.profit, row.currency, 'USD'), 0)
+  const periodProfit = db.profitSnapshots.filter(row => row.period === period && inScope(row.storeId))
+  const profit = periodProfit.reduce((sum, row) => sum + convertMinor(row.profit, row.currency, 'USD'), 0)
+  const fees = periodProfit.reduce((sum, row) => sum + convertMinor(row.fees + row.ads, row.currency, 'USD'), 0)
 
   const trend = ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11'].map(month => {
     const monthOrders = db.orders.filter(order => inScope(order.storeId) && monthKey(order.orderedAt) === month)
@@ -231,11 +249,11 @@ export function projectDashboard(db: MockDatabase, storeId = 'all'): DashboardPa
   })
 
   const stores = db.stores.filter(store => inScope(store.id)).map(store => {
-    const storeOrders = db.orders.filter(order => order.storeId === store.id && monthKey(order.orderedAt) === '2026-10')
+    const storeOrders = db.orders.filter(order => order.storeId === store.id && monthKey(order.orderedAt) === period)
     const storeSales = storeOrders.reduce((sum, order) => sum + orderGross(db, order.id), 0)
 
     const storeProfit = db.profitSnapshots
-      .filter(row => row.storeId === store.id && row.period === '2026-10')
+      .filter(row => row.storeId === store.id && row.period === period)
       .reduce((sum, row) => sum + row.profit, 0)
 
     const run = db.reconRuns.find(item => item.storeId === store.id)
@@ -262,9 +280,10 @@ export function projectDashboard(db: MockDatabase, storeId = 'all'): DashboardPa
   const unmatched = runs.reduce((sum, item) => sum + item.unmatched, 0)
 
   return {
-    periodLabel: '2026-10-01 ~ 2026-10-31',
+    periodLabel: `${period}-01 ~ ${period}-31`,
     kpi: {
       sales: toDisplay(sales, 'USD'),
+      fees: toDisplay(fees, 'USD'),
       netProfit: toDisplay(profit, 'USD'),
       grossMargin: percentRatio(profit, sales || 1),
       refundRate: percentRatio(refunds, sales || 1),

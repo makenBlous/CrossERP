@@ -102,7 +102,7 @@ export default defineConfig({
   server: {
     // 启动后预先编译入口和常用页面，减少第一次打开时的等待
     warmup: {
-      clientFiles: ['./src/main.ts', './src/App.vue', './src/layouts/*.vue', './src/pages/login.vue', './src/pages/dashboard.vue'],
+      clientFiles: ['./src/main.ts', './src/App.vue', './src/layouts/*.vue', './src/pages/login.vue', './src/pages/dashboard/index.vue'],
     },
   },
   optimizeDeps: {

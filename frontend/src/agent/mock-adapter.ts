@@ -1,4 +1,5 @@
 import type { AgentAdapter, AgentPageContext, AgentPart } from '@/agent/adapter'
+import { projectSkuDetail } from '@/mocks/project-ops'
 import { projectDashboard, projectIssues, projectOrder, projectProfit } from '@/mocks/project'
 import { useMockDbStore } from '@/stores/mockdb'
 import { formatMoney } from '@/utils/format'
@@ -7,6 +8,116 @@ function wait(ms: number) {
   return new Promise<void>(resolve => {
     setTimeout(resolve, ms)
   })
+}
+
+async function answerSelected(
+  db: ReturnType<typeof useMockDbStore>['db'],
+  id: string,
+  ask: string,
+  zh: boolean,
+  emit: (part: AgentPart) => void,
+) {
+  const order = projectOrder(db, id)
+
+  if (order) {
+    emit({
+      kind: 'card',
+      card: {
+        kind: 'query',
+        title: zh ? '只读订单' : 'Read-only order',
+        lines: [
+          { label: zh ? '单号' : 'Order', value: order.orderNo },
+          { label: zh ? '状态' : 'Status', value: order.status },
+          { label: zh ? '发货时间' : 'Shipped', value: order.shipment.shippedAt },
+          { label: zh ? '物流单号' : 'Tracking', value: order.shipment.trackingNo },
+          { label: zh ? '净额' : 'Net', value: formatMoney(order.net, order.currency) },
+        ],
+      },
+    })
+    if (/发货|到货|什么时候|when|ship/.test(ask)) {
+      await emitText(
+        zh
+          ? `这张订单的发货时间是 ${order.shipment.shippedAt}，仓库 ${order.shipment.warehouse}，物流单号 ${order.shipment.trackingNo}。`
+          : `This order shipped at ${order.shipment.shippedAt} from ${order.shipment.warehouse}. Tracking ${order.shipment.trackingNo}.`,
+        emit,
+      )
+    }
+
+    return
+  }
+
+  const sku = projectSkuDetail(db, id)
+
+  if (sku) {
+    const latest = sku.costs[sku.costs.length - 1]
+
+    emit({
+      kind: 'card',
+      card: {
+        kind: 'query',
+        title: zh ? '只读 SKU' : 'Read-only SKU',
+        lines: [
+          { label: 'SKU', value: sku.internalSku },
+          { label: zh ? '名称' : 'Name', value: sku.title },
+          { label: zh ? '当前生效日' : 'Valid from', value: latest?.validFrom ?? '' },
+          { label: zh ? '采购成本' : 'Cost', value: latest ? `${latest.unitCost} ${latest.currency}` : '' },
+        ],
+      },
+    })
+    if (/成本|生效|cost|when/.test(ask)) {
+      const lines = sku.costs.map(item => `${item.validFrom} → ${item.validTo || (zh ? '至今' : 'open')}: ${item.unitCost} ${item.currency}`).join('；')
+
+      await emitText(zh ? `成本时间轴：${lines}` : `Cost timeline: ${lines}`, emit)
+    }
+
+    return
+  }
+
+  const purchase = db.purchaseOrders.find(item => item.id === id)
+
+  if (purchase) {
+    emit({
+      kind: 'card',
+      card: {
+        kind: 'query',
+        title: zh ? '只读采购单' : 'Read-only purchase order',
+        lines: [
+          { label: zh ? '单号' : 'PO', value: purchase.no },
+          { label: zh ? '状态' : 'Status', value: purchase.status },
+          { label: zh ? '预计到货' : 'Expected arrival', value: purchase.expectedAt.slice(0, 10) },
+        ],
+      },
+    })
+    if (/到货|什么时候|when|arriv/.test(ask)) {
+      await emitText(
+        zh
+          ? `这单预计到货日是 ${purchase.expectedAt.slice(0, 10)}。这是单据上已存储的交期，我没有重算。`
+          : `The stored expected arrival is ${purchase.expectedAt.slice(0, 10)}. I did not recalculate it.`,
+        emit,
+      )
+    }
+
+    return
+  }
+
+  const listing = db.listings.find(item => item.id === id)
+
+  if (listing) {
+    const mapped = db.skus.find(item => item.id === listing.skuId)
+
+    emit({
+      kind: 'card',
+      card: {
+        kind: 'query',
+        title: zh ? '只读 Listing' : 'Read-only listing',
+        lines: [
+          { label: zh ? '标题' : 'Title', value: listing.title },
+          { label: 'SKU', value: mapped?.internalSku ?? listing.skuId },
+          { label: zh ? '状态' : 'Status', value: listing.status },
+        ],
+      },
+    })
+  }
 }
 
 async function emitText(text: string, emit: (part: AgentPart) => void) {
@@ -31,24 +142,8 @@ export class MockAgentAdapter implements AgentAdapter {
       emit,
     )
 
-    if (context.selectedId) {
-      const order = projectOrder(db, context.selectedId)
-
-      if (order) {
-        emit({
-          kind: 'card',
-          card: {
-            kind: 'query',
-            title: zh ? '只读订单' : 'Read-only order',
-            lines: [
-              { label: zh ? '单号' : 'Order', value: order.orderNo },
-              { label: zh ? '状态' : 'Status', value: order.status },
-              { label: zh ? '净额' : 'Net', value: formatMoney(order.net, order.currency) },
-            ],
-          },
-        })
-      }
-    }
+    if (context.selectedId)
+      await answerSelected(db, context.selectedId, ask, zh, emit)
 
     if (/利润|profit/.test(ask)) {
       const row = projectProfit(db).rows[0]

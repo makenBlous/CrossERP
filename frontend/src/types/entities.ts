@@ -67,7 +67,7 @@ export interface SkuMapping {
   storeId: string
   platformSku: string
   internalSku: string
-  status: 'confirmed'
+  status: 'confirmed' | 'suggested'
 }
 
 export interface Bundle {

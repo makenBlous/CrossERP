@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ApexOptions } from 'apexcharts'
-import { fetchDashboard, fetchStores } from '@/api/dashboard'
+import { fetchDashboard, fetchPeriods, fetchStores } from '@/api/dashboard'
 import { useChartTheme } from '@/composables/useChartTheme'
 import type { DashboardPayload, Store } from '@/types/domain'
 import { formatInteger, formatMoney, formatPercent } from '@/utils/format'
@@ -8,7 +8,9 @@ import { formatInteger, formatMoney, formatPercent } from '@/utils/format'
 const { t } = useI18n({ useScope: 'global' })
 const chart = useChartTheme()
 const storeId = ref('all')
+const period = ref('2026-10')
 const stores = ref<Store[]>([])
+const periods = ref<string[]>([])
 const data = ref<DashboardPayload | null>(null)
 
 const storeItems = computed(() => [
@@ -16,16 +18,22 @@ const storeItems = computed(() => [
   ...stores.value.map(item => ({ title: `${item.name} · ${item.marketplace}`, value: item.id })),
 ])
 
+const periodItems = computed(() => periods.value.map(item => ({ title: item, value: item })))
+
 async function load() {
-  data.value = await fetchDashboard(storeId.value)
+  data.value = await fetchDashboard(storeId.value, period.value)
 }
 
 onMounted(async () => {
   stores.value = await fetchStores()
+  periods.value = await fetchPeriods()
+  if (periods.value.length && !periods.value.includes(period.value))
+    period.value = periods.value[periods.value.length - 1]
+
   await load()
 })
 
-watch(storeId, () => {
+watch([storeId, period], () => {
   load()
 })
 
@@ -60,12 +68,13 @@ const reasonOptions = computed<ApexOptions>(() => ({
 const reasonSeries = computed(() => data.value?.reasons.map(item => item.count) ?? [])
 
 const shortcuts = [
-  { to: '/finance/issues', icon: 'tabler-alert-circle', key: 'issues.title' },
-  { to: '/finance/profit', icon: 'tabler-chart-line', key: 'profit.title' },
-  { to: '/approvals', icon: 'tabler-checkbox', key: 'approvals.title' },
-  { to: '/finance/recon', icon: 'tabler-arrows-join', key: 'recon.title' },
-  { to: '/orders', icon: 'tabler-receipt', key: 'orders.title' },
-  { to: '/agent/chat', icon: 'tabler-message-chatbot', key: 'chat.title' },
+  { path: '/dashboard/todos', icon: 'tabler-list-check', key: 'dashboard.todosLink' },
+  { path: '/dashboard/stores', icon: 'tabler-building-store', key: 'dashboard.storesLink' },
+  { path: '/dashboard/calendar', icon: 'tabler-calendar', key: 'dashboard.calendarLink' },
+  { path: '/finance/issues', icon: 'tabler-alert-circle', key: 'issues.title' },
+  { path: '/finance/profit', icon: 'tabler-chart-line', key: 'profit.title' },
+  { path: '/approvals', icon: 'tabler-checkbox', key: 'approvals.title' },
+  { path: '/orders', icon: 'tabler-receipt', key: 'orders.title' },
 ]
 </script>
 
@@ -80,12 +89,20 @@ const shortcuts = [
           {{ t('dashboard.subtitle') }}
         </p>
       </div>
-      <AppSelect
-        v-model="storeId"
-        :items="storeItems"
-        :label="t('common.store')"
-        style="min-width: 260px;"
-      />
+      <div class="d-flex flex-wrap gap-4">
+        <AppSelect
+          v-model="period"
+          :items="periodItems"
+          :label="t('dashboard.period')"
+          style="min-width: 180px;"
+        />
+        <AppSelect
+          v-model="storeId"
+          :items="storeItems"
+          :label="t('common.store')"
+          style="min-width: 260px;"
+        />
+      </div>
     </div>
 
     <VRow v-if="data">
@@ -99,6 +116,18 @@ const shortcuts = [
           :value="formatMoney(data.kpi.sales, 'USD')"
           icon="tabler-currency-dollar"
           color="primary"
+        />
+      </VCol>
+      <VCol
+        cols="12"
+        sm="6"
+        lg="3"
+      >
+        <KpiCard
+          :title="t('dashboard.fees')"
+          :value="formatMoney(data.kpi.fees, 'USD')"
+          icon="tabler-receipt-tax"
+          color="warning"
         />
       </VCol>
       <VCol
@@ -139,7 +168,7 @@ const shortcuts = [
       <VCol
         cols="12"
         sm="6"
-        lg="4"
+        lg="3"
       >
         <KpiCard
           :title="t('dashboard.matchRate')"
@@ -151,7 +180,7 @@ const shortcuts = [
       <VCol
         cols="12"
         sm="6"
-        lg="4"
+        lg="3"
       >
         <KpiCard
           :title="t('dashboard.openIssues')"
@@ -163,7 +192,7 @@ const shortcuts = [
       <VCol
         cols="12"
         sm="6"
-        lg="4"
+        lg="3"
       >
         <KpiCard
           :title="t('dashboard.pendingApprovals')"
@@ -202,11 +231,13 @@ const shortcuts = [
           </VCardItem>
           <VCardText>
             <VueApexCharts
+              v-if="reasonSeries.length"
               type="donut"
               height="300"
               :options="reasonOptions"
               :series="reasonSeries"
             />
+            <EmptyState v-else />
           </VCardText>
         </VCard>
       </VCol>
@@ -272,8 +303,8 @@ const shortcuts = [
           <VCardText class="d-flex flex-column gap-3">
             <VBtn
               v-for="item in shortcuts"
-              :key="item.to"
-              :to="item.to"
+              :key="item.path"
+              :to="{ path: item.path }"
               variant="tonal"
               block
               :prepend-icon="item.icon"
@@ -284,5 +315,6 @@ const shortcuts = [
         </VCard>
       </VCol>
     </VRow>
+    <LoadingState v-else />
   </div>
 </template>
