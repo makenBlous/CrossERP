@@ -111,7 +111,7 @@ export function voucherDetail(db: MockDatabase, id: string) {
 }
 
 export function accounts(db: MockDatabase) {
-  return db.accounts.map(item => ({ ...item, review: item.code !== '6001' }))
+  return db.accounts.map(item => ({ ...item, group: item.direction === 'debit' ? (item.code.startsWith('1') ? '资产' : '费用') : (item.code.startsWith('2') ? '负债' : '收入'), review: item.code !== '6001' }))
 }
 
 export function fxRates(db: MockDatabase) {
@@ -163,11 +163,11 @@ export function exportRows(db: MockDatabase) {
 }
 
 export function cashRows(db: MockDatabase) {
-  return db.settlements.slice(0, 10).map(row => ({ id: row.id, date: row.periodEnd, account: row.externalId, direction: 'in', amount: toDisplay(row.total, row.currency), currency: row.currency, source: row.platform }))
+  return db.settlements.slice(0, 10).map(row => ({ id: row.id, date: row.periodEnd, account: row.externalId, direction: 'in', amount: row.total, currency: row.currency, source: row.platform, status: 'pending' }))
 }
 
 export function adsCampaigns(db: MockDatabase) {
-  return db.adsCampaigns.map(row => ({ ...row, storeName: db.stores.find(store => store.id === row.storeId)?.name ?? row.storeId, spendDisplay: toDisplay(row.spend, row.currency) }))
+  return db.adsCampaigns.map(row => ({ ...row, platform: db.stores.find(store => store.id === row.storeId)?.platform ?? '—', storeName: db.stores.find(store => store.id === row.storeId)?.name ?? row.storeId, spendDisplay: toDisplay(row.spend, row.currency) }))
 }
 
 export function adsImportRows(db: MockDatabase) {

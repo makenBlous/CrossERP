@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { fetchAp } from '@/api/finance'
+import MoneyText from '@/components/biz/MoneyText.vue'
 import FinanceTablePage, { type FinanceRow } from '@/views/finance/FinanceTablePage.vue'
 
 const rows = ref<Awaited<ReturnType<typeof fetchAp>>>([])
@@ -18,5 +19,7 @@ const columns = [{ key: 'id', title: '应付编号' }, { key: 'supplier', title:
     subtitle="供应商、货代未付款金额与账龄。"
     :rows="rows as unknown as FinanceRow[]"
     :columns="columns"
-  />
+    :filters="[{ key: 'supplier', label: '供应商', items: [...new Set(rows.map(row => ({ title: row.supplier, value: row.supplier })))] }, { key: 'status', label: '状态', items: [...new Set(rows.map(row => ({ title: row.status, value: row.status })))] }]"
+    date-key="dueAt"
+  ><template #item.amountDisplay="{ item }"><MoneyText :amount="Number(item.amount)" :currency="item.currency as any" minor /></template></FinanceTablePage>
 </template>
