@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /* eslint-disable indent, max-statements-per-line */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   confirmGapCAccessReview,
   copyGapCRole,
@@ -38,6 +38,7 @@ import {
   saveGapCSodRule,
   saveGapCSubscriptions,
 } from '@/api/gap-c'
+import { fetchScopedContext, fetchScopedEmployees, fetchScopedExpenses, fetchScopedOrders } from '@/api/scoped-reads'
 import DetailPage from '@/components/biz/DetailPage.vue'
 import FormDrawer from '@/components/biz/FormDrawer.vue'
 import FormPage from '@/components/biz/FormPage.vue'
@@ -49,6 +50,7 @@ import StatusChip from '@/components/biz/StatusChip.vue'
 import KpiCard from '@/components/KpiCard.vue'
 import { findPageById } from '@/config/pages'
 import { useAiModeStore } from '@/stores/ai-mode'
+import { useSessionStore } from '@/stores/session'
 import type { FieldAccess, GapCAccessReview, GapCAgentTrace, GapCAlert, GapCApprovalRow, GapCApprovalRule, GapCArchiveRun, GapCAuditRow, GapCDataScope, GapCFieldPolicy, GapCMatrixCell, GapCNotification, GapCPermissionChange, GapCReport, GapCReportBuilder, GapCReportResult, GapCRetention, GapCRoleView, GapCSodRule, GapCSubscription, GapCTemporaryGrant } from '@/types/gap-c'
 
 interface RowRecord { id: string; [key: string]: unknown }
@@ -58,6 +60,7 @@ const router = useRouter()
 const route = useRoute()
 const routeParams = route.params as Record<string, string | string[] | undefined>
 const aiMode = useAiModeStore()
+const session = useSessionStore()
 const page = computed(() => findPageById(props.pageId))
 const loading = ref(false)
 const error = ref('')
@@ -107,6 +110,12 @@ const ruleDrawer = ref(false)
 const selectedRecord = ref<RowRecord | null>(null)
 const recordDrawer = ref(false)
 const selectedRule = ref<GapCApprovalRule | null>(null)
+const scopedOrders = ref<Awaited<ReturnType<typeof fetchScopedOrders>>>([])
+const scopedExpenses = ref<Awaited<ReturnType<typeof fetchScopedExpenses>>>([])
+const scopedEmployees = ref<Awaited<ReturnType<typeof fetchScopedEmployees>>>([])
+const scopedContext = ref<Awaited<ReturnType<typeof fetchScopedContext>> | null>(null)
+const scopedLoading = ref(false)
+const scopedError = ref('')
 
 const reportFieldOptions: Record<GapCReportBuilder['dataSource'], string[]> = {
   orders: ['orderNo', 'store', 'owner', 'amount', 'status'],
@@ -222,7 +231,7 @@ async function load() {
       case 'SYS18': sodRules.value = await fetchGapCSodRules(); break
       case 'SYS21': selectedRole.value = await fetchGapCRole(typeof routeParams.id === 'string' ? routeParams.id : 'store_operator'); break
       case 'SYS22': matrix.value = await fetchGapCMatrix(); break
-      case 'SYS23': effective.value = await fetchGapCEffectivePermissions(selectedUser.value); break
+      case 'SYS23': effective.value = await fetchGapCEffectivePermissions(selectedUser.value); await loadScopedPreview(); break
       case 'SYS24': changes.value = await fetchGapCPermissionChanges(); break
     }
   }
@@ -318,6 +327,38 @@ async function runArchive() {
 async function saveMatrix() { await runAction(() => saveGapCMatrix(matrix.value.slice(0, 24), confirmer.value), '权限矩阵已保存') }
 async function changeEffectiveUser() { await runAction(async () => { effective.value = await fetchGapCEffectivePermissions(selectedUser.value) }, '有效权限已刷新') }
 
+async function loadScopedPreview() {
+  scopedLoading.value = true
+  scopedError.value = ''
+  scopedOrders.value = []
+  scopedExpenses.value = []
+  scopedEmployees.value = []
+  scopedContext.value = null
+
+  const [orders, expenses, employees, context] = await Promise.allSettled([
+    fetchScopedOrders(),
+    fetchScopedExpenses(),
+    fetchScopedEmployees(),
+    fetchScopedContext(),
+  ])
+
+  scopedOrders.value = orders.status === 'fulfilled' ? orders.value : []
+  scopedExpenses.value = expenses.status === 'fulfilled' ? expenses.value : []
+  scopedEmployees.value = employees.status === 'fulfilled' ? employees.value : []
+  scopedContext.value = context.status === 'fulfilled' ? context.value : null
+
+  const denied: Array<[string, PromiseSettledResult<unknown>]> = [
+    ['订单', orders] as [string, PromiseSettledResult<unknown>],
+    ['报销', expenses] as [string, PromiseSettledResult<unknown>],
+    ['员工档案', employees] as [string, PromiseSettledResult<unknown>],
+  ].filter(([, result]) => result.status === 'rejected')
+
+  if (denied.length > 0)
+    scopedError.value = `${denied.map(([label, result]) => `${label}：${result.status === 'rejected' && result.reason instanceof Error ? result.reason.message : '当前主体无读取权限'}`).join('；')}。未放宽权限，表格按空结果展示。`
+
+  scopedLoading.value = false
+}
+
 async function saveRoleCopy() {
   let copied: GapCRoleView | null = null
   await runAction(async () => {
@@ -334,6 +375,11 @@ function changeReportSource(value: GapCReportBuilder['dataSource']) {
   reportFields.value = reportFieldOptions[value].slice(0, 4)
   reportFilterField.value = reportFieldOptions[value][0]
 }
+
+watch(() => session.role, () => {
+  if (props.pageId === 'SYS23')
+    load()
+})
 
 onMounted(load)
 </script>
@@ -921,6 +967,128 @@ onMounted(load)
             </tr>
           </tbody>
         </VTable>
+        <VCard
+          class="mt-6"
+          variant="outlined"
+        >
+          <VCardItem>
+            <VCardTitle>当前身份可见数据预览</VCardTitle>
+            <VCardSubtitle>以下数据由当前会话身份调用 scoped read API 返回，切换顶栏角色后自动刷新。</VCardSubtitle>
+          </VCardItem>
+          <VCardText>
+            <VAlert
+              v-if="scopedError"
+              type="error"
+              variant="tonal"
+              class="mb-4"
+            >
+              {{ scopedError }}
+            </VAlert>
+            <VProgressLinear
+              v-if="scopedLoading"
+              indeterminate
+              class="mb-4"
+            />
+            <div class="d-flex flex-wrap align-center gap-3 mb-4">
+              <VChip
+                color="primary"
+                variant="tonal"
+              >
+                主体：{{ session.displayName }}（{{ session.userId }}）
+              </VChip>
+              <StatusChip
+                domain="generic"
+                value="active"
+              />
+              <span v-if="scopedContext">数据范围：订单 {{ scopedContext.dataScopes.orders.join('、') || '无' }}；报销 {{ scopedContext.dataScopes.expenses.join('、') || '无' }}；员工档案 {{ scopedContext.dataScopes.employees.join('、') || '无' }}</span>
+              <span v-else>数据范围：加载中</span>
+              <span>绑定店铺：{{ scopedContext?.shopsForSubject.join('、') || '无' }}</span>
+            </div>
+            <VRow>
+              <VCol
+                cols="12"
+                md="4"
+              >
+                <VCard variant="tonal">
+                  <VCardItem>
+                    <VCardTitle>订单</VCardTitle>
+                    <VCardSubtitle>{{ scopedOrders.length }} 条</VCardSubtitle>
+                  </VCardItem>
+                  <VTable
+                    data-testid="scope-preview-orders"
+                    density="compact"
+                  >
+                    <thead><tr><th>id</th><th>orderNo</th><th>shopId</th><th>ownerId</th><th>department</th></tr></thead>
+                    <tbody>
+                      <tr
+                        v-for="item in scopedOrders"
+                        :key="item.id"
+                        :data-shop="item.shopId"
+                        :data-owner="item.ownerId"
+                      >
+                        <td>{{ item.id }}</td><td>{{ item.orderNo }}</td><td>{{ item.shopId }}</td><td>{{ item.ownerId }}</td><td>{{ item.department }}</td>
+                      </tr>
+                    </tbody>
+                  </VTable>
+                </VCard>
+              </VCol>
+              <VCol
+                cols="12"
+                md="4"
+              >
+                <VCard variant="tonal">
+                  <VCardItem>
+                    <VCardTitle>报销</VCardTitle>
+                    <VCardSubtitle>{{ scopedExpenses.length }} 条</VCardSubtitle>
+                  </VCardItem>
+                  <VTable
+                    data-testid="scope-preview-expenses"
+                    density="compact"
+                  >
+                    <thead><tr><th>id</th><th>title</th><th>shopId</th><th>ownerId</th><th>department</th></tr></thead>
+                    <tbody>
+                      <tr
+                        v-for="item in scopedExpenses"
+                        :key="item.id"
+                        :data-shop="item.shopId"
+                        :data-owner="item.ownerId"
+                      >
+                        <td>{{ item.id }}</td><td>{{ item.title }}</td><td>{{ item.shopId }}</td><td>{{ item.ownerId }}</td><td>{{ item.department }}</td>
+                      </tr>
+                    </tbody>
+                  </VTable>
+                </VCard>
+              </VCol>
+              <VCol
+                cols="12"
+                md="4"
+              >
+                <VCard variant="tonal">
+                  <VCardItem>
+                    <VCardTitle>员工档案</VCardTitle>
+                    <VCardSubtitle>{{ scopedEmployees.length }} 条</VCardSubtitle>
+                  </VCardItem>
+                  <VTable
+                    data-testid="scope-preview-employees"
+                    density="compact"
+                  >
+                    <thead><tr><th>id</th><th>name</th><th>shopId</th><th>ownerId</th><th>department</th></tr></thead>
+                    <tbody>
+                      <tr
+                        v-for="item in scopedEmployees"
+                        :key="item.id"
+                        :data-shop="item.shopId"
+                        :data-owner="item.ownerId"
+                      >
+                        <td>{{ item.id }}</td><td>{{ item.name }}</td><td>{{ item.shopId }}</td><td>{{ item.ownerId }}</td><td>{{ item.department }}</td>
+                      </tr>
+                    </tbody>
+                  </VTable>
+                </VCard>
+              </VCol>
+            </VRow>
+          </VCardText>
+        </VCard>
       </template>
     </DetailPage>
 

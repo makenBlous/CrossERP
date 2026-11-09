@@ -1,4 +1,5 @@
 import { assertPermission, delay } from '@/api/mock-client'
+import { dataScopesFor, shopsForSubject } from '@/mocks/services/gap-c'
 import { listScopedEmployees, listScopedExpenses, listScopedOrders } from '@/mocks/services/scoped-reads'
 import { effectivePermission, roleSubject } from '@/utils/permission-engine'
 import { useSessionStore } from '@/stores/session'
@@ -33,4 +34,20 @@ export async function fetchScopedEmployees() {
     assertPermission('employee_record:read')
 
   return listScopedEmployees(current)
+}
+
+export async function fetchScopedContext() {
+  await delay()
+
+  const current = subject()
+
+  return {
+    userId: current.userId,
+    dataScopes: {
+      orders: dataScopesFor(current, 'sales_order:read'),
+      expenses: dataScopesFor(current, 'expense_claim:read'),
+      employees: dataScopesFor(current, 'employee_record:read'),
+    },
+    shopsForSubject: shopsForSubject(current),
+  }
 }
