@@ -8,6 +8,7 @@ export type WarehouseKind = 'fba' | 'overseas' | 'domestic'
 export type DocType = 'inbound' | 'outbound' | 'transfer' | 'count'
 
 export interface Actor {
+  userId: string
   name: string
   role: Role
   at: string

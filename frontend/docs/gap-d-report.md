@@ -9,7 +9,8 @@
 - 自主等级：票据分类白名单默认为 L3；凭证起草硬上限为 L2，服务层拒绝越过硬上限的请求。
 - AI 总开关：正常、降级、关闭均可切换；降级只读并暂停 L3，关闭后 AI 提示区隐藏，人工页面仍可操作。
 - 工具注册表：自定义 HTTP 工具默认停用、只读；密钥只保留“已配置”状态；MCP 工具导入后默认停用。
-- 算薪：规则费率存放在 mock 配置，按累计预扣法由代码计算；HR 复核入口和工资凭证前的状态展示已提供。工资字段由 mock 服务按角色裁剪，员工只返回本人数据。
+- 算薪：规则费率存放在 mock 配置，按累计预扣法由代码计算；HR 复核入口和工资凭证前的状态展示已提供。工资字段由 mock 服务按 userId 绑定和有效权限裁剪，员工只返回本人数据。
+- 权限依赖：当前地基的 `permission-engine.ts` 已能计算有效权限，但角色模板尚未提供员工档案字段权限（`employee.salary`、证件号）及工资批次专用权限（`payroll_entry:approve`、`salary_slip:read_all/read_own`）的授权契约。本批服务只读调用现有有效权限计算，不复制权限引擎；`scripts/verify-gap-d-security.ts` 中对应“普通员工只看本人”和“人事可见”断言会在批次 C 合并前失败，并标注“依赖批次 C 的权限契约”。
 
 ## 复用情况
 
@@ -21,6 +22,7 @@
 - `pnpm run typecheck`：通过。
 - `cmd /c "pnpm exec eslint . -c .eslintrc.cjs --ext .ts,.js,.cjs,.vue,.tsx,.jsx"`：0 error（基线存在 23 条 warning）。
 - `pnpm run build`：通过。
+- `pnpm exec tsx scripts/verify-gap-d-security.ts`：财务档案脱敏、无权限空/拒绝、AI 不越权通过；普通员工本人工资条和人事档案可见性断言因缺少批次 C 权限契约失败。
 
 ## Playwright
 

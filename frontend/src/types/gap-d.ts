@@ -70,6 +70,7 @@ export interface GapDDeduction {
 
 export interface GapDEmployee {
   id: string
+  userId: string
   name: string
   department: string
   title: string
@@ -84,6 +85,7 @@ export interface GapDEmployee {
 export interface GapDPayslip {
   id: string
   employeeId: string
+  employeeUserId: string
   employeeName: string
   period: string
   grossCents: number

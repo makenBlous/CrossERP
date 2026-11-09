@@ -371,7 +371,7 @@ onMounted(load)
           variant="tonal"
           class="mb-4"
         >
-          工资字段仅人事、获授权财务和员工本人可见。规则版本和每个数字均来自确定性计算。
+          员工档案薪资字段仅人事和本人可见；工资批次明细需单独的算薪审批权限。规则版本和每个数字均来自确定性计算。
         </VAlert>
         <VCard
           v-if="payrollRun"

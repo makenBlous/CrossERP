@@ -16,7 +16,7 @@ const SEED = 20261109
 const VERSION = 3
 
 function actor(name: string, role: Actor['role'], at: string): Actor {
-  return { name, role, at }
+  return { userId: `demo-${role}`, name, role, at }
 }
 
 function iso(month: number, day: number, hour: number) {

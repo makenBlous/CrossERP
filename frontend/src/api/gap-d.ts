@@ -60,16 +60,22 @@ export async function createGapDTool(input: Partial<GapDTool>): Promise<GapDTool
 // 未来: PATCH /api/v1/agent/tools/{id}
 export async function setGapDToolEnabled(id: string, enabled: boolean): Promise<GapDTool> {
   await delay()
+
   const result = toggleGapDTool(id, enabled, currentActor())
+
   database().persist()
+
   return result
 }
 
 // 未来: POST /api/v1/agent/inbox
 export async function uploadGapDInbox(fileName: string): Promise<GapDRecord> {
   await delay()
+
   const result = ingestGapDInbox(fileName, currentActor())
+
   database().persist()
+
   return result
 }
 

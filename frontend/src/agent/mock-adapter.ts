@@ -1,6 +1,8 @@
 import type { AgentAdapter, AgentPageContext, AgentPart } from '@/agent/adapter'
+import { currentActor } from '@/api/mock-client'
 import { projectSkuDetail } from '@/mocks/project-ops'
 import { projectDashboard, projectIssues, projectOrder, projectProfit } from '@/mocks/project'
+import { listGapDRecords } from '@/mocks/services/gap-d'
 import { useMockDbStore } from '@/stores/mockdb'
 import { formatMoney } from '@/utils/format'
 
@@ -185,6 +187,21 @@ export class MockAgentAdapter implements AgentAdapter {
     const db = useMockDbStore().db
     const ask = message.toLowerCase()
     const zh = context.locale !== 'en'
+
+    if (/工资|薪资|salary|payroll/.test(ask)) {
+      const actor = currentActor()
+      const ownPayslips = listGapDRecords('HR12', actor)
+      const asksForSomeoneElse = /别人|他人|同事|其他员工|another|other employee/.test(ask)
+
+      await emitText(
+        asksForSomeoneElse || ownPayslips.length === 0
+          ? (zh ? '当前用户只能查询与本人 userId 绑定的工资条，不能查询其他员工工资。' : 'The current user can only query payslips bound to their own userId.')
+          : (zh ? `只返回本人 userId 绑定的 ${ownPayslips.length} 条工资条。` : `Only ${ownPayslips.length} payslip(s) bound to the current userId are returned.`),
+        emit,
+      )
+
+      return
+    }
 
     await emitText(
       zh

@@ -1,4 +1,5 @@
 import { validateAutonomyLevel } from '@/utils/autonomy'
+import { effectivePermission, roleSubject } from '@/utils/permission-engine'
 import type { AgentAutonomyLevel } from '@/types/foundation'
 import type { Actor } from '@/types/entities'
 import type { GapDAuditEvent, GapDDeduction, GapDEmployee, GapDMcpServer, GapDPageId, GapDPayrollRule, GapDPayrollRun, GapDPayslip, GapDRecord, GapDTool } from '@/types/gap-d'
@@ -29,9 +30,9 @@ export const gapDDepartments = [
 ]
 
 export const gapDEmployees: GapDEmployee[] = [
-  { id: 'demo-admin', name: '演示管理员', department: '人事行政部', title: '系统管理员', email: 'admin@example.test', status: '在职', manager: '演示老板/总经理', leaveBalanceDays: 8, salaryCents: 3000000, idNumber: '仅人事可见' },
-  { id: 'demo-employee', name: '演示普通员工', department: '运营部', title: '运营专员', email: 'employee@example.test', status: '在职', manager: '演示运营主管', leaveBalanceDays: 5, salaryCents: 1200000, idNumber: '仅人事可见' },
-  { id: 'demo-finance', name: '演示财务', department: '财务部', title: '会计', email: 'finance@example.test', status: '在职', manager: '演示财务主管', leaveBalanceDays: 6, salaryCents: 1800000, idNumber: '仅人事可见' },
+  { id: 'demo-admin', userId: 'demo-admin', name: '演示管理员', department: '人事行政部', title: '系统管理员', email: 'admin@example.test', status: '在职', manager: '演示老板/总经理', leaveBalanceDays: 8, salaryCents: 3000000, idNumber: '仅人事可见' },
+  { id: 'demo-employee', userId: 'demo-employee', name: '演示普通员工', department: '运营部', title: '运营专员', email: 'employee@example.test', status: '在职', manager: '演示运营主管', leaveBalanceDays: 5, salaryCents: 1200000, idNumber: '仅人事可见' },
+  { id: 'demo-finance', userId: 'demo-finance', name: '演示财务', department: '财务部', title: '会计', email: 'finance@example.test', status: '在职', manager: '演示财务主管', leaveBalanceDays: 6, salaryCents: 1800000, idNumber: '仅人事可见' },
 ]
 
 export const gapDPayrollRules: GapDPayrollRule[] = [
@@ -63,16 +64,76 @@ function addAudit(action: string, actor: Actor, detail: string, origin: 'human' 
   gapDAudit.unshift({ id: `gapd-audit-${Date.now()}`, action, origin, agentSuggestionId, actor: actor.name, at: new Date().toISOString(), detail })
 }
 
+export const gapDPermissionKeys = {
+  employeeSalaryRead: 'employee.salary:read',
+  employeeIdNumberRead: 'employee.id_number:read',
+  payrollCalculate: 'payroll_run:calculate',
+  payrollApprove: 'payroll_entry:approve',
+  payslipReadOwn: 'salary_slip:read_own',
+  payslipReadAll: 'salary_slip:read_all',
+} as const
+
+function permission(actor: Actor, permissionKey: string) {
+  return effectivePermission(roleSubject(actor.role, actor.userId), permissionKey)
+}
+
+function hasScope(actor: Actor, permissionKey: string, scope: 'all' | 'self') {
+  const result = permission(actor, permissionKey)
+
+  return result.allowed && result.dataScopes.includes(scope)
+}
+
+function isOwnEmployee(employee: GapDEmployee, actor: Actor) {
+  return Boolean(actor.userId) && employee.userId === actor.userId
+}
+
+function canReadEmployeeField(employee: GapDEmployee, actor: Actor, permissionKey: string) {
+  return hasScope(actor, permissionKey, 'all') || (hasScope(actor, permissionKey, 'self') && isOwnEmployee(employee, actor))
+}
+
+function findEmployee(employeeId: string) {
+  return gapDEmployees.find(employee => employee.id === employeeId)
+}
+
+function ownPayslips(run: GapDPayrollRun, actor: Actor) {
+  return run.payslips.filter(payslip => {
+    const employee = findEmployee(payslip.employeeId)
+
+    return employee ? isOwnEmployee(employee, actor) : payslip.employeeUserId === actor.userId
+  })
+}
+
+function filteredPayrollRun(run: GapDPayrollRun, payslips: GapDPayslip[]): GapDPayrollRun {
+  return { ...run, employeeCount: payslips.length, payslips }
+}
+
 export function listGapDRecords(pageId: GapDPageId, actor: Actor): GapDRecord[] {
   if (pageId === 'HR01')
     return gapDDepartments.map(row => ({ id: row.id, title: row.name, status: row.parentId ? '子部门' : '根部门', owner: row.manager, detail: row.parentId ? '上级：CrossERP' : '组织根节点', updatedAt: now }))
   if (pageId === 'HR02') {
-    const canSeeSalary = ['admin', 'hr_admin', 'finance', 'finance_manager'].includes(actor.role)
+    return gapDEmployees.map(row => {
+      const canSeeSalary = canReadEmployeeField(row, actor, gapDPermissionKeys.employeeSalaryRead)
+      const canSeeIdNumber = canReadEmployeeField(row, actor, gapDPermissionKeys.employeeIdNumberRead)
+      const safeRow = { ...row }
 
-    return gapDEmployees.map(row => ({ ...row, title: row.name, status: row.status, updatedAt: now, salaryCents: (canSeeSalary || row.id === actor.name) ? row.salaryCents : undefined, idNumber: canSeeSalary ? row.idNumber : undefined }))
+      delete safeRow.salaryCents
+      delete safeRow.idNumber
+
+      return {
+        ...safeRow,
+        title: row.name,
+        status: row.status,
+        updatedAt: now,
+        ...(canSeeSalary ? { salaryCents: row.salaryCents } : {}),
+        ...(canSeeIdNumber ? { idNumber: row.idNumber } : {}),
+      }
+    })
   }
   if (pageId === 'HR12') {
-    const own = gapDPayrollRuns.flatMap(run => run.payslips).filter(row => row.employeeId === actor.name || row.employeeId === actor.role || (row.employeeId === 'demo-employee' && actor.role === 'employee'))
+    if (!hasScope(actor, gapDPermissionKeys.payslipReadOwn, 'self'))
+      return []
+
+    const own = gapDPayrollRuns.flatMap(run => ownPayslips(run, actor))
 
     return own.map(row => ({ id: row.id, title: `${row.period} 工资条`, status: row.status, owner: row.employeeName, amount: row.netCents / 100, currency: 'CNY', detail: `实发 ¥${(row.netCents / 100).toFixed(2)}，个税仅本人可见`, updatedAt: now }))
   }
@@ -121,13 +182,16 @@ export function toggleGapDTool(id: string, enabled: boolean, actor: Actor) {
     throw new Error('工具不存在')
   tool.enabled = enabled
   addAudit(enabled ? '启用智能体工具' : '停用智能体工具', actor, `${tool.name}：${enabled ? '启用' : '停用'}`)
+
   return tool
 }
 
 export function ingestGapDInbox(fileName: string, actor: Actor) {
   const record: GapDRecord = { id: `inbox-${Date.now()}`, title: fileName, status: '待识别', owner: actor.name, detail: '文件已收件，等待确定性字段抽取', updatedAt: new Date().toISOString() }
+
   genericRows.G20 = [record, ...(genericRows.G20 ?? [])]
   addAudit('上传票据', actor, fileName)
+
   return record
 }
 
@@ -160,8 +224,8 @@ export function calculateCumulativeTax(taxableCumulativeCents: number, months: n
 }
 
 export function calculateGapDPayroll(period: string, actor: Actor) {
-  if (!['admin', 'hr_admin', 'finance', 'finance_manager'].includes(actor.role))
-    throw new Error('只有人事或财务可以发起算薪')
+  if (!hasScope(actor, gapDPermissionKeys.payrollCalculate, 'all'))
+    throw new Error('当前用户没有算薪权限')
   const rule = gapDPayrollRules[0]
   const month = Number(period.slice(5, 7)) || 1
 
@@ -173,7 +237,7 @@ export function calculateGapDPayroll(period: string, actor: Actor) {
     const taxable = grossCents - social - housing
     const tax = calculateCumulativeTax(taxable, month)
 
-    return { id: `payslip-${period}-${employee.id}`, employeeId: employee.id, employeeName: employee.name, period, grossCents, socialPersonalCents: social, housingFundPersonalCents: housing, taxableCumulativeCents: taxable, taxCents: tax, netCents: grossCents - social - housing - tax, ruleVersion: `${rule.city}/${rule.effectiveFrom}`, status: '待复核' }
+    return { id: `payslip-${period}-${employee.id}`, employeeId: employee.id, employeeUserId: employee.userId, employeeName: employee.name, period, grossCents, socialPersonalCents: social, housingFundPersonalCents: housing, taxableCumulativeCents: taxable, taxCents: tax, netCents: grossCents - social - housing - tax, ruleVersion: `${rule.city}/${rule.effectiveFrom}`, status: '待复核' }
   })
 
   const run: GapDPayrollRun = { id: `payroll-${period}`, period, status: '待复核', employeeCount: payslips.length, payslips, createdAt: new Date().toISOString() }
@@ -191,9 +255,15 @@ export function getGapDPayrollRun(id: string, actor: Actor): GapDPayrollRun | nu
   const run = gapDPayrollRuns.find(row => row.id === id)
   if (!run)
     return null
-  const canSeeSalary = ['admin', 'hr_admin', 'finance', 'finance_manager'].includes(actor.role)
+  const canReadAll = hasScope(actor, gapDPermissionKeys.payslipReadAll, 'all') || hasScope(actor, gapDPermissionKeys.payrollApprove, 'all')
 
-  return canSeeSalary ? run : { ...run, payslips: run.payslips.filter(row => row.employeeId === 'demo-employee' && actor.role === 'employee') }
+  if (canReadAll)
+    return filteredPayrollRun(run, run.payslips)
+
+  if (hasScope(actor, gapDPermissionKeys.payslipReadOwn, 'self'))
+    return filteredPayrollRun(run, ownPayslips(run, actor))
+
+  return null
 }
 
 export function listGapDAudit() {
