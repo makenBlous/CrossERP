@@ -55,7 +55,9 @@ const router = createRouter({
       meta: { pageId: 'K08' },
     })
 
-    return [...mapped, knowledgeIndex, ...placeholderRoutes]
+    // /kb/index must precede generated /kb/:id routes; otherwise the dynamic
+    // route renders the 404 placeholder before the K08 page can match.
+    return [knowledgeIndex, ...mapped, ...placeholderRoutes]
   },
 })
 

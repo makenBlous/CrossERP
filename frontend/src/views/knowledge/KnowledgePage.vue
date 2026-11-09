@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
-import { askOnboarding, createKbDocument, createKbFolder, createKbVersion, decideKbReview, downloadEmployeeFile, fetchEmployeeFiles, fetchKbAccessLogs, fetchKbDocument, fetchKbDocuments, fetchKbExpiring, fetchKbQa, fetchKbReviews, fetchKbSpace, fetchKbSpaces, fetchKbVersions, fetchOnboarding, rebuildKbIndex, renameKbFolder, saveKbSpaceMembers, saveOnboarding, searchKb, setKbSpaceFinanceOnly, submitKbDocument, suggestKbQa, uploadEmployeeFile, uploadKbAttachment } from '@/api/gap-e'
+import { archiveKbDocument, askOnboarding, createKbDocument, createKbFolder, createKbVersion, decideKbReview, downloadEmployeeFile, fetchEmployeeFiles, fetchKbAccessLogs, fetchKbDocument, fetchKbDocuments, fetchKbExpiring, fetchKbQa, fetchKbReviews, fetchKbSpace, fetchKbSpaces, fetchKbVersions, fetchOnboarding, rebuildKbIndex, renameKbFolder, saveKbSpaceMembers, saveOnboarding, searchKb, setKbSpaceFinanceOnly, submitKbDocument, suggestKbQa, uploadEmployeeFile, uploadKbAttachment } from '@/api/gap-e'
 import TiptapEditor from '@core/components/TiptapEditor.vue'
 import DetailPage from '@/components/biz/DetailPage.vue'
 import FormDrawer from '@/components/biz/FormDrawer.vue'
@@ -127,6 +127,11 @@ async function saveDraft() {
 async function submit() {
   if (!document.value)
     return; await run(async () => { document.value = await submitKbDocument(document.value!.id); message.value = '已提交空间管理员审核。' })
+}
+async function archive() {
+  if (!document.value)
+    return
+  await run(async () => { document.value = await archiveKbDocument(document.value!.id); message.value = '文档已归档并写入审计。' })
 }
 async function saveVersion() {
   if (!document.value)
@@ -379,6 +384,14 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
               @click="submit"
             >
               提交审核
+            </VBtn><VBtn
+              v-if="['draft', 'published'].includes(document.status)"
+              variant="text"
+              color="warning"
+              :loading="busy"
+              @click="archive"
+            >
+              归档
             </VBtn>
           </PermissionGate>
         </template>
@@ -472,6 +485,26 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
           </ListPage>
         </VCard>
       </DetailPage>
+      <VCard
+        v-else
+        title="文档不存在"
+      >
+        <VCardText>
+          <VAlert
+            type="warning"
+            variant="tonal"
+          >
+            文档不存在，可能已被删除、迁移或当前角色无权查看。
+          </VAlert>
+          <VBtn
+            class="mt-4"
+            to="/kb"
+            variant="tonal"
+          >
+            返回知识库
+          </VBtn>
+        </VCardText>
+      </VCard>
       <RecordDrawer
         v-if="selectedVersion"
         v-model="versionOpen"
@@ -632,7 +665,28 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
           </template>
         </ListPage>
       </DetailPage>
+      <VCard
+        v-else
+        title="空间不存在或无权查看"
+      >
+        <VCardText>
+          <VAlert
+            type="warning"
+            variant="tonal"
+          >
+            空间不存在，或当前角色无权查看该空间。
+          </VAlert>
+          <VBtn
+            class="mt-4"
+            to="/kb"
+            variant="tonal"
+          >
+            返回知识库
+          </VBtn>
+        </VCardText>
+      </VCard>
       <FormDrawer
+        v-if="space"
         v-model="spaceSettingsOpen"
         title="管理空间权限"
         :saving="busy"
@@ -739,7 +793,7 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
         title="发布审核"
         subtitle="文档和 AI 建议问答统一进入审核队列。"
         :items="reviews"
-        :columns="[{ key: 'title', title: '待审内容' }, { key: 'type', title: '类型' }, { key: 'submittedBy', title: '提交人' }, { key: 'submittedAt', title: '提交时间' }, { key: 'status', title: '状态' }]"
+        :columns="[{ key: 'title', title: '待审内容' }, { key: 'type', title: '类型' }, { key: 'submittedByName', title: '提交人' }, { key: 'submittedAt', title: '提交时间' }, { key: 'status', title: '状态' }]"
       >
         <template #item.status="{ item }">
           <StatusChip

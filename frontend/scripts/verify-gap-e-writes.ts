@@ -1,0 +1,52 @@
+/* eslint-disable */
+// 批次 E 独立接口级验收（不是 Codex 写的）：写接口越权 / 作者不能自审 / 重复审核 / 不存在 id / 仅财务空间读隔离
+const mem = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, String(v)) }, removeItem: (k: string) => { m.delete(k) }, clear: () => m.clear(), key: (i: number) => [...m.keys()][i] ?? null, get length() { return m.size } } }
+;(globalThis as any).sessionStorage = mem(); (globalThis as any).localStorage = mem()
+const { createPinia, setActivePinia } = await import('pinia')
+setActivePinia(createPinia())
+const e: any = await import('@/api/gap-e')
+const { useSessionStore } = await import('@/stores/session')
+let fail = 0
+const ok = (c: boolean, m: string) => { if (!c) fail++; console.log(`${c ? 'PASS' : 'FAIL'} ${m}`) }
+const as = (role: string) => { sessionStorage.setItem('crosserp-auth', '1'); sessionStorage.setItem('crosserp-role', role); const s: any = useSessionStore(); if (typeof s.setRole === 'function') s.setRole(role); else if (typeof s.switchRole === 'function') s.switchRole(role); else s.role = role; if (s.role !== role) throw new Error(`切换角色失败 ${s.role}`) }
+const rej = async (f: () => Promise<any>) => { try { const r = await f(); return { ok: r === null || r === undefined, r: JSON.stringify(r)?.slice(0, 50) } } catch (x: any) { return { ok: true, r: String(x?.message ?? x).slice(0, 50) } } }
+const file = () => new File(['mock'], 'a.pdf', { type: 'application/pdf' })
+// 1 viewer 写接口全部拒绝
+as('viewer')
+for (const [n, f] of [
+  ['新建文档', () => e.createKbDocument({ title: 't', content: 'c', kind: 'policy', spaceId: 'space-company', tags: [], expiresOn: null })],
+  ['空间设为仅财务', () => e.setKbSpaceFinanceOnly('space-company', true)],
+  ['新建文件夹', () => e.createKbFolder('space-company', 'x')],
+  ['保存成员', () => e.saveKbSpaceMembers('space-company', [], ['viewer'])],
+  ['重建索引', () => e.rebuildKbIndex()],
+  ['上传附件', () => e.uploadKbAttachment('doc-expense-policy', file())],
+  ['新版本', () => e.createKbVersion('doc-expense-policy', 'x')],
+  ['上传员工档案文件', () => e.uploadEmployeeFile('emp-001', file(), 'contract')],
+] as const) { const r = await rej(f as any); ok(r.ok, `viewer ${n} 被拒（${r.r}）`) }
+// 2 仅财务空间读隔离
+const vd = await e.fetchKbDocuments('space-finance').catch(() => [])
+ok(!JSON.stringify(vd).includes('doc-finance-close'), 'viewer 列不出仅财务空间文档')
+const vs = await e.searchKb('结账').catch(() => [])
+ok(!JSON.stringify(vs).includes('月末结账前由财务复核'), 'viewer 检索不到仅财务文档正文')
+const vf = await rej(() => e.fetchKbDocument('doc-finance-close')); ok(vf.ok, `viewer 直接按 id 读仅财务文档被拒/为空（${vf.r}）`)
+// 3 不存在 id
+as('admin')
+const ne = await rej(() => e.fetchKbDocument('no-such-doc')); ok(ne.ok, `不存在文档返回空或报错，不编造（${ne.r}）`)
+const ns = await rej(() => e.submitKbDocument('no-such-doc')); ok(ns.ok, `提交不存在文档被拒（${ns.r}）`)
+// 4 作者不能自审；重复审核被拒
+as('operator')
+let doc: any
+try { doc = await e.createKbDocument({ title: '验收文档', content: '内容', kind: 'policy', spaceId: 'space-company', tags: ['验收'], expiresOn: null }); await e.submitKbDocument(doc.id) } catch (x: any) { console.log('INFO operator 不能建文档：' + x?.message); as('finance'); doc = await e.createKbDocument({ title: '验收文档', content: '内容', kind: 'policy', spaceId: 'space-company', tags: ['验收'], expiresOn: null }); await e.submitKbDocument(doc.id) }
+const author = (useSessionStore() as any).role
+as('admin'); const rv = (await e.fetchKbReviews()).find((r: any) => JSON.stringify(r).includes(doc.id)); as(author)
+ok(!!rv, `提交后进入审核队列（${rv?.id}）`)
+const selfR = await rej(() => e.decideKbReview(rv.id, 'approve')); ok(selfR.ok, `作者 ${author} 不能审核自己的文档（${selfR.r}）`)
+as('admin'); const a1 = await rej(() => e.decideKbReview(rv.id, 'approve')); ok(!a1.ok, `另一人 admin 可以审核（${a1.r}）`)
+const a2 = await rej(() => e.decideKbReview(rv.id, 'approve')); ok(a2.ok, `重复审核被拒（${a2.r}）`)
+const sub2 = await rej(() => e.submitKbDocument(doc.id)); ok(sub2.ok, `已发布文档不能重复提交（${sub2.r}）`)
+// 5 有审核权限的作者（admin）也不能自审
+as('admin'); const d2 = await e.createKbDocument({ title: '财务自审验收', content: '内容2', kind: 'sop', spaceId: 'space-company', tags: [], expiresOn: null }); await e.submitKbDocument(d2.id)
+const rv2 = (await e.fetchKbReviews()).find((r: any) => JSON.stringify(r).includes(d2.id))
+const self2 = await rej(() => e.decideKbReview(rv2.id, 'approve')); ok(self2.ok, `admin 作者（有审核权）不能审核自己提交的文档（按身份 id）（${self2.r}）`)
+console.log(`== FAIL ${fail}`)
+process.exit(fail ? 1 : 0)

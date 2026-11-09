@@ -71,6 +71,17 @@ export async function createKbVersion(id: string, content: string): Promise<KbDo
   return readMock(result)
 }
 
+// 未来: POST /api/v1/kb/docs/{id}/archive
+export async function archiveKbDocument(id: string): Promise<KbDocument> {
+  await delay(); assertCan('update')
+
+  const result = service.archiveDocument(database().db, id, currentActor())
+
+  database().persist()
+
+  return readMock(result)
+}
+
 // 未来: GET /api/v1/kb/reviews
 export async function fetchKbReviews(): Promise<KbReviewItem[]> {
   await delay()
@@ -136,10 +147,11 @@ export async function fetchKbAccessLogs(): Promise<KbAccessLog[]> {
 export async function setKbSpaceFinanceOnly(id: string, financeOnly: boolean): Promise<KbSpace | null> {
   await delay(); assertCan('update')
 
-  const actor = currentActor(); const space = service.getSpace(database().db, id, { ...actor, role: 'admin' }); if (!space || actor.role !== 'admin')
-    throw new Error('只有空间管理员可以修改权限'); space.financeOnly = financeOnly; space.updatedAt = actor.at; database().persist()
+  const result = service.setSpaceFinanceOnly(database().db, id, financeOnly, currentActor())
 
-  return readMock(space)
+  database().persist()
+
+  return readMock(result)
 }
 
 // 未来: POST /api/v1/kb/spaces/{id}/folders

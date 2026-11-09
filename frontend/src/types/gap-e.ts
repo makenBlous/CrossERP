@@ -60,6 +60,7 @@ export interface KbDocument {
   sensitive: boolean
   expiresOn: string | null
   owner: string
+  ownerId?: string
   currentVersion: number
   versions: KbVersion[]
   attachments?: KbAttachment[]
@@ -74,6 +75,7 @@ export interface KbReviewItem {
   title: string
   summary: string
   submittedBy: string
+  submittedByName?: string
   submittedAt: string
   status: 'pending' | 'approved' | 'rejected'
   reason?: string

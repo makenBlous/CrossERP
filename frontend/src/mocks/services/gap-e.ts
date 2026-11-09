@@ -3,6 +3,8 @@ import type { Actor, MockDatabase } from '@/types/entities'
 import type { EmployeeFile, InboxNotification, KbAccessLog, KbAttachment, KbDocument, KbExpiryItem, KbFolder, KbQaItem, KbReviewItem, KbSearchResult, KbSpace, KbSpaceMember, OnboardingAnswer, OnboardingChecklistItem } from '@/types/gap-e'
 import { nextId } from '@/mocks/services/ids'
 import { writeAudit } from '@/mocks/services/audit'
+import type { AppAction } from '@/utils/permission'
+import { can } from '@/utils/permission'
 
 interface GapCollections {
   kbSpaces: KbSpace[]
@@ -47,6 +49,21 @@ function canReadSpace(space: KbSpace, actor: Actor) {
   return !space.visibleRoles?.length || space.visibleRoles.includes(actor.role)
 }
 
+function actorId(actor: Actor) {
+  return actor.id ?? `role:${actor.role}`
+}
+
+function requireCan(actor: Actor, action: AppAction) {
+  if (!can(actor.role, action))
+    throw new Error('当前角色不能执行这个操作')
+}
+
+function requireAdmin(actor: Actor, message: string) {
+  requireCan(actor, 'update')
+  if (actor.role !== 'admin')
+    throw new Error(message)
+}
+
 export function listSpaces(db: MockDatabase, actor: Actor) { return collections(db).kbSpaces.filter(space => canReadSpace(space, actor)) }
 export function getSpace(db: MockDatabase, id: string, actor: Actor) {
   const space = collections(db).kbSpaces.find(item => item.id === id)
@@ -76,35 +93,63 @@ export function search(db: MockDatabase, query: string, actor: Actor): KbSearchR
   return listDocuments(db, actor).filter(doc => `${doc.title} ${doc.content} ${doc.tags.join(' ')}`.toLowerCase().includes(q)).map(doc => ({ id: `${doc.id}-${doc.currentVersion}`, title: doc.title, excerpt: doc.content.slice(0, 120), spaceName: collections(db).kbSpaces.find(space => space.id === doc.spaceId)?.name ?? '', docId: doc.id, version: doc.currentVersion, paragraph: doc.content }))
 }
 export function createDocument(db: MockDatabase, input: Pick<KbDocument, 'title' | 'content' | 'kind' | 'spaceId' | 'tags' | 'expiresOn'>, actor: Actor) {
-  const doc: KbDocument = { id: nextId(db, 'kbdoc'), ...input, status: 'draft', sensitive: false, owner: actor.name, currentVersion: 1, versions: [{ id: nextId(db, 'kbver'), docId: 'pending', version: 1, content: input.content, author: actor.name, createdAt: actor.at, status: 'draft' }], updatedAt: actor.at }
+  requireCan(actor, 'create')
+
+  const space = collections(db).kbSpaces.find(item => item.id === input.spaceId)
+  if (!space || !canReadSpace(space, actor))
+    throw new Error('无权在该空间创建文档')
+  const doc: KbDocument = { id: nextId(db, 'kbdoc'), ...input, status: 'draft', sensitive: false, owner: actor.name, ownerId: actorId(actor), currentVersion: 1, versions: [{ id: nextId(db, 'kbver'), docId: 'pending', version: 1, content: input.content, author: actor.name, createdAt: actor.at, status: 'draft' }], updatedAt: actor.at }
 
   doc.versions[0].docId = doc.id; collections(db).kbDocuments.unshift(doc); writeAudit(db, actor, 'kb.document.created', 'kb_doc', doc.id, `创建知识文档 ${doc.title}`)
 
   return doc
 }
 export function submitDocument(db: MockDatabase, id: string, actor: Actor) {
-  const doc = getDocument(db, id, actor); if (!doc)
-    throw new Error('无权提交或文档不存在'); doc.status = 'in_review'; doc.versions[doc.versions.length - 1].status = 'in_review'; collections(db).kbReviews.unshift({ id: nextId(db, 'kbr'), type: 'document', targetId: id, title: doc.title, summary: doc.content.slice(0, 90), submittedBy: actor.name, submittedAt: actor.at, status: 'pending' }); writeAudit(db, actor, 'kb.document.submitted', 'kb_doc', id, '提交文档审核')
+  requireCan(actor, 'update')
+
+  const doc = getDocument(db, id, actor)
+  if (!doc)
+    throw new Error('无权提交或文档不存在')
+  if (!['draft'].includes(doc.status) || collections(db).kbReviews.some(item => item.targetId === id && item.status === 'pending'))
+    throw new Error('文档当前状态不允许重复提交')
+  doc.status = 'in_review'; doc.versions[doc.versions.length - 1].status = 'in_review'; collections(db).kbReviews.unshift({ id: nextId(db, 'kbr'), type: 'document', targetId: id, title: doc.title, summary: doc.content.slice(0, 90), submittedBy: actorId(actor), submittedByName: actor.name, submittedAt: actor.at, status: 'pending' }); writeAudit(db, actor, 'kb.document.submitted', 'kb_doc', id, '提交文档审核')
 
   return doc
 }
 export function addVersion(db: MockDatabase, id: string, content: string, actor: Actor) {
+  requireCan(actor, 'update')
+
   const doc = getDocument(db, id, actor); if (!doc)
-    throw new Error('无权编辑或文档不存在'); const version = doc.currentVersion + 1
+    throw new Error('无权编辑或文档不存在')
+  if (doc.status === 'archived' || doc.status === 'in_review')
+    throw new Error('文档当前状态不允许编辑')
+  const version = doc.currentVersion + 1
 
   doc.currentVersion = version; doc.content = content; doc.status = 'draft'; doc.updatedAt = actor.at; doc.versions.push({ id: nextId(db, 'kbver'), docId: id, version, content, author: actor.name, createdAt: actor.at, status: 'draft' }); writeAudit(db, actor, 'kb.document.version_created', 'kb_doc', id, `创建第 ${version} 版`)
 
   return doc
 }
 export function listReviews(db: MockDatabase, actor: Actor) {
-  if (!['admin', 'finance'].includes(actor.role))
+  if (!can(actor.role, 'approve'))
     return []
 
   return collections(db).kbReviews.filter(item => item.status === 'pending')
 }
 export function decideReview(db: MockDatabase, id: string, decision: 'approve' | 'reject', reason: string, actor: Actor) {
-  const review = collections(db).kbReviews.find(item => item.id === id); if (!review || !['admin', 'finance'].includes(actor.role))
-    throw new Error('当前角色不能处理审核'); review.status = decision === 'approve' ? 'approved' : 'rejected'; review.reason = reason; if (review.type === 'document') { const doc = collections(db).kbDocuments.find(item => item.id === review.targetId); if (doc) { doc.status = decision === 'approve' ? 'published' : 'draft'; doc.versions[doc.versions.length - 1].status = doc.status } }
+  requireCan(actor, 'approve')
+
+  const review = collections(db).kbReviews.find(item => item.id === id)
+  if (!review)
+    throw new Error('审核记录不存在')
+  if (review.status !== 'pending')
+    throw new Error('审核记录已处理，不能重复审核')
+  if (review.submittedBy === actorId(actor))
+    throw new Error('提交人不能审核自己提交的内容')
+  review.status = decision === 'approve' ? 'approved' : 'rejected'; review.reason = reason; if (review.type === 'document') {
+    const doc = collections(db).kbDocuments.find(item => item.id === review.targetId); if (!doc)
+      throw new Error('审核目标文档不存在'); if (doc.status !== 'in_review')
+      throw new Error('文档当前状态不允许审核'); doc.status = decision === 'approve' ? 'published' : 'draft'; doc.versions[doc.versions.length - 1].status = doc.status
+  }
   else {
     const qa = collections(db).kbQa.find(item => item.id === review.targetId); if (qa)
       qa.status = decision === 'approve' ? 'published' : 'pending'
@@ -113,9 +158,11 @@ export function decideReview(db: MockDatabase, id: string, decision: 'approve' |
   return review
 }
 export function suggestQa(db: MockDatabase, ticketId: string, actor: Actor) {
+  requireCan(actor, 'suggest')
+
   const doc = collections(db).kbDocuments.find(item => item.id === 'doc-expense-policy')!; const qa: KbQaItem = { id: nextId(db, 'kbqa'), question: '报销需要哪些票据？', answer: '请提供发票、付款凭证和审批单，并填写发生日期、用途和归属部门。', citationDocId: doc.id, citationVersion: doc.currentVersion, citationLabel: `${doc.title} v${doc.currentVersion}`, status: 'pending', sourceRef: ticketId, tags: ['报销', '工单经验'] }
 
-  collections(db).kbQa.unshift(qa); collections(db).kbReviews.unshift({ id: nextId(db, 'kbr'), type: 'qa', targetId: qa.id, title: qa.question, summary: `来自已解决工单 ${ticketId}`, submittedBy: actor.name, submittedAt: actor.at, status: 'pending' }); writeAudit(db, actor, 'kb.qa.suggested', 'kb_qa', qa.id, `从工单 ${ticketId} 生成建议问答`)
+  collections(db).kbQa.unshift(qa); collections(db).kbReviews.unshift({ id: nextId(db, 'kbr'), type: 'qa', targetId: qa.id, title: qa.question, summary: `来自已解决工单 ${ticketId}`, submittedBy: actorId(actor), submittedByName: actor.name, submittedAt: actor.at, status: 'pending' }); writeAudit(db, actor, 'kb.qa.suggested', 'kb_qa', qa.id, `从工单 ${ticketId} 生成建议问答`)
 
   return qa
 }
@@ -127,8 +174,8 @@ export function listExpiring(db: MockDatabase, actor: Actor): KbExpiryItem[] {
   return collections(db).kbDocuments.filter(doc => doc.expiresOn).map(doc => ({ id: doc.id, docId: doc.id, title: doc.title, kind: doc.kind, expiresOn: doc.expiresOn!, daysRemaining: Math.max(0, Math.ceil((new Date(doc.expiresOn!).getTime() - Date.now()) / 86400000)), owner: doc.owner, status: new Date(doc.expiresOn!).getTime() < Date.now() ? 'expired' : 'upcoming' }))
 }
 export function rebuildIndex(db: MockDatabase, actor: Actor) {
-  if (actor.role !== 'admin')
-    throw new Error('只有管理员可以重建索引'); collections(db).kbIndexVersion += 1; writeAudit(db, actor, 'kb.index.rebuilt', 'kb_index', String(collections(db).kbIndexVersion), `重建索引 v${collections(db).kbIndexVersion}`)
+  requireAdmin(actor, '只有管理员可以重建索引')
+  collections(db).kbIndexVersion += 1; writeAudit(db, actor, 'kb.index.rebuilt', 'kb_index', String(collections(db).kbIndexVersion), `重建索引 v${collections(db).kbIndexVersion}`)
 
   return collections(db).kbIndexVersion
 }
@@ -139,7 +186,7 @@ export function listAccessLogs(db: MockDatabase, actor: Actor) {
   return collections(db).kbAccessLogs
 }
 export function listEmployeeFiles(db: MockDatabase, employeeId: string, actor: Actor) {
-  if (!(actor.role === 'admin' || actor.role === 'hr_admin' || actor.role === 'operator' && actor.name.includes('运营') || actor.role === 'employee'))
+  if (!(actor.role === 'admin' || actor.role === 'hr_admin' || actor.role === 'operator' && actor.id === employeeId || actor.role === 'employee' && actor.id === employeeId))
     throw new Error('当前身份无权查看员工档案'); if (actor.role === 'operator' && employeeId !== 'demo-operator')
     throw new Error('只能查看本人档案')
 
@@ -153,6 +200,7 @@ export function downloadEmployeeFile(db: MockDatabase, id: string, employeeId: s
 }
 
 export function uploadEmployeeFile(db: MockDatabase, employeeId: string, input: { name: string; kind: EmployeeFile['kind']; size: string; contentType: string }, actor: Actor) {
+  requireCan(actor, 'update')
   listEmployeeFiles(db, employeeId, actor)
 
   const file: EmployeeFile = { id: nextId(db, 'file'), employeeId, name: input.name, kind: input.kind, expiresOn: input.kind === 'certificate' ? '2027-01-31' : null, sensitive: true, uploadedAt: actor.at, size: input.size, contentType: input.contentType, uploadedBy: actor.name }
@@ -164,6 +212,8 @@ export function uploadEmployeeFile(db: MockDatabase, employeeId: string, input: 
 }
 
 export function addDocumentAttachment(db: MockDatabase, documentId: string, input: { fileName: string; contentType: string; size: string }, actor: Actor) {
+  requireCan(actor, 'update')
+
   const doc = getDocument(db, documentId, actor)
   if (!doc)
     throw new Error('无权上传附件或文档不存在')
@@ -176,9 +226,42 @@ export function addDocumentAttachment(db: MockDatabase, documentId: string, inpu
   return attachment
 }
 
+export function setSpaceFinanceOnly(db: MockDatabase, spaceId: string, financeOnly: boolean, actor: Actor) {
+  requireAdmin(actor, '只有空间管理员可以修改权限')
+
+  const space = collections(db).kbSpaces.find(item => item.id === spaceId)
+  if (!space)
+    throw new Error('空间不存在')
+  space.financeOnly = financeOnly
+  space.updatedAt = actor.at
+  writeAudit(db, actor, 'kb.space.visibility_updated', 'kb_space', spaceId, `更新空间可见范围：${financeOnly ? '仅财务' : '公司'}`)
+
+  return space
+}
+
+export function archiveDocument(db: MockDatabase, id: string, actor: Actor) {
+  requireCan(actor, 'update')
+
+  const doc = getDocument(db, id, actor)
+  if (!doc)
+    throw new Error('无权归档或文档不存在')
+  if (doc.status === 'archived')
+    throw new Error('文档已经归档，不能重复归档')
+  if (doc.status === 'in_review')
+    throw new Error('审核中的文档不能归档')
+  doc.status = 'archived'
+  doc.versions[doc.versions.length - 1].status = 'archived'
+  doc.updatedAt = actor.at
+  writeAudit(db, actor, 'kb.document.archived', 'kb_doc', id, `归档知识文档 ${doc.title}`)
+
+  return doc
+}
+
 export function addFolder(db: MockDatabase, spaceId: string, name: string, actor: Actor) {
+  requireAdmin(actor, '只有空间管理员可以管理文件夹')
+
   const space = getSpace(db, spaceId, { ...actor, role: 'admin' })
-  if (!space || actor.role !== 'admin')
+  if (!space)
     throw new Error('只有空间管理员可以管理文件夹')
   const folder: KbFolder = { id: nextId(db, 'folder'), spaceId, name: name.trim(), parentId: null }
 
@@ -191,9 +274,11 @@ export function addFolder(db: MockDatabase, spaceId: string, name: string, actor
 }
 
 export function renameFolder(db: MockDatabase, folderId: string, name: string, actor: Actor) {
+  requireAdmin(actor, '只有空间管理员可以重命名文件夹')
+
   const folder = collections(db).kbFolders.find(item => item.id === folderId)
   const space = folder ? collections(db).kbSpaces.find(item => item.id === folder.spaceId) : undefined
-  if (!folder || !space || actor.role !== 'admin')
+  if (!folder || !space)
     throw new Error('只有空间管理员可以重命名文件夹')
   folder.name = name.trim()
   space.folders = collections(db).kbFolders.filter(item => item.spaceId === space.id)
@@ -204,8 +289,10 @@ export function renameFolder(db: MockDatabase, folderId: string, name: string, a
 }
 
 export function saveSpaceMembers(db: MockDatabase, spaceId: string, members: KbSpaceMember[], visibleRoles: KbSpace['visibleRoles'], actor: Actor) {
+  requireAdmin(actor, '只有空间管理员可以设置成员和可见范围')
+
   const space = getSpace(db, spaceId, { ...actor, role: 'admin' })
-  if (!space || actor.role !== 'admin')
+  if (!space)
     throw new Error('只有空间管理员可以设置成员和可见范围')
   const normalized = members.map(member => ({ ...member, spaceId, id: member.id || nextId(db, 'member') }))
   const c = collections(db)
@@ -253,6 +340,7 @@ export function markNotificationRead(db: MockDatabase, id: string, actor: Actor)
 }
 export function listOnboarding(db: MockDatabase, roleId: string) { return collections(db).onboardingItems.filter(item => item.roleId === roleId || item.roleId === 'operator') }
 export function saveOnboardingItem(db: MockDatabase, item: OnboardingChecklistItem, actor: Actor) {
+  requireCan(actor, 'update')
   if (actor.role !== 'admin' && item.roleId !== actor.role)
     throw new Error('只能维护自己的上手清单'); const rows = collections(db).onboardingItems; const existing = rows.find(row => row.id === item.id); if (existing)
     Object.assign(existing, item); else rows.push({ ...item, id: nextId(db, 'onboard') }); writeAudit(db, actor, 'onboarding.checklist.updated', 'onboarding', item.id, '更新新人上手清单')

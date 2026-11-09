@@ -8,6 +8,9 @@ export type WarehouseKind = 'fba' | 'overseas' | 'domestic'
 export type DocType = 'inbound' | 'outbound' | 'transfer' | 'count'
 
 export interface Actor {
+
+  /** 稳定的演示主体 ID；权限和审批归属不得依赖显示名。 */
+  id?: string
   name: string
   role: Role
   at: string
