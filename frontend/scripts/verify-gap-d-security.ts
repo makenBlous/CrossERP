@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict'
 
-import { gapDEmployees, gapDPayrollRuns, getGapDPayrollRun, listGapDRecords } from '../src/mocks/services/gap-d'
+import { approveGapDLeave, gapDEmployees, gapDPayrollRuns, getGapDPayrollRun, listGapDRecords, saveGapDTool, submitGapDLeave } from '../src/mocks/services/gap-d'
 import type { Actor } from '../src/types/entities'
 import type { GapDPayrollRun, GapDPayslip } from '../src/types/gap-d'
 
 const at = '2026-11-10T08:00:00+08:00'
 
 const finance: Actor = { userId: 'demo-finance', name: '演示财务', role: 'finance', at }
+const admin: Actor = { userId: 'demo-admin', name: '演示管理员', role: 'admin', at }
 const employee: Actor = { userId: 'demo-employee', name: '演示普通员工', role: 'employee', at }
 const hr: Actor = { userId: 'demo-hr-admin', name: '演示人事行政', role: 'hr_admin', at }
 const noPermission: Actor = { userId: 'demo-external-viewer', name: '演示外部顾问', role: 'external_viewer', at }
+const otherEmployee: Actor = { userId: 'demo-other-employee', name: '演示其他员工', role: 'employee', at }
 
 const payslips: GapDPayslip[] = gapDEmployees.map((item, index) => ({
   id: `verify-payslip-${item.id}`,
@@ -86,6 +88,28 @@ check('AI 代普通员工查询看不到别人的工资', () => {
   const visible = listGapDRecords('HR12', employee)
 
   assert(visible.every(record => record.id === 'verify-payslip-demo-employee'))
+})
+
+check('其他员工没有本人绑定时看不到任何工资条或他人档案', () => {
+  assert.deepEqual(listGapDRecords('HR12', otherEmployee), [])
+  assert.deepEqual(listGapDRecords('HR02', otherEmployee), [])
+})
+
+check('AI 只能起草，不能直接提交请假或审批', () => {
+  assert.throws(() => submitGapDLeave({ startDate: '2026-12-01', endDate: '2026-12-01', reason: 'AI 草稿' }, employee, 'ai'), /AI 只能起草/)
+  assert.throws(() => approveGapDLeave('leave-001', employee, 'ai'), /AI 只能起草/)
+})
+
+check('财务不能跳过主管审批请假', () => {
+  assert.throws(() => approveGapDLeave('leave-001', finance), /不能跳过主管/)
+})
+
+check('工具写接口默认停用只读且需要有效权限', () => {
+  const tool = saveGapDTool({ name: 'verify-http', kind: 'http' }, admin)
+
+  assert.equal(tool.enabled, false)
+  assert.equal(tool.readOnly, true)
+  assert.throws(() => saveGapDTool({ name: 'verify-http-no-perm', kind: 'http' }, otherEmployee), /没有权限/)
 })
 
 console.log(`校验结束：${failures === 0 ? '全部通过' : `${failures} 项失败`}`)

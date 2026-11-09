@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { calculateGapDPayrollRun, createGapDTool, fetchGapDAutonomyPolicies, fetchGapDPayrollRules, fetchGapDPayrollRun, fetchGapDRecords, fetchGapDTools, importGapDMcp, saveGapDAutonomy, setGapDAiMode, setGapDToolEnabled, uploadGapDInbox } from '@/api/gap-d'
+import { approveLeave, approvePayroll, calculateGapDPayrollRun, checkoutAsset, configureGapDToolSettings, createGapDTool, editContract, fetchGapDAutonomyPolicies, fetchGapDPayrollRules, fetchGapDPayrollRun, fetchGapDRecords, fetchGapDTools, importGapDMcp, publishPayslips, registerGapDMcp, registerMockImport, returnAsset, reviewPayroll, saveDeduction, saveGapDAutonomy, saveGapDOperation, savePayrollRule, setGapDAiMode, setGapDToolEnabled, submitLeave, testGapDToolCall, transitionEmployeeStatus, uploadGapDInbox } from '@/api/gap-d'
 import { findPageById } from '@/config/pages'
 import KpiCard from '@/components/KpiCard.vue'
 import DetailPage from '@/components/biz/DetailPage.vue'
@@ -49,6 +49,11 @@ const reviewReason = ref('')
 const ruleDrawerOpen = ref(false)
 const editingRule = ref<GapDPayrollRule | null>(null)
 const ruleDraft = ref({ city: '', effectiveFrom: '', pensionRate: 0, medicalRate: 0, unemploymentRate: 0, housingFundRate: 0, baseMinCents: 0, baseMaxCents: 0 })
+const leaveDraft = ref({ startDate: '2026-11-20', endDate: '2026-11-21', reason: '' })
+const importFileName = ref('')
+const importRowCount = ref(1)
+const mcpName = ref('本地 MCP 演示服务器')
+const mcpEndpoint = ref('stdio://crosserp-demo')
 const operationPages = new Set<GapDPageId>(['HR01', 'HR04', 'HR05', 'G21', 'G22', 'G23', 'AM01', 'AM02', 'AM05'])
 const selectedRecord = computed(() => records.value[0])
 const page = computed(() => findPageById(props.pageId))
@@ -170,6 +175,34 @@ async function toggleTool(id: string, enabled: boolean) {
   catch (error) { message.value = error instanceof Error ? error.message : '更新工具失败' }
 }
 
+async function configureTool(id: string) {
+  try {
+    await configureGapDToolSettings(id, { secretConfigured: true, frequencyLimit: toolFrequency.value })
+    message.value = '密钥已配置（仅保存状态），频率上限已更新。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '配置工具失败' }
+}
+
+async function testTool(id: string) {
+  try {
+    const result = await testGapDToolCall(id)
+
+    message.value = `测试调用成功：${result.citation}`
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '测试调用失败' }
+}
+
+async function registerMcp() {
+  try {
+    await registerGapDMcp({ name: mcpName.value, transport: 'stdio', endpoint: mcpEndpoint.value, discoveredTools: ['get_demo_stock'] })
+    message.value = 'MCP 服务器已登记，导入工具默认停用。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '登记 MCP 服务器失败' }
+}
+
 async function calculatePayroll() {
   saving.value = true
   try {
@@ -206,19 +239,130 @@ function openOperation() {
   operationDrawerOpen.value = true
 }
 
-function saveOperation() {
+async function saveOperation() {
   const titleText = operationDraft.value.title.trim()
   if (!titleText)
     return
-  records.value = [{ id: `draft-${Date.now()}`, title: titleText, status: '待处理', owner: '当前用户', detail: operationDraft.value.detail || '人工创建的待处理记录', updatedAt: new Date().toISOString() }, ...records.value]
-  operationDrawerOpen.value = false
-  message.value = '人工记录已保存；后续状态流转仍需按权限处理。'
+  try {
+    await saveGapDOperation(props.pageId, { title: titleText, detail: operationDraft.value.detail })
+    operationDrawerOpen.value = false
+    message.value = '人工记录已保存并写入审计；后续状态流转仍需按权限处理。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '保存记录失败' }
 }
 
-function saveFormDraft() {
-  if (!formDraft.value.title.trim())
+async function transitionEmployee() {
+  try {
+    await transitionEmployeeStatus('demo-employee', '离职')
+    message.value = '员工已转为离职状态并写入审计。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '状态流转失败' }
+}
+
+async function importAttendance() {
+  try {
+    await registerMockImport('attendance', importFileName.value || 'attendance-demo.csv', importRowCount.value)
+    message.value = '考勤模拟导入已登记（不保存真实文件），审计记录已写入。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '登记考勤导入失败' }
+}
+
+async function editSelectedContract() {
+  const record = drawerRecord.value ?? selectedRecord.value
+  if (!record)
     return
-  message.value = `${title.value}草稿已保存，后续流程仍需人工审批。`
+  try {
+    await editContract(record.id, { status: '已终止' })
+    message.value = '合同状态已保存并写入审计。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '编辑合同失败' }
+}
+
+async function checkoutSelectedAsset() {
+  const record = drawerRecord.value ?? selectedRecord.value
+  if (!record)
+    return
+  try {
+    await checkoutAsset(record.id, 'demo-employee')
+    message.value = '资产已领用，库存/持有人由模拟服务更新。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '资产领用失败' }
+}
+
+async function returnSelectedAsset() {
+  const record = drawerRecord.value ?? selectedRecord.value
+  if (!record)
+    return
+  try {
+    await returnAsset(record.id)
+    message.value = '资产已归还并写入审计。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '资产归还失败' }
+}
+
+async function approveSelectedLeave() {
+  const request = records.value.find(row => row.id === 'leave-001') ?? records.value[0]
+  if (!request)
+    return
+  try {
+    await approveLeave(request.id)
+    message.value = '请假审批状态已推进，不能跳过主管/人事顺序。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '请假审批失败' }
+}
+
+async function approveCurrentPayroll() {
+  if (!payrollRun.value)
+    return
+  try {
+    await approvePayroll(payrollRun.value.id)
+    message.value = '财务审批已完成，薪资批次进入已出凭证。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '财务审批失败' }
+}
+
+async function publishCurrentPayslips() {
+  if (!payrollRun.value)
+    return
+  try {
+    await publishPayslips(payrollRun.value.id)
+    message.value = '工资条已发布，员工只能通过本人范围查看。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '工资条发布失败' }
+}
+
+async function saveFormDraft() {
+  try {
+    if (props.pageId === 'HR06') {
+      await submitLeave({ startDate: leaveDraft.value.startDate, endDate: leaveDraft.value.endDate, reason: leaveDraft.value.reason || formDraft.value.detail || formDraft.value.title })
+      message.value = '请假申请已提交，当前状态为待主管审批。'
+    }
+    else if (props.pageId === 'HR11') {
+      await saveDeduction({ employeeId: 'demo-employee', category: formDraft.value.title || '子女教育', monthlyCents: 100000, effectiveFrom: '2026-01-01' })
+      message.value = '专项附加扣除草稿已保存并写入审计。'
+    }
+    else if (props.pageId === 'HR10') {
+      await savePayrollRule({ city: ruleDraft.value.city || '上海', effectiveFrom: ruleDraft.value.effectiveFrom || '2026-01-01', pensionRate: ruleDraft.value.pensionRate, medicalRate: ruleDraft.value.medicalRate, unemploymentRate: ruleDraft.value.unemploymentRate, housingFundRate: ruleDraft.value.housingFundRate, baseMinCents: ruleDraft.value.baseMinCents, baseMaxCents: ruleDraft.value.baseMaxCents })
+      message.value = '规则草稿已保存，核实前不会用于生产算薪。'
+    }
+    else {
+      if (!formDraft.value.title.trim())
+        return
+      await saveGapDOperation(props.pageId, formDraft.value)
+      message.value = `${title.value}草稿已保存并写入审计，后续流程仍需人工审批。`
+    }
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '保存失败' }
 }
 
 function openPayslip(row: GapDPayslip) {
@@ -231,11 +375,16 @@ function openReview() {
   reviewDrawerOpen.value = true
 }
 
-function submitReview() {
-  if (!reviewReason.value.trim())
+async function submitReview() {
+  if (!reviewReason.value.trim() || !payrollRun.value)
     return
-  reviewDrawerOpen.value = false
-  message.value = '薪资复核已记录，下一步进入审批；调整原因已保留在复核草稿中。'
+  try {
+    await reviewPayroll(payrollRun.value.id, reviewReason.value)
+    reviewDrawerOpen.value = false
+    message.value = '薪资复核已提交并写入审计，下一步进入财务审批。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '薪资复核失败' }
 }
 
 function openRule(rule?: GapDPayrollRule) {
@@ -246,15 +395,19 @@ function openRule(rule?: GapDPayrollRule) {
   ruleDrawerOpen.value = true
 }
 
-function saveRule() {
+async function saveRule() {
   if (!ruleDraft.value.city || !ruleDraft.value.effectiveFrom)
     return
 
   const rule: GapDPayrollRule = { id: editingRule.value?.id ?? `rule-${Date.now()}`, ...ruleDraft.value, verified: false }
 
-  payrollRules.value = editingRule.value ? payrollRules.value.map(item => item.id === rule.id ? rule : item) : [rule, ...payrollRules.value]
-  ruleDrawerOpen.value = false
-  message.value = '规则草稿已保存，核实前不会用于生产算薪。'
+  try {
+    await savePayrollRule(rule)
+    ruleDrawerOpen.value = false
+    message.value = '规则草稿已保存，核实前不会用于生产算薪。'
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '保存规则失败' }
 }
 
 const payrollRows = computed(() => (payrollRun.value?.payslips ?? []).map(row => ({ ...row, id: row.id, grossCents: row.grossCents / 100, socialPersonalCents: row.socialPersonalCents / 100, housingFundPersonalCents: row.housingFundPersonalCents / 100, taxableCumulativeCents: row.taxableCumulativeCents / 100, taxCents: row.taxCents / 100, netCents: row.netCents / 100 })))
@@ -446,6 +599,20 @@ onMounted(load)
               发起算薪
             </VBtn>
           </PermissionGate>
+          <VBtn
+            v-if="payrollRun?.status === '待审批'"
+            variant="tonal"
+            @click="approveCurrentPayroll"
+          >
+            财务审批
+          </VBtn>
+          <VBtn
+            v-if="payrollRun?.status === '已出凭证' && !payrollRun.publishedAt"
+            variant="tonal"
+            @click="publishCurrentPayslips"
+          >
+            发布工资条
+          </VBtn>
         </div>
       </div>
       <VAlert
@@ -539,6 +706,20 @@ onMounted(load)
               填写复核原因并提交审批
             </VBtn>
           </PermissionGate>
+          <VBtn
+            v-if="payrollRun?.status === '待审批'"
+            variant="tonal"
+            @click="approveCurrentPayroll"
+          >
+            财务审批
+          </VBtn>
+          <VBtn
+            v-if="payrollRun?.status === '已出凭证' && !payrollRun.publishedAt"
+            variant="tonal"
+            @click="publishCurrentPayslips"
+          >
+            发布工资条
+          </VBtn>
         </VCardActions>
         <VAlert
           v-else
@@ -687,6 +868,21 @@ onMounted(load)
     </template>
 
     <template v-else-if="props.pageId === 'G26'">
+      <VCard class="mb-4">
+        <VCardText class="d-flex flex-wrap align-end gap-3">
+          <AppTextField
+            v-model="mcpName"
+            label="MCP 服务器名称"
+          />
+          <AppTextField
+            v-model="mcpEndpoint"
+            label="连接地址"
+          />
+          <VBtn @click="registerMcp">
+            登记服务器
+          </VBtn>
+        </VCardText>
+      </VCard>
       <ListPage
         storage-key="gapd-mcp"
         :title="title"
@@ -745,6 +941,22 @@ onMounted(load)
             >
               密钥：{{ selectedRecord.secretConfigured ? '已配置' : '未配置' }}；读写类别：只读。
             </VAlert>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <VBtn
+                size="small"
+                variant="tonal"
+                @click="configureTool(selectedRecord.id)"
+              >
+                配置密钥与频率
+              </VBtn>
+              <VBtn
+                size="small"
+                variant="tonal"
+                @click="testTool(selectedRecord.id)"
+              >
+                测试调用
+              </VBtn>
+            </div>
           </VCardText>
         </VCard>
       </DetailPage>
@@ -757,6 +969,30 @@ onMounted(load)
         @save="saveFormDraft"
         @cancel="router.back()"
       >
+        <template v-if="props.pageId === 'HR06'">
+          <VRow>
+            <VCol cols="6">
+              <AppTextField
+                v-model="leaveDraft.startDate"
+                label="开始日期"
+                type="date"
+              />
+            </VCol>
+            <VCol cols="6">
+              <AppTextField
+                v-model="leaveDraft.endDate"
+                label="结束日期"
+                type="date"
+              />
+            </VCol>
+          </VRow>
+          <AppTextarea
+            v-model="leaveDraft.reason"
+            class="mt-4"
+            label="请假原因"
+            rows="3"
+          />
+        </template>
         <AppTextField
           v-model="formDraft.title"
           label="标题"
@@ -773,6 +1009,14 @@ onMounted(load)
           >
             本页面保留完整人工路径。涉及薪资的计算由服务层按规则完成。
           </VAlert>
+          <VBtn
+            v-if="props.pageId === 'HR06'"
+            class="mt-3"
+            variant="tonal"
+            @click="approveSelectedLeave"
+          >
+            推进请假审批
+          </VBtn>
         </template>
       </FormPage>
     </template>
@@ -790,10 +1034,38 @@ onMounted(load)
         <template #widgets>
           <div
             v-if="canAddOperation"
-            class="d-flex justify-end mb-4"
+            class="d-flex flex-wrap justify-end align-end gap-3 mb-4"
           >
+            <AppTextField
+              v-if="props.pageId === 'HR05'"
+              v-model="importFileName"
+              label="模拟考勤文件名"
+            />
+            <AppTextField
+              v-if="props.pageId === 'HR05'"
+              v-model.number="importRowCount"
+              type="number"
+              label="行数"
+            />
+            <VBtn
+              v-if="props.pageId === 'HR05'"
+              variant="tonal"
+              @click="importAttendance"
+            >
+              登记模拟导入
+            </VBtn>
+            <VBtn
+              v-if="props.pageId === 'HR04'"
+              variant="tonal"
+              @click="transitionEmployee"
+            >
+              办理离职
+            </VBtn>
             <PermissionGate action="create">
-              <VBtn @click="openOperation">
+              <VBtn
+                v-if="props.pageId !== 'HR05' && props.pageId !== 'HR04'"
+                @click="openOperation"
+              >
                 {{ props.pageId === 'HR01' ? '新增部门' : '新增人工记录' }}
               </VBtn>
             </PermissionGate>
@@ -853,6 +1125,29 @@ onMounted(load)
         >
           记录详情沿用 Vuexy 抽屉模式；需要写入的动作仍通过人工路径和权限校验完成。
         </VAlert>
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <VBtn
+            v-if="props.pageId === 'AM01'"
+            variant="tonal"
+            @click="editSelectedContract"
+          >
+            编辑合同状态
+          </VBtn>
+          <VBtn
+            v-if="props.pageId === 'AM02' || props.pageId === 'AM03'"
+            variant="tonal"
+            @click="checkoutSelectedAsset"
+          >
+            资产领用
+          </VBtn>
+          <VBtn
+            v-if="props.pageId === 'AM02' || props.pageId === 'AM03'"
+            variant="tonal"
+            @click="returnSelectedAsset"
+          >
+            资产归还
+          </VBtn>
+        </div>
       </template>
     </RecordDrawer>
 

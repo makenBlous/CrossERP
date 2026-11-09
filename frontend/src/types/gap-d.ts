@@ -105,6 +105,9 @@ export interface GapDPayrollRun {
   employeeCount: number
   payslips: GapDPayslip[]
   createdAt: string
+  reviewedBy?: string
+  approvedBy?: string
+  publishedAt?: string
 }
 
 export interface GapDAuditEvent {
@@ -115,6 +118,63 @@ export interface GapDAuditEvent {
   actor: string
   at: string
   detail: string
+}
+
+export type GapDWriteOrigin = 'human' | 'ai'
+
+export interface GapDContract {
+  id: string
+  title: string
+  counterparty: string
+  effectiveFrom: string
+  effectiveTo: string
+  status: '草稿' | '生效' | '已终止'
+  ownerEmployeeId?: string
+  updatedAt: string
+}
+
+export interface GapDAsset {
+  id: string
+  name: string
+  status: '可领用' | '已领用' | '已归还'
+  holderEmployeeId?: string
+  purchaseCents: number
+  monthlyDepreciationCents: number
+  updatedAt: string
+}
+
+export interface GapDLeaveRequest {
+  id: string
+  employeeId: string
+  startDate: string
+  endDate: string
+  days: number
+  reason: string
+  status: '待主管审批' | '待人事审批' | '已批准' | '已驳回'
+  managerApprovedBy?: string
+  hrApprovedBy?: string
+  submittedAt: string
+  updatedAt: string
+}
+
+export interface GapDImportRecord {
+  id: string
+  kind: 'attendance' | 'contract'
+  fileName: string
+  rowCount: number
+  status: '已登记'
+  createdBy: string
+  createdAt: string
+}
+
+export interface GapDApprovalRecord {
+  id: string
+  targetType: 'leave' | 'payroll'
+  targetId: string
+  level: number
+  approverUserId: string
+  status: 'pending' | 'approved' | 'rejected'
+  decidedAt?: string
 }
 
 export interface GapDAiState {

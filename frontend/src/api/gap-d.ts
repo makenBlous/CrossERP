@@ -1,5 +1,5 @@
 import { currentActor, database, delay } from '@/api/mock-client'
-import { calculateGapDPayroll, gapDAutonomyPolicies, gapDPayrollRules, gapDTools, getGapDPayrollRun, importGapDMcpTool, ingestGapDInbox, listGapDAudit, listGapDRecords, saveGapDTool, toggleGapDTool, updateGapDAiMode, updateGapDAutonomy } from '@/mocks/services/gap-d'
+import { approveGapDLeave, approveGapDPayroll, calculateGapDPayroll, checkoutGapDAsset, configureGapDTool, editGapDContract, gapDAutonomyPolicies, gapDPayrollRules, gapDTools, getGapDPayrollRun, importGapDMcpTool, ingestGapDInbox, listGapDAudit, listGapDRecords, publishGapDPayslips, registerGapDImport, registerGapDMcpServer, returnGapDAsset, reviewGapDPayroll, saveGapDDeduction, saveGapDPayrollRule, saveGapDRecord, saveGapDTool, submitGapDLeave, testGapDTool, toggleGapDTool, transitionGapDEmployeeStatus, updateGapDAiMode, updateGapDAutonomy } from '@/mocks/services/gap-d'
 import type { AgentAutonomyLevel } from '@/types/foundation'
 import type { GapDAiState, GapDAuditEvent, GapDPageId, GapDPayrollRun, GapDRecord, GapDTool } from '@/types/gap-d'
 
@@ -68,6 +68,26 @@ export async function setGapDToolEnabled(id: string, enabled: boolean): Promise<
   return result
 }
 
+export async function configureGapDToolSettings(id: string, input: Parameters<typeof configureGapDTool>[1]) {
+  await delay()
+
+  const result = configureGapDTool(id, input, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function testGapDToolCall(id: string) {
+  await delay()
+
+  const result = testGapDTool(id, currentActor())
+
+  database().persist()
+
+  return result
+}
+
 // 未来: POST /api/v1/agent/inbox
 export async function uploadGapDInbox(fileName: string): Promise<GapDRecord> {
   await delay()
@@ -84,6 +104,16 @@ export async function importGapDMcp(serverId: string) {
   await delay()
 
   const result = importGapDMcpTool(serverId, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function registerGapDMcp(input: Parameters<typeof registerGapDMcpServer>[0]) {
+  await delay()
+
+  const result = registerGapDMcpServer(input, currentActor())
 
   database().persist()
 
@@ -120,4 +150,134 @@ export async function fetchGapDAudit(): Promise<GapDAuditEvent[]> {
   await delay()
 
   return structuredClone(listGapDAudit())
+}
+
+export async function saveGapDOperation(pageId: GapDPageId, input: { title: string; detail?: string }) {
+  await delay()
+
+  const result = saveGapDRecord(pageId, input, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function transitionEmployeeStatus(employeeId: string, status: Parameters<typeof transitionGapDEmployeeStatus>[1]) {
+  await delay()
+
+  const result = transitionGapDEmployeeStatus(employeeId, status, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function editContract(contractId: string, input: Parameters<typeof editGapDContract>[1]) {
+  await delay()
+
+  const result = editGapDContract(contractId, input, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function checkoutAsset(assetId: string, employeeId: string) {
+  await delay()
+
+  const result = checkoutGapDAsset(assetId, employeeId, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function returnAsset(assetId: string) {
+  await delay()
+
+  const result = returnGapDAsset(assetId, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function submitLeave(input: Parameters<typeof submitGapDLeave>[0]) {
+  await delay()
+
+  const result = submitGapDLeave(input, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function approveLeave(id: string) {
+  await delay()
+
+  const result = approveGapDLeave(id, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function registerMockImport(kind: Parameters<typeof registerGapDImport>[0], fileName: string, rowCount: number) {
+  await delay()
+
+  const result = registerGapDImport(kind, fileName, rowCount, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function savePayrollRule(input: Parameters<typeof saveGapDPayrollRule>[0]) {
+  await delay()
+
+  const result = saveGapDPayrollRule(input, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function saveDeduction(input: Parameters<typeof saveGapDDeduction>[0]) {
+  await delay()
+
+  const result = saveGapDDeduction(input, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function reviewPayroll(runId: string, reason: string) {
+  await delay()
+
+  const result = reviewGapDPayroll(runId, reason, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function approvePayroll(runId: string) {
+  await delay()
+
+  const result = approveGapDPayroll(runId, currentActor())
+
+  database().persist()
+
+  return result
+}
+
+export async function publishPayslips(runId: string) {
+  await delay()
+
+  const result = publishGapDPayslips(runId, currentActor())
+
+  database().persist()
+
+  return result
 }

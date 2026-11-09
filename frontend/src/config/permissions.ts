@@ -116,6 +116,17 @@ const fieldPermissionPoints: PermissionPoint[] = [
 
 permissionCatalog.push(...fieldPermissionPoints)
 
+// ---- 补齐批次 D：页面动作权限点（薪资字段默认收窄） ----
+export const gapDPermissionPoints: PermissionPoint[] = [
+  { key: 'agent_autonomy:write', labelZh: '修改自主等级', labelEn: 'Edit autonomy policy', module: 'Agent', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all'] },
+  { key: 'agent_mode:write', labelZh: '切换 AI 总开关', labelEn: 'Change AI mode', module: 'Agent', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all'] },
+  { key: 'payroll_run:calculate', labelZh: '发起算薪', labelEn: 'Calculate payroll', module: 'Payroll', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all', 'department'] },
+  { key: 'salary_slip:read_own', labelZh: '查看本人工资条', labelEn: 'Read own payslip', module: 'Payroll', kind: 'field', sensitive: true, dataScopeRuleTypes: ['self'] },
+  { key: 'salary_slip:read_all', labelZh: '查看全部工资字段', labelEn: 'Read all salary fields', module: 'Payroll', kind: 'field', sensitive: true, dataScopeRuleTypes: ['all'] },
+]
+
+permissionCatalog.push(...gapDPermissionPoints)
+
 export const legacyPermissionKeys: Record<string, string> = {
   view: 'system:read',
   create: 'system:create',
@@ -148,7 +159,7 @@ const templatePermissions: Record<string, string[]> = {
   accountant: ['journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'payment_entry:read', 'expense_claim:read', 'employee_advance:read', 'report:read', 'stock_ledger:read', 'budget:read', 'audit_log:read', 'approval:read', 'notification:read', 'integration:read'],
   finance_manager: ['approval:read', 'approval:write', 'approval:approve', 'report:read', 'report:write', 'journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'journal_entry:approve', 'payment_entry:read', 'payment_entry:write', 'payment_entry:approve', 'expense_claim:read', 'budget:read', 'budget:write', 'period_closing_voucher:approve', 'integration:write', 'audit_log:read', 'notification:read'],
   cashier: ['payment_entry:read', 'payment_entry:write', 'payment_entry:submit', 'journal_entry:read', 'report:read', 'approval:read', 'notification:read'],
-  hr_admin: ['employee_record:read', 'employee_record:read_own', 'employee_record:write', 'employee_record:create', 'employee.salary:read', 'employee.id_number:read', 'salary_slip:read', 'salary_slip:read_own', 'salary_slip:read_all', 'salary_slip:write', 'salary_slip:create', 'attendance:read', 'attendance:write', 'leave_application:read', 'leave_application:write', 'leave_application:approve', 'contract:read', 'asset:read', 'asset:write', 'notification:read', 'notification:write', 'document:read', 'approval:read'],
+  hr_admin: ['employee_record:read', 'employee_record:read_own', 'employee_record:write', 'employee_record:create', 'employee.salary:read', 'employee.id_number:read', 'salary_slip:read', 'salary_slip:read_own', 'salary_slip:read_all', 'salary_slip:write', 'salary_slip:create', 'payroll_run:calculate', 'attendance:read', 'attendance:write', 'leave_application:read', 'leave_application:write', 'leave_application:approve', 'contract:read', 'contract:write', 'asset:read', 'asset:write', 'notification:read', 'notification:write', 'document:read', 'approval:read'],
   employee: ['expense_claim:read', 'expense_claim:create', 'expense_claim:write', 'employee_advance:read', 'employee_advance:create', 'travel_request:read', 'travel_request:create', 'leave_application:read', 'leave_application:create', 'salary_slip:read_own', 'employee_record:read_own', 'notification:read', 'document:read', 'office_supply:read', 'office_supply:create', 'approval:read'],
   department_manager: ['approval:read', 'approval:approve', 'expense_claim:read', 'leave_application:read', 'leave_application:approve', 'purchase_order:read', 'sales_order:read', 'employee_record:read', 'budget:read', 'notification:read'],
 
