@@ -99,6 +99,7 @@ async function submit() {
                   <MoneyText
                     :amount="row.payoutAmount"
                     :currency="row.currency"
+                    minor
                   />
                 </td>
                 <td>
@@ -127,6 +128,7 @@ async function submit() {
                 <MoneyText
                   :amount="row.arAmount"
                   :currency="row.currency"
+                  minor
                 />
               </template>
             </VListItem>

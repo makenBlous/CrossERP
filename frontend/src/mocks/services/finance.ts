@@ -147,7 +147,15 @@ export function apRows(db: MockDatabase) {
 }
 
 export function clearingRows(db: MockDatabase) {
-  return financeData(db).clearing
+  const data = financeData(db)
+  if (!data.clearing.length) {
+    db.settlements.slice(0, 6).forEach((settlement, index) => {
+      const ar = db.arInvoices.find(item => item.storeId === settlement.storeId && item.currency === settlement.currency)
+      data.clearing.push({ id: `clr-${index + 1}`, payout: settlement.externalId, ar: ar?.id ?? `AR-${settlement.storeId}`, currency: settlement.currency, payoutAmount: settlement.total, arAmount: ar?.amount ?? settlement.total, difference: settlement.total - (ar?.amount ?? settlement.total), status: index === 0 ? 'pending' : 'candidate' })
+    })
+  }
+
+  return data.clearing
 }
 
 export function exportRows(db: MockDatabase) {
@@ -283,7 +291,7 @@ export function createExportArtifact(db: MockDatabase, approvalId: string, vouch
 }
 
 export function submitClearing(db: MockDatabase, ids: string[], actor: Actor) {
-  const selected = financeData(db).clearing.filter(row => ids.includes(row.id))
+  const selected = clearingRows(db).filter(row => ids.includes(row.id))
   if (!selected.length)
     return null
   const difference = selected.reduce((sum, row) => sum + row.payoutAmount - row.arAmount, 0)
