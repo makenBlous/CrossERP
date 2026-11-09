@@ -29,6 +29,7 @@ export interface ExpenseClaimLine {
 
 export interface ExpenseClaim {
   id: string
+  claimantId?: string
   claimant: string
   department: string
   status: ExpenseClaimStatus
@@ -195,6 +196,7 @@ export interface VoucherSourceLink {
 
 export interface GapAVoucher {
   id: string
+  createdById?: string
   no: string
   period: string
   summary: string
@@ -202,6 +204,8 @@ export interface GapAVoucher {
   debit: number
   credit: number
   currency: CurrencyCode
+  debitAccount?: string
+  creditAccount?: string
   sourceLinks: VoucherSourceLink[]
   timeline: GapAAuditEvent[]
 }

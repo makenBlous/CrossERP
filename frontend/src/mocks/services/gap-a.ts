@@ -4,12 +4,19 @@ import type {
   GapAAuditEvent, GapAState, GapAVoucher, GapApprovalStatus, LedgerEntry, PeriodCloseState, StatementRow, TravelRequest,
   TrialBalanceRow, VatReturnRow, VoucherSourceLink,
 } from '@/types/gap-a'
-import { useSessionStore } from '@/stores/session'
+import { demoIdentities, useSessionStore } from '@/stores/session'
 import { minorFromDecimal } from '@/utils/money'
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 const now = () => new Date().toISOString()
 const actor = () => useSessionStore().displayName
+const actorId = () => useSessionStore().userId
+
+function identityIdForName(name: string) {
+  const identity = Object.values(demoIdentities).find(item => item.name === name)
+
+  return identity?.id
+}
 
 function audit(id: string, action: string, detail: string, origin: 'human' | 'ai' = 'human', agentSuggestionId?: string): GapAAuditEvent {
   return { id, at: now(), actor: actor(), action, detail, origin, agentSuggestionId }
@@ -28,6 +35,7 @@ function makeLine(id: string, amount: number, category = '交通'): ExpenseClaim
 function initialState(): GapAState {
   const vch1: GapAVoucher = {
     id: 'vch-1',
+    createdById: 'demo-operator',
     no: '记-2026-10-018',
     period: '2026-10',
     summary: '10 月收入与费用草稿',
@@ -44,6 +52,7 @@ function initialState(): GapAState {
 
   const vch2: GapAVoucher = {
     id: 'vch-2',
+    createdById: 'demo-operator',
     no: '记-2026-10-019',
     period: '2026-10',
     summary: '帐篷成本结转，待财务审批',
@@ -58,7 +67,7 @@ function initialState(): GapAState {
   }
 
   return {
-    claims: [{ id: 'exp-001', claimant: '演示普通员工', department: '运营部', status: 'submitted', total: minorFromDecimal('850'), currency: 'CNY', standardLimit: minorFromDecimal('600'), overStandard: true, attachmentName: '差旅发票-001.pdf', origin: 'human', lines: [makeLine('exp-001-1', minorFromDecimal('850'))], approvalSteps: [{ title: '部门主管', status: 'pending' }, { title: '财务', status: 'pending' }], budgetPeriod: '2026-11', createdAt: '2026-11-05T09:00:00Z' }],
+    claims: [{ id: 'exp-001', claimantId: 'demo-employee', claimant: '演示普通员工', department: '运营部', status: 'submitted', total: minorFromDecimal('850'), currency: 'CNY', standardLimit: minorFromDecimal('600'), overStandard: true, attachmentName: '差旅发票-001.pdf', origin: 'human', lines: [makeLine('exp-001-1', minorFromDecimal('850'))], approvalSteps: [{ title: '部门主管', status: 'pending' }, { title: '财务', status: 'pending' }], budgetPeriod: '2026-11', createdAt: '2026-11-05T09:00:00Z' }],
     loans: [{ id: 'loan-001', claimant: '演示普通员工', purpose: '海外展会差旅备用金', status: 'approved', amount: minorFromDecimal('3000'), settled: minorFromDecimal('1200'), outstanding: minorFromDecimal('1800'), currency: 'CNY', dueOn: '2026-12-15', audit: [{ id: 'loan-001-approved', at: '2026-10-20T09:00:00Z', actor: '演示财务', action: '批准借款', detail: '借款审批通过。', origin: 'human' }] }],
     trips: [{ id: 'trip-001', claimant: '演示普通员工', destination: '深圳', startOn: '2026-11-18', endOn: '2026-11-20', budget: minorFromDecimal('2400'), currency: 'CNY', status: 'approved' }],
     policies: [{ id: 'policy-transport', category: '交通', department: '运营部', limit: minorFromDecimal('600'), currency: 'CNY', effectiveFrom: '2026-01-01', active: true }, { id: 'policy-hotel', category: '住宿', department: '全公司', limit: minorFromDecimal('800'), currency: 'CNY', effectiveFrom: '2026-01-01', active: true }, { id: 'policy-meal', category: '餐补', department: '全公司', limit: minorFromDecimal('150'), currency: 'CNY', effectiveFrom: '2026-01-01', active: true }],
@@ -74,7 +83,7 @@ function initialState(): GapAState {
     fx: [{ id: 'fxr-001', period: '2026-10', currency: 'USD', closingRate: '7.12000000', balance: minorFromDecimal('12800'), gainLoss: minorFromDecimal('220.5'), status: 'preview' }, { id: 'fxr-002', period: '2026-10', currency: 'EUR', closingRate: '7.78000000', balance: minorFromDecimal('6200'), gainLoss: minorFromDecimal('-84.2'), status: 'preview' }],
     vat: [{ id: 'vat-001', store: 'Northwind Outdoor DE', period: '2026-Q4', outputTax: minorFromDecimal('2180'), inputTax: minorFromDecimal('920'), payable: minorFromDecimal('1260'), dueOn: '2027-01-31', status: 'ready', currency: 'EUR' }, { id: 'vat-002', store: 'Northwind Outdoor UK', period: '2026-Q4', outputTax: minorFromDecimal('1850'), inputTax: minorFromDecimal('1100'), payable: minorFromDecimal('750'), dueOn: '2027-01-31', status: 'draft', currency: 'GBP' }],
     rebates: [{ id: 'rebate-001', declarationNo: 'DECL-2026-10-018', store: 'Northwind Outdoor US', period: '2026-10', inputInvoice: 'INV-2026-10-088', amount: minorFromDecimal('4860'), currency: 'CNY', status: 'collecting', dueOn: '2026-12-31', documents: [] }],
-    vouchers: [vch1, vch2, { id: 'vch-3', no: '记-2026-09-011', period: '2026-09', summary: '9 月利润凭证', status: 'posted', debit: minorFromDecimal('96220'), credit: minorFromDecimal('96220'), currency: 'CNY', sourceLinks: [{ sourceType: 'profit', sourceId: '2026-09', label: '2026-09 利润快照', to: '/finance/profit', amount: minorFromDecimal('96220'), currency: 'CNY' }], timeline: seedAudit('vch-3') }],
+    vouchers: [vch1, vch2, { id: 'vch-3', createdById: 'demo-operator', no: '记-2026-09-011', period: '2026-09', summary: '9 月利润凭证', status: 'posted', debit: minorFromDecimal('96220'), credit: minorFromDecimal('96220'), currency: 'CNY', sourceLinks: [{ sourceType: 'profit', sourceId: '2026-09', label: '2026-09 利润快照', to: '/finance/profit', amount: minorFromDecimal('96220'), currency: 'CNY' }], timeline: seedAudit('vch-3') }],
     audits: [...seedAudit('vch-1'), ...seedAudit('vch-3')],
     orderRules: [{ storeId: 'amz-us', store: 'Northwind Outdoor US', granularity: 'per_settlement' }, { storeId: 'amz-uk', store: 'Northwind Outdoor UK', granularity: 'per_period_summary' }, { storeId: 'shopify', store: 'northwind-outdoor.com', granularity: 'per_order' }],
   }
@@ -96,6 +105,14 @@ function loadState() {
     const parsed = JSON.parse(saved) as GapAState
 
     parsed.rebates = parsed.rebates.map(item => ({ ...item, documents: item.documents ?? [] }))
+    parsed.claims = parsed.claims.map(item => ({
+      ...item,
+      claimantId: item.claimantId ?? identityIdForName(item.claimant),
+    }))
+    parsed.vouchers = parsed.vouchers.map(item => ({
+      ...item,
+      createdById: item.createdById ?? 'demo-operator',
+    }))
 
     return parsed
   }
@@ -260,11 +277,18 @@ function assertOpen(period: string) {
     throw new Error(`期间 ${period} 已结账，不能生成凭证`)
 }
 
-export function createClaim(input: { claimant: string; department: string; attachmentName: string; line: Omit<ExpenseClaimLine, 'id'>; origin: 'human' | 'ai'; agentSuggestionId?: string }) {
+function expenseAccountForCategory(lines: ExpenseClaimLine[]) {
+  const category = lines[0]?.category ?? '其他'
+  const salesCategories = ['广告', '销售', '推广', '佣金']
+
+  return `${salesCategories.some(keyword => category.includes(keyword)) ? '销售费用' : '管理费用'}-${category}费`
+}
+
+export function createClaim(input: { claimant: string; claimantId?: string; department: string; attachmentName: string; line: Omit<ExpenseClaimLine, 'id'>; origin: 'human' | 'ai'; agentSuggestionId?: string }) {
   const id = `exp-${String(state.claims.length + 1).padStart(3, '0')}`
   const line = { ...input.line, id: `${id}-1` }
   const policy = state.policies.find(item => item.category === line.category && (item.department === input.department || item.department === '全公司'))
-  const item: ExpenseClaim = { id, claimant: input.claimant, department: input.department, status: 'draft', total: line.amount, currency: line.currency, standardLimit: policy?.limit ?? line.amount, overStandard: line.amount > (policy?.limit ?? line.amount), attachmentName: input.attachmentName, origin: input.origin, lines: [line], approvalSteps: [{ title: '部门主管', status: 'pending' }, { title: '财务', status: 'pending' }], budgetPeriod: '2026-11', createdAt: now() }
+  const item: ExpenseClaim = { id, claimantId: input.claimantId ?? identityIdForName(input.claimant), claimant: input.claimant, department: input.department, status: 'draft', total: line.amount, currency: line.currency, standardLimit: policy?.limit ?? line.amount, overStandard: line.amount > (policy?.limit ?? line.amount), attachmentName: input.attachmentName, origin: input.origin, lines: [line], approvalSteps: [{ title: '部门主管', status: 'pending' }, { title: '财务', status: 'pending' }], budgetPeriod: '2026-11', createdAt: now() }
 
   state.claims.unshift(item)
   addAudit(audit('claim-created', '创建报销草稿', `创建报销 ${id}，金额由票面和代码合计。`, input.origin, input.agentSuggestionId), id)
@@ -276,6 +300,10 @@ export function createClaim(input: { claimant: string; department: string; attac
 export function submitClaim(id: string) {
   const item = state.claims.find(row => row.id === id); if (!item)
     return null
+  if (item.origin === 'ai')
+    throw new Error('AI 来源只能保存草稿，提交审批须由人工重新确认')
+  if (item.status === 'rejected')
+    throw new Error('已驳回的报销不能继续提交审批')
   if (item.overStandard)
     throw new Error('费用超过标准，请调整明细或补充人工说明后再提交')
   item.status = 'submitted'; addAudit(audit('claim-submitted', '提交报销', '进入部门主管审批。'), id)
@@ -287,20 +315,33 @@ export function submitClaim(id: string) {
 export function decideClaim(id: string, step: 'manager' | 'finance', status: Extract<GapApprovalStatus, 'approved' | 'rejected'>) {
   const item = state.claims.find(row => row.id === id); if (!item)
     return null
-  const currentActor = actor(); if (currentActor === item.claimant)
+  if (item.origin === 'ai')
+    throw new Error('AI 来源只能保存草稿，不能审批')
+  if (item.status === 'rejected')
+    throw new Error('已驳回的报销不能继续审批')
+  const currentActor = actor(); if (item.claimantId && actorId() === item.claimantId)
     throw new Error('不能审批自己提交的报销单，请换另一位审批人')
   const index = step === 'manager' ? 0 : 1
+  if (item.approvalSteps[index].status !== 'pending')
+    throw new Error('该审批步骤已经处理，不能重复审批')
+  if (step === 'manager' && item.status !== 'submitted')
+    throw new Error('只有已提交的报销单才能由主管审批')
+  if (step === 'finance' && item.status !== 'manager_approved')
+    throw new Error('主管审批通过后，财务才能审批')
 
   item.approvalSteps[index].status = status; item.approvalSteps[index].actor = currentActor
   if (status === 'rejected') { item.status = 'rejected' }
   else if (step === 'manager') { item.status = 'manager_approved' }
   else {
+    const amount = item.lines.reduce((sum, line) => sum + line.amount, 0)
+
+    item.total = amount
     item.status = 'finance_approved'; item.status = 'posted'
 
     const budget = state.budgets.find(row => row.period === item.budgetPeriod && row.department === item.department)
     if (budget) { budget.actual += item.total; budget.status = budget.actual >= budget.budget ? 'exceeded' : budget.actual >= budget.budget * 0.8 ? 'warning' : 'normal' }
     if (!state.vouchers.some(voucher => voucher.sourceLinks.some(link => link.sourceType === 'expense_claim' && link.sourceId === id)))
-      createVoucher(`报销 ${id} 凭证草稿`, item.budgetPeriod, item.total, [{ sourceType: 'expense_claim', sourceId: id, label: `报销单 ${id}`, to: `/expense/claims/${id}`, amount: item.total, currency: item.currency }], 'expense_claim', id)
+      createVoucher(`报销 ${id} 凭证草稿`, item.budgetPeriod, amount, [{ sourceType: 'expense_claim', sourceId: id, label: `报销单 ${id}`, to: `/expense/claims/${id}`, amount, currency: item.currency }], 'expense_claim', id, expenseAccountForCategory(item.lines), '其他应付款-员工')
   }
   addAudit(audit(`claim-${step}-${status}`, status === 'approved' ? '批准报销' : '驳回报销', `${step === 'manager' ? '部门主管' : '财务'}${status === 'approved' ? '批准' : '驳回'} ${id}。`), id)
   persist()
@@ -327,12 +368,12 @@ export function offsetLoan(loanId: string, claimId: string) {
   return clone(loanItem)
 }
 
-export function createVoucher(summary: string, period: string, amount: number, sourceLinks: VoucherSourceLink[], sourceType: string, sourceId: string) {
+export function createVoucher(summary: string, period: string, amount: number, sourceLinks: VoucherSourceLink[], sourceType: string, sourceId: string, debitAccount = '主营业务成本', creditAccount = '平台结算清算', createdById = actorId()) {
   assertOpen(period)
 
-  const id = nextId('vch'); const item: GapAVoucher = { id, no: `记-${period}-${String(state.vouchers.length + 20).padStart(3, '0')}`, period, summary, status: 'draft', debit: amount, credit: amount, currency: 'CNY', sourceLinks, timeline: [audit('draft', '起草', `按 ${sourceType} ${sourceId} 的已存金额生成凭证草稿。`)] }
+  const id = nextId('vch'); const item: GapAVoucher = { id, createdById, no: `记-${period}-${String(state.vouchers.length + 20).padStart(3, '0')}`, period, summary, status: 'draft', debit: amount, credit: amount, currency: 'CNY', debitAccount, creditAccount, sourceLinks, timeline: [audit('draft', '起草', `按 ${sourceType} ${sourceId} 的已存金额生成凭证草稿。`)] }
 
-  state.vouchers.unshift(item); state.ledger.push({ id: nextId('gl'), period, voucherId: id, account: '主营业务成本', summary, debit: amount, credit: 0, currency: 'CNY', sourceType, sourceId }, { id: nextId('gl'), period, voucherId: id, account: '平台结算清算', summary, debit: 0, credit: amount, currency: 'CNY', sourceType, sourceId }); addAudit(audit('voucher-created', '创建凭证草稿', summary), id)
+  state.vouchers.unshift(item); state.ledger.push({ id: nextId('gl'), period, voucherId: id, account: debitAccount, summary, debit: amount, credit: 0, currency: 'CNY', sourceType, sourceId }, { id: nextId('gl'), period, voucherId: id, account: creditAccount, summary, debit: 0, credit: amount, currency: 'CNY', sourceType, sourceId }); addAudit(audit('voucher-created', '创建凭证草稿', summary), id)
   persist()
 
   return clone(item)
@@ -347,8 +388,9 @@ export function submitVoucher(id: string) {
 }
 export function approveVoucher(id: string, approved: boolean) {
   const item = state.vouchers.find(row => row.id === id); if (!item)
-    return null; if (actor() === '演示运营')
-    throw new Error('不能审批自己提交的凭证'); item.status = approved ? 'approved' : 'rejected'; addAudit(audit(approved ? 'approve' : 'reject', approved ? '批准' : '驳回', approved ? '凭证审批通过，可进入总账。' : '凭证审批未通过。'), id)
+    return null; if (item.createdById && actorId() === item.createdById)
+    throw new Error('不能审批自己提交的凭证'); if (item.status !== 'pending')
+    throw new Error(item.status === 'rejected' ? '已驳回的凭证不能继续审批' : '只有待审批凭证才能审批'); item.status = approved ? 'approved' : 'rejected'; addAudit(audit(approved ? 'approve' : 'reject', approved ? '批准' : '驳回', approved ? '凭证审批通过，可进入总账。' : '凭证审批未通过。'), id)
   persist()
 
   return clone(item)

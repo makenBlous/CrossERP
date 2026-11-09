@@ -13,7 +13,7 @@ const row = ref<GapAVoucher | null>(null)
 const message = ref('')
 const submitting = ref(false)
 const canSubmit = computed(() => Boolean(row.value && row.value.status === 'draft' && ['admin', 'operator', 'finance', 'accountant', 'finance_manager'].includes(session.role)))
-const canApprove = computed(() => Boolean(row.value && row.value.status === 'pending' && ['admin', 'finance', 'accountant', 'finance_manager'].includes(session.role) && session.displayName !== '演示运营'))
+const canApprove = computed(() => Boolean(row.value && row.value.status === 'pending' && ['admin', 'finance', 'accountant', 'finance_manager'].includes(session.role) && session.userId !== row.value.createdById))
 
 async function load() { row.value = await fetchGapAVoucher(String((route.params as Record<string, string | undefined>).id ?? '')) as GapAVoucher | null }
 onMounted(load)
@@ -96,7 +96,7 @@ async function decide(approved: boolean) {
           </tr>
         </thead><tbody>
           <tr>
-            <td>主营业务成本</td><td>{{ row.summary }}</td><td class="text-end">
+            <td>{{ row.debitAccount ?? '主营业务成本' }}</td><td>{{ row.summary }}</td><td class="text-end">
               <MoneyText
                 :amount="row.debit"
                 minor
@@ -106,7 +106,7 @@ async function decide(approved: boolean) {
               —
             </td>
           </tr><tr>
-            <td>平台结算清算</td><td>{{ row.summary }}</td><td class="text-end">
+            <td>{{ row.creditAccount ?? '平台结算清算' }}</td><td>{{ row.summary }}</td><td class="text-end">
               —
             </td><td class="text-end">
               <MoneyText

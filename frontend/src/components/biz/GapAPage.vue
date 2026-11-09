@@ -181,7 +181,8 @@ async function saveClaim() {
     return
   } await run(async () => {
     const item = await createGapAClaim({ claimant: session.displayName, department: '运营部', attachmentName: claimDraft.attachmentName || '人工填写', line: { category: claimDraft.category, merchant: claimDraft.merchant || '未填写商户', amount, currency: 'CNY', occurredOn: claimDraft.occurredOn, note: claimDraft.note }, origin: aiPrefilled.value ? 'ai' : 'human', agentSuggestionId: aiPrefilled.value ? `sug-${Date.now()}` : undefined }); if (!item || !('id' in item))
-      return; await submitGapAClaim(item.id); router.push(`/expense/claims/${item.id}`)
+      return; if (item.origin !== 'ai')
+      await submitGapAClaim(item.id); router.push(`/expense/claims/${item.id}`)
   })
 }
 async function saveTrip() {
@@ -621,32 +622,29 @@ const auditTimeline = computed(() => auditEvents.value.map(event => ({ id: event
                 >
                   提交
                 </VBtn>
-              </PermissionGate><PermissionGate action="approve">
-                <VBtn
-                  color="success"
-                  :disabled="!canManager || detailClaim.status !== 'submitted' || detailClaim.claimant === session.displayName"
-                  @click="decideClaim('manager', 'approved')"
-                >
-                  主管批准
-                </VBtn>
-              </PermissionGate><PermissionGate action="approve">
-                <VBtn
-                  color="success"
-                  :disabled="!canFinance || detailClaim.status !== 'manager_approved' || detailClaim.claimant === session.displayName"
-                  @click="decideClaim('finance', 'approved')"
-                >
-                  财务批准
-                </VBtn>
-              </PermissionGate><PermissionGate action="approve">
-                <VBtn
-                  color="error"
-                  variant="tonal"
-                  :disabled="detailClaim.status === 'posted' || detailClaim.status === 'rejected'"
-                  @click="decideClaim(canFinance ? 'finance' : 'manager', 'rejected')"
-                >
-                  驳回
-                </VBtn>
-              </PermissionGate>
+              </PermissionGate><VBtn
+                v-if="canManager"
+                color="success"
+                :disabled="detailClaim.status !== 'submitted'"
+                @click="decideClaim('manager', 'approved')"
+              >
+                主管批准
+              </VBtn><VBtn
+                v-if="canFinance"
+                color="success"
+                :disabled="detailClaim.status !== 'manager_approved'"
+                @click="decideClaim('finance', 'approved')"
+              >
+                财务批准
+              </VBtn><VBtn
+                v-if="canManager || canFinance"
+                color="error"
+                variant="tonal"
+                :disabled="detailClaim.status === 'posted' || detailClaim.status === 'rejected'"
+                @click="decideClaim(canFinance ? 'finance' : 'manager', 'rejected')"
+              >
+                驳回
+              </VBtn>
             </div>
           </VCardText>
         </VCard>

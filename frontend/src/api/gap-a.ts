@@ -1,7 +1,23 @@
-import { delay } from '@/api/mock-client'
+import { assertCan, delay } from '@/api/mock-client'
 import * as service from '@/mocks/services/gap-a'
 import type { CurrencyCode } from '@/types/domain'
 import type { ExpenseClaimLine, ExportRebateDocument, GapApprovalStatus } from '@/types/gap-a'
+import type { AppAction } from '@/utils/permission'
+
+function assertAny(actions: AppAction[]) {
+  let lastError: unknown
+
+  for (const action of actions) {
+    try {
+      return assertCan(action)
+    }
+    catch (error) {
+      lastError = error
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('当前角色不能执行这个操作')
+}
 
 // 未来: GET /api/v1/expense/claims
 export async function fetchGapAClaims() {
@@ -19,13 +35,16 @@ export async function fetchGapAClaim(id: string) {
 
 // 未来: POST /api/v1/expense/claims
 export async function createGapAClaim(input: { claimant: string; department: string; attachmentName: string; line: Omit<ExpenseClaimLine, 'id'>; origin: 'human' | 'ai'; agentSuggestionId?: string }) {
+  const actor = assertCan('create')
+
   await delay()
 
-  return service.createClaim(input)
+  return service.createClaim({ ...input, claimantId: actor.id })
 }
 
 // 未来: POST /api/v1/expense/claims/{id}/submit
 export async function submitGapAClaim(id: string) {
+  assertCan('create')
   await delay()
 
   return service.submitClaim(id)
@@ -33,6 +52,7 @@ export async function submitGapAClaim(id: string) {
 
 // 未来: POST /api/v1/expense/claims/{id}/decide
 export async function decideGapAClaim(id: string, step: 'manager' | 'finance', status: Extract<GapApprovalStatus, 'approved' | 'rejected'>) {
+  assertCan('approve')
   await delay()
 
   return service.decideClaim(id, step, status)
@@ -54,6 +74,7 @@ export async function fetchGapALoan(id: string) {
 
 // 未来: POST /api/v1/expense/loans/{id}/repay
 export async function repayGapALoan(id: string, amount: number) {
+  assertCan('update')
   await delay()
 
   return service.repayLoan(id, amount)
@@ -61,6 +82,7 @@ export async function repayGapALoan(id: string, amount: number) {
 
 // 未来: POST /api/v1/expense/loans/{id}/offset
 export async function offsetGapALoan(id: string, claimId: string) {
+  assertCan('update')
   await delay()
 
   return service.offsetLoan(id, claimId)
@@ -75,13 +97,16 @@ export async function fetchGapATrips() {
 
 // 未来: POST /api/v1/expense/trips
 export async function createGapATrip(input: { claimant: string; destination: string; startOn: string; endOn: string; budget: number; currency: CurrencyCode }) {
+  const actor = assertCan('create')
+
   await delay()
 
-  return service.createTrip(input)
+  return service.createTrip({ ...input, claimant: actor.name })
 }
 
 // 未来: POST /api/v1/expense/trips/{id}/submit
 export async function submitGapATrip(id: string) {
+  assertCan('create')
   await delay()
 
   return service.submitTrip(id)
@@ -89,6 +114,7 @@ export async function submitGapATrip(id: string) {
 
 // 未来: POST /api/v1/expense/trips/{id}/match-suggestion
 export async function suggestGapATripClaim(id: string) {
+  assertCan('suggest')
   await delay()
 
   return service.suggestTripClaim(id)
@@ -96,6 +122,7 @@ export async function suggestGapATripClaim(id: string) {
 
 // 未来: POST /api/v1/expense/trips/{id}/match
 export async function confirmGapATripClaim(id: string, claimId: string) {
+  assertCan('update')
   await delay()
 
   return service.confirmTripClaim(id, claimId)
@@ -110,6 +137,7 @@ export async function fetchGapAPolicies() {
 
 // 未来: PATCH /api/v1/expense/policies/{id}
 export async function createGapAPolicy(id: string, limit: number) {
+  assertCan('update')
   await delay()
 
   return service.savePolicy(id, limit)
@@ -145,6 +173,7 @@ export async function fetchGapAPeriods() {
 
 // 未来: POST /api/v1/accounting/periods/{period}/close
 export async function closeGapAPeriod(period: string) {
+  assertCan('approve')
   await delay()
 
   return service.closePeriod(period)
@@ -159,6 +188,7 @@ export async function fetchGapACogs() {
 
 // 未来: POST /api/v1/accounting/cogs-runs
 export async function createGapACogsVoucher(period: string) {
+  assertAny(['create', 'approve'])
   await delay()
 
   return service.createCogsVoucher(period)
@@ -180,6 +210,7 @@ export async function fetchGapABudget(id: string) {
 
 // 未来: PATCH /api/v1/budget/budgets/{id}
 export async function saveGapABudget(id: string, amount: number) {
+  assertCan('update')
   await delay()
 
   return service.saveBudget(id, amount)
@@ -194,6 +225,7 @@ export async function fetchGapAFx() {
 
 // 未来: POST /api/v1/accounting/fx-revaluations/{id}/draft
 export async function createGapAFxVoucher(id: string) {
+  assertAny(['create', 'approve'])
   await delay()
 
   return service.createFxVoucher(id)
@@ -208,6 +240,7 @@ export async function fetchGapAVat(period?: string) {
 
 // 未来: POST /api/v1/tax/vat-returns/{id}/submit
 export async function submitGapAVat(id: string) {
+  assertCan('update')
   await delay()
 
   return service.submitVat(id)
@@ -222,6 +255,7 @@ export async function fetchGapARebates() {
 
 // 未来: POST /api/v1/tax/export-rebates/{id}/documents
 export async function uploadGapARebateDocument(id: string, input: Omit<ExportRebateDocument, 'id' | 'uploadedAt'>) {
+  assertCan('update')
   await delay()
 
   return service.uploadRebateDocument(id, input)
@@ -229,6 +263,7 @@ export async function uploadGapARebateDocument(id: string, input: Omit<ExportReb
 
 // 未来: POST /api/v1/tax/export-rebates/{id}/validate
 export async function validateGapARebate(id: string) {
+  assertCan('update')
   await delay()
 
   return service.validateRebate(id)
@@ -250,6 +285,7 @@ export async function fetchGapAVoucher(id: string) {
 
 // 未来: POST /api/v1/finance/vouchers/{id}/submit
 export async function submitGapAVoucher(id: string) {
+  assertAny(['create', 'approve'])
   await delay()
 
   return service.submitVoucher(id)
@@ -257,6 +293,7 @@ export async function submitGapAVoucher(id: string) {
 
 // 未来: POST /api/v1/finance/vouchers/{id}/decide
 export async function decideGapAVoucher(id: string, approved: boolean) {
+  assertCan('approve')
   await delay()
 
   return service.approveVoucher(id, approved)
@@ -264,6 +301,7 @@ export async function decideGapAVoucher(id: string, approved: boolean) {
 
 // 未来: POST /api/v1/finance/vouchers/from-profit
 export async function createGapAProfitVoucher(period: string) {
+  assertAny(['create', 'approve'])
   await delay()
 
   return service.createProfitVoucher(period)
@@ -271,6 +309,7 @@ export async function createGapAProfitVoucher(period: string) {
 
 // 未来: POST /api/v1/finance/vouchers/from-order
 export async function generateGapAOrderVoucher(storeId: string, granularity: 'per_order' | 'per_settlement' | 'per_period_summary') {
+  assertCan('create')
   await delay()
 
   return service.generateOrderVoucher(storeId, granularity)
