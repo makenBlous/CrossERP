@@ -69,6 +69,12 @@ function open(row: FinanceRow) {
       :columns="columns"
       @open="open"
     >
+      <template
+        v-if="$slots.actions"
+        #actions
+      >
+        <slot name="actions" />
+      </template>
       <template #widgets>
         <VRow class="mb-6">
           <VCol

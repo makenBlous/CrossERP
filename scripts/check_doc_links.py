@@ -9,12 +9,27 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 LINK = re.compile(r"!?(?:\[[^\]]*\])\(([^)\s]+)(?:\s+[^)]*)?\)")
 
+EXCLUDED_DIRS = {
+    ".git",
+    ".venv",
+    ".ci",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".tox",
+    "__pycache__",
+    "build",
+    "coverage",
+    "dist",
+    "node_modules",
+}
+
 
 def main() -> int:
     missing: list[str] = []
     for markdown in ROOT.rglob("*.md"):
         if markdown.name == "README_追加.md" or any(
-            part in {".git", ".venv", ".ci", ".pytest_cache"} for part in markdown.parts
+            part in EXCLUDED_DIRS for part in markdown.parts
         ):
             continue
         for raw in LINK.findall(markdown.read_text(encoding="utf-8")):
