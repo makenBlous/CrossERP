@@ -4,6 +4,25 @@
 
 ## [Unreleased]
 
+### 整合收尾（本轮）
+
+- 退出登录整页刷新：统一入口清会话后 location.replace 到登录页（含 base path）。
+- 凭证审批精确绑定：gap-a 利润凭证审批目标为来源+id，只回写所看凭证，同号财务凭证不变、不生成导出；财务主管提交失败时状态不变；消息中心 N01 只保留收件箱单一数据源。
+- 我的工资条（HR12）门控改为 salary_slip:read_own，员工/部门主管可打开本人工资条页；服务层仍只返回本人已发布工资条。
+- 薪资复核 HR09 入口恢复（approval:read 且 salary_slip:review/approve 任一）。
+- 路由：删除与 /kb 重复的 kb/index/index.vue；角色详情、智能体工具详情/新建、资产详情父页改为 RouterView，详情页可达；新增 check-route-structure.ts。
+- 店铺运营 key 修正为 demo-store-operator（保留）。
+- **新增授权（演示默认）**：导入向导 INT01 为旧角色 admin/operator 新增 integration:import（相对批次 B 基线是新增授权）。
+
+### 已知遗留（本轮不改）
+
+- 广告、产品开发、采购、仓储物流、客服、外部只读 6 个角色侧栏只有首页与个人菜单。
+- 知识库 search() 未检查 document:read。
+- 采购员 /onboarding 与 /procurement/orders/new 两个页面例外放行。
+- 部门主管可打开我的工资条，但 userId 与员工种子不匹配，列表为 0 条。
+- 父路由改为 RouterView 后，角色/智能体工具/资产详情页上左侧列表菜单不再高亮。
+- 新人引导多步流程暂缓。
+
 ### UX
 
 - U1：统一列表页页头与操作区，修复侧栏根因并优化经营日历。
