@@ -38,6 +38,8 @@ const basePages = JSON.parse(readFileSync('C:/Users/cimi/AppData/Local/Temp/cx-p
 assert.equal(pageCatalog.length, 227)
 assert.equal(pageCatalog.filter(page => page.batch === undefined).length, 128)
 assert.equal(pageCatalog.filter(page => page.batch !== undefined).length, 99)
+assert.equal(new Set(pageCatalog.map(page => page.id)).size, pageCatalog.length, 'pageCatalog 的 id 必须唯一')
+assert.equal(new Set(pageCatalog.map(page => page.path)).size, pageCatalog.length, 'pageCatalog 的 path 必须唯一')
 assert.deepEqual(
   pageCatalog.filter(page => !page.public).filter(page => !page.requiredPermissions?.length),
   [],
