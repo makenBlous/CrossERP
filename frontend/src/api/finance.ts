@@ -1,7 +1,11 @@
-import { assertPermission, database, delay, readMock } from '@/api/mock-client'
+import { assertPermission, canPermission, database, delay, readMock } from '@/api/mock-client'
 import { accountsPayablePermissionKey } from '@/config/permissions'
 import { projectIssues, projectProfit, projectProfitSku, projectRecon, projectVouchers } from '@/mocks/project'
+import { GAP_A_VOUCHER_TARGET, submitSuggestion } from '@/mocks/services/approvals'
+import * as gapA from '@/mocks/services/gap-a'
+import { stableSubmitterId } from '@/mocks/services/home'
 import { accounts, addFxRate, apAging, apRows, arAging, arRows, cashRows, clearingRows, columnMapDetail, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, recordImport, saveColumnMap, settlementDetail, settlements, sourceRow, submitClearing, submitVoucher, voucherDetail } from '@/mocks/services/finance'
+import { minorToDecimal } from '@/utils/money'
 
 // 未来: GET /api/v1/finance/profit
 export async function fetchProfit() {
@@ -237,4 +241,72 @@ export async function submitVoucherApproval(id: string) {
   database().persist()
 
   return row
+}
+
+export function financeCreatorId(submitter: string | undefined) {
+  return stableSubmitterId(submitter)
+}
+
+export async function fetchVoucherApprovalIds(voucherId: string, source: 'gap-a' | 'finance' = 'finance') {
+  await delay()
+  assertPermission('approval:read')
+  const targetType = source === 'gap-a' ? GAP_A_VOUCHER_TARGET : 'voucher'
+
+  return database().db.approvals
+    .filter(item => item.targetType === targetType && item.targetId === voucherId)
+    .map(item => item.id)
+}
+
+export async function fetchPendingVoucherApprovalId(voucherId: string, source: 'gap-a' | 'finance' = 'finance') {
+  await delay()
+  assertPermission('approval:read')
+  const targetType = source === 'gap-a' ? GAP_A_VOUCHER_TARGET : 'voucher'
+
+  return database().db.approvals.filter(item => item.targetType === targetType && item.targetId === voucherId && item.status === 'pending').at(-1)?.id ?? ''
+}
+
+/** 权限和草稿/平衡检查全部通过后，才把 gap-a 凭证改为待审批并挂到统一审批。 */
+export async function submitBoundGapAVoucher(id: string) {
+  if (!canPermission('system:create') && !canPermission('approval:approve'))
+    assertPermission('system:create')
+  const actor = assertPermission('agent_suggestion:create')
+  const current = gapA.voucher(id)
+  if (!current)
+    throw new Error('未找到凭证')
+  if (current.status !== 'draft')
+    throw new Error('只有草稿凭证可以提交，不能重复提交或越过审批状态')
+  if (current.debit !== current.credit || !Number.isSafeInteger(current.debit) || !Number.isSafeInteger(current.credit))
+    throw new Error('凭证借贷不平衡，不能提交审批')
+
+  const debitAccount = current.debitAccount || '主营业务成本'
+  const creditAccount = current.creditAccount || '平台结算清算'
+  const db = database().db
+  const approval = submitSuggestion(db, {
+    title: current.summary,
+    summary: '借贷合计已按这张凭证校验，批准后只回写该凭证。',
+    amount: minorToDecimal(current.debit),
+    currency: current.currency,
+    storeId: null,
+    targetType: GAP_A_VOUCHER_TARGET,
+    targetId: current.id,
+    lines: [
+      { account: debitAccount, debit: current.debit, credit: 0 },
+      { account: creditAccount, debit: 0, credit: current.credit },
+    ],
+  }, actor)
+
+  try {
+    gapA.submitVoucher(id)
+  }
+  catch (error) {
+    const index = db.approvals.findIndex(item => item.id === approval.id)
+    if (index >= 0)
+      db.approvals.splice(index, 1)
+    db.audit = db.audit.filter(item => item.refId !== approval.id)
+    database().persist()
+    throw error
+  }
+  database().persist()
+
+  return approval
 }

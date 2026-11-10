@@ -9,6 +9,7 @@ import ListPage from '@/components/biz/ListPage.vue'
 import PermissionGate from '@/components/biz/PermissionGate.vue'
 import RecordDrawer from '@/components/biz/RecordDrawer.vue'
 import StatusChip from '@/components/biz/StatusChip.vue'
+import { canRoleOpen, findPageByPath } from '@/config/pages'
 import { useAiModeStore } from '@/stores/ai-mode'
 import { useSessionStore } from '@/stores/session'
 import type { Role } from '@/types/domain'
@@ -237,6 +238,11 @@ async function saveOnboardingDraft() {
   })
 }
 function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
+function canOpenOnboardingRoute(target: string) {
+  const page = findPageByPath(target)
+
+  return !page || canRoleOpen(session.role, page)
+}
 </script>
 
 <template>
@@ -1137,6 +1143,7 @@ function openDoc(docId: string) { router.push(`/kb/docs/${docId}`) }
                 />
               </template><template #append>
                 <VBtn
+                  v-if="canOpenOnboardingRoute(item.route)"
                   size="small"
                   variant="tonal"
                   :to="item.route"

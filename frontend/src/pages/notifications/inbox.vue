@@ -3,6 +3,11 @@ import { fetchInboxNotifications, markInboxNotificationRead } from '@/api/gap-e'
 import ListPage from '@/components/biz/ListPage.vue'
 import type { InboxNotification } from '@/types/gap-e'
 
+const props = defineProps<{
+  loadNotifications?: typeof fetchInboxNotifications
+  markRead?: typeof markInboxNotificationRead
+}>()
+
 const router = useRouter()
 const rows = ref<InboxNotification[]>([])
 const error = ref('')
@@ -10,7 +15,7 @@ const message = ref('')
 
 async function load() {
   try {
-    rows.value = await fetchInboxNotifications()
+    rows.value = await (props.loadNotifications ?? fetchInboxNotifications)()
   }
   catch (e) {
     error.value = e instanceof Error ? e.message : '消息加载失败'
@@ -20,7 +25,7 @@ async function load() {
 async function openNotification(item: InboxNotification) {
   try {
     if (!item.isRead) {
-      const updated = await markInboxNotificationRead(item.id)
+      const updated = await (props.markRead ?? markInboxNotificationRead)(item.id)
 
       item.isRead = updated.isRead
       message.value = '消息已读，操作已写入审计。'
