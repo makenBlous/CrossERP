@@ -160,14 +160,21 @@ export interface ProfitSkuSourceOrder {
   orderNo: string
   orderedAt: string
   qty: number
+  storeId: string
+  currency: CurrencyCode
   storeName: string
   status: string
 }
 
+/** SKU 详情返回快照原始 Minor，页面展示时显式传 minor。 */
+export interface ProfitSkuRow extends ProfitRow {}
+
 export interface ProfitSkuDetail {
-  row: ProfitRow
+  row: ProfitSkuRow
+  rows: ProfitSkuRow[]
   period: string
   exampleData: boolean
+  sourceOrderScope: string
   sourceOrders: ProfitSkuSourceOrder[]
 }
 

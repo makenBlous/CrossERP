@@ -4,6 +4,9 @@ import { type Minor, addMinor, convertMinor, mulQty, percentOf } from '@/utils/m
 
 export const PROFIT_RULE = 'demo-rule-1'
 
+export const PROFIT_INCLUDED_ORDER_STATUSES = ['shipped', 'partial_refund', 'refunded'] as const
+export const PROFIT_SOURCE_ORDER_SCOPE = '利润快照仅计入已发货、部分退款或已退款订单；已付款未发货不计入。'
+
 const PLATFORM_FEE_BPS: Record<string, number> = {
   'Amazon': 1500,
   'Shopify': 340,
@@ -53,7 +56,7 @@ export function profitOfLine(
 export function rebuildProfit(db: MockDatabase) {
   db.profitSnapshots = []
 
-  const included = new Set(['shipped', 'partial_refund', 'refunded'])
+  const included = new Set<string>(PROFIT_INCLUDED_ORDER_STATUSES)
 
   for (const order of db.orders) {
     if (!included.has(order.status))

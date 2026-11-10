@@ -23,7 +23,7 @@ import type {
   VoucherRow,
 } from '@/types/domain'
 import type { MockDatabase, SalesOrder } from '@/types/entities'
-import { profitOfLine } from '@/mocks/services/profit'
+import { PROFIT_INCLUDED_ORDER_STATUSES, PROFIT_SOURCE_ORDER_SCOPE, profitOfLine } from '@/mocks/services/profit'
 import { type Minor, addMinor, convertMinor, mulQty, percentRatio, toDisplay } from '@/utils/money'
 
 const ORDER_STATUS_ZH: Record<string, string> = {
@@ -341,7 +341,7 @@ export function projectProfit(db: MockDatabase): { rows: ProfitRow[]; stores: St
   return { rows, stores }
 }
 
-export function projectProfitSku(db: MockDatabase, internalSku: string, currentPeriod = '2026-10'): ProfitSkuDetail | null {
+export function projectProfitSku(db: MockDatabase, internalSku: string, currentPeriod = '2026-10', storeId?: string): ProfitSkuDetail | null {
   const snapshots = db.profitSnapshots.filter(item => item.internalSku === internalSku)
 
   const period = snapshots.some(item => item.period === currentPeriod)
@@ -351,34 +351,39 @@ export function projectProfitSku(db: MockDatabase, internalSku: string, currentP
   if (!period)
     return null
 
-  const snapshot = snapshots.find(item => item.period === period)
+  const periodSnapshots = snapshots.filter(item => item.period === period)
+  const snapshot = periodSnapshots.find(item => item.storeId === storeId) ?? periodSnapshots[0]
 
   if (!snapshot)
     return null
 
   const sku = db.skus.find(item => item.internalSku === snapshot.internalSku)
-  const store = storeOf(db, snapshot.storeId)
 
-  const row: ProfitRow = {
-    sku: snapshot.internalSku,
-    name: sku?.title ?? snapshot.internalSku,
-    storeId: snapshot.storeId,
-    storeName: store?.name ?? snapshot.storeId,
-    currency: snapshot.currency,
-    revenue: money(snapshot.revenue, snapshot.currency),
-    platformFee: money(snapshot.fees, snapshot.currency),
-    ads: money(snapshot.ads, snapshot.currency),
-    firstMile: money(snapshot.freight, snapshot.currency),
-    cost: money(snapshot.cogs, snapshot.currency),
-    profit: money(snapshot.profit, snapshot.currency),
-  }
+  const rows = periodSnapshots.map(item => ({
+    sku: item.internalSku,
+    name: sku?.title ?? item.internalSku,
+    storeId: item.storeId,
+    storeName: storeOf(db, item.storeId)?.name ?? item.storeId,
+    currency: item.currency,
+    revenue: item.revenue,
+    platformFee: item.fees,
+    ads: item.ads,
+    firstMile: item.freight,
+    cost: item.cogs,
+    profit: item.profit,
+  }))
+
+  const row = rows.find(item => item.storeId === snapshot.storeId) ?? rows[0]
 
   const sourceOrders = db.orderLines
     .filter(line => line.internalSku === internalSku)
     .map(line => {
       const order = db.orders.find(item => item.id === line.orderId)
 
-      if (!order || monthKey(order.orderedAt) !== period)
+      if (!order || order.storeId !== snapshot.storeId || order.currency !== snapshot.currency || monthKey(order.orderedAt) !== period)
+        return null
+
+      if (!(PROFIT_INCLUDED_ORDER_STATUSES as readonly string[]).includes(order.status))
         return null
 
       return {
@@ -386,13 +391,15 @@ export function projectProfitSku(db: MockDatabase, internalSku: string, currentP
         orderNo: order.orderNo,
         orderedAt: order.orderedAt.slice(0, 10),
         qty: line.qty,
+        storeId: order.storeId,
+        currency: order.currency,
         storeName: storeOf(db, order.storeId)?.name ?? order.storeId,
         status: order.status,
       }
     })
     .filter((item): item is NonNullable<typeof item> => item !== null)
 
-  return { row, period, exampleData: period !== currentPeriod, sourceOrders }
+  return { row, rows, period, exampleData: period !== currentPeriod, sourceOrderScope: PROFIT_SOURCE_ORDER_SCOPE, sourceOrders }
 }
 
 export function projectRecon(db: MockDatabase): ReconRun[] {

@@ -9,10 +9,10 @@ export async function fetchProfit() {
   return projectProfit(database().db)
 }
 
-export async function fetchProfitSku(internalSku: string) {
+export async function fetchProfitSku(internalSku: string, storeId?: string) {
   await delay()
 
-  return projectProfitSku(database().db, internalSku)
+  return projectProfitSku(database().db, internalSku, '2026-10', storeId)
 }
 
 // 未来: GET /api/v1/finance/recon-runs

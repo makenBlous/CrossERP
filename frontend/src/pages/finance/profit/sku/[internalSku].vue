@@ -1,21 +1,35 @@
 <script setup lang="ts">
 import { fetchProfitSku } from '@/api/finance'
+import { toDisplay } from '@/utils/money'
 import FinanceDetail from '@/views/finance/FinanceDetail.vue'
 
 const route = useRoute()
+const router = useRouter()
 const payload = ref<Awaited<ReturnType<typeof fetchProfitSku>>>()
 const row = computed(() => payload.value?.row)
+const storeId = computed(() => typeof route.query.storeId === 'string' ? route.query.storeId : undefined)
+const storeOptions = computed(() => payload.value?.rows ?? [])
+
+async function load() {
+  payload.value = await fetchProfitSku(String((route.params as Record<string, string>).internalSku), storeId.value)
+}
+
+async function selectStore(value: string) {
+  await router.replace({ query: { ...route.query, storeId: value } })
+}
 
 onMounted(async () => {
-  payload.value = await fetchProfitSku(String((route.params as Record<string, string>).internalSku))
+  await load()
 })
+
+watch(() => route.query.storeId, load)
 </script>
 
 <template>
   <FinanceDetail
     v-if="row"
-    :title="`${row.sku} · SKU 利润`"
-    :subtitle="`${row.storeName} · ${payload?.period ?? ''}`"
+    :title="`${row.sku} · ${row.storeName} · ${row.currency} · SKU 利润`"
+    :subtitle="`期间 ${payload?.period ?? ''}`"
   >
     <VAlert
       v-if="payload?.exampleData"
@@ -40,19 +54,34 @@ onMounted(async () => {
       >
         <KpiCard
           :title="item.label"
-          :value="`${item.value} ${row.currency}`"
+          :value="`${toDisplay(item.value, row.currency)} ${row.currency}`"
           icon="tabler-chart-bar"
           color="primary"
         />
       </VCol>
     </VRow>
+    <VAlert
+      type="info"
+      variant="tonal"
+      class="mt-6"
+    >
+      {{ payload?.sourceOrderScope }}
+    </VAlert>
+    <VSelect
+      v-if="storeOptions.length > 1"
+      class="mt-6"
+      label="店铺"
+      :model-value="row?.storeId"
+      :items="storeOptions.map(item => ({ title: `${item.storeName} · ${item.currency}`, value: item.storeId }))"
+      @update:model-value="selectStore"
+    />
     <VAlert type="info" variant="tonal">
       来源：广告分摊（金额由服务层已计算结果提供）。
     </VAlert>
     <VCard class="mt-6">
       <VCardItem>
         <VCardTitle>来源订单</VCardTitle>
-        <VCardSubtitle>期间 {{ payload?.period }} · 可追溯到订单明细</VCardSubtitle>
+      <VCardSubtitle>期间 {{ payload?.period }} · {{ row?.storeName }} · {{ row?.currency }} · 可追溯到订单明细</VCardSubtitle>
       </VCardItem>
       <VTable v-if="payload?.sourceOrders?.length">
         <thead>
