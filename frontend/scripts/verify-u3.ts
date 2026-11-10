@@ -9,7 +9,7 @@ import { useChatInflight } from '../src/components/chat/useChatInflight'
 import { recordAgentQuestion, recordSuggestionStep, submitAgentSuggestion } from '@/api/agent-module'
 import { addSuggestionStep } from '@/mocks/services/agent-module'
 import { useMockDbStore } from '@/stores/mockdb'
-import { useSessionStore } from '@/stores/session'
+import { loginPageHref, useSessionStore } from '@/stores/session'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -26,6 +26,10 @@ for (const file of ['src/components/chat/ChatThread.vue', 'src/views/apps/chat/C
 const drawer = read('src/components/biz/AssistantDrawer.vue')
 const agent = read('src/pages/agent/chat.vue')
 const i18n = read('src/plugins/i18n/ui.ts')
+const sessionSource = read('src/stores/session.ts')
+const profile = read('src/layouts/components/UserProfile.vue')
+const setRoleAt = sessionSource.indexOf('setRole(role: Role)')
+const logoutAt = sessionSource.indexOf('logout() {')
 
 assert(drawer.includes('@/components/chat/ChatThread.vue'), 'assistant drawer must use ChatThread')
 assert(agent.includes('@/components/chat/ChatThread.vue'), 'agent center must use ChatThread')
@@ -46,6 +50,16 @@ assert(history.includes('seedIds'), 'API seed ids must be authoritative over loc
 assert(history.includes('if (!actor'), 'history must skip cache access when userId is missing')
 assert(agent.includes('session.userId'), 'agent center must pass session userId to history')
 assert(drawer.includes('session.isLoggedIn') && agent.includes('session.isLoggedIn'), 'logout must clear both chat entries in memory')
+assert(sessionSource.includes('location.replace'), 'logout must full-page replace')
+assert(sessionSource.includes('import.meta.env?.BASE_URL') || sessionSource.includes('import.meta.env.BASE_URL'), 'logout target must use Vite BASE_URL')
+
+const hardcodedLogin = `'${'/login'}'`
+const hardcodedLoginDq = '"' + '/login' + '"'
+
+assert(!sessionSource.includes(hardcodedLogin) && !sessionSource.includes(hardcodedLoginDq), 'logout must not hardcode the login path')
+assert(setRoleAt >= 0 && logoutAt > setRoleAt && !sessionSource.slice(setRoleAt, logoutAt).includes('location'), 'role switch must not full-page refresh')
+assert(profile.includes('session.logout()'), 'user menu must call the shared logout')
+assert(!profile.includes('router.push('), 'user menu must not client-route after logout')
 assert(drawer.includes('session.role') && agent.includes('session.role'), 'identity or role changes must reload history')
 assert(read('src/components/chat/ChatThread.vue').includes('@/views/apps/chat/ChatLog.vue'), 'ChatThread must reuse ChatLog')
 assert(read('src/components/chat/ChatThread.vue').includes('@/views/apps/chat/ChatMessageForm.vue'), 'ChatThread must reuse ChatMessageForm')
@@ -236,6 +250,19 @@ sessionGate.writeIfCurrent(roleTicket, () => {
   sessionBubbles.push('leaked after role switch')
 })
 assert(!sessionBubbles.includes('leaked after role switch'), 'role switch must drop the previous in-flight write')
+
+const logoutReplaces: string[] = []
+
+Object.defineProperty(globalThis, 'window', {
+  configurable: true,
+  value: {
+    location: {
+      replace(url: string) {
+        logoutReplaces.push(String(url))
+      },
+    },
+  },
+})
 
 setActivePinia(createPinia())
 
@@ -430,5 +457,12 @@ catch (error) {
 }
 assert(emptyActorError.includes('没有权限：agent_tool:write'), 'an empty userId must not inherit the role demo identity')
 assert((persistDb.db.agentRunSteps ?? []).length === beforeEmptySteps, 'an empty userId must not write a suggestion step')
+
+const baseUrl = import.meta.env?.BASE_URL
+const base = typeof baseUrl === 'string' && baseUrl.length > 0 ? baseUrl : '/'
+const expectedLogin = `${base.endsWith('/') ? base : `${base}/`}login`
+
+assert(loginPageHref() === expectedLogin, 'login href must be Vite base plus login')
+assert(logoutReplaces.length === 4 && logoutReplaces.every(url => url === expectedLogin), 'logout must location.replace to Vite base + login')
 
 console.log('U3 static checks passed')

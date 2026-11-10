@@ -6,13 +6,11 @@ import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
 const mockdb = useMockDbStore()
-const router = useRouter()
 const { t } = useI18n({ useScope: 'global' })
 const { confirm } = useConfirm()
 
 function logout() {
   session.logout()
-  router.push('/login')
 }
 
 async function resetDemo() {
