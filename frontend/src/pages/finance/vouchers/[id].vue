@@ -1,7 +1,9 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
-import { decideGapAVoucher, fetchGapAVoucher, submitGapAVoucher } from '@/api/gap-a'
-import { attachVoucherApproval, fetchVoucherApprovalIds, fetchVoucherDetail, submitVoucherApproval } from '@/api/finance'
+import { decideApproval } from '@/api/approvals'
+import { fetchPendingVoucherApprovalId, fetchVoucherApprovalIds, fetchVoucherDetail, financeCreatorId, submitBoundGapAVoucher, submitVoucherApproval } from '@/api/finance'
+import { fetchGapAVoucher } from '@/api/gap-a'
+import { canPermission } from '@/api/mock-client'
 import DetailPage from '@/components/biz/DetailPage.vue'
 import EmptyState from '@/components/biz/EmptyState.vue'
 import MoneyText from '@/components/biz/MoneyText.vue'
@@ -13,20 +15,14 @@ const session = useSessionStore()
 const row = ref<GapAVoucher | null>(null)
 const source = ref<'gap-a' | 'finance'>('gap-a')
 const approvalIds = ref<string[]>([])
+const pendingApprovalId = ref('')
 const message = ref('')
 const submitting = ref(false)
-const submitRoles = ['admin', 'operator', 'finance', 'accountant', 'finance_manager']
 
-const canSubmit = computed(() => {
-  if (!row.value || !submitRoles.includes(session.role))
-    return false
-  if (source.value === 'finance')
-    return row.value.status === 'draft' || row.value.status === 'rejected'
-
-  return row.value.status === 'draft'
-})
-
-const canApprove = computed(() => Boolean(row.value && source.value === 'gap-a' && row.value.status === 'pending' && ['admin', 'finance', 'accountant', 'finance_manager'].includes(session.role) && session.userId !== row.value.createdById))
+const canSubmitGapA = computed(() => Boolean(row.value && source.value === 'gap-a' && row.value.status === 'draft' && (canPermission('system:create') || canPermission('approval:approve')) && canPermission('agent_suggestion:create')))
+const canSubmitFinance = computed(() => Boolean(row.value && source.value === 'finance' && (row.value.status === 'draft' || row.value.status === 'rejected') && canPermission('journal_entry:submit') && canPermission('agent_suggestion:create')))
+const canSubmit = computed(() => canSubmitGapA.value || canSubmitFinance.value)
+const canApprove = computed(() => Boolean(row.value && source.value === 'gap-a' && row.value.status === 'pending' && pendingApprovalId.value && canPermission('approval:approve') && session.userId !== row.value.createdById))
 
 function voucherId() {
   return String((route.params as Record<string, string | undefined>).id ?? '')
@@ -38,7 +34,8 @@ async function load() {
   if (gap) {
     row.value = gap
     source.value = 'gap-a'
-    approvalIds.value = await fetchVoucherApprovalIds(id).catch(() => [])
+    approvalIds.value = await fetchVoucherApprovalIds(id, 'gap-a').catch(() => [])
+    pendingApprovalId.value = await fetchPendingVoucherApprovalId(id, 'gap-a').catch(() => '')
 
     return
   }
@@ -47,12 +44,14 @@ async function load() {
   if (!finance) {
     row.value = null
     approvalIds.value = []
+    pendingApprovalId.value = ''
 
     return
   }
 
   source.value = 'finance'
   approvalIds.value = finance.approvalIds ?? []
+  pendingApprovalId.value = ''
   row.value = {
     id: finance.id,
     no: finance.no,
@@ -65,7 +64,7 @@ async function load() {
     debitAccount: '主营业务成本',
     creditAccount: '平台结算清算',
     sourceLinks: [],
-    createdById: '',
+    createdById: financeCreatorId(finance.submitter),
     timeline: (finance.timeline ?? []).map((event, index) => ({ id: `${finance.id}-${index}`, at: event.at, action: event.title, detail: event.detail, actor: event.actor ?? '', origin: 'human' as const })),
   }
 }
@@ -82,8 +81,7 @@ async function submit() {
         throw new Error('凭证未能提交审批')
     }
     else {
-      await submitGapAVoucher(row.value.id)
-      await attachVoucherApproval(row.value.id, row.value.summary, row.value.debit, row.value.currency)
+      await submitBoundGapAVoucher(row.value.id)
     }
     message.value = '已提交审批，批准前不会写入总账。'
     await load()
@@ -92,8 +90,13 @@ async function submit() {
   finally { submitting.value = false }
 }
 async function decide(approved: boolean) {
-  if (!row.value || !canApprove.value)
-    return; try { await decideGapAVoucher(row.value.id, approved); message.value = approved ? '凭证已批准，可进入总账。' : '凭证已驳回。'; await load() }
+  if (!row.value || !canApprove.value || !pendingApprovalId.value)
+    return
+  try {
+    await decideApproval(pendingApprovalId.value, approved ? 'approved' : 'rejected')
+    message.value = approved ? '凭证已批准，可进入总账。' : '凭证已驳回。'
+    await load()
+  }
   catch (error) { message.value = error instanceof Error ? error.message : '审批失败' }
 }
 </script>

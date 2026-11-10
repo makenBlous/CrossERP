@@ -28,6 +28,15 @@ function submitterId(name: string) {
   return Object.values(demoIdentities).find(item => item.name === name)?.id
 }
 
+export function stableSubmitterId(name: string | undefined) {
+  const mapped = name ? submitterId(name) : undefined
+  if (mapped)
+    return mapped
+  const trimmed = name?.trim()
+
+  return trimmed ? `submitter:${trimmed}` : 'submitter:unknown'
+}
+
 function approvalStoreAllowed(db: MockDatabase, subject: PermissionSubject, permissionKey: string, approval: ApprovalEntity, ownerId?: string) {
   if (!approval.storeId || !db.stores.some(store => store.id === approval.storeId))
     return false

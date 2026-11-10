@@ -1,19 +1,6 @@
 <script setup lang="ts">
-import { fetchInboxNotifications } from '@/api/gap-e'
-import GapCPage from '@/views/gap-c/GapCPage.vue'
-import type { InboxNotification } from '@/types/gap-e'
-
-const inbox = ref<InboxNotification[]>([])
-const inboxError = ref('')
-
-onMounted(async () => {
-  try {
-    inbox.value = await fetchInboxNotifications()
-  }
-  catch (error) {
-    inboxError.value = error instanceof Error ? error.message : '收件箱加载失败'
-  }
-})
+import { fetchInboxNotifications, markInboxNotificationRead } from '@/api/gap-e'
+import InboxPage from './inbox.vue'
 </script>
 
 <template>
@@ -30,29 +17,9 @@ onMounted(async () => {
         打开消息收件箱
       </VBtn>
     </div>
-    <VAlert
-      v-if="inboxError"
-      type="error"
-      variant="tonal"
-      class="mb-4"
-    >
-      {{ inboxError }}
-    </VAlert>
-    <VList
-      v-if="inbox.length"
-      class="mb-6"
-      lines="two"
-      border
-      rounded
-    >
-      <VListItem
-        v-for="item in inbox"
-        :key="item.id"
-        :title="item.title"
-        :subtitle="item.detail"
-        :to="item.href"
-      />
-    </VList>
-    <GapCPage page-id="N01" />
+    <InboxPage
+      :load-notifications="fetchInboxNotifications"
+      :mark-read="markInboxNotificationRead"
+    />
   </div>
 </template>

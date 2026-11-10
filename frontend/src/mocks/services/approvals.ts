@@ -5,6 +5,7 @@ import { requireActorPermission } from '@/utils/service-permissions'
 import { FlowError } from '@/mocks/services/errors'
 import { mustFind, nextId } from '@/mocks/services/ids'
 import { minorFromDecimal } from '@/utils/money'
+import { applyVoucherApproval } from '@/mocks/services/gap-a'
 
 export interface ApprovalWorkflowStep {
   id: string
@@ -49,6 +50,14 @@ export async function approvalPayloadHash(approval: ApprovalEntity) {
   return `sha256:${[...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, '0')).join('')}`
 }
 
+export const GAP_A_VOUCHER_TARGET = 'gap-a:voucher'
+
+export interface SuggestionLine {
+  account: string
+  debit: number
+  credit: number
+}
+
 export interface SuggestionInput {
   title: string
   summary: string
@@ -57,12 +66,24 @@ export interface SuggestionInput {
   storeId: string | null
   targetType: string
   targetId: string
+  lines?: SuggestionLine[]
 }
 
 export function submitSuggestion(db: MockDatabase, input: SuggestionInput, actor: Actor): ApprovalEntity {
   requireActorPermission(actor, 'agent_suggestion:create')
 
   const amount = minorFromDecimal(input.amount)
+  const lines = input.lines?.length
+    ? input.lines.map(line => {
+      if (!Number.isSafeInteger(line.debit) || !Number.isSafeInteger(line.credit))
+        throw new Error('审批分录金额必须是整数最小单位')
+
+      return { account: line.account, debit: line.debit, credit: line.credit }
+    })
+    : [
+        { account: '待处理财产损溢', debit: amount, credit: 0 },
+        { account: '平台结算清算', debit: 0, credit: amount },
+      ]
 
   const approval: ApprovalEntity = {
     id: nextId(db, 'apr'),
@@ -77,10 +98,7 @@ export function submitSuggestion(db: MockDatabase, input: SuggestionInput, actor
     status: 'pending',
     summary: input.summary,
     storeId: input.storeId,
-    lines: [
-      { account: '待处理财产损溢', debit: amount, credit: 0 },
-      { account: '平台结算清算', debit: 0, credit: amount },
-    ],
+    lines,
     payloadHash: `sha256:${input.targetType}:${input.targetId}:${amount}`,
   }
 
@@ -102,6 +120,10 @@ export function decideApproval(db: MockDatabase, id: string, status: 'approved' 
   if (approval.submitter === actor.name)
     throw new FlowError('不能审批自己提交的单据，请换另一位有审批权限的用户处理')
 
+  // 先回写来源凭证。失败时审批状态保持 pending，避免批准落空或写到另一张凭证。
+  if (approval.targetType === GAP_A_VOUCHER_TARGET)
+    applyVoucherApproval(approval.targetId, status === 'approved', actor)
+
   approval.status = status
   approval.comment = comment.trim()
   if (approval.targetType === 'purchase_order') {
@@ -113,7 +135,8 @@ export function decideApproval(db: MockDatabase, id: string, status: 'approved' 
   if (approval.targetType === 'voucher') {
     const voucher = db.vouchers.find(item => item.id === approval.targetId)
 
-    if (voucher) {
+    // 只有已经过 submitVoucher 草稿/平衡检查并进入待审批的财务凭证才能回写和导出。
+    if (voucher && voucher.status === 'pending') {
       voucher.status = status === 'approved' ? 'approved' : 'rejected'
       if (status === 'approved') {
         const artifacts = db.finance2?.exports ?? []

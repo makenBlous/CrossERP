@@ -561,6 +561,20 @@ export function submitVoucher(id: string) {
 
   return clone(item)
 }
+export function applyVoucherApproval(id: string, approved: boolean, actor: { userId: string; name: string }) {
+  const item = state.vouchers.find(row => row.id === id)
+  if (!item)
+    throw new Error('未找到要回写的凭证')
+  if (item.createdById && actor.userId === item.createdById)
+    throw new Error('不能审批自己提交的凭证')
+  if (item.status !== 'pending')
+    throw new Error(item.status === 'rejected' ? '已驳回的凭证不能继续审批' : '只有待审批凭证才能审批')
+  item.status = approved ? 'approved' : 'rejected'
+  addAudit({ id: approved ? 'approve' : 'reject', at: now(), actor: actor.name, actorId: actor.userId, action: approved ? '批准' : '驳回', detail: approved ? '凭证审批通过，可进入总账。' : '凭证审批未通过。', origin: 'human' }, id)
+  persist()
+
+  return clone(item)
+}
 export function approveVoucher(id: string, approved: boolean) {
   const item = state.vouchers.find(row => row.id === id); if (!item)
     return null; if (item.createdById && actorId() === item.createdById)
