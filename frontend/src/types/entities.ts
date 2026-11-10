@@ -232,6 +232,9 @@ export interface PurchaseOrder {
   createdBy: string
   createdAt: string
   submittedById?: string
+
+  /** 补货计划转入来源，演示中只生成采购草稿，不自动下单。 */
+  sourceSuggestionId?: string
 }
 
 export interface PurchaseOrderLine {
