@@ -5,86 +5,161 @@ import type { AgentCard, AgentPart } from '@/agent/adapter'
 import { fetchChat } from '@/api/agent'
 import { recordAgentQuestion, recordSuggestionStep } from '@/api/agent-module'
 import { submitAgentSuggestion } from '@/api/workflows'
+import ChatThread from '@/components/chat/ChatThread.vue'
+import type { ChatState } from '@/components/chat/types'
+import { useChatHistory } from '@/components/chat/useChatHistory'
+import { useAiModeStore } from '@/stores/ai-mode'
 import { useSessionStore } from '@/stores/session'
-import type { ChatMessage, ChatThread } from '@/types/domain'
-import ChatLog from '@/views/apps/chat/ChatLog.vue'
-import ChatMessageForm from '@/views/apps/chat/ChatMessageForm.vue'
+import type { ChatMessage, ChatThread as ChatThreadModel } from '@/types/domain'
 import { can } from '@/utils/permission'
 
 definePage({ meta: { layoutWrapperClasses: 'layout-content-height-fixed' } })
 
-interface Bubble extends ChatMessage { card?: AgentCard; submitted?: boolean }
+interface Bubble extends ChatMessage {
+  card?: AgentCard
+  submitted?: boolean
+  local?: boolean
+}
 
 const { t, locale } = useI18n({ useScope: 'global' })
 const session = useSessionStore()
+const aiMode = useAiModeStore()
 const { isLeftSidebarOpen } = useResponsiveLeftSidebar()
-const threads = ref<ChatThread[]>([])
+const threads = ref<ChatThreadModel[]>([])
 const bubbles = ref<Bubble[]>([])
 const draft = ref('')
 const query = ref('')
 const activeId = ref('th-1')
 const sending = ref(false)
+const state = ref<ChatState>('idle')
+const statusText = ref('')
+const lastPrompt = ref('')
 const latestRunId = ref<string | null>(null)
 const adapter = createAgentAdapter()
+let requestId = 0
+const disabledReason = 'AI 已关闭，智能体中心仅可查看历史，不能发送消息。'
+const history = useChatHistory<Bubble>('agent-center', computed(() => session.userId))
+const hydratedUserId = ref<string | null>(null)
+const hydrating = ref(false)
 const canSuggest = computed(() => can(session.role, 'suggest'))
 const activeThread = computed(() => threads.value.find(item => item.id === activeId.value))
 const visibleThreads = computed(() => threads.value.filter(item => item.title.toLowerCase().includes(query.value.trim().toLowerCase())))
 
-// 改编自 Vuexy apps/chat.vue 的 scrollToBottomInChatLog：新消息和建议卡出现后滚到底部。
-const chatLogPS = ref()
+watch(bubbles, value => {
+  if (!hydrating.value && hydratedUserId.value === session.userId)
+    history.save(value)
+}, { deep: true })
 
-function scrollToBottomInChatLog() {
-  const scrollEl = chatLogPS.value?.$el || chatLogPS.value
-  if (scrollEl)
-    scrollEl.scrollTop = scrollEl.scrollHeight
-}
+async function loadChat() {
+  const userId = session.userId || null
 
-watch(() => [bubbles.value.length, bubbles.value[bubbles.value.length - 1]?.text, sending.value], () => nextTick(scrollToBottomInChatLog))
+  hydrating.value = true
+  bubbles.value = []
 
-onMounted(async () => {
+  if (!userId) {
+    threads.value = []
+    hydratedUserId.value = null
+    hydrating.value = false
+
+    return
+  }
+
   const payload = await fetchChat()
 
+  if (session.userId !== userId)
+    return
+
   threads.value = payload.threads
-  bubbles.value = payload.messages.map(message => ({ ...message }))
-})
+  bubbles.value = history.load(payload.messages.map(message => ({ ...message, local: false })))
+  hydratedUserId.value = userId
+  hydrating.value = false
+}
+
+onMounted(loadChat)
+watch([() => session.userId, () => session.role], loadChat, { flush: 'sync' })
 
 function pushPart(part: AgentPart) {
   const last = bubbles.value[bubbles.value.length - 1]
-  if (part.kind === 'text' && last?.role === 'assistant' && !last.card) {
+
+  if (part.kind === 'text' && last?.local && last.role === 'assistant' && !last.card) {
     last.text += part.text ?? ''
 
     return
   }
-  bubbles.value.push({ id: `local-${bubbles.value.length + 1}`, role: 'assistant', text: part.text ?? '', card: part.card })
+
+  bubbles.value.push({ id: `local-${bubbles.value.length + 1}`, role: 'assistant', text: part.text ?? '', card: part.card, local: true })
 }
 
-async function send() {
-  const text = draft.value.trim()
-  if (!text || sending.value)
+async function sendMessage(text: string) {
+  if (!aiMode.isEnabled || !text || sending.value)
     return
+
+  const currentRequest = ++requestId
+
   draft.value = ''
   sending.value = true
-  bubbles.value.push({ id: `local-${bubbles.value.length + 1}`, role: 'user', text })
+  state.value = 'loading'
+  statusText.value = '正在读取只读数据…'
+  lastPrompt.value = text
+  bubbles.value.push({ id: `local-${bubbles.value.length + 1}`, role: 'user', text, local: true })
+
   try {
     const run = await recordAgentQuestion(text)
 
+    if (currentRequest !== requestId)
+      return
+
     latestRunId.value = run.id
-    await adapter.sendMessage({ pageName: t('agentModule.chat.title'), route: '/agent/chat', selectedId: null, locale: String(locale.value).startsWith('en') ? 'en' : 'zh-CN' }, text, pushPart)
+    await adapter.sendMessage({ pageName: t('agentModule.chat.title'), route: '/agent/chat', selectedId: null, locale: String(locale.value).startsWith('en') ? 'en' : 'zh-CN' }, text, part => {
+      if (currentRequest === requestId)
+        pushPart(part)
+    })
+    if (currentRequest === requestId) {
+      state.value = 'idle'
+      statusText.value = ''
+    }
   }
   catch (error) {
-    bubbles.value.push({ id: `error-${bubbles.value.length + 1}`, role: 'assistant', text: error instanceof Error ? error.message : t('foundation.errorTitle') })
+    if (currentRequest === requestId) {
+      state.value = 'error'
+      statusText.value = error instanceof Error ? error.message : t('foundation.errorTitle')
+    }
   }
   finally {
-    sending.value = false
+    if (currentRequest === requestId)
+      sending.value = false
   }
 }
 
-async function submitSuggestion(message: Bubble) {
-  if (!message.card?.draft || !canSuggest.value)
-    return
-  const approval = await submitAgentSuggestion(message.card.draft)
+function send() {
+  sendMessage(draft.value.trim())
+}
 
-  message.submitted = true
+function retry() {
+  sendMessage(lastPrompt.value)
+}
+
+function cancel() {
+  if (!sending.value) {
+    isLeftSidebarOpen.value = false
+
+    return
+  }
+
+  requestId++
+  sending.value = false
+  state.value = 'cancelled'
+  statusText.value = '已取消本次请求。'
+}
+
+async function submitSuggestion(message: { id: string }) {
+  const bubble = bubbles.value.find(item => item.id === message.id)
+
+  if (!bubble?.card?.draft || !canSuggest.value)
+    return
+  const approval = await submitAgentSuggestion(bubble.card.draft)
+
+  bubble.submitted = true
   if (latestRunId.value)
     await recordSuggestionStep(latestRunId.value, approval.id)
 }
@@ -94,6 +169,7 @@ async function submitSuggestion(message: Bubble) {
   <VLayout
     class="chat-app-layout"
     style="z-index: 0;"
+    @keydown.esc="isLeftSidebarOpen = false"
   >
     <VNavigationDrawer
       v-model="isLeftSidebarOpen"
@@ -113,6 +189,9 @@ async function submitSuggestion(message: Bubble) {
         />
       </div>
       <VDivider />
+      <div class="chat-list-caption px-5 py-3 text-caption text-medium-emphasis">
+        我的会话
+      </div>
       <PerfectScrollbar
         tag="ul"
         class="chat-contacts-list px-3 py-2"
@@ -135,7 +214,8 @@ async function submitSuggestion(message: Bubble) {
           <div class="flex-grow-1 ms-4 overflow-hidden">
             <p class="text-base text-high-emphasis mb-0">
               {{ thread.title }}
-            </p><p class="mb-0 text-truncate text-body-2">
+            </p>
+            <p class="mb-0 text-truncate text-body-2 text-medium-emphasis">
               {{ thread.updatedAt }}
             </p>
           </div>
@@ -161,76 +241,77 @@ async function submitSuggestion(message: Bubble) {
           <div class="flex-grow-1 ms-4 overflow-hidden">
             <div class="text-h6 mb-0 font-weight-regular">
               {{ activeThread?.title || t('chat.title') }}
-            </div><p class="text-truncate mb-0 text-body-2">
+            </div>
+            <p class="text-truncate mb-0 text-body-2">
               {{ t('agentModule.chat.subtitle') }}
             </p>
           </div>
+          <VChip
+            size="small"
+            color="primary"
+            variant="tonal"
+          >
+            只读助手
+          </VChip>
         </div>
         <VDivider />
         <VAlert
-          type="warning"
+          v-if="!aiMode.isEnabled"
+          type="info"
           variant="tonal"
           class="ma-4 mb-0"
         >
-          {{ t('common.aiNoLedger') }}
+          {{ disabledReason }}
         </VAlert>
-        <PerfectScrollbar
-          ref="chatLogPS"
-          :options="{ wheelPropagation: false }"
-          class="flex-grow-1"
-        >
-          <ChatLog
-            :messages="bubbles"
-            :contact-name="t('chat.title')"
-            :self-name="session.displayName"
-          >
-            <template #after="{ message }">
-              <VCard
-                v-if="message.card"
-                variant="tonal"
-                :color="message.card.kind === 'suggestion' ? 'warning' : 'info'"
-                class="mt-2"
-              >
-                <VCardItem>
-                  <VCardTitle class="text-body-1">
-                    {{ message.card.title }}
-                  </VCardTitle>
-                </VCardItem>
-                <VCardText>
-                  <div
-                    v-for="line in message.card.lines"
-                    :key="line.label"
-                    class="d-flex justify-space-between gap-4 text-body-2"
-                  >
-                    <span>{{ line.label }}</span><strong>{{ line.value }}</strong>
-                  </div>
-                  <VBtn
-                    v-if="message.card.draft"
-                    class="mt-3"
-                    size="small"
-                    :disabled="message.submitted || !canSuggest"
-                    @click="submitSuggestion(message)"
-                  >
-                    {{ message.submitted ? t('assistant.submitted') : t('assistant.submit') }}
-                  </VBtn>
-                </VCardText>
-              </VCard>
-            </template>
-          </ChatLog>
-          <div
-            v-if="sending"
-            class="text-caption text-medium-emphasis px-6 pb-4"
-          >
-            {{ t('assistant.thinking') }}
-          </div>
-        </PerfectScrollbar>
-        <VDivider /><ChatMessageForm
+        <ChatThread
           v-model="draft"
+          :messages="bubbles"
+          :assistant-name="t('chat.title')"
+          :self-name="session.displayName"
           :placeholder="t('agentModule.chat.placeholder')"
           :send-label="t('chat.send')"
           :loading="sending"
+          :state="state"
+          :status-text="statusText"
+          :ai-enabled="aiMode.isEnabled"
+          :disabled-reason="disabledReason"
           @send="send"
-        />
+          @retry="retry"
+          @cancel="cancel"
+        >
+          <template #message-after="{ message }">
+            <VCard
+              v-if="message.card"
+              variant="tonal"
+              :color="message.card.kind === 'suggestion' ? 'warning' : 'info'"
+              class="mt-2"
+            >
+              <VCardItem>
+                <VCardTitle class="text-body-1">
+                  {{ message.card.title }}
+                </VCardTitle>
+              </VCardItem>
+              <VCardText>
+                <div
+                  v-for="line in message.card.lines"
+                  :key="line.label"
+                  class="d-flex justify-space-between gap-4 text-body-2"
+                >
+                  <span>{{ line.label }}</span><strong>{{ line.value }}</strong>
+                </div>
+                <VBtn
+                  v-if="message.card.draft"
+                  class="mt-3"
+                  size="small"
+                  :disabled="message.submitted || !canSuggest"
+                  @click="submitSuggestion(message)"
+                >
+                  {{ message.submitted ? t('assistant.submitted') : t('assistant.submit') }}
+                </VBtn>
+              </VCardText>
+            </VCard>
+          </template>
+        </ChatThread>
       </div>
     </VMain>
   </VLayout>
@@ -239,6 +320,30 @@ async function submitSuggestion(message: Bubble) {
 <style lang="scss">
 @use "@styles/variables/vuetify";
 @use "@core/scss/base/mixins";
-.chat-app-layout { border-radius: vuetify.$card-border-radius; @include mixins.elevation(vuetify.$card-elevation); .chat-list-header, .active-chat-header { min-block-size: 76px; padding-inline: 1.5rem; } }
-.chat-contact { border-radius: .375rem; padding-block: .75rem; padding-inline: .75rem; &.chat-contact-active { background: rgba(var(--v-theme-primary), .12); } }
+
+.chat-app-layout {
+  border-radius: vuetify.$card-border-radius;
+  @include mixins.elevation(vuetify.$card-elevation);
+
+  .chat-list-header,
+  .active-chat-header {
+    min-block-size: 76px;
+    padding-inline: 1.5rem;
+  }
+}
+
+.chat-contact {
+  border-radius: .375rem;
+  padding-block: .75rem;
+  padding-inline: .75rem;
+
+  &.chat-contact-active {
+    background: rgba(var(--v-theme-primary), .12);
+  }
+}
+
+.chat-thread {
+  min-block-size: 0;
+  flex: 1 1 auto;
+}
 </style>

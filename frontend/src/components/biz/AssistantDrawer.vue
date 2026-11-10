@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
 import type { AgentCard, AgentPart } from '@/agent/adapter'
 import { createAgentAdapter } from '@/agent/index'
 import { submitAgentSuggestion } from '@/api/workflows'
+import ChatThread from '@/components/chat/ChatThread.vue'
+import type { ChatState } from '@/components/chat/types'
+import { useChatHistory } from '@/components/chat/useChatHistory'
 import PermissionGate from '@/components/biz/PermissionGate.vue'
 import { usePageContext } from '@/composables/usePageContext'
 import { pageCatalog } from '@/config/pages'
 import { useSessionStore } from '@/stores/session'
 import { useAiModeStore } from '@/stores/ai-mode'
 import { can } from '@/utils/permission'
-import ChatLog from '@/views/apps/chat/ChatLog.vue'
-import ChatMessageForm from '@/views/apps/chat/ChatMessageForm.vue'
 
 interface Bubble {
   id: string
@@ -18,6 +18,7 @@ interface Bubble {
   text: string
   card?: AgentCard
   submitted?: boolean
+  local?: boolean
 }
 
 const { t, locale } = useI18n({ useScope: 'global' })
@@ -29,26 +30,47 @@ const open = ref(false)
 const draft = ref('')
 const sending = ref(false)
 const bubbles = ref<Bubble[]>([])
+const state = ref<ChatState>('idle')
+const statusText = ref('')
+const lastPrompt = ref('')
 const adapter = createAgentAdapter()
-const scrollbarRef = ref<unknown>(null)
+let requestId = 0
+const disabledReason = 'AI 已关闭，页面仍可按人工路径操作。'
+const history = useChatHistory<Bubble>('assistant', computed(() => session.userId))
+const hydratedUserId = ref<string | null>(null)
+const hydrating = ref(false)
 
-async function scrollLogToBottom() {
-  await nextTick()
+const canSuggest = computed(() => can(session.role, 'suggest'))
 
-  const candidate = scrollbarRef.value as { $el?: HTMLElement } | HTMLElement | null
-  const el = (candidate && '$el' in candidate ? candidate.$el : candidate) as HTMLElement | null
-  if (el) {
-    el.scrollTop = el.scrollHeight
-    el.scrollTo?.({ top: el.scrollHeight, behavior: 'smooth' })
-  }
+watch(bubbles, value => {
+  if (!hydrating.value && hydratedUserId.value === session.userId)
+    history.save(value)
+}, { deep: true })
+
+function loadHistory() {
+  const userId = session.userId || null
+
+  hydrating.value = true
+  bubbles.value = userId ? history.load([]) : []
+  hydratedUserId.value = userId
+  nextTick(() => {
+    hydrating.value = false
+  })
 }
 
-watch(() => bubbles.value.length, scrollLogToBottom)
-watch(sending, scrollLogToBottom)
-watch(open, value => {
-  if (value)
-    scrollLogToBottom()
+onMounted(() => {
+  loadHistory()
+  window.addEventListener('keydown', onWindowKeydown)
 })
+
+watch([() => session.userId, () => session.role], loadHistory, { flush: 'sync' })
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown))
+
+function onWindowKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && open.value && !sending.value)
+    open.value = false
+}
 
 function matchPage(path: string) {
   const ranked = [...pageCatalog].filter(item => item.path !== '/*').sort((a, b) => b.path.length - a.path.length)
@@ -73,12 +95,10 @@ const selectedId = computed(() => {
   return Array.isArray(value) ? value[0] ?? null : value ?? null
 })
 
-const canSuggest = computed(() => can(session.role, 'suggest'))
-
 function pushPart(part: AgentPart) {
   const last = bubbles.value[bubbles.value.length - 1]
 
-  if (part.kind === 'text' && last?.role === 'assistant' && !last.card) {
+  if (part.kind === 'text' && last?.local && last.role === 'assistant' && !last.card) {
     last.text += part.text ?? ''
 
     return
@@ -89,40 +109,75 @@ function pushPart(part: AgentPart) {
     role: 'assistant',
     text: part.text ?? '',
     card: part.card,
+    local: true,
   })
 }
 
-async function send() {
-  const text = draft.value.trim()
-
-  if (!text || sending.value)
+async function sendMessage(text: string) {
+  if (!aiMode.isEnabled || !text || sending.value)
     return
+
+  const currentRequest = ++requestId
 
   draft.value = ''
   sending.value = true
-  bubbles.value.push({ id: `u-${bubbles.value.length + 1}`, role: 'user', text })
+  state.value = 'loading'
+  statusText.value = '正在读取只读数据…'
+  lastPrompt.value = text
+  bubbles.value.push({ id: `u-${bubbles.value.length + 1}`, role: 'user', text, local: true })
+
   try {
     await adapter.sendMessage({
       pageName: pageName.value,
       route: route.path,
       selectedId: selectedId.value,
       locale: String(locale.value).startsWith('en') ? 'en' : 'zh-CN',
-    }, text, pushPart)
+    }, text, part => {
+      if (currentRequest === requestId)
+        pushPart(part)
+    })
+    if (currentRequest === requestId) {
+      state.value = 'idle'
+      statusText.value = ''
+    }
   }
   catch (error) {
-    bubbles.value.push({
-      id: `e-${bubbles.value.length + 1}`,
-      role: 'assistant',
-      text: error instanceof Error ? error.message : t('foundation.errorTitle'),
-    })
+    if (currentRequest === requestId) {
+      state.value = 'error'
+      statusText.value = error instanceof Error ? error.message : t('foundation.errorTitle')
+    }
   }
   finally {
-    sending.value = false
+    if (currentRequest === requestId)
+      sending.value = false
   }
 }
 
-async function submit(bubble: Bubble) {
-  if (!bubble.card?.draft || !canSuggest.value)
+function send() {
+  sendMessage(draft.value.trim())
+}
+
+function retry() {
+  sendMessage(lastPrompt.value)
+}
+
+function cancel() {
+  if (!sending.value) {
+    open.value = false
+
+    return
+  }
+
+  requestId++
+  sending.value = false
+  state.value = 'cancelled'
+  statusText.value = '已取消本次请求。'
+}
+
+async function submit(message: { id: string }) {
+  const bubble = bubbles.value.find(item => item.id === message.id)
+
+  if (!bubble?.card?.draft || !canSuggest.value)
     return
 
   await submitAgentSuggestion(bubble.card.draft)
@@ -131,7 +186,7 @@ async function submit(bubble: Bubble) {
 </script>
 
 <template>
-  <div v-if="aiMode.isEnabled">
+  <div @keydown.esc="open = false">
     <VBtn
       class="assistant-fab"
       color="primary"
@@ -148,7 +203,7 @@ async function submit(bubble: Bubble) {
       location="end"
       temporary
       width="420"
-      class="scrollable-content"
+      class="assistant-drawer"
     >
       <AppDrawerHeaderSection
         :title="t('assistant.title')"
@@ -161,71 +216,71 @@ async function submit(bubble: Bubble) {
         <div class="mt-1">
           {{ t('assistant.disclaimer') }}
         </div>
+        <VAlert
+          v-if="!aiMode.isEnabled"
+          class="mt-3"
+          density="compact"
+          type="info"
+          variant="tonal"
+        >
+          {{ disabledReason }}
+        </VAlert>
       </div>
       <VDivider />
-      <PerfectScrollbar
-        ref="scrollbarRef"
-        :options="{ wheelPropagation: false }"
-        class="assistant-log"
-      >
-        <ChatLog
-          :messages="bubbles"
-          :contact-name="t('assistant.title')"
-          :self-name="session.displayName"
-        >
-          <template #after="{ message }">
-            <VCard
-              v-if="message.card"
-              class="mt-2"
-              variant="tonal"
-            >
-              <VCardItem>
-                <VCardTitle class="text-subtitle-1">
-                  {{ message.card.kind === 'suggestion' ? t('assistant.suggestion') : t('assistant.query') }}
-                </VCardTitle>
-                <VCardSubtitle>{{ message.card.title }}</VCardSubtitle>
-              </VCardItem>
-              <VCardText>
-                <div
-                  v-for="line in message.card.lines"
-                  :key="line.label"
-                  class="d-flex justify-space-between gap-4 text-body-2"
-                >
-                  <span>{{ line.label }}</span>
-                  <span>{{ line.value }}</span>
-                </div>
-                <PermissionGate
-                  v-if="message.card.draft"
-                  action="suggest"
-                >
-                  <VBtn
-                    class="mt-3"
-                    size="small"
-                    :disabled="message.submitted"
-                    @click="submit(message)"
-                  >
-                    {{ message.submitted ? t('assistant.submitted') : t('assistant.submit') }}
-                  </VBtn>
-                </PermissionGate>
-              </VCardText>
-            </VCard>
-          </template>
-        </ChatLog>
-        <div
-          v-if="sending"
-          class="text-caption text-medium-emphasis px-6 pb-4"
-        >
-          {{ t('assistant.thinking') }}
-        </div>
-      </PerfectScrollbar>
-      <VDivider />
-      <ChatMessageForm
+      <ChatThread
         v-model="draft"
+        :messages="bubbles"
+        :assistant-name="t('assistant.title')"
+        :self-name="session.displayName"
         :placeholder="t('assistant.placeholder')"
         :send-label="t('assistant.send')"
         :loading="sending"
+        :state="state"
+        :status-text="statusText"
+        :ai-enabled="aiMode.isEnabled"
+        :disabled-reason="disabledReason"
         @send="send"
-      />
+        @retry="retry"
+        @cancel="cancel"
+      >
+        <template #message-after="{ message }">
+          <VCard
+            v-if="message.card"
+            class="mt-2"
+            variant="tonal"
+          >
+            <VCardItem>
+              <VCardTitle class="text-subtitle-1">
+                {{ message.card.kind === 'suggestion' ? t('assistant.suggestion') : t('assistant.query') }}
+              </VCardTitle>
+              <VCardSubtitle>{{ message.card.title }}</VCardSubtitle>
+            </VCardItem>
+            <VCardText>
+              <div
+                v-for="line in message.card.lines"
+                :key="line.label"
+                class="d-flex justify-space-between gap-4 text-body-2"
+              >
+                <span>{{ line.label }}</span>
+                <span>{{ line.value }}</span>
+              </div>
+              <PermissionGate
+                v-if="message.card.draft"
+                action="suggest"
+              >
+                <VBtn
+                  class="mt-3"
+                  size="small"
+                  :disabled="message.submitted"
+                  @click="submit(message)"
+                >
+                  {{ message.submitted ? t('assistant.submitted') : t('assistant.submit') }}
+                </VBtn>
+              </PermissionGate>
+            </VCardText>
+          </VCard>
+        </template>
+      </ChatThread>
     </VNavigationDrawer>
   </div>
 </template>
@@ -237,7 +292,13 @@ async function submit(bubble: Bubble) {
   inset-inline-end: 24px;
 }
 
-.assistant-log {
-  max-block-size: calc(100vh - 220px);
+.assistant-drawer :deep(.v-navigation-drawer__content) {
+  display: flex;
+  flex-direction: column;
+}
+
+.assistant-drawer :deep(.chat-thread) {
+  min-block-size: 0;
+  flex: 1 1 auto;
 }
 </style>
