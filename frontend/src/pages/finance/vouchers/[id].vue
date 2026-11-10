@@ -1,7 +1,7 @@
 <script setup lang="ts">
-/* eslint-disable max-statements-per-line */
 import { decideApproval } from '@/api/approvals'
 import { fetchPendingVoucherApprovalId, fetchVoucherApprovalIds, fetchVoucherDetail, financeCreatorId, submitBoundGapAVoucher, submitVoucherApproval } from '@/api/finance'
+import { draftVoucherReversal } from '@/api/fin-gl'
 import { fetchGapAVoucher } from '@/api/gap-a'
 import { canPermission } from '@/api/mock-client'
 import DetailPage from '@/components/biz/DetailPage.vue'
@@ -18,11 +18,14 @@ const approvalIds = ref<string[]>([])
 const pendingApprovalId = ref('')
 const message = ref('')
 const submitting = ref(false)
+const reversalId = ref('')
+const reversedById = ref('')
 
 const canSubmitGapA = computed(() => Boolean(row.value && source.value === 'gap-a' && row.value.status === 'draft' && (canPermission('system:create') || canPermission('approval:approve')) && canPermission('agent_suggestion:create')))
 const canSubmitFinance = computed(() => Boolean(row.value && source.value === 'finance' && (row.value.status === 'draft' || row.value.status === 'rejected') && canPermission('journal_entry:submit') && canPermission('agent_suggestion:create')))
 const canSubmit = computed(() => canSubmitGapA.value || canSubmitFinance.value)
 const canApprove = computed(() => Boolean(row.value && source.value === 'gap-a' && row.value.status === 'pending' && pendingApprovalId.value && canPermission('approval:approve') && session.userId !== row.value.createdById))
+const canReverse = computed(() => Boolean(row.value && source.value === 'finance' && row.value.status === 'posted' && canPermission('journal_entry:cancel') && !reversedById.value))
 
 function voucherId() {
   return String((route.params as Record<string, string | undefined>).id ?? '')
@@ -52,6 +55,8 @@ async function load() {
   source.value = 'finance'
   approvalIds.value = finance.approvalIds ?? []
   pendingApprovalId.value = ''
+  reversalId.value = finance.reversesVoucherId ?? ''
+  reversedById.value = finance.reversedByVoucherId ?? ''
   row.value = {
     id: finance.id,
     no: finance.no,
@@ -67,6 +72,18 @@ async function load() {
     createdById: financeCreatorId(finance.submitter),
     timeline: (finance.timeline ?? []).map((event, index) => ({ id: `${finance.id}-${index}`, at: event.at, action: event.title, detail: event.detail, actor: event.actor ?? '', origin: 'human' as const })),
   }
+}
+
+async function reverse() {
+  if (!row.value || !canReverse.value)
+    return
+  try {
+    const draft = await draftVoucherReversal(row.value.id)
+
+    message.value = `已生成红字草稿 ${draft.no}，原凭证保持已过账。`
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : '红字冲销失败' }
 }
 
 onMounted(load)
@@ -151,6 +168,16 @@ async function decide(approved: boolean) {
       >
         下载已批准文件
       </VBtn>
+      <VBtn
+        v-if="canReverse"
+        variant="tonal"
+        color="warning"
+        prepend-icon="tabler-arrow-back-up"
+        data-test="voucher-reverse"
+        @click="reverse"
+      >
+        红字冲销
+      </VBtn>
     </template>
     <VAlert
       v-if="message"
@@ -229,6 +256,26 @@ async function decide(approved: boolean) {
           </VListItemSubtitle>
         </VListItem>
       </VList>
+    </VCard>
+    <VCard
+      v-if="reversalId || reversedById"
+      title="冲销链"
+      class="mt-6"
+    >
+      <VCardText class="d-flex gap-3 flex-wrap">
+        <RouterLink
+          v-if="reversalId"
+          :to="`/finance/vouchers/${reversalId}`"
+        >
+          红字来源：{{ reversalId }}
+        </RouterLink>
+        <RouterLink
+          v-if="reversedById"
+          :to="`/finance/vouchers/${reversedById}`"
+        >
+          红字凭证：{{ reversedById }}
+        </RouterLink>
+      </VCardText>
     </VCard>
   </DetailPage>
   <EmptyState

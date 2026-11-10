@@ -58,7 +58,7 @@ export function sourceRow(table: string, id: string) {
 }
 
 export function settlements(db: MockDatabase) {
-  return db.settlements.map(row => ({ ...row, storeName: db.stores.find(store => store.id === row.storeId)?.name ?? row.storeId, totalDisplay: toDisplay(row.total, row.currency), rawRowId: `${row.id}-row-1`, matched: db.reconRuns.find(run => run.storeId === row.storeId)?.matched ?? 0 }))
+  return db.settlements.map(row => ({ ...row, source: row.source ?? (row.platform === 'Amazon' ? 'sp_api' : 'file'), storeName: db.stores.find(store => store.id === row.storeId)?.name ?? row.storeId, totalDisplay: toDisplay(row.total, row.currency), rawRowId: `${row.id}-row-1`, matched: db.reconRuns.find(run => run.storeId === row.storeId)?.matched ?? 0 }))
 }
 
 export function settlementDetail(db: MockDatabase, id: string) {
@@ -68,6 +68,7 @@ export function settlementDetail(db: MockDatabase, id: string) {
 
   return {
     ...row,
+    source: row.source ?? (row.platform === 'Amazon' ? 'sp_api' : 'file'),
     storeName: db.stores.find(store => store.id === row.storeId)?.name ?? row.storeId,
     totalDisplay: toDisplay(row.total, row.currency),
     rawRowId: `${row.id}-row-1`,

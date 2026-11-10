@@ -363,6 +363,9 @@ export interface Settlement {
   total: Minor
   currency: CurrencyCode
   status: string
+  source?: 'sp_api' | 'file' | 'plugin'
+  reserveDelta?: Minor
+  payoutAmountFc?: Minor
 }
 
 export interface ReconRunEntity {
@@ -397,6 +400,10 @@ export interface VoucherEntity {
   currency: 'CNY'
   summary: string
   submitter: string
+  reversesVoucherId?: string
+  reversedByVoucherId?: string
+  replacesVoucherId?: string
+  adjustsVoucherId?: string
 }
 
 export interface ProfitSnapshot {

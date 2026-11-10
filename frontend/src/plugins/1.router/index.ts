@@ -6,6 +6,7 @@ import PlaceholderPage from '@/components/PlaceholderPage.vue'
 import { pageCatalog } from '@/config/pages'
 import { setupGuards } from '@/plugins/1.router/guards'
 import KnowledgePage from '@/views/knowledge/KnowledgePage.vue'
+import SettlementSplitPage from '@/pages/finance/settlements/[id]/split.vue'
 
 function recursiveLayouts(route: RouteRecordRaw): RouteRecordRaw {
   // setupLayouts 自己会递归处理 children；每个顶层路由只包一次，避免深链出现嵌套侧栏。
@@ -47,9 +48,16 @@ const router = createRouter({
       meta: { pageId: 'K08' },
     })
 
+    const settlementSplit = recursiveLayouts({
+      path: '/finance/settlements/:id/split',
+      name: 'finance-settlement-split',
+      component: SettlementSplitPage,
+      meta: { pageId: 'F39' },
+    })
+
     // /kb/index must precede generated /kb/:id routes; otherwise the dynamic
     // route renders the 404 placeholder before the K08 page can match.
-    return [rootRedirect, knowledgeIndex, ...mappedWithoutRoot, ...placeholderRoutes]
+    return [rootRedirect, knowledgeIndex, settlementSplit, ...mappedWithoutRoot, ...placeholderRoutes]
   },
 })
 
