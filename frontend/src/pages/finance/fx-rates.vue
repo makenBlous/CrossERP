@@ -36,21 +36,22 @@ async function save() {
     >
       汇率由用户提供，不调用实时汇率。
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <VBtn
-        prepend-icon="tabler-plus"
-        @click="open = true"
-      >
-        新增月汇率
-      </VBtn>
-    </div>
     <FinanceTablePage
       storage-key="finance-fx"
       title="汇率表"
       subtitle="按期间与币种对维护用户提供的汇率。"
       :rows="rows as unknown as FinanceRow[]"
       :columns="columns"
-    />
+    >
+      <template #actions>
+        <VBtn
+          prepend-icon="tabler-plus"
+          @click="open = true"
+        >
+          新增月汇率
+        </VBtn>
+      </template>
+    </FinanceTablePage>
     <FormDrawer
       v-model="open"
       title="新增月汇率"

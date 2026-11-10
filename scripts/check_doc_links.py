@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -9,13 +10,35 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 LINK = re.compile(r"!?(?:\[[^\]]*\])\(([^)\s]+)(?:\s+[^)]*)?\)")
 
+EXCLUDED_DIRS = {
+    ".git",
+    ".venv",
+    ".ci",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".tox",
+    "__pycache__",
+    "build",
+    "coverage",
+    "dist",
+    "node_modules",
+}
+
+
+def iter_markdown():
+    """遍历阶段即剪掉依赖/生成目录，避免进入 node_modules 等。"""
+    for dirpath, dirnames, filenames in os.walk(ROOT):
+        dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIRS]
+        for name in filenames:
+            if name.endswith(".md"):
+                yield Path(dirpath) / name
+
 
 def main() -> int:
     missing: list[str] = []
-    for markdown in ROOT.rglob("*.md"):
-        if markdown.name == "README_追加.md" or any(
-            part in {".git", ".venv", ".ci", ".pytest_cache"} for part in markdown.parts
-        ):
+    for markdown in iter_markdown():
+        if markdown.name == "README_追加.md":
             continue
         for raw in LINK.findall(markdown.read_text(encoding="utf-8")):
             if raw.startswith(("http://", "https://", "mailto:", "#")):

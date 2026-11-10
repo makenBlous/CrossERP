@@ -11,4 +11,4 @@
 
 经营日历的窄屏策略是 `<768px` 使用 FullCalendar `listMonth`，桌面使用完整月视图；`dayMaxEvents` 只在桌面月视图启用，事件过多时由 FullCalendar 的更多弹层承载。
 
-`finance/fx-rates.vue` 仍通过共享的 `FinanceTablePage` 展示。该共享视图不在 U1 文件所有权内，且本任务未修改它；如整合者需要把该特殊列表的月汇率操作也放入标题行，应在共享视图增加同样的 `actions` 透传后再迁移页面模板。
+`finance/fx-rates.vue` 仍通过共享的 `FinanceTablePage` 展示。整合补丁为该共享视图增加了向后兼容的 `actions` 透传，汇率页把“新增月汇率”放入标题行；其他使用方未提供该插槽时保持原有布局和行为。

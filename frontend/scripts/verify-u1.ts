@@ -17,6 +17,8 @@ const router = read('src/plugins/1.router/index.ts')
 const listPage = read('src/components/biz/ListPage.vue')
 const calendar = read('src/pages/dashboard/calendar.vue')
 const costs = read('src/pages/catalog/costs.vue')
+const fxRates = read('src/pages/finance/fx-rates.vue')
+const financeTablePage = read('src/views/finance/FinanceTablePage.vue')
 
 assert(router.includes('return setupLayouts([route])[0]'), '带 children 的父路由也必须经过 setupLayouts')
 assert(!/function recursiveLayouts[\s\S]*?return route\s*\}/.test(router), 'recursiveLayouts 不能直接返回未包装的父路由')
@@ -33,6 +35,9 @@ assert(!/:deep\(\.fc-daygrid-day-events\)[\s\S]*?overflow: hidden/.test(calendar
 assert(calendar.includes('@media (max-width: 767.98px)'), '日历必须有窄屏布局')
 assert(costs.includes('<template #actions>'), '成本列表必须使用 ListPage actions 插槽')
 assert(!costs.includes('d-flex flex-wrap justify-end gap-3 mb-4'), '成本列表不得在 ListPage 外单独渲染操作行')
+assert(fxRates.includes('<template #actions>'), '汇率列表必须使用 FinanceTablePage actions 插槽')
+assert(!fxRates.includes('d-flex justify-end mb-4'), '汇率列表不得在 FinanceTablePage 外单独渲染操作行')
+assert(financeTablePage.includes('<slot name="actions" />'), 'FinanceTablePage 必须透传 actions 插槽')
 
 function collectVue(dir: string): string[] {
   const entries = readdirSync(dir)
@@ -56,7 +61,6 @@ const listPagesWithStandaloneActions = pageFiles.filter(path => {
 
 const allowedStandalone = new Set([
   'pages/dashboard/stores.vue',
-  'pages/finance/fx-rates.vue',
   'pages/finance/recon/index.vue',
 ])
 
