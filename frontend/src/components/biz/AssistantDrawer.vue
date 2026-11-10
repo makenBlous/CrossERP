@@ -5,6 +5,7 @@ import { submitAgentSuggestion } from '@/api/workflows'
 import ChatThread from '@/components/chat/ChatThread.vue'
 import type { ChatState } from '@/components/chat/types'
 import { useChatHistory } from '@/components/chat/useChatHistory'
+import { useChatInflight } from '@/components/chat/useChatInflight'
 import PermissionGate from '@/components/biz/PermissionGate.vue'
 import { usePageContext } from '@/composables/usePageContext'
 import { pageCatalog } from '@/config/pages'
@@ -34,7 +35,16 @@ const state = ref<ChatState>('idle')
 const statusText = ref('')
 const lastPrompt = ref('')
 const adapter = createAgentAdapter()
-let requestId = 0
+
+const inflight = useChatInflight({
+  userId: () => session.userId,
+  isLoggedIn: () => session.isLoggedIn,
+  role: () => session.role,
+  sending,
+  state,
+  statusText,
+})
+
 const history = useChatHistory<Bubble>('assistant', computed(() => session.userId), computed(() => session.isLoggedIn))
 const hydratedUserId = ref<string | null>(null)
 const hydrating = ref(false)
@@ -42,7 +52,7 @@ const hydrating = ref(false)
 const canSuggest = computed(() => can(session.role, 'suggest'))
 
 watch(bubbles, value => {
-  if (!hydrating.value && hydratedUserId.value === session.userId)
+  if (!hydrating.value && inflight.canPersist(hydratedUserId.value))
     history.save(value)
 }, { deep: true })
 
@@ -62,7 +72,7 @@ onMounted(() => {
   window.addEventListener('keydown', onWindowKeydown)
 })
 
-watch([() => session.isLoggedIn, () => session.userId, () => session.role], loadHistory, { flush: 'sync' })
+inflight.watchIdentity(loadHistory)
 
 onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown))
 
@@ -116,7 +126,7 @@ async function sendMessage(text: string) {
   if (!aiMode.isEnabled || !text || sending.value)
     return
 
-  const currentRequest = ++requestId
+  const ticket = inflight.begin()
 
   draft.value = ''
   sending.value = true
@@ -132,22 +142,21 @@ async function sendMessage(text: string) {
       selectedId: selectedId.value,
       locale: String(locale.value).startsWith('en') ? 'en' : 'zh-CN',
     }, text, part => {
-      if (currentRequest === requestId)
-        pushPart(part)
+      inflight.writeIfCurrent(ticket, () => pushPart(part))
     })
-    if (currentRequest === requestId) {
+    if (inflight.isLatest(ticket)) {
       state.value = 'idle'
       statusText.value = ''
     }
   }
   catch (error) {
-    if (currentRequest === requestId) {
+    if (inflight.isLatest(ticket)) {
       state.value = 'error'
       statusText.value = error instanceof Error ? error.message : t('foundation.errorTitle')
     }
   }
   finally {
-    if (currentRequest === requestId)
+    if (inflight.isLatest(ticket))
       sending.value = false
   }
 }
@@ -167,7 +176,7 @@ function cancel() {
     return
   }
 
-  requestId++
+  inflight.invalidate()
   sending.value = false
   state.value = 'cancelled'
   statusText.value = '已取消本次请求。'
