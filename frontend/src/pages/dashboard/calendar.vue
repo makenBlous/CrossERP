@@ -88,6 +88,8 @@ const options = computed<CalendarOptions>(() => ({
   expandRows: true,
   fixedWeekCount: false,
   dayMaxEvents: isNarrow.value ? false : 2,
+  dayMaxEventRows: isNarrow.value ? false : 2,
+  moreLinkContent: ({ num }) => `+${num} 更多`,
   moreLinkClick: 'popover',
   locale: String(locale.value).startsWith('en') ? 'en' : zhCn,
   headerToolbar: isNarrow.value
@@ -101,6 +103,18 @@ const options = computed<CalendarOptions>(() => ({
   })),
   eventClick: pick,
 }))
+
+watch(isNarrow, narrow => {
+  const api = calendarRef.value?.getApi()
+
+  if (!api)
+    return
+
+  const view = narrow ? 'listMonth' : 'dayGridMonth'
+
+  if (api.view.type !== view)
+    api.changeView(view)
+})
 </script>
 
 <template>
@@ -335,12 +349,6 @@ const options = computed<CalendarOptions>(() => ({
 
   :deep(.fc-daygrid-day-frame) {
     block-size: 100% !important;
-    overflow: hidden !important;
-  }
-
-  :deep(.fc-daygrid-day-events) {
-    max-block-size: calc(100% - 28px);
-    overflow: hidden;
   }
 }
 
