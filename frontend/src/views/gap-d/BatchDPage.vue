@@ -325,7 +325,7 @@ async function returnSelectedAsset() {
 }
 
 async function approveSelectedLeave() {
-  const request = records.value.find(row => row.id === 'leave-001') ?? records.value[0]
+  const request = records.value[0]
   if (!request)
     return
   try {

@@ -45,7 +45,7 @@ export const gapDContracts: GapDContract[] = [
 ]
 
 export const gapDAssets: GapDAsset[] = [
-  { id: 'asset-001', name: 'MacBook Pro 14', status: '已领用', holderEmployeeId: 'demo-employee', purchaseCents: 1299900, monthlyDepreciationCents: 54163, updatedAt: now },
+  { id: 'asset-001', name: 'MacBook Pro 14', status: '可领用', purchaseCents: 1299900, monthlyDepreciationCents: 54163, updatedAt: now },
 ]
 
 export const gapDLeaveRequests: GapDLeaveRequest[] = [

@@ -32,7 +32,7 @@ export const demoIdentities: Record<Role, { id: string; name: string }> = {
   cashier: { id: 'demo-cashier', name: '演示出纳' },
   hr_admin: { id: 'demo-hr-admin', name: '演示人事行政' },
   employee: { id: 'demo-employee', name: '演示普通员工' },
-  department_manager: { id: 'demo-department-manager', name: '演示部门主管' },
+  department_manager: { id: 'demo-ops-manager', name: '演示运营主管' },
   auditor_template: { id: 'demo-auditor-template', name: '演示审计' },
   external_viewer: { id: 'demo-external-viewer', name: '演示只读/外部顾问' },
 }
