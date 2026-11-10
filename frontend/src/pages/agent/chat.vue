@@ -3,11 +3,11 @@ import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
 import { createAgentAdapter } from '@/agent/index'
 import type { AgentCard, AgentPart } from '@/agent/adapter'
 import { fetchChat } from '@/api/agent'
-import { recordAgentQuestion, recordSuggestionStep } from '@/api/agent-module'
-import { submitAgentSuggestion } from '@/api/workflows'
+import { recordAgentQuestion, recordSuggestionStep, submitAgentSuggestion } from '@/api/agent-module'
 import ChatThread from '@/components/chat/ChatThread.vue'
 import type { ChatState } from '@/components/chat/types'
 import { useChatHistory } from '@/components/chat/useChatHistory'
+import { useChatInflight } from '@/components/chat/useChatInflight'
 import { useAiModeStore } from '@/stores/ai-mode'
 import { useSessionStore } from '@/stores/session'
 import type { ChatMessage, ChatThread as ChatThreadModel } from '@/types/domain'
@@ -36,9 +36,17 @@ const statusText = ref('')
 const lastPrompt = ref('')
 const latestRunId = ref<string | null>(null)
 const adapter = createAgentAdapter()
-let requestId = 0
-const disabledReason = 'AI 已关闭，智能体中心仅可查看历史，不能发送消息。'
-const history = useChatHistory<Bubble>('agent-center', computed(() => session.userId))
+
+const inflight = useChatInflight({
+  userId: () => session.userId,
+  isLoggedIn: () => session.isLoggedIn,
+  role: () => session.role,
+  sending,
+  state,
+  statusText,
+})
+
+const history = useChatHistory<Bubble>('agent-center', computed(() => session.userId), computed(() => session.isLoggedIn))
 const hydratedUserId = ref<string | null>(null)
 const hydrating = ref(false)
 const canSuggest = computed(() => can(session.role, 'suggest'))
@@ -46,12 +54,12 @@ const activeThread = computed(() => threads.value.find(item => item.id === activ
 const visibleThreads = computed(() => threads.value.filter(item => item.title.toLowerCase().includes(query.value.trim().toLowerCase())))
 
 watch(bubbles, value => {
-  if (!hydrating.value && hydratedUserId.value === session.userId)
+  if (!hydrating.value && inflight.canPersist(hydratedUserId.value))
     history.save(value)
 }, { deep: true })
 
 async function loadChat() {
-  const userId = session.userId || null
+  const userId = session.isLoggedIn ? session.userId : null
 
   hydrating.value = true
   bubbles.value = []
@@ -66,7 +74,7 @@ async function loadChat() {
 
   const payload = await fetchChat()
 
-  if (session.userId !== userId)
+  if (!session.isLoggedIn || session.userId !== userId)
     return
 
   threads.value = payload.threads
@@ -76,7 +84,10 @@ async function loadChat() {
 }
 
 onMounted(loadChat)
-watch([() => session.userId, () => session.role], loadChat, { flush: 'sync' })
+inflight.watchIdentity(() => {
+  latestRunId.value = null
+  loadChat()
+})
 
 function pushPart(part: AgentPart) {
   const last = bubbles.value[bubbles.value.length - 1]
@@ -94,7 +105,7 @@ async function sendMessage(text: string) {
   if (!aiMode.isEnabled || !text || sending.value)
     return
 
-  const currentRequest = ++requestId
+  const ticket = inflight.begin()
 
   draft.value = ''
   sending.value = true
@@ -106,27 +117,26 @@ async function sendMessage(text: string) {
   try {
     const run = await recordAgentQuestion(text)
 
-    if (currentRequest !== requestId)
+    if (!inflight.isCurrent(ticket))
       return
 
     latestRunId.value = run.id
     await adapter.sendMessage({ pageName: t('agentModule.chat.title'), route: '/agent/chat', selectedId: null, locale: String(locale.value).startsWith('en') ? 'en' : 'zh-CN' }, text, part => {
-      if (currentRequest === requestId)
-        pushPart(part)
+      inflight.writeIfCurrent(ticket, () => pushPart(part))
     })
-    if (currentRequest === requestId) {
+    if (inflight.isLatest(ticket)) {
       state.value = 'idle'
       statusText.value = ''
     }
   }
   catch (error) {
-    if (currentRequest === requestId) {
+    if (inflight.isLatest(ticket)) {
       state.value = 'error'
       statusText.value = error instanceof Error ? error.message : t('foundation.errorTitle')
     }
   }
   finally {
-    if (currentRequest === requestId)
+    if (inflight.isLatest(ticket))
       sending.value = false
   }
 }
@@ -146,7 +156,7 @@ function cancel() {
     return
   }
 
-  requestId++
+  inflight.invalidate()
   sending.value = false
   state.value = 'cancelled'
   statusText.value = '已取消本次请求。'
@@ -261,7 +271,7 @@ async function submitSuggestion(message: { id: string }) {
           variant="tonal"
           class="ma-4 mb-0"
         >
-          {{ disabledReason }}
+          {{ t('assistant.aiClosed') }}
         </VAlert>
         <ChatThread
           v-model="draft"
@@ -274,7 +284,7 @@ async function submitSuggestion(message: { id: string }) {
           :state="state"
           :status-text="statusText"
           :ai-enabled="aiMode.isEnabled"
-          :disabled-reason="disabledReason"
+          :disabled-reason="t('assistant.aiClosed')"
           @send="send"
           @retry="retry"
           @cancel="cancel"

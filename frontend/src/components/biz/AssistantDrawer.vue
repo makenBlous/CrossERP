@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { AgentCard, AgentPart } from '@/agent/adapter'
 import { createAgentAdapter } from '@/agent/index'
-import { submitAgentSuggestion } from '@/api/workflows'
+import { submitAgentSuggestion } from '@/api/agent-module'
 import ChatThread from '@/components/chat/ChatThread.vue'
 import type { ChatState } from '@/components/chat/types'
 import { useChatHistory } from '@/components/chat/useChatHistory'
+import { useChatInflight } from '@/components/chat/useChatInflight'
 import PermissionGate from '@/components/biz/PermissionGate.vue'
 import { usePageContext } from '@/composables/usePageContext'
 import { pageCatalog } from '@/config/pages'
@@ -34,21 +35,29 @@ const state = ref<ChatState>('idle')
 const statusText = ref('')
 const lastPrompt = ref('')
 const adapter = createAgentAdapter()
-let requestId = 0
-const disabledReason = 'AI 已关闭，页面仍可按人工路径操作。'
-const history = useChatHistory<Bubble>('assistant', computed(() => session.userId))
+
+const inflight = useChatInflight({
+  userId: () => session.userId,
+  isLoggedIn: () => session.isLoggedIn,
+  role: () => session.role,
+  sending,
+  state,
+  statusText,
+})
+
+const history = useChatHistory<Bubble>('assistant', computed(() => session.userId), computed(() => session.isLoggedIn))
 const hydratedUserId = ref<string | null>(null)
 const hydrating = ref(false)
 
 const canSuggest = computed(() => can(session.role, 'suggest'))
 
 watch(bubbles, value => {
-  if (!hydrating.value && hydratedUserId.value === session.userId)
+  if (!hydrating.value && inflight.canPersist(hydratedUserId.value))
     history.save(value)
 }, { deep: true })
 
 function loadHistory() {
-  const userId = session.userId || null
+  const userId = session.isLoggedIn ? session.userId : null
 
   hydrating.value = true
   bubbles.value = userId ? history.load([]) : []
@@ -63,7 +72,7 @@ onMounted(() => {
   window.addEventListener('keydown', onWindowKeydown)
 })
 
-watch([() => session.userId, () => session.role], loadHistory, { flush: 'sync' })
+inflight.watchIdentity(loadHistory)
 
 onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown))
 
@@ -117,7 +126,7 @@ async function sendMessage(text: string) {
   if (!aiMode.isEnabled || !text || sending.value)
     return
 
-  const currentRequest = ++requestId
+  const ticket = inflight.begin()
 
   draft.value = ''
   sending.value = true
@@ -133,22 +142,21 @@ async function sendMessage(text: string) {
       selectedId: selectedId.value,
       locale: String(locale.value).startsWith('en') ? 'en' : 'zh-CN',
     }, text, part => {
-      if (currentRequest === requestId)
-        pushPart(part)
+      inflight.writeIfCurrent(ticket, () => pushPart(part))
     })
-    if (currentRequest === requestId) {
+    if (inflight.isLatest(ticket)) {
       state.value = 'idle'
       statusText.value = ''
     }
   }
   catch (error) {
-    if (currentRequest === requestId) {
+    if (inflight.isLatest(ticket)) {
       state.value = 'error'
       statusText.value = error instanceof Error ? error.message : t('foundation.errorTitle')
     }
   }
   finally {
-    if (currentRequest === requestId)
+    if (inflight.isLatest(ticket))
       sending.value = false
   }
 }
@@ -168,7 +176,7 @@ function cancel() {
     return
   }
 
-  requestId++
+  inflight.invalidate()
   sending.value = false
   state.value = 'cancelled'
   statusText.value = '已取消本次请求。'
@@ -223,7 +231,7 @@ async function submit(message: { id: string }) {
           type="info"
           variant="tonal"
         >
-          {{ disabledReason }}
+          {{ t('assistant.aiClosed') }}
         </VAlert>
       </div>
       <VDivider />
@@ -238,7 +246,7 @@ async function submit(message: { id: string }) {
         :state="state"
         :status-text="statusText"
         :ai-enabled="aiMode.isEnabled"
-        :disabled-reason="disabledReason"
+        :disabled-reason="t('assistant.aiClosed')"
         @send="send"
         @retry="retry"
         @cancel="cancel"

@@ -601,6 +601,7 @@ const zhCN = {
     disclaimer: '假回复只引用系统已算好的数字，不会改账。',
     submit: '提交审批',
     submitted: '已提交审批',
+    aiClosed: 'AI 已关闭，仍可按人工路径操作；当前不能发送消息。',
   },
 }
 
@@ -1202,6 +1203,7 @@ const en = {
     disclaimer: 'Mock replies cite stored figures only. Nothing is posted.',
     submit: 'Submit for approval',
     submitted: 'Submitted',
+    aiClosed: 'AI is off; the manual path remains available, and sending is disabled.',
   },
 }
 

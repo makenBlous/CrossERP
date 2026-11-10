@@ -1,3 +1,4 @@
+import { submitAgentSuggestion as submitBoundAgentSuggestion } from '@/api/agent-module'
 import { assertPermission, database, delay } from '@/api/mock-client'
 import type { CurrencyCode } from '@/types/domain'
 import type { ApprovalEntity } from '@/types/entities'
@@ -112,11 +113,7 @@ export interface SuggestionDraft {
   targetId: string
 }
 
-// 未来: POST /api/v1/approvals
+// 未来: POST /api/v1/approvals。必须复用发起者绑定，不能在 delay 返回后按当时会话落库。
 export async function submitAgentSuggestion(input: SuggestionDraft): Promise<ApprovalEntity> {
-  await delay()
-
-  const actor = assertPermission('agent_suggestion:create')
-
-  return database().suggest(input, actor)
+  return submitBoundAgentSuggestion(input)
 }

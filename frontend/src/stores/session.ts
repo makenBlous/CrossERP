@@ -67,6 +67,26 @@ function readRole(): Role {
   return 'admin'
 }
 
+function readBaseUrl() {
+  const baseUrl = import.meta.env?.BASE_URL
+
+  return typeof baseUrl === 'string' && baseUrl.length > 0 ? baseUrl : '/'
+}
+
+/** 登录页地址。跟随 Vite base，子路径部署时不能写死根路径。 */
+export function loginPageHref() {
+  const base = readBaseUrl()
+
+  return `${base.endsWith('/') ? base : `${base}/`}login`
+}
+
+function replaceWithLoginPage() {
+  if (typeof window === 'undefined')
+    return
+
+  window.location.replace(loginPageHref())
+}
+
 export const useSessionStore = defineStore('session', {
   state: () => ({
     isLoggedIn: readStorage(AUTH_KEY) === '1',
@@ -96,6 +116,7 @@ export const useSessionStore = defineStore('session', {
       this.loginName = ''
       removeStorage(AUTH_KEY)
       removeStorage(NAME_KEY)
+      replaceWithLoginPage()
     },
   },
 })
