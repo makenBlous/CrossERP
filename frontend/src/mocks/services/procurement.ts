@@ -155,6 +155,7 @@ export interface PurchaseDraft {
   expectedAt: string
   lines: PurchaseLineDraft[]
   submit: boolean
+  sourceSuggestionId?: string
 }
 
 export interface SupplierDraft {
@@ -211,6 +212,7 @@ export function createPurchaseOrder(db: MockDatabase, input: PurchaseDraft, acto
     expectedAt: expectedAtOf(input.expectedAt),
     createdBy: actor.name,
     createdAt: actor.at,
+    sourceSuggestionId: input.sourceSuggestionId,
   }
 
   db.purchaseOrders.push(po)

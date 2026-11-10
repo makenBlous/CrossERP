@@ -6,6 +6,8 @@ import PlaceholderPage from '@/components/PlaceholderPage.vue'
 import { pageCatalog } from '@/config/pages'
 import { setupGuards } from '@/plugins/1.router/guards'
 import KnowledgePage from '@/views/knowledge/KnowledgePage.vue'
+import ReplenishmentPlanDetailPage from '@/pages/inventory/replenishment/plans/[id].vue'
+import ReplenishmentPlansPage from '@/pages/inventory/replenishment/plans/index.vue'
 
 function recursiveLayouts(route: RouteRecordRaw): RouteRecordRaw {
   // setupLayouts 自己会递归处理 children；每个顶层路由只包一次，避免深链出现嵌套侧栏。
@@ -47,9 +49,26 @@ const router = createRouter({
       meta: { pageId: 'K08' },
     })
 
+    // replenishment.vue is the existing I13 page; register the H batch children
+    // explicitly so the generated file route does not render through that page
+    // without its own RouterView.
+    const replenishmentPlans = recursiveLayouts({
+      path: '/inventory/replenishment/plans',
+      name: 'inventory-replenishment-plans-manual',
+      component: ReplenishmentPlansPage,
+      meta: { pageId: 'I19' },
+    })
+
+    const replenishmentPlanDetail = recursiveLayouts({
+      path: '/inventory/replenishment/plans/:id',
+      name: 'inventory-replenishment-plans-id-manual',
+      component: ReplenishmentPlanDetailPage,
+      meta: { pageId: 'I20' },
+    })
+
     // /kb/index must precede generated /kb/:id routes; otherwise the dynamic
     // route renders the 404 placeholder before the K08 page can match.
-    return [rootRedirect, knowledgeIndex, ...mappedWithoutRoot, ...placeholderRoutes]
+    return [rootRedirect, knowledgeIndex, replenishmentPlans, replenishmentPlanDetail, ...mappedWithoutRoot, ...placeholderRoutes]
   },
 })
 

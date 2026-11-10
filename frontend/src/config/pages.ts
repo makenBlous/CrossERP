@@ -44,7 +44,7 @@ export interface PageDef {
   requiredPermissions?: string[]
   requiredAnyPermissions?: string[]
   module?: string
-  batch?: 'A' | 'B' | 'C' | 'D' | 'E'
+  batch?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'
   erpnextRef?: string
   odooRef?: string
 }
@@ -71,7 +71,7 @@ interface PageInput {
   requiredPermissions?: string[]
   requiredAnyPermissions?: string[]
   module?: string
-  batch?: 'A' | 'B' | 'C' | 'D' | 'E'
+  batch?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'
   erpnextRef?: string
   odooRef?: string
 }
@@ -2281,6 +2281,10 @@ export const pageCatalog: PageDef[] = [
   page({ id: 'HR13', path: '/hr/employees/:id/files', group: 'hr', roles: opViewFin, icon: 'tabler-folder-lock', phase: 'now', implemented: true, nameZh: '员工个人档案', nameEn: 'Employee Files', purposeZh: '合同、身份证复印件、证书和审计下载', purposeEn: 'Contracts, ID copies and certificates with audited downloads.', blocksZh: ['敏感文件', '下载审计'], blocksEn: ['Sensitive files', 'Download audit'], requiredPermissions: ['employee_record:read'], module: 'hr', batch: 'E', erpnextRef: 'Employee', odooRef: 'hr.employee' }),
   page({ id: 'ON01', path: '/onboarding', group: 'knowledge', roles: opViewFin, icon: 'tabler-school', phase: 'now', implemented: true, showInMenu: true, nameZh: '新人上手', nameEn: 'New Hire Onboarding', purposeZh: '按角色清单、带出处问答、一键开始页面引导', purposeEn: 'Role checklist, cited answers and guided page starts.', blocksZh: ['上手清单', '带出处问答'], blocksEn: ['Checklist', 'Cited answers'], requiredPermissions: ['document:read'], module: 'knowledge', batch: 'E', odooRef: 'website_slides（未核实）' }),
   page({ id: 'ON02', path: '/onboarding/admin', group: 'knowledge', roles: ['admin'], icon: 'tabler-school', phase: 'now', implemented: true, showInMenu: true, nameZh: '上手清单与引导配置', nameEn: 'Onboarding Checklist and Guide Settings', purposeZh: '按角色模板维护上手清单和页面引导', purposeEn: 'Maintain role checklists and page tours.', blocksZh: ['清单表', '页面引导'], blocksEn: ['Checklist table', 'Page tours'], requiredPermissions: ['document:write'], module: 'knowledge', batch: 'E', odooRef: 'website_slides（未核实）' }),
+
+  // ---- 补货计划批次 H ----
+  page({ id: 'I19', path: '/inventory/replenishment/plans', group: 'inventory', roles: ['admin', 'operator'], icon: 'tabler-versions', phase: 'now', implemented: true, showInMenu: true, nameZh: '补货计划版本', nameEn: 'Replenishment Plan Versions', purposeZh: '查看每次运行留下的补货计划版本、冻结行和差异。', purposeEn: 'Review replenishment plan versions, frozen lines and deltas.', blocksZh: ['版本列表', '运行版本', '冻结行统计'], blocksEn: ['Version list', 'Run version', 'Frozen-line summary'], requiredPermissions: ['material_request:read'], module: 'inventory', batch: 'H' }),
+  page({ id: 'I20', path: '/inventory/replenishment/plans/:id', group: 'inventory', roles: ['admin', 'operator'], icon: 'tabler-versions', phase: 'now', implemented: true, showInMenu: false, nameZh: '补货计划版本详情', nameEn: 'Replenishment Plan Details', purposeZh: '查看供给快照、取整上限、必断货提示，冻结后生成采购申请草稿。', purposeEn: 'Inspect supply snapshots, caps and stockout warnings before drafting requests.', blocksZh: ['计划行', '供给快照', '差异与必断货', '需求系数'], blocksEn: ['Plan lines', 'Supply snapshot', 'Deltas and stockout warnings', 'Demand factors'], requiredPermissions: ['material_request:read'], module: 'inventory', batch: 'H' }),
 
 ]
 
