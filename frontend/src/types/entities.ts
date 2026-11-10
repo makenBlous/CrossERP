@@ -509,6 +509,7 @@ export interface AuditEvent {
   id: string
   at: string
   actor: string
+  actorId?: string
   actorRole: Role
   action: string
   refType: string

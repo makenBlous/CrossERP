@@ -135,7 +135,11 @@ function hydrateGapDState() {
 hydrateGapDState()
 
 function addAudit(action: string, actor: Actor, detail: string, origin: 'human' | 'ai' | 'system' = 'human', agentSuggestionId?: string) {
-  gapDAudit.unshift({ id: `gapd-audit-${Date.now()}`, action, origin, agentSuggestionId, actor: actor.name, at: new Date().toISOString(), detail })
+  gapDAudit.unshift({ id: `gapd-audit-${Date.now()}`, action, origin, agentSuggestionId, actor: actor.name, actorId: actor.userId, at: new Date().toISOString(), detail })
+}
+
+export function gapDAuditActorLabel(event: GapDAuditEvent) {
+  return event.actorId ? `${event.actor}（${event.actorId}）` : `${event.actor}（旧记录未留 ID）`
 }
 
 export const gapDPermissionKeys = {
@@ -572,7 +576,7 @@ export function returnGapDAsset(assetId: string, actor: Actor, origin: GapDWrite
     throw new Error('资产不存在')
   if (asset.status !== '已领用')
     throw new Error('资产当前不是领用状态，重复归还被拒绝')
-  asset.status = '已归还'
+  asset.status = '可领用'
   asset.holderEmployeeId = undefined
   asset.updatedAt = new Date().toISOString()
   addAudit('资产归还', actor, asset.name, origin)

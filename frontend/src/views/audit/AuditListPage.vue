@@ -13,16 +13,23 @@ const loading = ref(true)
 async function load() {
   loading.value = true
   try {
-    if (props.mode === 'audit')
-      events.value = await fetchAuditEvents()
-    else security.value = await fetchSecurityEvents()
+    if (props.mode === 'audit') {
+      events.value = (await fetchAuditEvents()).map(event => ({
+        ...event,
+        actor: event.actorId ? event.actor : `${event.actor}（旧记录未留 ID）`,
+        actorId: event.actorId ?? '旧记录未留 ID',
+      }))
+    }
+    else {
+      security.value = await fetchSecurityEvents()
+    }
   }
   finally { loading.value = false }
 }
 onMounted(load)
 watch(() => props.mode, load)
 
-const eventColumns = computed(() => [{ key: 'at', title: t('auditModule.time') }, { key: 'actor', title: t('auditModule.actor') }, { key: 'action', title: t('auditModule.action') }, { key: 'refType', title: t('auditModule.entity') }, { key: 'refId', title: 'ID' }, { key: 'summary', title: t('auditModule.summary') }])
+const eventColumns = computed(() => [{ key: 'at', title: t('auditModule.time') }, { key: 'actor', title: t('auditModule.actor') }, { key: 'actorId', title: '操作者 ID' }, { key: 'action', title: t('auditModule.action') }, { key: 'refType', title: t('auditModule.entity') }, { key: 'refId', title: 'ID' }, { key: 'summary', title: t('auditModule.summary') }])
 const securityColumns = computed(() => [{ key: 'at', title: t('auditModule.time') }, { key: 'actor', title: t('auditModule.actor') }, { key: 'event', title: t('auditModule.security.event') }, { key: 'ip', title: t('auditModule.security.ip') }, { key: 'summary', title: t('auditModule.summary') }])
 </script>
 

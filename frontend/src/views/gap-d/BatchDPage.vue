@@ -317,8 +317,8 @@ async function returnSelectedAsset() {
     return
   try {
     await returnAsset(record.id)
-    drawerRecord.value = { ...record, status: '已归还', owner: undefined }
-    message.value = '资产已归还并写入审计。'
+    drawerRecord.value = { ...record, status: '可领用', owner: undefined }
+    message.value = '资产已归还并写入审计，现可再次领用。'
     await load()
   }
   catch (error) { message.value = error instanceof Error ? error.message : '资产归还失败' }

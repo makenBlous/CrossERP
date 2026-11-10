@@ -117,6 +117,7 @@ export interface GapDAuditEvent {
   origin: 'human' | 'ai' | 'system'
   agentSuggestionId?: string
   actor: string
+  actorId?: string
   at: string
   detail: string
 }

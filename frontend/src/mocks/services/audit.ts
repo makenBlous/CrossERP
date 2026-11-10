@@ -13,6 +13,7 @@ export function writeAudit(
     id: nextId(db, 'aud'),
     at: actor.at,
     actor: actor.name,
+    actorId: actor.userId,
     actorRole: actor.role,
     action,
     refType,

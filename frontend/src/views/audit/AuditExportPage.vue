@@ -8,7 +8,11 @@ const range = ref(['2026-11-01', '2026-11-09'])
 const exportFormat = ref<'json' | 'csv'>('json')
 
 onMounted(async () => {
-  events.value = await fetchAuditEvents()
+  events.value = (await fetchAuditEvents()).map(event => ({
+    ...event,
+    actor: event.actorId ? event.actor : `${event.actor}（旧记录未留 ID）`,
+    actorId: event.actorId ?? '旧记录未留 ID',
+  }))
 })
 function cancel() {
   return undefined
@@ -28,9 +32,9 @@ async function exportPack() {
 
   const manifest = { generatedAt: new Date().toISOString(), range: range.value, scope: 'business-audit', eventCount: events.value.length, hash: `demo-${events.value.length.toString(16).padStart(8, '0')}` }
   if (exportFormat.value === 'csv') {
-    const rows = events.value.map(event => [event.id, event.at, event.actor, event.action, event.refType, event.refId, event.summary].map(value => `"${String(value).replaceAll('"', '""')}"`).join(','))
+    const rows = events.value.map(event => [event.id, event.at, event.actor, event.actorId, event.action, event.refType, event.refId, event.summary].map(value => `"${String(value).replaceAll('"', '""')}"`).join(','))
 
-    download(['id,at,actor,action,refType,refId,summary', ...rows].join('\n'), 'crosserp-audit.csv', 'text/csv;charset=utf-8')
+    download(['id,at,actor,actorId,action,refType,refId,summary', ...rows].join('\n'), 'crosserp-audit.csv', 'text/csv;charset=utf-8')
   }
   else {
     download(JSON.stringify({ manifest, events: events.value }, null, 2), 'crosserp-audit.json', 'application/json')
