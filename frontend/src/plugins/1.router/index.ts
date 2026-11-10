@@ -8,13 +8,7 @@ import { setupGuards } from '@/plugins/1.router/guards'
 import KnowledgePage from '@/views/knowledge/KnowledgePage.vue'
 
 function recursiveLayouts(route: RouteRecordRaw): RouteRecordRaw {
-  if (route.children) {
-    for (let i = 0; i < route.children.length; i++)
-      route.children[i] = recursiveLayouts(route.children[i])
-
-    return route
-  }
-
+  // setupLayouts 自己会递归处理 children；每个顶层路由只包一次，避免深链出现嵌套侧栏。
   return setupLayouts([route])[0]
 }
 

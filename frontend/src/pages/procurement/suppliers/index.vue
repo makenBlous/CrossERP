@@ -167,16 +167,6 @@ async function onBatch(action: string, selected: SupplierRow[]) {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="create">
-        <VBtn
-          color="primary"
-          @click="startCreate"
-        >
-          {{ t('procurement.createSupplier') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="procurement-suppliers"
       :title="t('procurement.suppliersTitle')"
@@ -191,6 +181,16 @@ async function onBatch(action: string, selected: SupplierRow[]) {
       @open="openRow"
       @batch="onBatch"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            color="primary"
+            @click="startCreate"
+          >
+            {{ t('procurement.createSupplier') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.status="{ item }">
         <StatusChip
           domain="supplier"

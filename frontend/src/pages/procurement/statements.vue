@@ -97,16 +97,6 @@ async function submit(row: StatementRow) {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="create">
-        <VBtn
-          color="primary"
-          @click="startCreate"
-        >
-          {{ t('procurement.generate') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="procurement-statements"
       :title="t('procurement.statementsTitle')"
@@ -118,6 +108,16 @@ async function submit(row: StatementRow) {
       :error="error"
       @retry="load"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            color="primary"
+            @click="startCreate"
+          >
+            {{ t('procurement.generate') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.status="{ item }">
         <StatusChip
           domain="statement"

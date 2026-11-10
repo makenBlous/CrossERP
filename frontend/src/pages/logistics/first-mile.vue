@@ -151,16 +151,6 @@ function openRow(row: ShipmentRow) {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="create">
-        <VBtn
-          color="primary"
-          @click="startCreate"
-        >
-          {{ t('logistics.createPlan') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="logistics-first-mile"
       :title="t('logistics.firstMileTitle')"
@@ -174,6 +164,16 @@ function openRow(row: ShipmentRow) {
       @retry="load"
       @open="openRow"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            color="primary"
+            @click="startCreate"
+          >
+            {{ t('logistics.createPlan') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.status="{ item }">
         <StatusChip
           domain="shipment"

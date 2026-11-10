@@ -123,16 +123,6 @@ async function onBatch(action: string, selected: CarrierRow[]) {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="create">
-        <VBtn
-          color="primary"
-          @click="startCreate"
-        >
-          {{ t('logistics.createCarrier') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="logistics-carriers"
       :title="t('logistics.carriersTitle')"
@@ -146,6 +136,16 @@ async function onBatch(action: string, selected: CarrierRow[]) {
       @retry="load"
       @batch="onBatch"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            color="primary"
+            @click="startCreate"
+          >
+            {{ t('logistics.createCarrier') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.status="{ item }">
         <StatusChip
           domain="generic"

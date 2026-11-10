@@ -110,16 +110,6 @@ async function confirmRow(row: PurchaseReturnRow) {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="create">
-        <VBtn
-          color="primary"
-          @click="startCreate"
-        >
-          {{ t('procurement.createReturn') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="procurement-returns"
       :title="t('procurement.returnsTitle')"
@@ -132,6 +122,16 @@ async function confirmRow(row: PurchaseReturnRow) {
       @retry="load"
       @open="row => { selected = row; drawer = true }"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            color="primary"
+            @click="startCreate"
+          >
+            {{ t('procurement.createReturn') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.status="{ item }">
         <StatusChip
           domain="purchase_return"
@@ -157,7 +157,7 @@ async function confirmRow(row: PurchaseReturnRow) {
             v-if="item.status === 'draft'"
             size="small"
             variant="text"
-          data-test="confirm-purchase-return"
+            data-test="confirm-purchase-return"
             @click="confirmRow(item)"
           >
             {{ t('procurement.confirmReturn') }}

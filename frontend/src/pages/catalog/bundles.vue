@@ -127,16 +127,6 @@ async function onBatch(_action: string, selected: BundleRow[]) {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="create">
-        <VBtn
-          color="primary"
-          @click="startCreate"
-        >
-          {{ t('catalog.createBundle') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="catalog-bundles"
       :title="t('catalog.bundleTitle')"
@@ -150,6 +140,16 @@ async function onBatch(_action: string, selected: BundleRow[]) {
       @retry="load"
       @batch="onBatch"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            color="primary"
+            @click="startCreate"
+          >
+            {{ t('catalog.createBundle') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.actions="{ item }">
         <PermissionGate action="update">
           <VBtn
