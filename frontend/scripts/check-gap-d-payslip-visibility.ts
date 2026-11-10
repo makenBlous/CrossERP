@@ -20,6 +20,15 @@ assert.equal(canRoleOpen('hr_admin', payrollReviewPage), true, 'HR 管理员必�
 assert.equal(canRoleOpen('finance_manager', payrollReviewPage), true, '财务主管必须能打开工资复核页查看待审批批次')
 assert.equal(canRoleOpen('employee', payrollReviewPage), false, '普通员工不能打开工资复核页')
 
+const myPayslipsPage = findPageByPath('/hr/payslips')
+
+assert(myPayslipsPage)
+assert.equal(canRoleOpen('employee', myPayslipsPage), true, '普通员工必须能打开我的工资条（salary_slip:read_own）')
+assert.equal(canRoleOpen('department_manager', myPayslipsPage), true, '部门主管必须能打开我的工资条（salary_slip:read_own）')
+assert.equal(canRoleOpen('hr_admin', myPayslipsPage), true, 'HR 管理员必须能打开工资条页')
+assert.equal(canRoleOpen('external_viewer', myPayslipsPage), false, '外部只读不能打开工资条页')
+assert.equal(canRoleOpen('purchaser', myPayslipsPage), false, '无工资条权限的角色不能打开工资条页')
+
 let failures = 0
 
 function check(label: string, assertion: () => void) {
