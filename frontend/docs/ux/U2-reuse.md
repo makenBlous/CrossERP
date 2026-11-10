@@ -15,4 +15,6 @@
 - `src/components/tour/useOnboardingTour.ts`：集中管理 Shepherd 步骤、遮罩、跨页导航、角色可见菜单筛选和重新开始。
 - `src/components/tour/onboarding.scss`：只补充 CrossERP 品牌化的引导卡片视觉，保留 Shepherd 的定位和遮罩机制。
 - `src/pages/dashboard/index.vue`：在保留基线经营总览（周期/店铺筛选、KPI、趋势、原因分布、店铺表）的基础上增加个人工作台，内容包括按服务层范围返回的待办、审批、权限范围内摘要和常用入口；AI 关闭时仍显示人工操作入口。
-- `frontend/scripts/verify-u2.ts`：对本任务关键约束做静态守卫，并用 tsx 运行服务函数验证五类角色的本人/合法范围裁剪、其他用户负例和无 `report:read` 时 KPI 被拒绝；尤其检查聚合 API 不出现工资/工资条读取。
+- `frontend/scripts/verify-u2.ts`：对本任务关键约束做静态守卫，并用 tsx 运行服务函数验证五类角色的本人/合法范围裁剪、其他用户负例、合法店铺正例和无 `report:read` 时 KPI 被拒绝；尤其检查聚合 API 不出现工资/工资条读取。
+- `frontend/scripts/verify-home-access.ts`：覆盖 21 个角色的 D01 路由放行、首页菜单可见、首页各只读接口范围、员工工资隔离、经营指标权限和新人引导不自动弹出。
+- `src/mocks/services/gap-c.ts`：店铺绑定改为 seed 中的 `amz-us`、`amz-de`、`shopify` 等真实 ID；每个绑定仍保持原有角色的店铺数量和范围语义。

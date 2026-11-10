@@ -127,6 +127,9 @@ for (const role of roles) {
     assert.equal(dashboard.stores.every(store => allowedStoreIds.has(store.storeId)), true, `${role} KPI 不得越过允许店铺范围`)
     if (!allowedStoreIds.size)
       assert.equal(dashboard.stores.length, 0, `${role} 没有允许店铺时 KPI 必须为空`)
+
+    if (allowedStoreIds.size)
+      assert.ok(dashboard.stores.some(store => allowedStoreIds.has(store.storeId)), `${role} 有合法店铺时至少应返回一个对应店铺`)
   }
 }
 

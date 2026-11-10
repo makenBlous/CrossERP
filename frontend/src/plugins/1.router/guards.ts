@@ -38,6 +38,9 @@ export function setupGuards(router: Router) {
     }
 
     const override = useMockDbStore().db.roleOverrides?.find(item => item.role === session.role)
+    if (page?.authenticated)
+      return
+
     if (page && (override?.hiddenGroups.includes(page.group ?? '') || override?.hiddenPageIds.includes(page.id)))
       return '/not-authorized'
     if (page && !canRoleOpen(session.role, page))

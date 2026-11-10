@@ -13,7 +13,7 @@ import { formatInteger, formatMoney, formatPercent } from '@/utils/format'
 
 const session = useSessionStore()
 const aiMode = useAiModeStore()
-const { isRunning, restart, start } = useOnboardingTour()
+const { isRunning, restart } = useOnboardingTour()
 const chart = useChartTheme()
 
 const loading = ref(true)
@@ -146,7 +146,6 @@ async function loadReport() {
 
 onMounted(async () => {
   await load()
-  window.setTimeout(() => start(), 500)
 })
 
 watch([reportStoreId, reportPeriod], () => {

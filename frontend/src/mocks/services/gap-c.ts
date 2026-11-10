@@ -137,13 +137,16 @@ const demoDepartments: Record<string, string> = {
 
 // 模拟店铺绑定：真实系统应从用户与店铺关联表读取，mock 不代表生产配置。
 const demoShopBindings: Record<string, string[]> = {
-  'demo-admin': ['shop-cn-01', 'shop-us-01', 'shop-eu-01'],
-  'demo-finance': ['shop-cn-01', 'shop-us-01', 'shop-eu-01'],
-  'demo-auditor': ['shop-cn-01', 'shop-us-01', 'shop-eu-01'],
-  'demo-viewer': ['shop-cn-01'],
-  'demo-operator': ['shop-cn-01'],
-  'demo-external-viewer': ['shop-eu-01'],
-  'demo-store_operator': ['shop-cn-01'],
+  'demo-admin': ['amz-us', 'shopify', 'amz-de'],
+  'demo-finance': ['amz-us', 'shopify', 'amz-de'],
+  'demo-auditor': ['amz-us', 'shopify', 'amz-de'],
+  'demo-viewer': ['amz-us'],
+  'demo-operator': ['amz-us'],
+  'demo-external-viewer': ['amz-de'],
+  'demo-store-operator': ['amz-us'],
+  'demo-operations-manager': ['amz-us'],
+  'demo-advertising': ['amz-us'],
+  'demo-customer-service': ['shopify'],
 }
 
 export function dataScopesFor(subject: PermissionSubject, permissionKey: string): DataScopeRuleType[] {

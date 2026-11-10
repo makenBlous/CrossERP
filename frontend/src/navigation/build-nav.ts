@@ -8,11 +8,11 @@ export function buildNav(role: Role): VerticalNavItems {
   const override = db.db.roleOverrides?.find(item => item.role === role)
 
   return menuGroups.flatMap(group => {
-    if (override?.hiddenGroups.includes(group.id))
+    if (override?.hiddenGroups.includes(group.id) && group.id !== 'workbench')
       return []
 
     const children = pageCatalog
-      .filter(item => item.showInMenu && item.group === group.id && canRoleOpen(role, item) && !override?.hiddenPageIds.includes(item.id))
+      .filter(item => item.showInMenu && item.group === group.id && canRoleOpen(role, item) && (item.id === 'D01' || !override?.hiddenPageIds.includes(item.id)))
       .map(item => ({
         title: `page.${item.id}.name`,
 
