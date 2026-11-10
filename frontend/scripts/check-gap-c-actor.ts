@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert'
+import { readFileSync } from 'node:fs'
 import { createPinia, setActivePinia } from 'pinia'
 import { useMockDbStore } from '@/stores/mockdb'
 import { useSessionStore } from '@/stores/session'
@@ -7,6 +8,15 @@ import { verifyChain } from '@/mocks/services/audit-module'
 import { effectivePermission, roleSubject } from '@/utils/permission-engine'
 
 setActivePinia(createPinia())
+
+const notificationsPage = readFileSync('src/pages/notifications.vue', 'utf8')
+const auditListPage = readFileSync('src/views/audit/AuditListPage.vue', 'utf8')
+const gapCPage = readFileSync('src/views/gap-c/GapCPage.vue', 'utf8')
+
+assert.match(notificationsPage, /<RouterView\s*\/>/, '通知父路由必须渲染子路由出口')
+assert.doesNotMatch(notificationsPage, /fetchInboxNotifications/, '通知父路由不得吞掉 N01/N02')
+assert.match(auditListPage, /AuditActorId/, '审计列表必须复用推断操作者组件')
+assert.match(gapCPage, /AuditActorId/, 'Gap C 必须复用推断操作者组件')
 
 const session = useSessionStore()
 const database = useMockDbStore()

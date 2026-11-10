@@ -1,10 +1,13 @@
 /* eslint-disable max-statements-per-line, no-mixed-operators, sonarjs/no-same-line-conditional */
 import type { Actor, MockDatabase } from '@/types/entities'
 import type { EmployeeFile, InboxNotification, KbAccessLog, KbAttachment, KbDocument, KbExpiryItem, KbFolder, KbQaItem, KbReviewItem, KbSearchResult, KbSpace, KbSpaceMember, OnboardingAnswer, OnboardingChecklistItem } from '@/types/gap-e'
+import { scopeAllows } from '@/mocks/services/gap-c'
 import { nextId } from '@/mocks/services/ids'
 import { writeAudit } from '@/mocks/services/audit'
+import { listScopedEmployees } from '@/mocks/services/scoped-reads'
 import type { AppAction } from '@/utils/permission'
 import { can } from '@/utils/permission'
+import { roleSubject } from '@/utils/permission-engine'
 
 interface GapCollections {
   kbSpaces: KbSpace[]
@@ -196,10 +199,19 @@ export function listAccessLogs(db: MockDatabase, actor: Actor) {
 
   return collections(db).kbAccessLogs
 }
+
+function employeeFileInScope(employeeId: string, actor: Actor) {
+  const subject = roleSubject(actor.role, actor.userId)
+  const scopedEmployees = listScopedEmployees(subject)
+
+  return scopedEmployees.some(employee => employee.ownerId === employeeId)
+    || scopeAllows(subject, 'employee_record:read', employeeId)
+    || scopeAllows(subject, 'employee_record:read_own', employeeId)
+}
+
 export function listEmployeeFiles(db: MockDatabase, employeeId: string, actor: Actor) {
-  if (!(actor.role === 'admin' || actor.role === 'hr_admin' || actor.role === 'operator' && actor.userId === employeeId || actor.role === 'employee' && actor.userId === employeeId))
-    throw new Error('当前身份无权查看员工档案'); if (actor.role === 'operator' && employeeId !== 'demo-operator')
-    throw new Error('只能查看本人档案')
+  if (!employeeFileInScope(employeeId, actor))
+    throw new Error('当前身份无权查看员工档案')
 
   return collections(db).employeeFiles.filter(file => file.employeeId === employeeId)
 }

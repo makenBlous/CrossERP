@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { fetchAuditEvents } from '@/api/audit-module'
 import { fetchSecurityEvents } from '@/api/agent-module'
+import AuditActorId from '@/components/biz/AuditActorId.vue'
 import ListPage from '@/components/biz/ListPage.vue'
 import type { AuditEvent } from '@/types/entities'
 import type { SecurityEvent } from '@/types/agent-module'
@@ -45,12 +46,10 @@ const securityColumns = computed(() => [{ key: 'at', title: t('auditModule.time'
       </VChip>
     </template>
     <template #item.actorId="{ item }">
-      {{ item.actorId }}<VChip
-        v-if="item.actorIdInferred"
-        size="x-small"
-        color="warning"
-        class="ms-1"
-      >推断</VChip>
+      <AuditActorId
+        :actor-id="item.actorId"
+        :inferred="item.actorIdInferred"
+      />
     </template>
   </ListPage>
   <ListPage

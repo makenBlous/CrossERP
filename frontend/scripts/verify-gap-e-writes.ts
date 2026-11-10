@@ -6,12 +6,20 @@ const { createPinia, setActivePinia } = await import('pinia')
 setActivePinia(createPinia())
 const e: any = await import('@/api/gap-e')
 const { currentActor, database } = await import('@/api/mock-client')
+const gapEService = await import('@/mocks/services/gap-e')
 const { useSessionStore } = await import('@/stores/session')
 let fail = 0
 const ok = (c: boolean, m: string) => { if (!c) fail++; console.log(`${c ? 'PASS' : 'FAIL'} ${m}`) }
 const as = (role: string) => { sessionStorage.setItem('crosserp-auth', '1'); sessionStorage.setItem('crosserp-role', role); const s: any = useSessionStore(); if (typeof s.setRole === 'function') s.setRole(role); else if (typeof s.switchRole === 'function') s.switchRole(role); else s.role = role; if (s.role !== role) throw new Error(`切换角色失败 ${s.role}`) }
 const rej = async (f: () => Promise<any>) => { try { const r = await f(); return { ok: r === null || r === undefined, r: JSON.stringify(r)?.slice(0, 50) } } catch (x: any) { return { ok: true, r: String(x?.message ?? x).slice(0, 50) } } }
 const file = () => new File(['mock'], 'a.pdf', { type: 'application/pdf' })
+
+const employeeFileDb: any = database().db
+gapEService.listEmployeeFiles(employeeFileDb, 'demo-operator', { userId: 'demo-admin', name: '演示管理员', role: 'admin', at: new Date().toISOString() })
+employeeFileDb.employeeFiles.unshift({ id: 'verify-custom-operator-file', employeeId: 'operator-alice', name: '本人档案.pdf', kind: 'contract', expiresOn: null, sensitive: true, uploadedAt: new Date().toISOString(), size: '1 KB' })
+ok(gapEService.listEmployeeFiles(employeeFileDb, 'operator-alice', { userId: 'operator-alice', name: '运营 Alice', role: 'operator', at: new Date().toISOString() }).some((item: any) => item.id === 'verify-custom-operator-file'), '非演示运营用户可查看本人档案')
+ok((() => { try { gapEService.listEmployeeFiles(employeeFileDb, 'demo-operator', { userId: 'operator-alice', name: '运营 Alice', role: 'operator', at: new Date().toISOString() }); return false } catch { return true } })(), '运营用户不能查看他人档案')
+ok((() => { try { gapEService.listEmployeeFiles(employeeFileDb, 'demo-operator', { userId: 'external-alice', name: '外部 Alice', role: 'external_viewer', at: new Date().toISOString() }); return false } catch { return true } })(), '无员工范围的身份不能查看档案')
 // 1 viewer 写接口全部拒绝
 as('viewer')
 for (const [n, f] of [
