@@ -250,6 +250,7 @@ export function financeCreatorId(submitter: string | undefined) {
 export async function fetchVoucherApprovalIds(voucherId: string, source: 'gap-a' | 'finance' = 'finance') {
   await delay()
   assertPermission('approval:read')
+
   const targetType = source === 'gap-a' ? GAP_A_VOUCHER_TARGET : 'voucher'
 
   return database().db.approvals
@@ -260,6 +261,7 @@ export async function fetchVoucherApprovalIds(voucherId: string, source: 'gap-a'
 export async function fetchPendingVoucherApprovalId(voucherId: string, source: 'gap-a' | 'finance' = 'finance') {
   await delay()
   assertPermission('approval:read')
+
   const targetType = source === 'gap-a' ? GAP_A_VOUCHER_TARGET : 'voucher'
 
   return database().db.approvals.filter(item => item.targetType === targetType && item.targetId === voucherId && item.status === 'pending').at(-1)?.id ?? ''
@@ -281,6 +283,7 @@ export async function submitBoundGapAVoucher(id: string) {
   const debitAccount = current.debitAccount || '主营业务成本'
   const creditAccount = current.creditAccount || '平台结算清算'
   const db = database().db
+
   const approval = submitSuggestion(db, {
     title: current.summary,
     summary: '借贷合计已按这张凭证校验，批准后只回写该凭证。',
