@@ -47,6 +47,7 @@ import ListPage, { type ListColumn } from '@/components/biz/ListPage.vue'
 import MoneyText from '@/components/biz/MoneyText.vue'
 import PermissionGate from '@/components/biz/PermissionGate.vue'
 import RecordDrawer from '@/components/biz/RecordDrawer.vue'
+import ScopedDataPreview from '@/components/biz/ScopedDataPreview.vue'
 import StatusChip from '@/components/biz/StatusChip.vue'
 import KpiCard from '@/components/KpiCard.vue'
 import { findPageById } from '@/config/pages'
@@ -979,128 +980,18 @@ onMounted(load)
             </tr>
           </tbody>
         </VTable>
-        <VCard
+        <ScopedDataPreview
           class="mt-6"
-          variant="outlined"
-        >
-          <VCardItem>
-            <VCardTitle>当前身份可见数据预览</VCardTitle>
-            <VCardSubtitle>以下数据由当前会话身份调用 scoped read API 返回，切换顶栏角色后自动刷新。</VCardSubtitle>
-          </VCardItem>
-          <VCardText>
-            <VAlert
-              v-if="scopedError"
-              type="error"
-              variant="tonal"
-              class="mb-4"
-            >
-              {{ scopedError }}
-            </VAlert>
-            <VProgressLinear
-              v-if="scopedLoading"
-              indeterminate
-              class="mb-4"
-            />
-            <div class="d-flex flex-wrap align-center gap-3 mb-4">
-              <VChip
-                color="primary"
-                variant="tonal"
-              >
-                主体：{{ session.displayName }}（{{ session.userId }}）
-              </VChip>
-              <StatusChip
-                domain="generic"
-                value="active"
-              />
-              <span v-if="scopedContext">数据范围：订单 {{ scopedContext.dataScopes.orders.join('、') || '无' }}；报销 {{ scopedContext.dataScopes.expenses.join('、') || '无' }}；员工档案 {{ scopedContext.dataScopes.employees.join('、') || '无' }}</span>
-              <span v-else>数据范围：加载中</span>
-              <span>绑定店铺：{{ scopedContext?.shopsForSubject.join('、') || '无' }}</span>
-            </div>
-            <VRow>
-              <VCol
-                cols="12"
-                md="4"
-              >
-                <VCard variant="tonal">
-                  <VCardItem>
-                    <VCardTitle>订单</VCardTitle>
-                    <VCardSubtitle>{{ scopedOrders.length }} 条</VCardSubtitle>
-                  </VCardItem>
-                  <VTable
-                    data-testid="scope-preview-orders"
-                    density="compact"
-                  >
-                    <thead><tr><th>id</th><th>orderNo</th><th>shopId</th><th>ownerId</th><th>department</th></tr></thead>
-                    <tbody>
-                      <tr
-                        v-for="item in scopedOrders"
-                        :key="item.id"
-                        :data-shop="item.shopId"
-                        :data-owner="item.ownerId"
-                      >
-                        <td>{{ item.id }}</td><td>{{ item.orderNo }}</td><td>{{ item.shopId }}</td><td>{{ item.ownerId }}</td><td>{{ item.department }}</td>
-                      </tr>
-                    </tbody>
-                  </VTable>
-                </VCard>
-              </VCol>
-              <VCol
-                cols="12"
-                md="4"
-              >
-                <VCard variant="tonal">
-                  <VCardItem>
-                    <VCardTitle>报销</VCardTitle>
-                    <VCardSubtitle>{{ scopedExpenses.length }} 条</VCardSubtitle>
-                  </VCardItem>
-                  <VTable
-                    data-testid="scope-preview-expenses"
-                    density="compact"
-                  >
-                    <thead><tr><th>id</th><th>title</th><th>shopId</th><th>ownerId</th><th>department</th></tr></thead>
-                    <tbody>
-                      <tr
-                        v-for="item in scopedExpenses"
-                        :key="item.id"
-                        :data-shop="item.shopId"
-                        :data-owner="item.ownerId"
-                      >
-                        <td>{{ item.id }}</td><td>{{ item.title }}</td><td>{{ item.shopId }}</td><td>{{ item.ownerId }}</td><td>{{ item.department }}</td>
-                      </tr>
-                    </tbody>
-                  </VTable>
-                </VCard>
-              </VCol>
-              <VCol
-                cols="12"
-                md="4"
-              >
-                <VCard variant="tonal">
-                  <VCardItem>
-                    <VCardTitle>员工档案</VCardTitle>
-                    <VCardSubtitle>{{ scopedEmployees.length }} 条</VCardSubtitle>
-                  </VCardItem>
-                  <VTable
-                    data-testid="scope-preview-employees"
-                    density="compact"
-                  >
-                    <thead><tr><th>id</th><th>name</th><th>shopId</th><th>ownerId</th><th>department</th></tr></thead>
-                    <tbody>
-                      <tr
-                        v-for="item in scopedEmployees"
-                        :key="item.id"
-                        :data-shop="item.shopId"
-                        :data-owner="item.ownerId"
-                      >
-                        <td>{{ item.id }}</td><td>{{ item.name }}</td><td>{{ item.shopId }}</td><td>{{ item.ownerId }}</td><td>{{ item.department }}</td>
-                      </tr>
-                    </tbody>
-                  </VTable>
-                </VCard>
-              </VCol>
-            </VRow>
-          </VCardText>
-        </VCard>
+          :orders="scopedOrders"
+          :expenses="scopedExpenses"
+          :employees="scopedEmployees"
+          :context="scopedContext"
+          :subject-name="session.displayName"
+          :subject-id="session.userId"
+          :loading="scopedLoading"
+          :error="scopedError"
+          subtitle="以下数据由当前会话身份调用 scoped read API 返回，切换顶栏角色后自动刷新。"
+        />
       </template>
     </DetailPage>
 

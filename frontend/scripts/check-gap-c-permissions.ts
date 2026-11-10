@@ -35,9 +35,9 @@ const templates: Role[] = [
 
 const basePages = JSON.parse(readFileSync('C:/Users/cimi/AppData/Local/Temp/cx-pw/b0_base_pages.json', 'utf8')) as Array<{ path: string; roles: Role[] }>
 
-assert.equal(pageCatalog.length, 226)
+assert.equal(pageCatalog.length, 227)
 assert.equal(pageCatalog.filter(page => page.batch === undefined).length, 128)
-assert.equal(pageCatalog.filter(page => page.batch !== undefined).length, 98)
+assert.equal(pageCatalog.filter(page => page.batch !== undefined).length, 99)
 assert.deepEqual(
   pageCatalog.filter(page => !page.public).filter(page => !page.requiredPermissions?.length),
   [],

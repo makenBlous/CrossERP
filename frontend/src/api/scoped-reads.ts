@@ -4,6 +4,16 @@ import { listScopedEmployees, listScopedExpenses, listScopedOrders } from '@/moc
 import { effectivePermission, roleSubject } from '@/utils/permission-engine'
 import { useSessionStore } from '@/stores/session'
 
+export interface ScopedContext {
+  userId: string
+  dataScopes: {
+    orders: string[]
+    expenses: string[]
+    employees: string[]
+  }
+  shopsForSubject: string[]
+}
+
 function subject() {
   const session = useSessionStore()
 
@@ -36,7 +46,7 @@ export async function fetchScopedEmployees() {
   return listScopedEmployees(current)
 }
 
-export async function fetchScopedContext() {
+export async function fetchScopedContext(): Promise<ScopedContext> {
   await delay()
 
   const current = subject()
