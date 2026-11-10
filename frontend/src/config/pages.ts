@@ -2311,6 +2311,10 @@ export function canRoleOpen(role: Role, item: PageDef) {
   if (item.path === '/not-authorized' || item.path === '/me/data-scope')
     return true
 
+  // 采购上手清单和新建采购单不授予 document:read，只放行这两页。
+  if (role === 'purchaser' && (item.path === '/onboarding' || item.path === '/procurement/orders/new'))
+    return true
+
   if ((item.path === '/admin/roles' || item.path === '/admin/permission-matrix') && !['admin', 'operator', 'finance', 'viewer', 'auditor'].includes(role))
     return role === 'owner_manager' || role === 'auditor_template'
 

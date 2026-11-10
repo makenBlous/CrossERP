@@ -1,7 +1,10 @@
 import { assertPermission, database, delay, readMock } from '@/api/mock-client'
 import { accountsPayablePermissionKey } from '@/config/permissions'
 import { projectIssues, projectProfit, projectProfitSku, projectRecon, projectVouchers } from '@/mocks/project'
+import { submitSuggestion } from '@/mocks/services/approvals'
 import { accounts, addFxRate, apAging, apRows, arAging, arRows, cashRows, clearingRows, columnMapDetail, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, recordImport, saveColumnMap, settlementDetail, settlements, sourceRow, submitClearing, submitVoucher, voucherDetail } from '@/mocks/services/finance'
+import type { CurrencyCode } from '@/types/domain'
+import { minorToDecimal } from '@/utils/money'
 
 // 未来: GET /api/v1/finance/profit
 export async function fetchProfit() {
@@ -237,4 +240,35 @@ export async function submitVoucherApproval(id: string) {
   database().persist()
 
   return row
+}
+
+export async function fetchVoucherApprovalIds(voucherId: string) {
+  await delay()
+  assertPermission('approval:read')
+
+  return database().db.approvals
+    .filter(item => item.targetType === 'voucher' && item.targetId === voucherId)
+    .map(item => item.id)
+}
+
+/** 利润等 gap-a 草稿提交后，复用已有审批建议入口，不另写一套审批。 */
+export async function attachVoucherApproval(voucherId: string, summary: string, amountMinor: number, currency: string) {
+  const actor = assertPermission('agent_suggestion:create')
+  const pending = database().db.approvals.filter(item => item.targetType === 'voucher' && item.targetId === voucherId && item.status === 'pending')
+  if (pending.length)
+    return pending.at(-1) ?? null
+
+  const approval = submitSuggestion(database().db, {
+    title: summary,
+    summary: '借贷合计由服务层校验，审批通过后才生成导出文件。',
+    amount: minorToDecimal(amountMinor),
+    currency: currency as CurrencyCode,
+    storeId: null,
+    targetType: 'voucher',
+    targetId: voucherId,
+  }, actor)
+
+  database().persist()
+
+  return approval
 }

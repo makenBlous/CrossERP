@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /* eslint-disable max-statements-per-line */
 import { decideGapAVoucher, fetchGapAVoucher, submitGapAVoucher } from '@/api/gap-a'
+import { attachVoucherApproval, fetchVoucherApprovalIds, fetchVoucherDetail, submitVoucherApproval } from '@/api/finance'
 import DetailPage from '@/components/biz/DetailPage.vue'
 import EmptyState from '@/components/biz/EmptyState.vue'
 import MoneyText from '@/components/biz/MoneyText.vue'
@@ -10,16 +11,83 @@ import type { GapAVoucher } from '@/types/gap-a'
 const route = useRoute()
 const session = useSessionStore()
 const row = ref<GapAVoucher | null>(null)
+const source = ref<'gap-a' | 'finance'>('gap-a')
+const approvalIds = ref<string[]>([])
 const message = ref('')
 const submitting = ref(false)
-const canSubmit = computed(() => Boolean(row.value && row.value.status === 'draft' && ['admin', 'operator', 'finance', 'accountant', 'finance_manager'].includes(session.role)))
-const canApprove = computed(() => Boolean(row.value && row.value.status === 'pending' && ['admin', 'finance', 'accountant', 'finance_manager'].includes(session.role) && session.userId !== row.value.createdById))
+const submitRoles = ['admin', 'operator', 'finance', 'accountant', 'finance_manager']
 
-async function load() { row.value = await fetchGapAVoucher(String((route.params as Record<string, string | undefined>).id ?? '')) as GapAVoucher | null }
+const canSubmit = computed(() => {
+  if (!row.value || !submitRoles.includes(session.role))
+    return false
+  if (source.value === 'finance')
+    return row.value.status === 'draft' || row.value.status === 'rejected'
+
+  return row.value.status === 'draft'
+})
+
+const canApprove = computed(() => Boolean(row.value && source.value === 'gap-a' && row.value.status === 'pending' && ['admin', 'finance', 'accountant', 'finance_manager'].includes(session.role) && session.userId !== row.value.createdById))
+
+function voucherId() {
+  return String((route.params as Record<string, string | undefined>).id ?? '')
+}
+
+async function load() {
+  const id = voucherId()
+  const gap = await fetchGapAVoucher(id) as GapAVoucher | null
+  if (gap) {
+    row.value = gap
+    source.value = 'gap-a'
+    approvalIds.value = await fetchVoucherApprovalIds(id).catch(() => [])
+
+    return
+  }
+
+  const finance = await fetchVoucherDetail(id)
+  if (!finance) {
+    row.value = null
+    approvalIds.value = []
+
+    return
+  }
+
+  source.value = 'finance'
+  approvalIds.value = finance.approvalIds ?? []
+  row.value = {
+    id: finance.id,
+    no: finance.no,
+    period: finance.period,
+    summary: finance.summary,
+    status: finance.status,
+    debit: finance.debit,
+    credit: finance.credit,
+    currency: finance.currency,
+    debitAccount: '主营业务成本',
+    creditAccount: '平台结算清算',
+    sourceLinks: [],
+    createdById: '',
+    timeline: (finance.timeline ?? []).map((event, index) => ({ id: `${finance.id}-${index}`, at: event.at, action: event.title, detail: event.detail, actor: event.actor ?? '', origin: 'human' as const })),
+  }
+}
+
 onMounted(load)
 async function submit() {
   if (!row.value || !canSubmit.value)
-    return; submitting.value = true; try { await submitGapAVoucher(row.value.id); message.value = '已提交审批，批准前不会写入总账。'; await load() }
+    return
+  submitting.value = true
+  try {
+    if (source.value === 'finance') {
+      const approval = await submitVoucherApproval(row.value.id)
+      if (!approval)
+        throw new Error('凭证未能提交审批')
+    }
+    else {
+      await submitGapAVoucher(row.value.id)
+      await attachVoucherApproval(row.value.id, row.value.summary, row.value.debit, row.value.currency)
+    }
+    message.value = '已提交审批，批准前不会写入总账。'
+    await load()
+  }
   catch (error) { message.value = error instanceof Error ? error.message : '提交失败' }
   finally { submitting.value = false }
 }
@@ -63,6 +131,14 @@ async function decide(approved: boolean) {
         @click="decide(false)"
       >
         驳回
+      </VBtn>
+      <VBtn
+        v-for="approvalId in approvalIds"
+        :key="approvalId"
+        variant="tonal"
+        :to="`/approvals/${approvalId}`"
+      >
+        查看审批
       </VBtn>
       <VBtn
         v-if="row.status === 'approved'"

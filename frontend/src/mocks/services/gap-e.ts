@@ -6,7 +6,7 @@ import { nextId } from '@/mocks/services/ids'
 import { writeAudit } from '@/mocks/services/audit'
 import type { AppAction } from '@/utils/permission'
 import { can } from '@/utils/permission'
-import { roleSubject } from '@/utils/permission-engine'
+import { effectivePermission, roleSubject } from '@/utils/permission-engine'
 
 interface GapCollections {
   kbSpaces: KbSpace[]
@@ -376,6 +376,8 @@ export function saveOnboardingItem(db: MockDatabase, item: OnboardingChecklistIt
   return item
 }
 export function askKnowledge(db: MockDatabase, query: string, actor: Actor): OnboardingAnswer {
+  if (!effectivePermission(roleSubject(actor.role, actor.userId), 'document:read').allowed)
+    return { answer: '当前权限范围内没有找到可引用的制度文档。', citations: [] }
   const hits = search(db, query, actor); const hit = hits[0]; if (!hit)
     return { answer: '当前权限范围内没有找到可引用的制度文档。', citations: [] }; if (query.includes('报销'))
     return { answer: '报销需要发票、付款凭证和审批单，并填写发生日期、用途和归属部门。', citations: [{ label: `${hit.title} v${hit.version} · 段落 1`, href: `/kb/docs/${hit.docId}`, docId: hit.docId, version: hit.version }] }
