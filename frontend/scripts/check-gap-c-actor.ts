@@ -15,6 +15,11 @@ const gapCPage = readFileSync('src/views/gap-c/GapCPage.vue', 'utf8')
 
 assert.match(notificationsPage, /<RouterView\s*\/>/, '通知父路由必须渲染子路由出口')
 assert.doesNotMatch(notificationsPage, /fetchInboxNotifications/, '通知父路由不得吞掉 N01/N02')
+
+const inboxPage = readFileSync('src/pages/notifications/inbox.vue', 'utf8')
+
+assert.match(inboxPage, /fetchInboxNotifications/, '收件箱子路由必须调用 fetchInboxNotifications')
+assert.match(readFileSync('src/config/pages.ts', 'utf8'), /id: 'N03', path: '\/notifications\/inbox'/, '收件箱必须登记为独立路由')
 assert.match(auditListPage, /AuditActorId/, '审计列表必须复用推断操作者组件')
 assert.match(gapCPage, /AuditActorId/, 'Gap C 必须复用推断操作者组件')
 

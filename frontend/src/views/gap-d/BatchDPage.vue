@@ -14,6 +14,7 @@ import RecordDrawer from '@/components/biz/RecordDrawer.vue'
 import StatusChip from '@/components/biz/StatusChip.vue'
 import { useAiModeStore } from '@/stores/ai-mode'
 import { effectivePermission, roleSubject } from '@/utils/permission-engine'
+import { minorFromCents } from '@/utils/money'
 import type { AgentAutonomyLevel } from '@/types/foundation'
 import type { GapDPageId, GapDPayrollRule, GapDPayslip, GapDRecord } from '@/types/gap-d'
 
@@ -678,42 +679,42 @@ onMounted(load)
         >
           <template #item.grossCents="{ item }">
             <MoneyText
-              :amount="item.grossCents"
+              :amount="minorFromCents(item.grossCents)"
               minor
               currency="CNY"
             />
           </template>
           <template #item.socialPersonalCents="{ item }">
             <MoneyText
-              :amount="item.socialPersonalCents"
+              :amount="minorFromCents(item.socialPersonalCents)"
               minor
               currency="CNY"
             />
           </template>
           <template #item.housingFundPersonalCents="{ item }">
             <MoneyText
-              :amount="item.housingFundPersonalCents"
+              :amount="minorFromCents(item.housingFundPersonalCents)"
               minor
               currency="CNY"
             />
           </template>
           <template #item.taxableCumulativeCents="{ item }">
             <MoneyText
-              :amount="item.taxableCumulativeCents"
+              :amount="minorFromCents(item.taxableCumulativeCents)"
               minor
               currency="CNY"
             />
           </template>
           <template #item.taxCents="{ item }">
             <MoneyText
-              :amount="item.taxCents"
+              :amount="minorFromCents(item.taxCents)"
               minor
               currency="CNY"
             />
           </template>
           <template #item.netCents="{ item }">
             <MoneyText
-              :amount="item.netCents"
+              :amount="minorFromCents(item.netCents)"
               minor
               currency="CNY"
             />
@@ -1156,7 +1157,8 @@ onMounted(load)
         </template>
         <template #item.salaryCents="{ item }">
           <span v-if="item.salaryCents != null"><MoneyText
-            :amount="Number(item.salaryCents) / 100"
+            :amount="minorFromCents(Number(item.salaryCents))"
+            minor
             currency="CNY"
           /></span><span
             v-else
@@ -1299,35 +1301,35 @@ onMounted(load)
           <VCardText class="d-flex flex-column gap-2">
             <div class="d-flex justify-space-between">
               <span>应发</span><MoneyText
-                :amount="selectedPayslip.grossCents"
+                :amount="minorFromCents(selectedPayslip.grossCents)"
                 minor
                 currency="CNY"
               />
             </div>
             <div class="d-flex justify-space-between">
               <span>社保/公积金个人</span><MoneyText
-                :amount="selectedPayslip.socialPersonalCents + selectedPayslip.housingFundPersonalCents"
+                :amount="minorFromCents(selectedPayslip.socialPersonalCents + selectedPayslip.housingFundPersonalCents)"
                 minor
                 currency="CNY"
               />
             </div>
             <div class="d-flex justify-space-between">
               <span>累计应纳税所得额</span><MoneyText
-                :amount="selectedPayslip.taxableCumulativeCents"
+                :amount="minorFromCents(selectedPayslip.taxableCumulativeCents)"
                 minor
                 currency="CNY"
               />
             </div>
             <div class="d-flex justify-space-between">
               <span>本月个税</span><MoneyText
-                :amount="selectedPayslip.taxCents"
+                :amount="minorFromCents(selectedPayslip.taxCents)"
                 minor
                 currency="CNY"
               />
             </div>
             <div class="d-flex justify-space-between font-weight-medium">
               <span>实发</span><MoneyText
-                :amount="selectedPayslip.netCents"
+                :amount="minorFromCents(selectedPayslip.netCents)"
                 minor
                 currency="CNY"
               />

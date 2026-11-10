@@ -4,7 +4,6 @@ import type { EmployeeFile, InboxNotification, KbAccessLog, KbAttachment, KbDocu
 import { scopeAllows } from '@/mocks/services/gap-c'
 import { nextId } from '@/mocks/services/ids'
 import { writeAudit } from '@/mocks/services/audit'
-import { listScopedEmployees } from '@/mocks/services/scoped-reads'
 import type { AppAction } from '@/utils/permission'
 import { can } from '@/utils/permission'
 import { roleSubject } from '@/utils/permission-engine'
@@ -202,10 +201,14 @@ export function listAccessLogs(db: MockDatabase, actor: Actor) {
 
 function employeeFileInScope(employeeId: string, actor: Actor) {
   const subject = roleSubject(actor.role, actor.userId)
-  const scopedEmployees = listScopedEmployees(subject)
 
-  return scopedEmployees.some(employee => employee.ownerId === employeeId)
-    || scopeAllows(subject, 'employee_record:read', employeeId)
+  const legacyAllows = actor.role === 'admin' || actor.role === 'hr_admin'
+    || (['operator', 'employee'].includes(actor.role) && actor.userId === employeeId)
+
+  if (!legacyAllows)
+    return false
+
+  return scopeAllows(subject, 'employee_record:read', employeeId)
     || scopeAllows(subject, 'employee_record:read_own', employeeId)
 }
 

@@ -216,6 +216,7 @@ declare module 'vue-router/auto-routes' {
     'not-authorized': RouteRecordInfo<'not-authorized', '/not-authorized', Record<never, never>, Record<never, never>>,
     'notifications-parent': RouteRecordInfo<'notifications-parent', '/notifications', Record<never, never>, Record<never, never>>,
     'notifications': RouteRecordInfo<'notifications', '/notifications', Record<never, never>, Record<never, never>>,
+    'notifications-inbox': RouteRecordInfo<'notifications-inbox', '/notifications/inbox', Record<never, never>, Record<never, never>>,
     'notifications-subscriptions': RouteRecordInfo<'notifications-subscriptions', '/notifications/subscriptions', Record<never, never>, Record<never, never>>,
     'office-announcements': RouteRecordInfo<'office-announcements', '/office/announcements', Record<never, never>, Record<never, never>>,
     'office-assets': RouteRecordInfo<'office-assets', '/office/assets', Record<never, never>, Record<never, never>>,
