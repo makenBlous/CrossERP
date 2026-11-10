@@ -1,4 +1,4 @@
-import type { CurrencyCode } from '@/types/domain'
+import type { CurrencyCode, Role } from '@/types/domain'
 import type { DataScopeRuleType, EffectivePermission, PermissionEffect, RoleTemplate } from '@/types/foundation'
 
 export type FieldAccess = 'hidden' | 'masked' | 'readonly' | 'visible'
@@ -87,12 +87,15 @@ export interface GapCAuditRow {
   id: string
   at: string
   actor: string
+  actorId: string
+  actorIdInferred?: boolean
   actorType: 'human' | 'agent' | 'system'
   onBehalfOf?: string
   action: string
   objectType: string
   objectId: string
   reason: string
+  confirmerId?: string
   approvalId?: string
   ipDevice: string
   agentSuggestionId?: string
@@ -216,12 +219,21 @@ export interface GapCPermissionChange {
   id: string
   at: string
   actor: string
+  actorId: string
   confirmer?: string
+  confirmerId?: string
   target: string
   action: string
   before: string
   after: string
   sensitive: boolean
+}
+
+export interface GapCUser {
+  userId: string
+  displayName: string
+  role: Role
+  status: 'active' | 'paused'
 }
 
 export interface GapCSodRule {

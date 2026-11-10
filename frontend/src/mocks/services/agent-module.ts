@@ -96,5 +96,7 @@ export function addSecurityEvent(db: MockDatabase, event: SecurityEvent) {
 }
 
 export function auditEvents(db: MockDatabase): AuditEvent[] {
-  return [...db.audit].sort((a, b) => b.at.localeCompare(a.at))
+  return [...db.audit]
+    .map(event => ({ ...event, actorId: event.actorId ?? `role:${event.actorRole ?? 'unknown'}`, actorIdInferred: !event.actorId }))
+    .sort((a, b) => b.at.localeCompare(a.at))
 }

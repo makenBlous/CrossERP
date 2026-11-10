@@ -5,7 +5,7 @@ import { writeAudit } from '@/mocks/services/audit'
 import type { Role } from '@/types/domain'
 import type { DataScopeRuleType, PermissionSubject } from '@/types/foundation'
 import { effectivePermission, fieldAccess, roleSubject } from '@/utils/permission-engine'
-import { useSessionStore } from '@/stores/session'
+import { demoIdentities, useSessionStore } from '@/stores/session'
 import type {
   FieldAccess,
   GapCAccessReview,
@@ -30,6 +30,7 @@ import type {
   GapCSodRule,
   GapCSubscription,
   GapCTemporaryGrant,
+  GapCUser,
 } from '@/types/gap-c'
 
 const actor = () => currentActor()
@@ -69,8 +70,8 @@ const reports: GapCReport[] = [
 ]
 
 const aiAudit: GapCAuditRow[] = [
-  { id: 'ai-aud-001', at: '2026-11-10 08:40', actor: '补货助手', actorType: 'agent', onBehalfOf: '演示运营', action: 'draft_replenishment', objectType: 'agent_suggestion', objectId: 'sug-001', reason: '安全库存低于阈值', approvalId: 'gc-apr-003', ipDevice: 'agent-runtime', agentSuggestionId: 'sug-001' },
-  { id: 'ai-aud-002', at: '2026-11-09 15:20', actor: '审计助手', actorType: 'agent', onBehalfOf: '演示审计', action: 'read_report', objectType: 'report', objectId: 'rpt-budget', reason: '用户主动查询预算执行', ipDevice: 'agent-runtime' },
+  { id: 'ai-aud-001', at: '2026-11-10 08:40', actor: '补货助手', actorId: 'agent:replenishment-assistant', actorType: 'agent', onBehalfOf: '演示运营', action: 'draft_replenishment', objectType: 'agent_suggestion', objectId: 'sug-001', reason: '安全库存低于阈值', approvalId: 'gc-apr-003', ipDevice: 'agent-runtime', agentSuggestionId: 'sug-001' },
+  { id: 'ai-aud-002', at: '2026-11-09 15:20', actor: '审计助手', actorId: 'agent:audit-assistant', actorType: 'agent', onBehalfOf: '演示审计', action: 'read_report', objectType: 'report', objectId: 'rpt-budget', reason: '用户主动查询预算执行', ipDevice: 'agent-runtime' },
 ]
 
 const traces: GapCAgentTrace[] = [{
@@ -102,9 +103,15 @@ const fieldPolicies: GapCFieldPolicy[] = roleTemplates.flatMap(role => [
 const dataScopes: GapCDataScope[] = roleTemplates.map(role => ({ id: `${role.id}-scope`, roleId: role.id, roleName: role.nameZh, objectType: '业务单据', scope: role.defaultDataScopes[0] ?? 'self', values: role.defaultDataScopes, description: `按${role.defaultDataScopes.join('、')}范围过滤` }))
 const temporaryGrants: GapCTemporaryGrant[] = [{ id: 'grant-001', userId: 'demo-operator', userName: '演示运营', permissionKey: 'sku_cost:read', effect: 'allow', reason: '季度盘点临时查看成本', startsAt: '2026-11-10T00:00:00Z', expiresAt: '2026-11-17T00:00:00Z', status: 'active' }]
 const accessReviews: GapCAccessReview[] = [{ id: 'review-001', userId: 'demo-operator', userName: '演示运营', reviewer: '演示管理员', dueAt: '2026-12-31', permissionCount: 18, unusedCount: 3, status: 'pending' }, { id: 'review-002', userId: 'demo-finance', userName: '演示财务', reviewer: '演示管理员', dueAt: '2026-12-31', permissionCount: 26, unusedCount: 0, status: 'confirmed' }]
-const changes: GapCPermissionChange[] = [{ id: 'chg-001', at: '2026-11-10 09:20', actor: '演示管理员', confirmer: '演示财务主管', target: '运营主管', action: '拒绝导出订单', before: '允许（继承店铺运营）', after: '拒绝（职责限制）', sensitive: true }]
+const changes: GapCPermissionChange[] = [{ id: 'chg-001', at: '2026-11-10 09:20', actor: '演示管理员', actorId: 'demo-admin', confirmer: '演示财务主管', confirmerId: 'demo-finance-manager', target: '运营主管', action: '拒绝导出订单', before: '允许（继承店铺运营）', after: '拒绝（职责限制）', sensitive: true }]
 const sodRules: GapCSodRule[] = [{ id: 'sod-001', firstAction: '提交单据', secondAction: '批准单据', objectType: '全部审批单', enabled: true, reason: '做单的人不能审单' }, { id: 'sod-002', firstAction: '新建供应商', secondAction: '发起付款', objectType: '供应商', enabled: true, reason: '职责分离，避免同人控制供应商与付款' }]
 const customRoles: GapCRoleView[] = []
+
+const gapCUsers: GapCUser[] = [
+  ...Object.entries(demoIdentities).map(([role, identity]) => ({ userId: identity.id, displayName: identity.name, role: role as Role, status: 'active' as const })),
+  { userId: 'demo-admin-secondary', displayName: '演示管理员', role: 'admin', status: 'active' },
+  { userId: 'demo-disabled-admin', displayName: '演示停用管理员', role: 'admin', status: 'paused' },
+]
 
 function userSubject(): PermissionSubject {
   const session = useSessionStore()
@@ -181,14 +188,20 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
-function audit(action: string, objectType: string, objectId: string, reason: string) {
+function audit(action: string, objectType: string, objectId: string, reason: string, confirmerId?: string) {
   const current = actor()
 
-  writeAudit(database().db, current, action, objectType, objectId, reason)
-  aiAudit.unshift({ id: `gap-audit-${Date.now()}`, at: current.at, actor: current.name, actorType: 'human', action, objectType, objectId, reason, ipDevice: 'mock-browser' })
+  writeAudit(database().db, current, action, objectType, objectId, reason, { confirmerId })
+  aiAudit.unshift({ id: `gap-audit-${Date.now()}`, at: current.at, actor: current.name, actorId: current.userId, actorType: 'human', action, objectType, objectId, reason, confirmerId, ipDevice: 'mock-browser' })
   if (action.startsWith('permission.'))
-    changes.unshift({ id: `gap-change-${Date.now()}`, at: current.at, actor: current.name, target: objectId, action, before: '待修改', after: reason, sensitive: true })
+    changes.unshift({ id: `gap-change-${Date.now()}`, at: current.at, actor: current.name, actorId: current.userId, confirmerId, target: objectId, action, before: '待修改', after: reason, sensitive: true })
   database().persist()
+}
+
+export function listGapCUsers() {
+  requirePermission('permission:read')
+
+  return clone(gapCUsers)
 }
 
 export function listGapCApprovals(mode: 'all' | 'agent' | 'cc' = 'all') {
@@ -281,7 +294,7 @@ function runBuilderReport(builder: GapCReportBuilder, restricted: boolean): Arra
       { name: '演示员工', department: '运营部', salary: restricted ? '***' : 1200000, status: '在职' },
       { name: '演示财务', department: '财务部', salary: restricted ? '***' : 1800000, status: '在职' },
     ],
-    audit: aiAudit.map(item => ({ action: item.action, actor: item.actor, object: item.objectId, at: item.at })),
+    audit: aiAudit.map(item => ({ action: item.action, actor: item.actor, actorId: item.actorId, object: item.objectId, at: item.at })),
   }
 
   const filtered = sourceRows[builder.dataSource].filter(row => builder.filters.every(filter => {
@@ -314,7 +327,7 @@ export function runGapCReport(reportId: string, period: string): GapCReportResul
       ? [{ department: '运营部', budget: 100000, used: 82000, rate: '82%', ...(restricted ? {} : { cost: 82000 }) }, { department: '财务部', budget: 120000, used: 51000, rate: '42%' }]
       : report.id === 'rpt-approval'
         ? [{ type: '费用报销', pending: 2, approved: 14, avgHours: 5.2 }, { type: '采购申请', pending: 1, approved: 8, avgHours: 8.5 }]
-        : aiAudit.map(item => ({ action: item.action, actor: item.actor, object: item.objectId, at: item.at }))
+        : aiAudit.map(item => ({ action: item.action, actor: item.actor, actorId: item.actorId, object: item.objectId, at: item.at }))
 
   const result = { id: `run-${Date.now()}`, reportId, period, rows, generatedAt: new Date().toISOString(), totals: { rows: rows.length } }
 
@@ -338,7 +351,20 @@ export function listGapCAudit() {
   requirePermission('audit_log:read')
 
   const dynamic = database().db.audit
-    .map(item => ({ id: item.id, at: item.at, actor: item.actor, actorType: 'human' as const, action: item.action, objectType: item.refType, objectId: item.refId, reason: item.summary, ipDevice: 'mock-browser' }))
+    .map(item => ({
+      id: item.id,
+      at: item.at,
+      actor: item.actor,
+      actorId: item.actorId ?? `role:${item.actorRole ?? 'unknown'}`,
+      actorIdInferred: !item.actorId,
+      actorType: 'human' as const,
+      action: item.action,
+      objectType: item.refType,
+      objectId: item.refId,
+      reason: item.summary,
+      confirmerId: item.confirmerId,
+      ipDevice: 'mock-browser',
+    }))
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
 
   return clone([...dynamic, ...aiAudit])
@@ -494,12 +520,29 @@ export function listGapCMatrix(): GapCMatrixCell[] {
 
   return roleTemplates.flatMap(role => permissionCatalog.slice(0, 40).map(point => ({ roleId: role.id, permissionKey: point.key, effect: role.permissions.some(item => item.permissionKey === point.key && item.effect === 'allow') ? (role.parentIds.length ? 'inherit' : 'allow') : 'none', sensitive: Boolean(point.sensitive) })))
 }
-export function saveGapCMatrix(cells: GapCMatrixCell[], confirmer?: string) {
-  const current = requirePermission('permission:write'); if (cells.some(cell => cell.sensitive) && (!confirmer || confirmer === current.name))
-    throw new Error('敏感权限变更需要另一位管理员确认'); audit('permission.matrix.update', 'permission_matrix', 'matrix', `保存 ${cells.length} 个权限格，确认人 ${confirmer ?? '无'}`); changes.unshift({ id: `chg-${Date.now()}`, at: new Date().toISOString(), actor: current.name, confirmer, target: '权限矩阵', action: '批量保存', before: '待修改', after: `${cells.length} 个格子`, sensitive: cells.some(cell => cell.sensitive) })
+export function saveGapCMatrix(cells: GapCMatrixCell[], confirmerId?: string) {
+  const current = requirePermission('permission:write')
+  const sensitive = cells.some(cell => cell.sensitive)
+  const confirmer = confirmerId ? gapCUsers.find(user => user.userId === confirmerId) : undefined
+
+  if (sensitive && !confirmerId)
+    throw new Error('敏感权限变更需要另一位管理员确认')
+  if (confirmerId && (!confirmer || confirmer.status !== 'active'))
+    throw new Error('确认人不存在或已停用')
+  if (confirmerId && confirmer && !effectivePermission(roleSubject(confirmer.role, confirmer.userId), 'permission:write').allowed)
+    throw new Error('确认人没有 permission:write 权限')
+  if (confirmerId === current.userId)
+    throw new Error('确认人不能与当前用户相同')
+
+  const confirmerName = confirmer?.displayName
+  const summary = `保存 ${cells.length} 个权限格，确认人 ${confirmerName ?? '无'}${confirmerId ? `（${confirmerId}）` : ''}`
+
+  audit('permission.matrix.update', 'permission_matrix', 'matrix', summary, confirmerId)
+  changes.unshift({ id: `chg-${Date.now()}`, at: new Date().toISOString(), actor: current.name, actorId: current.userId, confirmer: confirmerName, confirmerId, target: '权限矩阵', action: '批量保存', before: '待修改', after: `${cells.length} 个格子`, sensitive })
 
   return clone(cells)
 }
+
 export function listGapCEffective(userId = useSessionStore().userId): GapCEffectiveRow[] {
   requirePermission('permission:read')
 
@@ -512,7 +555,7 @@ export function listGapCPermissionChanges() {
 
   const dynamic = database().db.audit
     .filter(item => item.action.startsWith('permission.'))
-    .map(item => ({ id: item.id, at: item.at, actor: item.actor, target: item.refId, action: item.action, before: '待修改', after: item.summary, sensitive: true }))
+    .map(item => ({ id: item.id, at: item.at, actor: item.actor, actorId: item.actorId ?? `role:${item.actorRole ?? 'unknown'}`, confirmerId: item.confirmerId, target: item.refId, action: item.action, before: '待修改', after: item.summary, sensitive: true }))
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
 
   return clone([...dynamic, ...changes])

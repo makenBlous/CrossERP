@@ -28,9 +28,9 @@ async function exportPack() {
 
   const manifest = { generatedAt: new Date().toISOString(), range: range.value, scope: 'business-audit', eventCount: events.value.length, hash: `demo-${events.value.length.toString(16).padStart(8, '0')}` }
   if (exportFormat.value === 'csv') {
-    const rows = events.value.map(event => [event.id, event.at, event.actor, event.action, event.refType, event.refId, event.summary].map(value => `"${String(value).replaceAll('"', '""')}"`).join(','))
+    const rows = events.value.map(event => [event.id, event.at, event.actor, event.actorId, event.actorIdInferred ? '推断' : '', event.action, event.refType, event.refId, event.summary].map(value => `"${String(value).replaceAll('"', '""')}"`).join(','))
 
-    download(['id,at,actor,action,refType,refId,summary', ...rows].join('\n'), 'crosserp-audit.csv', 'text/csv;charset=utf-8')
+    download(['id,at,actor,actorId,actorIdInferred,action,refType,refId,summary', ...rows].join('\n'), 'crosserp-audit.csv', 'text/csv;charset=utf-8')
   }
   else {
     download(JSON.stringify({ manifest, events: events.value }, null, 2), 'crosserp-audit.json', 'application/json')

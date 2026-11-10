@@ -26,6 +26,7 @@ import {
   fetchGapCSodRules,
   fetchGapCSubscriptions,
   fetchGapCTemporaryGrants,
+  fetchGapCUsers,
   markGapCNotificationRead,
   resolveGapCAlert,
   runGapCArchive,
@@ -51,6 +52,7 @@ import KpiCard from '@/components/KpiCard.vue'
 import { findPageById } from '@/config/pages'
 import { useAiModeStore } from '@/stores/ai-mode'
 import { useSessionStore } from '@/stores/session'
+import { useConfirm } from '@/composables/useConfirm'
 import type { FieldAccess, GapCAccessReview, GapCAgentTrace, GapCAlert, GapCApprovalRow, GapCApprovalRule, GapCArchiveRun, GapCAuditRow, GapCDataScope, GapCFieldPolicy, GapCMatrixCell, GapCNotification, GapCPermissionChange, GapCReport, GapCReportBuilder, GapCReportResult, GapCRetention, GapCRoleView, GapCSodRule, GapCSubscription, GapCTemporaryGrant } from '@/types/gap-c'
 
 interface RowRecord { id: string; [key: string]: unknown }
@@ -93,7 +95,8 @@ const sodRules = ref<GapCSodRule[]>([])
 const selectedUser = ref('demo-operator')
 const period = ref('2026-11')
 const reportQuery = ref('')
-const confirmer = ref('')
+const confirmerId = ref('')
+const gapCUsers = ref<Awaited<ReturnType<typeof fetchGapCUsers>>>([])
 const reportName = ref('')
 const reportDescription = ref('')
 const reportDataSource = ref<GapCReportBuilder['dataSource']>('orders')
@@ -121,7 +124,7 @@ const reportFieldOptions: Record<GapCReportBuilder['dataSource'], string[]> = {
   orders: ['orderNo', 'store', 'owner', 'amount', 'status'],
   expenses: ['title', 'department', 'owner', 'amount', 'status'],
   employees: ['name', 'department', 'salary', 'status'],
-  audit: ['action', 'actor', 'object', 'at'],
+  audit: ['action', 'actor', 'actorId', 'object', 'at'],
 }
 
 const title = computed(() => page.value?.name['zh-CN'] ?? props.pageId)
@@ -135,6 +138,8 @@ const matrixImpactUsers = computed(() => {
 })
 
 const selectedReportFields = computed(() => reportFieldOptions[reportDataSource.value])
+const confirmerOptions = computed(() => gapCUsers.value.filter(user => user.status === 'active').map(user => ({ title: user.displayName, value: user.userId })))
+const { confirm } = useConfirm()
 
 function row(value: object): RowRecord {
   return value as RowRecord
@@ -167,7 +172,7 @@ const columns = computed<ListColumn[]>(() => {
     case 'W07': return [{ key: 'type', title: '单据类型' }, { key: 'level', title: '级别' }, { key: 'minAmount', title: '起始金额' }, { key: 'maxAmount', title: '结束金额' }, { key: 'approver', title: '审批人' }, { key: 'imEnabled', title: 'IM' }]
     case 'N01': return [{ key: 'title', title: '消息' }, { key: 'category', title: '类别' }, { key: 'createdAt', title: '时间' }, { key: 'read', title: '状态' }, { key: 'actions', title: '操作' }]
     case 'RP01': return [{ key: 'name', title: '报表' }, { key: 'module', title: '模块' }, { key: 'description', title: '说明' }, { key: 'lastRunAt', title: '最近运行' }]
-    case 'U05': return [{ key: 'at', title: '时间' }, { key: 'actor', title: '智能体' }, { key: 'onBehalfOf', title: '代谁' }, { key: 'action', title: '动作' }, { key: 'objectId', title: '对象' }, { key: 'agentSuggestionId', title: '建议 ID' }]
+    case 'U05': return [{ key: 'at', title: '时间' }, { key: 'actor', title: '智能体' }, { key: 'actorId', title: '操作者 ID' }, { key: 'onBehalfOf', title: '代谁' }, { key: 'action', title: '动作' }, { key: 'objectId', title: '对象' }, { key: 'agentSuggestionId', title: '建议 ID' }]
     case 'U07': return [{ key: 'severity', title: '级别' }, { key: 'title', title: '告警' }, { key: 'detail', title: '详情' }, { key: 'createdAt', title: '时间' }, { key: 'resolved', title: '状态' }, { key: 'actions', title: '操作' }]
     case 'SYS14': return [{ key: 'roleName', title: '角色' }, { key: 'objectType', title: '对象' }, { key: 'fieldLabel', title: '字段' }, { key: 'access', title: '访问级别' }, { key: 'sensitive', title: '敏感' }]
     case 'SYS15': return [{ key: 'roleName', title: '角色' }, { key: 'objectType', title: '对象' }, { key: 'scope', title: '范围' }, { key: 'values', title: '规则值' }, { key: 'description', title: '说明' }]
@@ -175,7 +180,7 @@ const columns = computed<ListColumn[]>(() => {
     case 'SYS17': return [{ key: 'userName', title: '用户' }, { key: 'reviewer', title: '复核人' }, { key: 'permissionCount', title: '权限数' }, { key: 'unusedCount', title: '长期未用' }, { key: 'dueAt', title: '截止' }, { key: 'status', title: '状态' }, { key: 'actions', title: '操作' }]
     case 'SYS18': return [{ key: 'firstAction', title: '第一动作' }, { key: 'secondAction', title: '第二动作' }, { key: 'objectType', title: '对象' }, { key: 'reason', title: '原因' }, { key: 'enabled', title: '启用' }]
     case 'SYS22': return [{ key: 'roleId', title: '角色' }, { key: 'permissionKey', title: '权限点' }, { key: 'effect', title: '效果' }, { key: 'sensitive', title: '敏感' }]
-    case 'SYS24': return [{ key: 'at', title: '时间' }, { key: 'actor', title: '操作者' }, { key: 'target', title: '对象' }, { key: 'action', title: '动作' }, { key: 'before', title: '改前' }, { key: 'after', title: '改后' }]
+    case 'SYS24': return [{ key: 'at', title: '时间' }, { key: 'actor', title: '操作者' }, { key: 'actorId', title: '操作者 ID' }, { key: 'confirmerId', title: '确认人 ID' }, { key: 'target', title: '对象' }, { key: 'action', title: '动作' }, { key: 'before', title: '改前' }, { key: 'after', title: '改后' }]
     default: return []
   }
 })
@@ -230,7 +235,7 @@ async function load() {
       case 'SYS17': accessReviews.value = await fetchGapCAccessReviews(); break
       case 'SYS18': sodRules.value = await fetchGapCSodRules(); break
       case 'SYS21': selectedRole.value = await fetchGapCRole(typeof routeParams.id === 'string' ? routeParams.id : 'store_operator'); break
-      case 'SYS22': matrix.value = await fetchGapCMatrix(); break
+      case 'SYS22': matrix.value = await fetchGapCMatrix(); gapCUsers.value = await fetchGapCUsers(); break
       case 'SYS23': effective.value = await fetchGapCEffectivePermissions(selectedUser.value); await loadScopedPreview(); break
       case 'SYS24': changes.value = await fetchGapCPermissionChanges(); break
     }
@@ -324,7 +329,11 @@ async function runArchive() {
     archiveRuns.value = [run, ...archiveRuns.value]
   }, '已生成模拟归档执行记录')
 }
-async function saveMatrix() { await runAction(() => saveGapCMatrix(matrix.value.slice(0, 24), confirmer.value), '权限矩阵已保存') }
+async function saveMatrix() {
+  const ok = await confirm({ title: '保存权限矩阵', text: '保存后将记录审计日志，确认继续吗？', confirmText: '确认保存', cancelText: '取消' })
+  if (ok)
+    await runAction(() => saveGapCMatrix(matrix.value.slice(0, 24), confirmerId.value || undefined), '权限矩阵已保存')
+}
 async function changeEffectiveUser() { await runAction(async () => { effective.value = await fetchGapCEffectivePermissions(selectedUser.value) }, '有效权限已刷新') }
 
 async function loadScopedPreview() {
@@ -451,9 +460,12 @@ onMounted(load)
           >
             预计影响用户数：{{ matrixImpactUsers }}
           </VChip>
-          <AppTextField
-            v-model="confirmer"
+          <AppSelect
+            v-model="confirmerId"
             label="另一位管理员确认人"
+            :items="confirmerOptions"
+            placeholder="请选择真实用户"
+            clearable
           />
           <PermissionGate action="update">
             <VBtn

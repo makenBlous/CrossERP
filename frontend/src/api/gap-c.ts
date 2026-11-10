@@ -1,6 +1,6 @@
 import { delay } from '@/api/mock-client'
 import * as service from '@/mocks/services/gap-c'
-import type { FieldAccess, GapCAccessReview, GapCAgentTrace, GapCAlert, GapCApprovalRow, GapCApprovalRule, GapCArchiveRun, GapCAuditRow, GapCDataScope, GapCFieldPolicy, GapCMatrixCell, GapCNotification, GapCPermissionChange, GapCReport, GapCReportBuilder, GapCReportResult, GapCRetention, GapCRoleCopyInput, GapCRoleView, GapCSodRule, GapCSubscription, GapCTemporaryGrant } from '@/types/gap-c'
+import type { FieldAccess, GapCAccessReview, GapCAgentTrace, GapCAlert, GapCApprovalRow, GapCApprovalRule, GapCArchiveRun, GapCAuditRow, GapCDataScope, GapCFieldPolicy, GapCMatrixCell, GapCNotification, GapCPermissionChange, GapCReport, GapCReportBuilder, GapCReportResult, GapCRetention, GapCRoleCopyInput, GapCRoleView, GapCSodRule, GapCSubscription, GapCTemporaryGrant, GapCUser } from '@/types/gap-c'
 
 // 未来: GET /api/v1/approvals?scope=all|agent|cc
 export async function fetchGapCApprovals(mode: 'all' | 'agent' | 'cc' = 'all'): Promise<GapCApprovalRow[]> {
@@ -219,11 +219,17 @@ export async function fetchGapCMatrix(): Promise<GapCMatrixCell[]> {
   return service.listGapCMatrix()
 }
 
-// 未来: PUT /api/v1/admin/permission-matrix
-export async function saveGapCMatrix(cells: GapCMatrixCell[], confirmer?: string): Promise<GapCMatrixCell[]> {
+export async function fetchGapCUsers(): Promise<GapCUser[]> {
   await delay()
 
-  return service.saveGapCMatrix(cells, confirmer)
+  return service.listGapCUsers()
+}
+
+// 未来: PUT /api/v1/admin/permission-matrix
+export async function saveGapCMatrix(cells: GapCMatrixCell[], confirmerId?: string): Promise<GapCMatrixCell[]> {
+  await delay()
+
+  return service.saveGapCMatrix(cells, confirmerId)
 }
 
 // 未来: GET /api/v1/admin/users/{id}/effective-permissions

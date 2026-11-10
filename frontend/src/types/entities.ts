@@ -11,7 +11,7 @@ export interface Actor {
   name: string
   role: Role
   at: string
-  userId?: string
+  userId: string
 }
 
 export interface Company {
@@ -509,7 +509,10 @@ export interface AuditEvent {
   id: string
   at: string
   actor: string
+  actorId: string
+  actorIdInferred?: boolean
   actorRole: Role
+  confirmerId?: string
   action: string
   refType: string
   refId: string

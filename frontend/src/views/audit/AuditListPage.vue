@@ -22,7 +22,7 @@ async function load() {
 onMounted(load)
 watch(() => props.mode, load)
 
-const eventColumns = computed(() => [{ key: 'at', title: t('auditModule.time') }, { key: 'actor', title: t('auditModule.actor') }, { key: 'action', title: t('auditModule.action') }, { key: 'refType', title: t('auditModule.entity') }, { key: 'refId', title: 'ID' }, { key: 'summary', title: t('auditModule.summary') }])
+const eventColumns = computed(() => [{ key: 'at', title: t('auditModule.time') }, { key: 'actor', title: t('auditModule.actor') }, { key: 'actorId', title: 'Actor ID' }, { key: 'action', title: t('auditModule.action') }, { key: 'refType', title: t('auditModule.entity') }, { key: 'refId', title: 'ID' }, { key: 'summary', title: t('auditModule.summary') }])
 const securityColumns = computed(() => [{ key: 'at', title: t('auditModule.time') }, { key: 'actor', title: t('auditModule.actor') }, { key: 'event', title: t('auditModule.security.event') }, { key: 'ip', title: t('auditModule.security.ip') }, { key: 'summary', title: t('auditModule.summary') }])
 </script>
 
@@ -43,6 +43,14 @@ const securityColumns = computed(() => [{ key: 'at', title: t('auditModule.time'
       >
         {{ item.action }}
       </VChip>
+    </template>
+    <template #item.actorId="{ item }">
+      {{ item.actorId }}<VChip
+        v-if="item.actorIdInferred"
+        size="x-small"
+        color="warning"
+        class="ms-1"
+      >推断</VChip>
     </template>
   </ListPage>
   <ListPage
