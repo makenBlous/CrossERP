@@ -154,6 +154,14 @@ permissionCatalog.push(
   { key: expenseApprovalPermissionKeys.finance, labelZh: '费用报销财务审批', labelEn: 'Expense Claim Finance Approval', module: 'Accounts', kind: 'action', dataScopeRuleTypes: ['all', 'department', 'amount'], erpnextRef: 'Expense Claim', odooRef: 'hr_expense' },
 )
 
+/** 成本记账与总账核对页面的细粒度权限；页面不使用未登记的动作名。 */
+permissionCatalog.push(
+  { key: 'stock_ledger:report', labelZh: '库存台账核对报表', labelEn: 'Stock Ledger Reconciliation Report', module: 'Stock', kind: 'menu', dataScopeRuleTypes: ['all', 'warehouse'], erpnextRef: 'Stock Ledger', odooRef: 'stock.valuation.layer' },
+  { key: 'journal_entry:cancel', labelZh: '会计凭证红字冲销', labelEn: 'Reverse Journal Entry', module: 'Accounts', kind: 'action', dataScopeRuleTypes: ['all'], erpnextRef: 'Journal Entry', odooRef: 'account.move' },
+  { key: 'period_closing_voucher:cancel', labelZh: '反结账', labelEn: 'Reopen Accounting Period', module: 'Accounts', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all'], erpnextRef: 'Period Closing Voucher', odooRef: 'account.fiscal.year' },
+  { key: 'payment_reconciliation:read', labelZh: '结算清分查看', labelEn: 'Settlement Split Read', module: 'Accounts', kind: 'menu', dataScopeRuleTypes: ['all', 'store'], erpnextRef: 'Payment Reconciliation', odooRef: 'account.reconcile.model' },
+)
+
 export const batchAPermissionKeys = [expenseApprovalPermissionKeys.manager, expenseApprovalPermissionKeys.finance, 'expense_claim:read', 'expense_claim:create', 'employee_advance:read', 'travel_request:read', 'expense_claim_type:read', 'report:read', 'period_closing_voucher:approve', 'stock_ledger:read', 'budget:read', 'exchange_rate_revaluation:read', 'vat_return:read', 'export_tax_rebate:read'] as const
 export const gapBPermissionKeys = ['request_for_quotation:read', 'request_for_quotation:create', 'request_for_quotation:select', 'contract:read', 'supplier_scorecard:read', 'batch:read', 'material_request:read', 'material_request:create', 'stock_entry:read', 'stock_reconciliation:read', 'report:read', 'integration:import', 'integration:read', 'integration:write', 'approval:approve', 'notification:read', 'notification:write', 'notification:create', 'im_binding:write'] as const
 
@@ -201,6 +209,10 @@ export const legacyCompatibilityPermissions: Record<'admin' | 'operator' | 'fina
     'leave_application:approve_hr',
     'salary_slip:review',
     accountsPayablePermissionKey,
+    'stock_ledger:report',
+    'journal_entry:cancel',
+    'period_closing_voucher:cancel',
+    'payment_reconciliation:read',
   ],
   operator: ['integration:import', 'agent_autonomy:write', 'agent_mode:write'],
   finance: [
@@ -211,10 +223,15 @@ export const legacyCompatibilityPermissions: Record<'admin' | 'operator' | 'fina
     'export_tax_rebate:write',
     'vat_return:write',
     'journal_entry:submit',
+    'journal_entry:write',
+    'journal_entry:cancel',
+    'stock_ledger:report',
+    'payment_reconciliation:read',
+    'period_closing_voucher:cancel',
     accountsPayablePermissionKey,
   ],
   viewer: [accountsPayablePermissionKey],
-  auditor: [],
+  auditor: ['stock_ledger:report', 'payment_reconciliation:read'],
 }
 
 const templatePermissions: Record<string, string[]> = {
@@ -226,15 +243,15 @@ const templatePermissions: Record<string, string[]> = {
   purchaser: ['supplier:read', 'supplier:write', 'supplier:create', 'purchase_order:read', 'purchase_order:write', 'purchase_order:create', 'purchase_receipt:read', 'purchase_receipt:submit', 'request_for_quotation:read', 'request_for_quotation:write', 'request_for_quotation:create', 'supplier_quotation:read', 'contract:read', 'material_request:read', 'material_request:create', 'material_request:write', 'material_request:submit', 'report:read', 'approval:read', 'notification:read'],
   warehouse_logistics: ['warehouse:read', 'warehouse:write', 'warehouse:create', 'stock_ledger:read', 'landed_cost_voucher:read', 'landed_cost_voucher:submit', 'stock_entry:read', 'stock_entry:write', 'stock_entry:create', 'purchase_receipt:read', 'purchase_receipt:submit', 'delivery_note:read', 'delivery_note:submit', 'batch:read', 'stock_reconciliation:read', 'shipment:read', 'shipment:write', 'shipment:create', 'notification:read'],
   customer_service: ['customer:read', 'contact:read', 'ticket:read', 'ticket:write', 'ticket:create', 'sales_order:read', 'delivery_note:read', 'report:read', 'notification:read'],
-  accountant: ['journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'payment_entry:read', accountsPayablePermissionKey, 'expense_claim:read', 'employee_advance:read', 'purchase_receipt:read', 'report:read', 'stock_ledger:read', 'sku.cost:read', 'landed_cost_voucher:read', 'landed_cost_voucher:submit', 'budget:read', 'audit_log:read', 'approval:read', 'notification:read', 'integration:read'],
-  finance_manager: ['approval:read', 'approval:write', 'approval:approve', 'report:read', 'report:write', 'journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'journal_entry:approve', 'payment_entry:read', accountsPayablePermissionKey, 'payment_entry:write', 'payment_entry:approve', 'expense_claim:read', 'expense_claim:approve_finance', 'landed_cost_voucher:read', 'landed_cost_voucher:approve', 'budget:read', 'budget:write', 'period_closing_voucher:approve', 'integration:write', 'audit_log:read', 'notification:read', 'salary_slip:approve'],
+  accountant: ['journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'journal_entry:cancel', 'payment_entry:read', accountsPayablePermissionKey, 'expense_claim:read', 'employee_advance:read', 'purchase_receipt:read', 'report:read', 'stock_ledger:read', 'stock_ledger:report', 'sku.cost:read', 'landed_cost_voucher:read', 'landed_cost_voucher:submit', 'payment_reconciliation:read', 'budget:read', 'audit_log:read', 'approval:read', 'notification:read', 'integration:read'],
+  finance_manager: ['approval:read', 'approval:write', 'approval:approve', 'report:read', 'report:write', 'journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'journal_entry:submit', 'journal_entry:approve', 'journal_entry:cancel', 'payment_entry:read', accountsPayablePermissionKey, 'payment_entry:write', 'payment_entry:approve', 'expense_claim:read', 'expense_claim:approve_finance', 'landed_cost_voucher:read', 'landed_cost_voucher:approve', 'budget:read', 'budget:write', 'period_closing_voucher:approve', 'period_closing_voucher:cancel', 'stock_ledger:report', 'payment_reconciliation:read', 'integration:write', 'audit_log:read', 'notification:read', 'salary_slip:approve'],
   cashier: ['payment_entry:read', accountsPayablePermissionKey, 'payment_entry:write', 'payment_entry:submit', 'journal_entry:read', 'report:read', 'approval:read', 'notification:read'],
   hr_admin: ['employee_record:read', 'employee_record:read_own', 'employee_record:write', 'employee_record:create', 'employee.salary:read', 'employee.id_number:read', 'salary_slip:read', 'salary_slip:read_own', 'salary_slip:read_all', 'salary_slip:write', 'salary_slip:create', 'salary_slip:review', 'payroll_run:calculate', 'attendance:read', 'attendance:write', 'leave_application:read', 'leave_application:write', 'leave_application:approve_hr', 'contract:read', 'contract:write', 'asset:read', 'asset:write', 'notification:read', 'notification:write', 'document:read', 'approval:read'],
   employee: ['expense_claim:read', 'expense_claim:create', 'expense_claim:write', 'employee_advance:read', 'employee_advance:create', 'travel_request:read', 'travel_request:create', 'leave_application:read', 'leave_application:create', 'salary_slip:read_own', 'employee_record:read_own', 'notification:read', 'document:read', 'office_supply:read', 'office_supply:create', 'approval:read'],
   department_manager: ['approval:read', 'approval:approve', 'expense_claim:read', 'expense_claim:approve_manager', 'leave_application:read', 'leave_application:approve_manager', 'purchase_order:read', 'sales_order:read', 'employee_record:read', 'budget:read', 'notification:read'],
 
   // 审计可以只读查看权限配置，便于核对改前改后；没有任何 permission:write/approve。
-  auditor_template: ['report:read', 'audit_log:read', 'audit_log:export', 'agent_tool:read', 'permission:read', 'stock_ledger:read'],
+  auditor_template: ['report:read', 'audit_log:read', 'audit_log:export', 'agent_tool:read', 'permission:read', 'stock_ledger:read', 'stock_ledger:report', 'payment_reconciliation:read'],
   external_viewer: ['report:read', 'notification:read'],
 }
 

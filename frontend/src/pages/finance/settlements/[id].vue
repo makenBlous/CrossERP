@@ -17,6 +17,20 @@ onMounted(async () => {
     :title="row.externalId"
     :subtitle="`${row.storeName} · ${row.periodStart} ~ ${row.periodEnd}`"
   >
+    <template #actions>
+      <VChip
+        size="small"
+        variant="tonal"
+      >
+        来源：{{ row.source === 'sp_api' ? 'API' : row.source === 'plugin' ? '插件' : '文件' }}
+      </VChip>
+      <VBtn
+        :to="`/finance/settlements/${row.id}/split`"
+        variant="tonal"
+      >
+        打开清分
+      </VBtn>
+    </template>
     <VCard
       title="结算头信息"
       class="mb-6"
