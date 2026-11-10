@@ -3,6 +3,7 @@ import type { Actor, Carrier, FreightCheck, MockDatabase, Shipment, ShippingRate
 import { writeAudit } from '@/mocks/services/audit'
 import { FlowError } from '@/mocks/services/errors'
 import { mustFind, nextId } from '@/mocks/services/ids'
+import { requireActorPermission } from '@/utils/service-permissions'
 import { applyMovement, postStockDoc } from '@/mocks/services/inventory'
 import { minorFromDecimal } from '@/utils/money'
 
@@ -11,6 +12,8 @@ function findShipment(db: MockDatabase, id: string) {
 }
 
 export function departShipment(db: MockDatabase, id: string, actor: Actor): Shipment {
+  requireActorPermission(actor, 'shipment:write')
+
   const shipment = findShipment(db, id)
 
   if (shipment.status !== 'planned')
@@ -54,6 +57,8 @@ export function departShipment(db: MockDatabase, id: string, actor: Actor): Ship
 }
 
 export function arriveShipment(db: MockDatabase, id: string, actor: Actor): Shipment {
+  requireActorPermission(actor, 'shipment:write')
+
   const shipment = findShipment(db, id)
 
   if (shipment.status !== 'in_transit')
@@ -140,6 +145,8 @@ function requireActiveWarehouse(db: MockDatabase, id: string, label: string) {
 }
 
 export function createShipment(db: MockDatabase, input: ShipmentDraft, actor: Actor): Shipment {
+  requireActorPermission(actor, 'shipment:create')
+
   const carrier = mustFind(db.carriers, input.carrierId, '物流商')
 
   if (!carrier.active)
@@ -200,6 +207,8 @@ export function createShipment(db: MockDatabase, input: ShipmentDraft, actor: Ac
 }
 
 export function saveShipmentFee(db: MockDatabase, input: ShipmentFeeDraft, actor: Actor): Shipment {
+  requireActorPermission(actor, 'shipment:write')
+
   const shipment = findShipment(db, input.shipmentId)
   const chargeType = input.chargeType.trim() || 'freight'
 
@@ -218,6 +227,8 @@ export function saveShipmentFee(db: MockDatabase, input: ShipmentFeeDraft, actor
 }
 
 export function saveCarrier(db: MockDatabase, input: CarrierDraft, actor: Actor): Carrier {
+  requireActorPermission(actor, input.id ? 'shipment:write' : 'shipment:create')
+
   const name = input.name.trim()
 
   if (!name)
@@ -241,6 +252,7 @@ export function saveCarrier(db: MockDatabase, input: CarrierDraft, actor: Actor)
 }
 
 export function setCarrierActive(db: MockDatabase, ids: string[], active: boolean, actor: Actor) {
+  requireActorPermission(actor, 'shipment:write')
   for (const id of ids) {
     const carrier = mustFind(db.carriers, id, '物流商')
 
@@ -250,6 +262,7 @@ export function setCarrierActive(db: MockDatabase, ids: string[], active: boolea
 }
 
 export function saveRateCard(db: MockDatabase, input: RateDraft, actor: Actor): ShippingRate {
+  requireActorPermission(actor, input.id ? 'shipment:write' : 'shipment:create')
   mustFind(db.carriers, input.carrierId, '物流商')
 
   const validFrom = input.validFrom.trim()
@@ -289,6 +302,8 @@ export function saveRateCard(db: MockDatabase, input: RateDraft, actor: Actor): 
 }
 
 export function submitFreightCheck(db: MockDatabase, id: string, actor: Actor): FreightCheck {
+  requireActorPermission(actor, 'shipment:write')
+
   const check = mustFind(db.freightChecks, id, '物流费用核对')
 
   if (check.status === 'submitted')

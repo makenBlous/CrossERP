@@ -1,16 +1,18 @@
-import { assertCan, database, delay, readMock } from '@/api/mock-client'
+import { assertPermission, database, delay, readMock } from '@/api/mock-client'
 import { projectIssues, projectProfit, projectProfitSku, projectRecon, projectVouchers } from '@/mocks/project'
 import { accounts, addFxRate, apAging, apRows, arAging, arRows, cashRows, clearingRows, columnMapDetail, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, recordImport, saveColumnMap, settlementDetail, settlements, sourceRow, submitClearing, submitVoucher, voucherDetail } from '@/mocks/services/finance'
 
 // 未来: GET /api/v1/finance/profit
 export async function fetchProfit() {
   await delay()
+  assertPermission('report:read')
 
   return projectProfit(database().db)
 }
 
 export async function fetchProfitSku(internalSku: string, storeId?: string) {
   await delay()
+  assertPermission('report:read')
 
   return projectProfitSku(database().db, internalSku, '2026-10', storeId)
 }
@@ -18,6 +20,7 @@ export async function fetchProfitSku(internalSku: string, storeId?: string) {
 // 未来: GET /api/v1/finance/recon-runs
 export async function fetchReconRuns() {
   await delay()
+  assertPermission('report:read')
 
   return projectRecon(database().db)
 }
@@ -25,6 +28,7 @@ export async function fetchReconRuns() {
 // 未来: GET /api/v1/finance/issues
 export async function fetchIssues() {
   await delay()
+  assertPermission('report:read')
 
   return projectIssues(database().db)
 }
@@ -32,23 +36,26 @@ export async function fetchIssues() {
 // 未来: GET /api/v1/finance/vouchers
 export async function fetchVouchers() {
   await delay()
+  assertPermission('journal_entry:read')
 
   return projectVouchers(database().db)
 }
 
 export async function fetchImports() {
   await delay()
+  assertPermission('integration:read')
 
   return readMock(listImports(database().db))
 }
 export async function fetchImport(id: string) {
   await delay()
+  assertPermission('integration:read')
 
   return readMock(importDetail(database().db, id))
 }
 
 export async function uploadImport(fileName: string) {
-  const actor = assertCan('create')
+  const actor = assertPermission('integration:import')
   const row = recordImport(database().db, fileName, actor)
 
   database().persist()
@@ -57,47 +64,55 @@ export async function uploadImport(fileName: string) {
 }
 export async function fetchSourceRow(table: string, id: string) {
   await delay()
+  assertPermission('integration:read')
 
   return readMock(sourceRow(table, id))
 }
 export async function fetchSettlements() {
   await delay()
+  assertPermission('report:read')
 
   return readMock(settlements(database().db))
 }
 export async function fetchSettlement(id: string) {
   await delay()
+  assertPermission('report:read')
 
   return readMock(settlementDetail(database().db, id))
 }
 export async function fetchReconDetail(id: string) {
   await delay()
+  assertPermission('report:read')
 
   return readMock(reconDetail(database().db, id))
 }
 export async function fetchIssueDetail(id: string) {
   await delay()
+  assertPermission('report:read')
 
   return readMock(issueDetail(database().db, id))
 }
 export async function fetchVoucherDetail(id: string) {
   await delay()
+  assertPermission('journal_entry:read')
 
   return readMock(voucherDetail(database().db, id))
 }
 export async function fetchAccounts() {
   await delay()
+  assertPermission('report:read')
 
   return readMock(accounts(database().db))
 }
 export async function fetchFxRates() {
   await delay()
+  assertPermission('report:read')
 
   return readMock(fxRates(database().db))
 }
 
 export async function addFxRateEntry(input: { period: string; fromCcy: 'USD' | 'CNY' | 'EUR' | 'GBP' | 'JPY'; toCcy: 'USD' | 'CNY' | 'EUR' | 'GBP' | 'JPY'; rate: string }) {
-  const actor = assertCan('update')
+  const actor = assertPermission('integration:write')
   const row = addFxRate(database().db, input, actor)
 
   database().persist()
@@ -106,21 +121,24 @@ export async function addFxRateEntry(input: { period: string; fromCcy: 'USD' | '
 }
 export async function fetchFeeMap() {
   await delay()
+  assertPermission('integration:read')
 
   return readMock(feeMapRows(database().db))
 }
 export async function fetchColumnMaps() {
   await delay()
+  assertPermission('integration:read')
 
   return readMock(columnMapRows(database().db))
 }
 export async function fetchColumnMap(id: string) {
   await delay()
+  assertPermission('integration:read')
 
   return readMock(columnMapDetail(database().db, id))
 }
 export async function saveColumnMapEntry(id: string, mappings: Array<{ source: string; field: string }>) {
-  const actor = assertCan('update')
+  const actor = assertPermission('integration:write')
   const row = saveColumnMap(database().db, id, mappings, actor)
 
   database().persist()
@@ -129,41 +147,48 @@ export async function saveColumnMapEntry(id: string, mappings: Array<{ source: s
 }
 export async function fetchAr() {
   await delay()
+  assertPermission('report:read')
 
   return readMock(arRows(database().db))
 }
 export async function fetchAp() {
   await delay()
+  assertPermission('report:read')
 
   return readMock(apRows(database().db))
 }
 export async function fetchArAging() {
   await delay()
+  assertPermission('report:read')
 
   return readMock(arAging(database().db))
 }
 export async function fetchApAging() {
   await delay()
+  assertPermission('report:read')
 
   return readMock(apAging(database().db))
 }
 export async function fetchClearing() {
   await delay()
+  assertPermission('payment_entry:read')
 
   return readMock(clearingRows(database().db))
 }
 export async function fetchExports() {
   await delay()
+  assertPermission('report:read')
 
   return readMock(exportRows(database().db))
 }
 export async function fetchCash() {
   await delay()
+  assertPermission('payment_entry:read')
 
   return readMock(cashRows(database().db))
 }
 export async function resolveIssue(id: string, action: 'explained' | 'ignored', note: string) {
-  const actor = assertCan('update')
+  const actor = assertPermission('integration:write')
 
   handleIssue(database().db, id, action, note, actor)
   database().persist()
@@ -171,7 +196,7 @@ export async function resolveIssue(id: string, action: 'explained' | 'ignored', 
   return fetchIssueDetail(id)
 }
 export async function confirmFee(id: string, category: string) {
-  const actor = assertCan('update')
+  const actor = assertPermission('integration:write')
 
   confirmFeeMap(database().db, id, category, actor)
   database().persist()
@@ -179,7 +204,7 @@ export async function confirmFee(id: string, category: string) {
   return fetchFeeMap()
 }
 export async function draftVoucherFromIssue(id: string) {
-  const actor = assertCan('create')
+  const actor = assertPermission('journal_entry:create')
   const row = createVoucherFromIssue(database().db, id, actor)
 
   database().persist()
@@ -187,7 +212,7 @@ export async function draftVoucherFromIssue(id: string) {
   return row
 }
 export async function draftVoucherFromProfit() {
-  const actor = assertCan('create')
+  const actor = assertPermission('journal_entry:create')
   const row = createVoucherFromProfit(database().db, actor)
 
   database().persist()
@@ -195,7 +220,7 @@ export async function draftVoucherFromProfit() {
   return row
 }
 export async function submitClearingApproval(ids: string[] = []) {
-  const actor = assertCan('create')
+  const actor = assertPermission('approval:create')
   const selected = ids.length ? ids : database().db.finance2?.clearing.slice(0, 1).map(item => item.id) ?? []
   const row = submitClearing(database().db, selected, actor)
 
@@ -205,7 +230,7 @@ export async function submitClearingApproval(ids: string[] = []) {
 }
 
 export async function submitVoucherApproval(id: string) {
-  const actor = assertCan('update')
+  const actor = assertPermission('journal_entry:submit')
   const row = submitVoucher(database().db, id, actor)
 
   database().persist()

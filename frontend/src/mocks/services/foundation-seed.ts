@@ -88,3 +88,10 @@ export const gapBChannelSeed = [
   { id: 'channel-wecom', pluginId: 'wecom', enabled: true, configured: true },
   { id: 'channel-dingtalk', pluginId: 'dingtalk', enabled: false, configured: false },
 ]
+
+// ---- 补齐批次 C ----
+export const gapCSeed = {
+  approvalThresholds: [{ type: '费用报销', firstLevel: 3000, secondLevel: 8000 }],
+  notificationCategories: ['approval', 'budget', 'agent', 'system'],
+  auditRetentionYears: { business: 10, ai: 3 },
+}

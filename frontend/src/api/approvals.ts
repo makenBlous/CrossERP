@@ -1,4 +1,4 @@
-import { assertCan, database, delay } from '@/api/mock-client'
+import { assertPermission, database, delay } from '@/api/mock-client'
 import { projectApprovals } from '@/mocks/project'
 import { type ApprovalWorkflowStep, approvalPayloadHash, auditWorkflowEdit } from '@/mocks/services/approvals'
 import type { ApprovalStatus } from '@/types/domain'
@@ -16,18 +16,21 @@ async function withPayloadHashes() {
 // 未来: GET /api/v1/approvals
 export async function fetchApprovals() {
   await delay()
+  assertPermission('approval:read')
 
   return withPayloadHashes()
 }
 
 export async function fetchApproval(id: string) {
   await delay()
+  assertPermission('approval:read')
 
   return (await withPayloadHashes()).find(item => item.id === id) ?? null
 }
 
 export async function fetchSubmittedApprovals() {
   await delay()
+  assertPermission('approval:read')
 
   return (await withPayloadHashes()).filter(item => item.submitter === '林夏' || item.status !== 'pending')
 }
@@ -36,7 +39,7 @@ export async function fetchSubmittedApprovals() {
 export async function decideApproval(id: string, status: Extract<ApprovalStatus, 'approved' | 'rejected'>, comment = '') {
   await delay()
 
-  const actor = assertCan('approve')
+  const actor = assertPermission('approval:approve')
 
   database().decide(id, status, actor, comment)
 
@@ -44,10 +47,7 @@ export async function decideApproval(id: string, status: Extract<ApprovalStatus,
 }
 
 export async function auditApprovalWorkflowEdit(documentType: string, step: ApprovalWorkflowStep) {
-  const actor = assertCan('update')
-
-  if (actor.role !== 'admin')
-    throw new Error('只有管理员可以编辑审批流程')
+  const actor = assertPermission('approval:write')
 
   auditWorkflowEdit(database().db, actor, documentType, step)
   database().persist()

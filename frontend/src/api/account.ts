@@ -1,9 +1,10 @@
-import { assertCan, currentActor, database, delay } from '@/api/mock-client'
+import { assertPermission, database, delay } from '@/api/mock-client'
 import { changePassword as changePasswordService } from '@/mocks/services/crm-admin'
 
 // 未来: GET /api/v1/account/tokens
 export async function fetchTokens() {
   await delay()
+  assertPermission('user:read')
 
   return database().db.accountTokens ?? []
 }
@@ -11,6 +12,7 @@ export async function fetchTokens() {
 // 未来: GET /api/v1/account/sessions
 export async function fetchSessions() {
   await delay()
+  assertPermission('user:read')
 
   return database().db.accountSessions ?? []
 }
@@ -18,6 +20,7 @@ export async function fetchSessions() {
 // 未来: GET /api/v1/account/profile
 export async function fetchProfile() {
   await delay()
+  assertPermission('user:read')
 
   return { name: '演示用户', email: 'demo@northwind.example', title: '跨境业务运营', timezone: 'Asia/Shanghai' }
 }
@@ -26,7 +29,7 @@ export async function fetchProfile() {
 export async function createAccountToken(name: string) {
   await delay()
 
-  const actor = assertCan('create')
+  const actor = assertPermission('user:write')
 
   return database().createToken(name, actor)
 }
@@ -35,7 +38,7 @@ export async function createAccountToken(name: string) {
 export async function revokeAccountToken(id: string) {
   await delay()
 
-  const actor = assertCan('update')
+  const actor = assertPermission('user:write')
 
   return database().revokeToken(id, actor)
 }
@@ -44,7 +47,7 @@ export async function revokeAccountToken(id: string) {
 export async function changePassword() {
   await delay()
 
-  const actor = currentActor()
+  const actor = assertPermission('user:write')
 
   changePasswordService(database().db, actor)
   database().persist()

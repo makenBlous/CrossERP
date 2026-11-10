@@ -8,6 +8,7 @@ export function writeAudit(
   refType: string,
   refId: string,
   summary: string,
+  metadata: { confirmerId?: string } = {},
 ) {
   db.audit.push({
     id: nextId(db, 'aud'),
@@ -15,6 +16,7 @@ export function writeAudit(
     actorId: actor.userId,
     actor: actor.name,
     actorRole: actor.role,
+    ...metadata,
     action,
     refType,
     refId,

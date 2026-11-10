@@ -525,7 +525,9 @@ export interface AuditEvent {
   at: string
   actorId: string
   actor: string
+  actorIdInferred?: boolean
   actorRole: Role
+  confirmerId?: string
   action: string
   refType: string
   refId: string

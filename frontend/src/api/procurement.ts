@@ -1,4 +1,4 @@
-import { assertCan, database, delay } from '@/api/mock-client'
+import { assertPermission, database, delay } from '@/api/mock-client'
 import type { PurchaseDraft, PurchaseReturnDraft, SupplierDraft } from '@/mocks/services/procurement'
 import {
   projectPurchaseOrder,
@@ -14,6 +14,7 @@ import {
 // 未来: GET /api/v1/procurement/lookups
 export async function fetchSupplyLookups() {
   await delay()
+  assertPermission('purchase_order:read')
 
   return projectSupplyLookups(database().db)
 }
@@ -21,6 +22,7 @@ export async function fetchSupplyLookups() {
 // 未来: GET /api/v1/procurement/suppliers
 export async function fetchSuppliers() {
   await delay()
+  assertPermission('supplier:read')
 
   return projectSuppliers(database().db)
 }
@@ -28,6 +30,7 @@ export async function fetchSuppliers() {
 // 未来: GET /api/v1/procurement/suppliers/{id}
 export async function fetchSupplier(id: string) {
   await delay()
+  assertPermission('supplier:read')
 
   return projectSupplier(database().db, id)
 }
@@ -36,25 +39,26 @@ export async function fetchSupplier(id: string) {
 export async function createSupplier(input: SupplierDraft) {
   await delay()
 
-  return database().saveSupplier(input, assertCan('create'))
+  return database().saveSupplier(input, assertPermission('supplier:create'))
 }
 
 // 未来: PATCH /api/v1/procurement/suppliers/{id}
 export async function updateSupplier(id: string, input: SupplierDraft) {
   await delay()
 
-  return database().saveSupplier({ ...input, id }, assertCan('update'))
+  return database().saveSupplier({ ...input, id }, assertPermission('supplier:write'))
 }
 
 // 未来: POST /api/v1/procurement/suppliers/status
 export async function changeSupplierStatus(ids: string[], status: 'active' | 'paused') {
   await delay()
-  database().setSupplierStatus(ids, status, assertCan('update'))
+  database().setSupplierStatus(ids, status, assertPermission('supplier:write'))
 }
 
 // 未来: GET /api/v1/procurement/orders
 export async function fetchPurchaseOrders() {
   await delay()
+  assertPermission('purchase_order:read')
 
   return projectPurchaseOrders(database().db)
 }
@@ -62,6 +66,7 @@ export async function fetchPurchaseOrders() {
 // 未来: GET /api/v1/procurement/orders/{id}
 export async function fetchPurchaseOrder(id: string) {
   await delay()
+  assertPermission('purchase_order:read')
 
   return projectPurchaseOrder(database().db, id)
 }
@@ -70,19 +75,20 @@ export async function fetchPurchaseOrder(id: string) {
 export async function createPurchaseOrder(input: PurchaseDraft) {
   await delay()
 
-  return database().createPurchase(input, assertCan('create'))
+  return database().createPurchase(input, assertPermission('purchase_order:create'))
 }
 
 // 未来: POST /api/v1/procurement/orders/{id}/cancel
 export async function cancelPurchaseOrder(id: string) {
   await delay()
 
-  return database().cancelPurchase(id, assertCan('update'))
+  return database().cancelPurchase(id, assertPermission('purchase_order:write'))
 }
 
 // 未来: GET /api/v1/procurement/receipts
 export async function fetchReceipts() {
   await delay()
+  assertPermission('purchase_receipt:read')
 
   return projectReceipts(database().db)
 }
@@ -90,6 +96,7 @@ export async function fetchReceipts() {
 // 未来: GET /api/v1/procurement/returns
 export async function fetchPurchaseReturns() {
   await delay()
+  assertPermission('purchase_order:read')
 
   return projectPurchaseReturns(database().db)
 }
@@ -98,19 +105,20 @@ export async function fetchPurchaseReturns() {
 export async function createPurchaseReturn(input: PurchaseReturnDraft) {
   await delay()
 
-  return database().createPurchaseReturn(input, assertCan('create'))
+  return database().createPurchaseReturn(input, assertPermission('purchase_order:create'))
 }
 
 // 未来: POST /api/v1/procurement/returns/{id}/confirm
 export async function confirmPurchaseReturn(id: string) {
   await delay()
 
-  return database().confirmPurchaseReturn(id, assertCan('update'))
+  return database().confirmPurchaseReturn(id, assertPermission('purchase_order:write'))
 }
 
 // 未来: GET /api/v1/procurement/statements
 export async function fetchStatements() {
   await delay()
+  assertPermission('supplier:read')
 
   return projectStatements(database().db)
 }
@@ -119,12 +127,12 @@ export async function fetchStatements() {
 export async function generateStatement(supplierId: string, period: string) {
   await delay()
 
-  return database().generateStatement(supplierId, period, assertCan('create'))
+  return database().generateStatement(supplierId, period, assertPermission('supplier:create'))
 }
 
 // 未来: POST /api/v1/procurement/statements/{id}/submit
 export async function submitStatement(id: string) {
   await delay()
 
-  return database().submitStatement(id, assertCan('suggest'))
+  return database().submitStatement(id, assertPermission('supplier:write'))
 }

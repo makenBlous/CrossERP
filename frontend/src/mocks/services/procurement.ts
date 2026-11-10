@@ -5,6 +5,7 @@ import { FlowError } from '@/mocks/services/errors'
 import { mustFind, nextId } from '@/mocks/services/ids'
 import { applyMovement, postStockDoc } from '@/mocks/services/inventory'
 import { addMinor, minorFromDecimal, minorToDecimal, mulQty } from '@/utils/money'
+import { requireActorPermission } from '@/utils/service-permissions'
 
 function findPo(db: MockDatabase, id: string) {
   const po = db.purchaseOrders.find(item => item.id === id)
@@ -16,6 +17,8 @@ function findPo(db: MockDatabase, id: string) {
 }
 
 export function submitPurchaseOrder(db: MockDatabase, id: string, actor: Actor): PurchaseOrder {
+  requireActorPermission(actor, 'purchase_order:submit')
+
   const po = findPo(db, id)
 
   if (po.status !== 'draft')
@@ -51,6 +54,8 @@ export function submitPurchaseOrder(db: MockDatabase, id: string, actor: Actor):
 }
 
 export function approvePurchaseOrder(db: MockDatabase, id: string, actor: Actor): PurchaseOrder {
+  requireActorPermission(actor, 'purchase_order:approve')
+
   const po = findPo(db, id)
 
   if (po.status !== 'submitted')
@@ -72,6 +77,8 @@ export function approvePurchaseOrder(db: MockDatabase, id: string, actor: Actor)
 }
 
 export function rejectPurchaseOrder(db: MockDatabase, id: string, actor: Actor): PurchaseOrder {
+  requireActorPermission(actor, 'purchase_order:approve')
+
   const po = findPo(db, id)
 
   if (po.status !== 'submitted')
@@ -90,6 +97,8 @@ export function rejectPurchaseOrder(db: MockDatabase, id: string, actor: Actor):
 }
 
 export function receivePurchaseOrder(db: MockDatabase, id: string, warehouseId: string, actor: Actor) {
+  requireActorPermission(actor, 'purchase_receipt:submit')
+
   const po = findPo(db, id)
 
   if (po.status !== 'approved' && po.status !== 'partial')
@@ -181,6 +190,8 @@ function expectedAtOf(value: string) {
 }
 
 export function createPurchaseOrder(db: MockDatabase, input: PurchaseDraft, actor: Actor): PurchaseOrder {
+  requireActorPermission(actor, 'purchase_order:create')
+
   const supplier = mustFind(db.suppliers, input.supplierId, '供应商')
 
   if (supplier.status !== 'active')
@@ -233,6 +244,8 @@ export function createPurchaseOrder(db: MockDatabase, input: PurchaseDraft, acto
 }
 
 export function cancelPurchaseOrder(db: MockDatabase, id: string, actor: Actor): PurchaseOrder {
+  requireActorPermission(actor, 'purchase_order:write')
+
   const po = findPo(db, id)
 
   if (po.status !== 'draft' && po.status !== 'rejected')
@@ -245,6 +258,8 @@ export function cancelPurchaseOrder(db: MockDatabase, id: string, actor: Actor):
 }
 
 export function saveSupplier(db: MockDatabase, input: SupplierDraft, actor: Actor): Supplier {
+  requireActorPermission(actor, input.id ? 'supplier:write' : 'supplier:create')
+
   const name = input.name.trim()
 
   if (!name)
@@ -306,6 +321,7 @@ export function saveSupplier(db: MockDatabase, input: SupplierDraft, actor: Acto
 }
 
 export function setSupplierStatus(db: MockDatabase, ids: string[], status: 'active' | 'paused', actor: Actor) {
+  requireActorPermission(actor, 'supplier:write')
   for (const id of ids) {
     const supplier = mustFind(db.suppliers, id, '供应商')
 
@@ -315,6 +331,7 @@ export function setSupplierStatus(db: MockDatabase, ids: string[], status: 'acti
 }
 
 export function createPurchaseReturn(db: MockDatabase, input: PurchaseReturnDraft, actor: Actor): PurchaseReturn {
+  requireActorPermission(actor, 'purchase_order:create')
   const supplier = db.suppliers.find(item => item.id === input.supplierId)
 
   if (!supplier)
@@ -380,6 +397,7 @@ export function createPurchaseReturn(db: MockDatabase, input: PurchaseReturnDraf
 }
 
 export function confirmPurchaseReturn(db: MockDatabase, id: string, actor: Actor): PurchaseReturn {
+  requireActorPermission(actor, 'purchase_order:write')
   const row = db.purchaseReturns.find(item => item.id === id)
 
   if (!row)
@@ -434,6 +452,8 @@ export function confirmPurchaseReturn(db: MockDatabase, id: string, actor: Actor
 }
 
 export function generateStatement(db: MockDatabase, supplierId: string, period: string, actor: Actor): SupplierStatement {
+  requireActorPermission(actor, 'supplier:create')
+
   const supplier = mustFind(db.suppliers, supplierId, '供应商')
 
   if (!/^\d{4}-\d{2}$/.test(period))
@@ -464,6 +484,8 @@ export function generateStatement(db: MockDatabase, supplierId: string, period: 
 }
 
 export function submitStatement(db: MockDatabase, id: string, actor: Actor): SupplierStatement {
+  requireActorPermission(actor, 'supplier:write')
+
   const row = mustFind(db.statements, id, '对账单')
 
   if (row.status !== 'draft')

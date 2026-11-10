@@ -3,6 +3,7 @@ import type { CurrencyCode } from '@/types/domain'
 import { writeAudit } from '@/mocks/services/audit'
 import { FlowError } from '@/mocks/services/errors'
 import { mustFind, nextId } from '@/mocks/services/ids'
+import { requireActorPermission } from '@/utils/service-permissions'
 import { minorFromDecimal } from '@/utils/money'
 
 export interface SkuDraft {
@@ -64,6 +65,8 @@ function dayBefore(isoDate: string) {
 }
 
 export function saveSku(db: MockDatabase, input: SkuDraft & { id?: string }, actor: Actor): Sku {
+  requireActorPermission(actor, input.id ? 'item:write' : 'item:create')
+
   const code = input.internalSku.trim()
 
   if (!code || !input.title.trim())
@@ -109,6 +112,7 @@ export function saveSku(db: MockDatabase, input: SkuDraft & { id?: string }, act
 }
 
 export function setSkuActive(db: MockDatabase, ids: string[], active: boolean, actor: Actor) {
+  requireActorPermission(actor, 'item:write')
   for (const id of ids) {
     const sku = mustFind(db.skus, id, 'SKU')
 
@@ -118,6 +122,8 @@ export function setSkuActive(db: MockDatabase, ids: string[], active: boolean, a
 }
 
 export function addSkuCost(db: MockDatabase, input: CostDraft, actor: Actor): SkuCost {
+  requireActorPermission(actor, 'item:write')
+
   const sku = db.skus.find(item => item.internalSku === input.internalSku.trim())
 
   if (!sku)
@@ -161,6 +167,8 @@ export function addSkuCost(db: MockDatabase, input: CostDraft, actor: Actor): Sk
 }
 
 export function saveListing(db: MockDatabase, input: ListingDraft, actor: Actor): Listing {
+  requireActorPermission(actor, input.id ? 'listing:write' : 'listing:create')
+
   const store = mustFind(db.stores, input.storeId, '店铺')
   const sku = mustFind(db.skus, input.skuId, 'SKU')
   const price = minorFromDecimal(input.price)
@@ -196,6 +204,7 @@ export function saveListing(db: MockDatabase, input: ListingDraft, actor: Actor)
 }
 
 export function setListingStatus(db: MockDatabase, ids: string[], status: string, actor: Actor) {
+  requireActorPermission(actor, 'listing:write')
   for (const id of ids) {
     const listing = mustFind(db.listings, id, 'Listing')
 
@@ -205,6 +214,8 @@ export function setListingStatus(db: MockDatabase, ids: string[], status: string
 }
 
 export function saveCategory(db: MockDatabase, input: NamedDraft, actor: Actor): Category {
+  requireActorPermission(actor, input.id ? 'item_group:write' : 'item_group:create')
+
   const name = input.name.trim()
 
   if (!name)
@@ -245,6 +256,7 @@ export function saveCategory(db: MockDatabase, input: NamedDraft, actor: Actor):
 }
 
 export function setCategoryActive(db: MockDatabase, ids: string[], active: boolean, actor: Actor) {
+  requireActorPermission(actor, 'item_group:write')
   for (const id of ids) {
     const row = mustFind(db.categories, id, '类目')
 
@@ -254,6 +266,8 @@ export function setCategoryActive(db: MockDatabase, ids: string[], active: boole
 }
 
 export function saveBrand(db: MockDatabase, input: NamedDraft, actor: Actor): Brand {
+  requireActorPermission(actor, input.id ? 'brand:write' : 'brand:create')
+
   const name = input.name.trim()
 
   if (!name)
@@ -280,6 +294,7 @@ export function saveBrand(db: MockDatabase, input: NamedDraft, actor: Actor): Br
 }
 
 export function setBrandActive(db: MockDatabase, ids: string[], active: boolean, actor: Actor) {
+  requireActorPermission(actor, 'brand:write')
   for (const id of ids) {
     const row = mustFind(db.brands, id, '品牌')
 
@@ -289,6 +304,8 @@ export function setBrandActive(db: MockDatabase, ids: string[], active: boolean,
 }
 
 export function saveMapping(db: MockDatabase, input: MappingDraft, actor: Actor): SkuMapping {
+  requireActorPermission(actor, 'item:write')
+
   const store = mustFind(db.stores, input.storeId, '店铺')
   const sku = db.skus.find(item => item.internalSku === input.internalSku.trim())
 
@@ -332,6 +349,7 @@ export function saveMapping(db: MockDatabase, input: MappingDraft, actor: Actor)
 }
 
 export function confirmMappings(db: MockDatabase, ids: string[], actor: Actor) {
+  requireActorPermission(actor, 'item:write')
   for (const id of ids) {
     const row = mustFind(db.mappings, id, '映射')
 
@@ -341,6 +359,8 @@ export function confirmMappings(db: MockDatabase, ids: string[], actor: Actor) {
 }
 
 export function saveBundle(db: MockDatabase, input: BundleDraft, actor: Actor): Bundle {
+  requireActorPermission(actor, input.id ? 'item:write' : 'item:create')
+
   const parent = db.skus.find(item => item.internalSku === input.parentInternalSku.trim())
   const child = db.skus.find(item => item.internalSku === input.childInternalSku.trim())
 
@@ -378,6 +398,7 @@ export function saveBundle(db: MockDatabase, input: BundleDraft, actor: Actor): 
 }
 
 export function removeBundles(db: MockDatabase, ids: string[], actor: Actor) {
+  requireActorPermission(actor, 'item:delete')
   for (const id of ids) {
     const row = mustFind(db.bundles, id, '组合装')
 

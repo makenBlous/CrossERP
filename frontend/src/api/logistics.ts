@@ -1,4 +1,4 @@
-import { assertCan, database, delay } from '@/api/mock-client'
+import { assertPermission, database, delay } from '@/api/mock-client'
 import type { CarrierDraft, RateDraft, ShipmentDraft, ShipmentFeeDraft } from '@/mocks/services/logistics'
 import {
   projectCarriers,
@@ -12,6 +12,7 @@ import {
 // 未来: GET /api/v1/logistics/shipments
 export async function fetchShipments() {
   await delay()
+  assertPermission('shipment:read')
 
   return projectShipments(database().db)
 }
@@ -19,6 +20,7 @@ export async function fetchShipments() {
 // 未来: GET /api/v1/logistics/shipments/{id}
 export async function fetchShipment(id: string) {
   await delay()
+  assertPermission('shipment:read')
 
   return projectShipment(database().db, id)
 }
@@ -27,19 +29,20 @@ export async function fetchShipment(id: string) {
 export async function createShipment(input: ShipmentDraft) {
   await delay()
 
-  return database().createShipment(input, assertCan('create'))
+  return database().createShipment(input, assertPermission('shipment:create'))
 }
 
 // 未来: POST /api/v1/logistics/shipments/{id}/charges
 export async function saveShipmentFee(input: ShipmentFeeDraft) {
   await delay()
 
-  return database().saveShipmentFee(input, assertCan('update'))
+  return database().saveShipmentFee(input, assertPermission('shipment:write'))
 }
 
 // 未来: GET /api/v1/logistics/carriers
 export async function fetchCarriers() {
   await delay()
+  assertPermission('shipment:read')
 
   return projectCarriers(database().db)
 }
@@ -48,25 +51,26 @@ export async function fetchCarriers() {
 export async function createCarrier(input: CarrierDraft) {
   await delay()
 
-  return database().saveCarrier(input, assertCan('create'))
+  return database().saveCarrier(input, assertPermission('shipment:create'))
 }
 
 // 未来: PATCH /api/v1/logistics/carriers/{id}
 export async function updateCarrier(id: string, input: CarrierDraft) {
   await delay()
 
-  return database().saveCarrier({ ...input, id }, assertCan('update'))
+  return database().saveCarrier({ ...input, id }, assertPermission('shipment:write'))
 }
 
 // 未来: POST /api/v1/logistics/carriers/status
 export async function changeCarrierActive(ids: string[], active: boolean) {
   await delay()
-  database().setCarrierActive(ids, active, assertCan('update'))
+  database().setCarrierActive(ids, active, assertPermission('shipment:write'))
 }
 
 // 未来: GET /api/v1/logistics/rate-cards
 export async function fetchRateCards() {
   await delay()
+  assertPermission('shipment:read')
 
   return projectRateCards(database().db)
 }
@@ -75,19 +79,20 @@ export async function fetchRateCards() {
 export async function createRateCard(input: RateDraft) {
   await delay()
 
-  return database().saveRateCard(input, assertCan('create'))
+  return database().saveRateCard(input, assertPermission('shipment:create'))
 }
 
 // 未来: PATCH /api/v1/logistics/rate-cards/{id}
 export async function updateRateCard(id: string, input: RateDraft) {
   await delay()
 
-  return database().saveRateCard({ ...input, id }, assertCan('update'))
+  return database().saveRateCard({ ...input, id }, assertPermission('shipment:write'))
 }
 
 // 未来: GET /api/v1/logistics/tracking
 export async function fetchTracking() {
   await delay()
+  assertPermission('shipment:read')
 
   return projectTracking(database().db)
 }
@@ -95,6 +100,7 @@ export async function fetchTracking() {
 // 未来: GET /api/v1/logistics/fee-checks
 export async function fetchFreightChecks() {
   await delay()
+  assertPermission('shipment:read')
 
   return projectFreightChecks(database().db)
 }
@@ -103,5 +109,5 @@ export async function fetchFreightChecks() {
 export async function submitFreightCheck(id: string) {
   await delay()
 
-  return database().submitFreightCheck(id, assertCan('suggest'))
+  return database().submitFreightCheck(id, assertPermission('shipment:write'))
 }

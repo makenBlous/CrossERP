@@ -1224,3 +1224,9 @@ export const gapBUiLabels = {
   'zh-CN': { rfq: '询价单', comparison: '询价比价', replenishment: '补货建议', chain: '业务链追溯', importWizard: '导入向导', channel: '通知渠道' },
   'en': { rfq: 'Request for Quotation', comparison: 'Quotation Comparison', replenishment: 'Replenishment', chain: 'Business Chain Trace', importWizard: 'Import Wizard', channel: 'Notification Channels' },
 } as const
+
+// ---- 补齐批次 C ----
+export const gapCMessages = {
+  'zh-CN': { approvalCenter: '统一审批中心', permissionMatrix: '权限矩阵', effectivePermissions: '有效权限', auditTrace: '建议追溯' },
+  'en': { approvalCenter: 'Approval Center', permissionMatrix: 'Permission Matrix', effectivePermissions: 'Effective Permissions', auditTrace: 'Suggestion Trace' },
+}
