@@ -332,6 +332,7 @@ export function setSupplierStatus(db: MockDatabase, ids: string[], status: 'acti
 
 export function createPurchaseReturn(db: MockDatabase, input: PurchaseReturnDraft, actor: Actor): PurchaseReturn {
   requireActorPermission(actor, 'purchase_order:create')
+
   const supplier = db.suppliers.find(item => item.id === input.supplierId)
 
   if (!supplier)
@@ -398,6 +399,7 @@ export function createPurchaseReturn(db: MockDatabase, input: PurchaseReturnDraf
 
 export function confirmPurchaseReturn(db: MockDatabase, id: string, actor: Actor): PurchaseReturn {
   requireActorPermission(actor, 'purchase_order:write')
+
   const row = db.purchaseReturns.find(item => item.id === id)
 
   if (!row)

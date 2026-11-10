@@ -73,7 +73,6 @@ export const departments: Department[] = [
   { id: 'dept-fin', code: 'FIN', name: '财务部', parentId: null, managerUserId: 'demo-finance', active: true },
 ]
 
-
 // ---- 补齐批次 D：人事、行政、智能体控制的种子索引 ----
 export const gapDSeed = {
   aiControl: { mode: 'normal' as const, reason: '演示默认正常；可由管理员切换为降级或关闭' },
@@ -99,7 +98,6 @@ export const gapCSeed = {
   auditRetentionYears: { business: 10, ai: 3 },
 }
 
-
 // ---- 补齐批次 E：知识库与新人上手演示种子 ----
 // 业务集合在 mocks/services/gap-e.ts 延迟初始化，避免改动地基 MockDatabase 类型。
 export const gapESeedInfo = {
@@ -108,4 +106,3 @@ export const gapESeedInfo = {
   employeeId: 'demo-operator',
   onboardingTemplate: 'purchaser',
 } as const
-
