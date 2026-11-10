@@ -183,6 +183,7 @@ export const legacyRoleActions: Record<'admin' | 'operator' | 'finance' | 'viewe
  */
 export const legacyCompatibilityPermissions: Record<'admin' | 'operator' | 'finance' | 'viewer' | 'auditor', string[]> = {
   admin: [
+    'integration:import',
     expenseApprovalPermissionKeys.manager,
     expenseApprovalPermissionKeys.finance,
     'agent_autonomy:write',
@@ -193,7 +194,7 @@ export const legacyCompatibilityPermissions: Record<'admin' | 'operator' | 'fina
     'salary_slip:review',
     accountsPayablePermissionKey,
   ],
-  operator: ['agent_autonomy:write', 'agent_mode:write'],
+  operator: ['integration:import', 'agent_autonomy:write', 'agent_mode:write'],
   finance: [
     'budget:write',
     'employee_advance:write',
