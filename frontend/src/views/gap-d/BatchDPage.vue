@@ -14,6 +14,7 @@ import RecordDrawer from '@/components/biz/RecordDrawer.vue'
 import StatusChip from '@/components/biz/StatusChip.vue'
 import { useAiModeStore } from '@/stores/ai-mode'
 import { effectivePermission, roleSubject } from '@/utils/permission-engine'
+import { minorFromCents } from '@/utils/money'
 import type { AgentAutonomyLevel } from '@/types/foundation'
 import type { GapDPageId, GapDPayrollRule, GapDPayslip, GapDRecord } from '@/types/gap-d'
 
@@ -428,7 +429,7 @@ async function saveRule() {
   catch (error) { message.value = error instanceof Error ? error.message : '保存规则失败' }
 }
 
-const payrollRows = computed(() => (payrollRun.value?.payslips ?? []).map(row => ({ ...row, id: row.id, grossCents: row.grossCents / 100, socialPersonalCents: row.socialPersonalCents / 100, housingFundPersonalCents: row.housingFundPersonalCents / 100, taxableCumulativeCents: row.taxableCumulativeCents / 100, taxCents: row.taxCents / 100, netCents: row.netCents / 100 })))
+const payrollRows = computed(() => payrollRun.value?.payslips ?? [])
 const trustScore = computed(() => String(records.value.find(item => item.score)?.score ?? '—'))
 
 function amount(row: GapDRecord) {
@@ -678,37 +679,43 @@ onMounted(load)
         >
           <template #item.grossCents="{ item }">
             <MoneyText
-              :amount="item.grossCents"
+              :amount="minorFromCents(item.grossCents)"
+              minor
               currency="CNY"
             />
           </template>
           <template #item.socialPersonalCents="{ item }">
             <MoneyText
-              :amount="item.socialPersonalCents"
+              :amount="minorFromCents(item.socialPersonalCents)"
+              minor
               currency="CNY"
             />
           </template>
           <template #item.housingFundPersonalCents="{ item }">
             <MoneyText
-              :amount="item.housingFundPersonalCents"
+              :amount="minorFromCents(item.housingFundPersonalCents)"
+              minor
               currency="CNY"
             />
           </template>
           <template #item.taxableCumulativeCents="{ item }">
             <MoneyText
-              :amount="item.taxableCumulativeCents"
+              :amount="minorFromCents(item.taxableCumulativeCents)"
+              minor
               currency="CNY"
             />
           </template>
           <template #item.taxCents="{ item }">
             <MoneyText
-              :amount="item.taxCents"
+              :amount="minorFromCents(item.taxCents)"
+              minor
               currency="CNY"
             />
           </template>
           <template #item.netCents="{ item }">
             <MoneyText
-              :amount="item.netCents"
+              :amount="minorFromCents(item.netCents)"
+              minor
               currency="CNY"
             />
           </template>
@@ -1150,7 +1157,8 @@ onMounted(load)
         </template>
         <template #item.salaryCents="{ item }">
           <span v-if="item.salaryCents != null"><MoneyText
-            :amount="Number(item.salaryCents) / 100"
+            :amount="minorFromCents(Number(item.salaryCents))"
+            minor
             currency="CNY"
           /></span><span
             v-else
@@ -1293,31 +1301,36 @@ onMounted(load)
           <VCardText class="d-flex flex-column gap-2">
             <div class="d-flex justify-space-between">
               <span>应发</span><MoneyText
-                :amount="selectedPayslip.grossCents / 100"
+                :amount="minorFromCents(selectedPayslip.grossCents)"
+                minor
                 currency="CNY"
               />
             </div>
             <div class="d-flex justify-space-between">
               <span>社保/公积金个人</span><MoneyText
-                :amount="(selectedPayslip.socialPersonalCents + selectedPayslip.housingFundPersonalCents) / 100"
+                :amount="minorFromCents(selectedPayslip.socialPersonalCents + selectedPayslip.housingFundPersonalCents)"
+                minor
                 currency="CNY"
               />
             </div>
             <div class="d-flex justify-space-between">
               <span>累计应纳税所得额</span><MoneyText
-                :amount="selectedPayslip.taxableCumulativeCents / 100"
+                :amount="minorFromCents(selectedPayslip.taxableCumulativeCents)"
+                minor
                 currency="CNY"
               />
             </div>
             <div class="d-flex justify-space-between">
               <span>本月个税</span><MoneyText
-                :amount="selectedPayslip.taxCents / 100"
+                :amount="minorFromCents(selectedPayslip.taxCents)"
+                minor
                 currency="CNY"
               />
             </div>
             <div class="d-flex justify-space-between font-weight-medium">
               <span>实发</span><MoneyText
-                :amount="selectedPayslip.netCents / 100"
+                :amount="minorFromCents(selectedPayslip.netCents)"
+                minor
                 currency="CNY"
               />
             </div>

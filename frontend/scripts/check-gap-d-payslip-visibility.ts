@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { approveGapDPayroll, calculateGapDPayroll, getGapDPayrollRun, listGapDRecords, publishGapDPayslips, reviewGapDPayroll } from '../src/mocks/services/gap-d'
 import type { Actor } from '../src/types/entities'
 import type { GapDPayrollRun, GapDPayslip } from '../src/types/gap-d'
+import { minorFromCents, toDisplay } from '../src/utils/money'
 
 const at = '2026-11-10T08:00:00+08:00'
 const admin: Actor = { userId: 'demo-admin', name: '演示管理员', role: 'admin', at }
@@ -10,6 +11,7 @@ const employee: Actor = { userId: 'demo-employee', name: '演示普通员工', r
 const otherEmployee: Actor = { userId: 'demo-other-employee', name: '演示其他员工', role: 'employee', at }
 const hr: Actor = { userId: 'demo-hr-admin', name: '演示人事行政', role: 'hr_admin', at }
 const finance: Actor = { userId: 'demo-fin-manager', name: '演示财务主管', role: 'finance_manager', at }
+
 let failures = 0
 
 function check(label: string, assertion: () => void) {
@@ -80,6 +82,11 @@ check('发布后其他员工只看到自己的工资条', () => {
 check('工资金额保持安全整数分', () => {
   for (const payslip of payroll.payslips)
     assertSafeCents(payslip)
+})
+
+check('工资展示把 1200000 分转换为 ￥12,000.00', () => {
+  assert.equal(minorFromCents(1200000), 120000000)
+  assert.equal(toDisplay(minorFromCents(1200000), 'CNY'), 12000)
 })
 
 console.log(`校验结束：${failures === 0 ? '全部通过' : `${failures} 项失败`}`)

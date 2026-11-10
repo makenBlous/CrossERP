@@ -35,9 +35,9 @@ const templates: Role[] = [
 
 const basePages = JSON.parse(readFileSync('C:/Users/cimi/AppData/Local/Temp/cx-pw/b0_base_pages.json', 'utf8')) as Array<{ path: string; roles: Role[] }>
 
-assert.equal(pageCatalog.length, 227)
+assert.equal(pageCatalog.length, 228)
 assert.equal(pageCatalog.filter(page => page.batch === undefined).length, 128)
-assert.equal(pageCatalog.filter(page => page.batch !== undefined).length, 99)
+assert.equal(pageCatalog.filter(page => page.batch !== undefined).length, 100)
 assert.equal(new Set(pageCatalog.map(page => page.id)).size, pageCatalog.length, 'pageCatalog 的 id 必须唯一')
 assert.equal(new Set(pageCatalog.map(page => page.path)).size, pageCatalog.length, 'pageCatalog 的 path 必须唯一')
 assert.deepEqual(

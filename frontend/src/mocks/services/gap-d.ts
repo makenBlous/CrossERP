@@ -1,5 +1,5 @@
 import { validateAutonomyLevel } from '@/utils/autonomy'
-import { minorFromDecimal, percentOf } from '@/utils/money'
+import { minorFromCents, minorFromDecimal, percentOf, toDisplay } from '@/utils/money'
 import { effectivePermission, fieldAccess, roleSubject } from '@/utils/permission-engine'
 import { assertHumanActor, requireActorPermission } from '@/utils/service-permissions'
 import type { AgentAutonomyLevel } from '@/types/foundation'
@@ -242,7 +242,9 @@ function payslipStatus(run: GapDPayrollRun, payslip: GapDPayslip): GapDPayslip['
 }
 
 function payrollRecord(run: GapDPayrollRun, payslip: GapDPayslip): GapDRecord {
-  return { id: payslip.id, title: `${payslip.period} 工资条`, status: payslipStatus(run, payslip), owner: payslip.employeeName, amount: payslip.netCents / 100, currency: 'CNY', detail: `实发 ¥${(payslip.netCents / 100).toFixed(2)}，个税仅本人可见`, updatedAt: now }
+  const net = toDisplay(minorFromCents(payslip.netCents), 'CNY')
+
+  return { id: payslip.id, title: `${payslip.period} 工资条`, status: payslipStatus(run, payslip), owner: payslip.employeeName, amount: net, currency: 'CNY', detail: `实发 ¥${net.toFixed(2)}，个税仅本人可见`, updatedAt: now }
 }
 
 function filteredPayrollRun(run: GapDPayrollRun, payslips: GapDPayslip[]): GapDPayrollRun {

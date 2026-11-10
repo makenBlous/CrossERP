@@ -5,6 +5,11 @@ export type Minor = number
 
 const SCALE = 10000
 
+/** 将整数分转换为项目统一的万分位 Minor。 */
+export function minorFromCents(cents: number): Minor {
+  return cents * 100
+}
+
 /** 1 单位外币折合多少 USD，万分位。演示汇率，不是行情接口。 */
 export const FX_TO_USD: Record<CurrencyCode, Minor> = {
   USD: 10000,

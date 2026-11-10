@@ -41,6 +41,7 @@ import {
 } from '@/api/gap-c'
 import { fetchScopedContext, fetchScopedEmployees, fetchScopedExpenses, fetchScopedOrders } from '@/api/scoped-reads'
 import DetailPage from '@/components/biz/DetailPage.vue'
+import AuditActorId from '@/components/biz/AuditActorId.vue'
 import FormDrawer from '@/components/biz/FormDrawer.vue'
 import FormPage from '@/components/biz/FormPage.vue'
 import ListPage, { type ListColumn } from '@/components/biz/ListPage.vue'
@@ -484,6 +485,12 @@ onMounted(load)
           :amount="item.amount"
           minor
           currency="CNY"
+        />
+      </template>
+      <template #item.actorId="{ item }">
+        <AuditActorId
+          :actor-id="String(item.actorId ?? '')"
+          :inferred="Boolean(item.actorIdInferred) || String(item.actorId ?? '').startsWith('role:')"
         />
       </template>
       <template #item.status="{ item }">
