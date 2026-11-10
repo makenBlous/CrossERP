@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { fetchInboxNotifications, markInboxNotificationRead } from '@/api/gap-e'
 import InboxPage from './inbox.vue'
+import { fetchInboxNotifications, markInboxNotificationRead } from '@/api/gap-e'
 </script>
 
 <template>

@@ -73,6 +73,12 @@ export function submitSuggestion(db: MockDatabase, input: SuggestionInput, actor
   requireActorPermission(actor, 'agent_suggestion:create')
 
   const amount = minorFromDecimal(input.amount)
+
+  const defaultLines = [
+    { account: '待处理财产损溢', debit: amount, credit: 0 },
+    { account: '平台结算清算', debit: 0, credit: amount },
+  ]
+
   const lines = input.lines?.length
     ? input.lines.map(line => {
       if (!Number.isSafeInteger(line.debit) || !Number.isSafeInteger(line.credit))
@@ -80,10 +86,7 @@ export function submitSuggestion(db: MockDatabase, input: SuggestionInput, actor
 
       return { account: line.account, debit: line.debit, credit: line.credit }
     })
-    : [
-        { account: '待处理财产损溢', debit: amount, credit: 0 },
-        { account: '平台结算清算', debit: 0, credit: amount },
-      ]
+    : defaultLines
 
   const approval: ApprovalEntity = {
     id: nextId(db, 'apr'),
