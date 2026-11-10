@@ -40,7 +40,7 @@ export async function createGapAClaim(input: { claimant: string; department: str
 
   await delay()
 
-  return service.createClaim({ ...input, claimantId: actor.id })
+  return service.createClaim({ ...input, claimantId: actor.userId })
 }
 
 // 未来: POST /api/v1/expense/claims/{id}/submit
@@ -102,7 +102,7 @@ export async function createGapATrip(input: { claimant: string; destination: str
 
   await delay()
 
-  return service.createTrip({ ...input, claimant: actor.name, claimantId: actor.id })
+  return service.createTrip({ ...input, claimant: actor.name, claimantId: actor.userId })
 }
 
 // 未来: POST /api/v1/expense/trips/{id}/submit

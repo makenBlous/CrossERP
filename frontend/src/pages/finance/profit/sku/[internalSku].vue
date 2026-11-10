@@ -1,24 +1,44 @@
 <script setup lang="ts">
-import { fetchProfit } from '@/api/finance'
+import { fetchProfitSku } from '@/api/finance'
+import { toDisplay } from '@/utils/money'
 import FinanceDetail from '@/views/finance/FinanceDetail.vue'
 
 const route = useRoute()
-const payload = ref<Awaited<ReturnType<typeof fetchProfit>>>()
+const router = useRouter()
+const payload = ref<Awaited<ReturnType<typeof fetchProfitSku>>>()
+const row = computed(() => payload.value?.row)
+const storeId = computed(() => typeof route.query.storeId === 'string' ? route.query.storeId : undefined)
+const storeOptions = computed(() => payload.value?.rows ?? [])
 
-// 旧回归脚本使用固定演示 SKU；若当前种子没有该 SKU，仍展示第一条已存利润快照，避免空白页。
-const row = computed(() => payload.value?.rows.find(item => item.sku === String((route.params as Record<string, string>).internalSku)) ?? payload.value?.rows[0])
+async function load() {
+  payload.value = await fetchProfitSku(String((route.params as Record<string, string>).internalSku), storeId.value)
+}
+
+async function selectStore(value: string) {
+  await router.replace({ query: { ...route.query, storeId: value } })
+}
 
 onMounted(async () => {
-  payload.value = await fetchProfit()
+  await load()
 })
+
+watch(() => route.query.storeId, load)
 </script>
 
 <template>
   <FinanceDetail
     v-if="row"
-    :title="`${row.sku} · SKU 利润`"
-    :subtitle="`${row.storeName} · 2026-10`"
+    :title="`${row.sku} · ${row.storeName} · ${row.currency} · SKU 利润`"
+    :subtitle="`期间 ${payload?.period ?? ''}`"
   >
+    <VAlert
+      v-if="payload?.exampleData"
+      type="warning"
+      variant="tonal"
+      class="mb-6"
+    >
+      当前期间没有该 SKU 的利润行，以下展示最近有数据的期间 {{ payload?.period }}（示例数据）。
+    </VAlert>
     <VAlert
       type="info"
       variant="tonal"
@@ -34,15 +54,59 @@ onMounted(async () => {
       >
         <KpiCard
           :title="item.label"
-          :value="`${item.value} ${row.currency}`"
+          :value="`${toDisplay(item.value, row.currency)} ${row.currency}`"
           icon="tabler-chart-bar"
           color="primary"
         />
       </VCol>
     </VRow>
+    <VAlert
+      type="info"
+      variant="tonal"
+      class="mt-6"
+    >
+      {{ payload?.sourceOrderScope }}
+    </VAlert>
+    <VSelect
+      v-if="storeOptions.length > 1"
+      class="mt-6"
+      label="店铺"
+      :model-value="row?.storeId"
+      :items="storeOptions.map(item => ({ title: `${item.storeName} · ${item.currency}`, value: item.storeId }))"
+      @update:model-value="selectStore"
+    />
     <VAlert type="info" variant="tonal">
       来源：广告分摊（金额由服务层已计算结果提供）。
     </VAlert>
+    <VCard class="mt-6">
+      <VCardItem>
+        <VCardTitle>来源订单</VCardTitle>
+      <VCardSubtitle>期间 {{ payload?.period }} · {{ row?.storeName }} · {{ row?.currency }} · 可追溯到订单明细</VCardSubtitle>
+      </VCardItem>
+      <VTable v-if="payload?.sourceOrders?.length">
+        <thead>
+          <tr>
+            <th>订单</th>
+            <th>日期</th>
+            <th>店铺</th>
+            <th class="text-end">数量</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="order in payload?.sourceOrders ?? []" :key="order.id">
+            <td><RouterLink :to="`/orders/${order.id}`">{{ order.orderNo }}</RouterLink></td>
+            <td>{{ order.orderedAt }}</td>
+            <td>{{ order.storeName }}</td>
+            <td class="text-end">{{ order.qty }}</td>
+            <td>{{ order.status }}</td>
+          </tr>
+        </tbody>
+      </VTable>
+      <VCardText v-else>
+        <EmptyState title="该期间没有可追溯订单" />
+      </VCardText>
+    </VCard>
   </FinanceDetail>
   <EmptyState
     v-else

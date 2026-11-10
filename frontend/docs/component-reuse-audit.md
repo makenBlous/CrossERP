@@ -381,4 +381,84 @@
 
 服务层金额入口统一拒绝非 `Number.isSafeInteger` 或不大于零的最小单位金额。独立验收脚本 `xa.ts`、`xa2.ts` 已覆盖职责分离和非整数金额，均为 `== FAIL 0`；另以临时迁移断言验证未知身份记录的待人工修复护栏。
 
+## 补齐批次 B 独立复用审计
 
+审计范围：相对 `3f325c0` 的全部 `frontend` 变更，重点为 `src/views/gap-b/GapBPage.vue`、批次 B 路由薄壳、`src/api/gap-b.ts`、`src/types/gap-b.ts` 和 `src/mocks/services/gap-b.ts`。对照项目 `src/components/biz/*`、Vuexy full-version 的 `src/@core/components`、`src/components/dialogs`、`src/views/**`、`src/pages/**`，以及 Vuetify 组件。
+
+| 组件 / UI 块 | 位置 | 现成等价物 | 处理 | 原因 | 业务操作是否满足 |
+| --- | --- | --- | --- | --- | --- |
+| 批次 B 通用页面壳 | `src/views/gap-b/GapBPage.vue` | `ListPage`、`DetailPage`、`FormPage` | 保留为薄组合 | 只负责根据 `pageKey` 选择 API 数据和业务插槽，列表、详情、表单外壳均来自项目共享组件。 | 是，已逐页补齐创建、详情和提交动作 |
+| 加载状态 | `GapBPage.vue` | `components/biz/LoadingState.vue`、Vuexy skeleton | 已替换 | 删除页面内重复的 `VSkeletonLoader`，统一加载文案和骨架。 | 是 |
+| S09 询价列表与新建 | `pages/procurement/rfqs.vue`、`GapBPage.vue` | `ListPage`、`FormDrawer`、`PermissionGate` | 已替换并补齐 | 新建询价改为现成抽屉和创建权限门禁；列表仍复用筛选、分页、导出。 | 是：列表、新建询价、人工发送前草稿 |
+| S10 询价比价 | `pages/procurement/rfqs/[id].vue`、`GapBPage.vue` | `DetailPage`、`MoneyText`；Vuexy invoice editable / `VCard` | 保留业务专属报价卡 | 并排报价、含税总额和人工选定供应商是比价专属结构，`AppPricing.vue` 是订阅套餐数据，不能直接套用。 | 是：查看报价、人工选定并生成采购单草稿 |
+| S11 采购合同列表 | `pages/procurement/contracts.vue` | `ListPage`、`StatusChip` | 保留 | 仅提供合同筛选、状态和详情入口，没有另写表格。 | 是：列表、筛选、进入详情 |
+| S12 合同详情 | `pages/procurement/contracts/[id].vue` | `DetailPage`、`VTable`、`VFileInput` | 已补齐 | 复用详情时间线和关联采购单；价格表与附件是合同字段专属，使用 Vuetify 直接组件。 | 是：条款、价格表、附件入口、关联采购单 |
+| S13 供应商评估 | `pages/procurement/supplier-scores.vue` | `ListPage`、`KpiCard`、`StatusChip` | 已补齐 | 通过 `ListPage#widgets` 接入项目 KPI 薄封装，评分仍由代码提供。 | 是：列表、筛选、平均评分 |
+| I12 批次与效期 | `pages/inventory/batches.vue` | `ListPage`、`StatusChip` | 保留 | 直接复用共享列表和状态字典，临期状态来自服务层。 | 是：列表、筛选、状态查看 |
+| I13 补货建议 | `pages/inventory/replenishment.vue` | `ListPage`、`PermissionGate` | 保留并补齐人工路径 | AI 起草按钮受 AI 开关控制；AI 关闭时保留手动新建采购单入口。 | 是：建议列表、AI 起草、人工起草 |
+| I14 调拨详情 | `pages/inventory/transfers/[id].vue` | `DetailPage`、`PermissionGate`、`VStepper` | 已补齐 | 在详情页新增确认调拨动作，库存流水说明继续使用步骤条。 | 是：调出 / 在途 / 调入确认 |
+| I15 盘点详情 | `pages/inventory/counts/[id].vue` | `DetailPage`、`PermissionGate`、`AppTextField` | 已补齐 | 增加实盘数量录入和差异审批提交，过账状态仍由 mock 服务层更新。 | 是：逐行录入、查看差异、提交审批 |
+| D05 业务链追溯 | `pages/dashboard/chain.vue` | `DetailPage`、Vuexy timeline | 已替换 | 删除页面内自写 `VTimeline`，改用 `DetailPage` 右栏时间线；搜索和断点数据保持原动作。 | 是：输入单号、查看 5 段链路和 4 个已接通断点 |
+| INT01 导入向导 | `pages/integrations/import-wizard.vue` | `FormPage`、Vuetify `VStepper`/`VFileInput`/`VTable` | 保留并补齐 | Vuexy `DropZone.vue` 限定图片预览，不适合 CSV/XLSX；映射表和导入预览需要逐行选择 / 展示，Vuetify 表格是直接等价物。 | 是：来源、上传、映射确认、预览、导入 |
+| INT02 平台同步 | `pages/integrations/sync-jobs.vue` | `ListPage`、`StatusChip`、`PermissionGate` | 保留并补齐 | 同步任务表和立即同步按钮分别复用列表与更新权限门禁。 | 是：任务状态、失败信息、立即同步 |
+| INT03 金蝶设置 | `pages/integrations/kingdee.vue` | `FormPage`、`AppTextField`、`AppSelect` | 已补齐 | 将账套、凭证字、导出格式和科目对照字段拆为现成表单控件。 | 是：配置并保存 |
+| INT04 ERPNext 账套 | `pages/integrations/erpnext.vue` | `FormPage`、`AppTextField`、`AppSelect` | 已补齐 | 使用现成表单控件表达站点、服务地址和审批后推送策略。 | 是：配置并保存 |
+| INT05 集成日志 | `pages/integrations/logs.vue` | `ListPage`、`StatusChip`、`MoneyText` | 保留 | 日志是只读列表，通用列表已覆盖筛选、分页和导出。 | 是：查看导入、同步、导出结果 |
+| W08 IM 审批卡片 | `pages/approvals/im-preview.vue` | `ListPage`、`RecordDrawer`、`StatusChip`、`MoneyText`、Vuexy card pattern | 已替换并补齐 | 增加只读卡片抽屉、批准 / 驳回；超过门槛继续只显示网页确认，保留内容变化校验。 | 是：查看、批准、驳回、网页确认、篡改提示 |
+| SYS19 渠道绑定 | `pages/account/channel-bindings.vue` | `DetailPage`、`ListPage`、`PermissionGate` | 已替换 | 用详情壳承载绑定列表，绑定和解绑由权限门禁包裹。 | 是：查看、绑定、解绑 |
+| SYS20 IM 审批设置 | `pages/admin/im-approval.vue` | `FormPage`、`ListPage`、`StatusChip` | 已补齐 | 表单覆盖通道、审批类型、金额门槛、回调和签名状态，侧栏列表展示全员通道配置。 | 是：启停配置、门槛、回调、签名状态、绑定概览 |
+| SYS25 通知渠道 | `pages/admin/channels.vue` | `ListPage`、`StatusChip`、Vuexy notification settings | 已补齐 | 启用开关改为可操作更新，保留测试发送和新增渠道入口。 | 是：查看、启用 / 停用、测试发送、新增 |
+| SYS26 新增渠道 | `pages/admin/channels/new.vue` | `FormPage`、`AppSelect`、`AppTextField`、`VSwitch` | 已补齐 | 增加测试发送和创建后启用开关；密钥只显示配置提示，不回显值。 | 是：选择插件、填写配置、测试发送、启停 |
+| AI 建议块 | `GapBPage.vue` 的 I13 操作区 | 全局 `AssistantDrawer` 的 `AgentCard` 协议、`PermissionGate` | 保留薄按钮入口 | 当前仓库没有独立 `AgentCard.vue`；AI 只提交建议，写操作仍由人工确认，关闭 AI 时人工入口可用。 | 是，AI 关闭后人工路径可用 |
+| 权限、数据、审计与 i18n 契约 | `src/config/permissions.ts`、`src/types/gap-b.ts`、`src/api/gap-b.ts`、`src/mocks/services/gap-b.ts` | 项目权限引擎、API mock 出口、Vuexy i18n | 保留 | 这些是数据契约和权限点，不是可替换 UI；未改权限地基。 | 是，动作仍经统一服务出口 |
+
+审计结论：本批没有新增通用 UI 组件。`GapBPage.vue` 保留为业务差异的薄组合；列表、详情、表单、抽屉、状态、金额、权限门禁和 KPI 均接入现成实现。补齐前发现的缺口（盘点提交、调拨确认、IM 驳回、渠道启停 / 测试、合同价格表 / 附件、金蝶 / ERPNext 字段）已在本批补上；未保留只展示而无对应设计动作的页面。
+
+
+
+## 补齐批次 B 缺口复查（本轮）
+
+复查范围：`src/views/gap-b/GapBPage.vue`、`src/mocks/services/gap-b.ts`、采购退货 mock、订单/CRM/物流关联投影，以及批次 B 路由冲突修复。继续复用 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer`、`StatusChip`、`MoneyText`、`PermissionGate`、Vuetify `VStepper`/`VTable`，没有新增通用组件。
+
+| 缺口 | 复用与实现 | 审计/可追溯验证 |
+| --- | --- | --- |
+| 订单客户/商机双向链接 | 订单详情、CRM 客户/商机详情继续使用 `DetailPage` 的关联单据区和 Vuetify `VBtn` | `customerId`、`opportunityId` 来自 mock 数据；赢单动作写审计 |
+| 采购退货明细、负数流水、应付冲减 | 既有采购退货 `ListPage` + `RecordDrawer`；明细使用 `VAlert`/`MoneyText` | 确认动作调用库存服务，写负数 movement、更新应付并写审计 |
+| 发货运单/头程双向链接 | 订单详情复用 `DetailPage` 关联单据和 `VBtn` | 物流/头程节点可打开运单，订单关联回运单 |
+| 补货、询价、调拨、盘点、导入、渠道 | 统一批次 B 页面壳；步骤表单使用现成 `FormPage`/`VStepper`/`VFileInput` | 每个保存/审批/启停动作经 `src/api/gap-b.ts`，mock 服务追加审计 |
+
+本轮没有把静态 mock 误写成真实后端能力；真实文件、外部 IM 回调、ERPNext/金蝶连接仍按报告标为未接入。
+
+## 批次 B 增量复用审计（第二轮）
+
+审计范围：`c643461..3e88c5a` 中的前端页面、API、mock 服务和共享种子，重点检查 `GapBPage`、采购退货、库存调拨/盘点、订单与 CRM 关联，以及 `3e88c5a` 的 `mocks/seed/build.ts`。本轮只追加审计结论，没有扩大功能代码改动。
+
+### 组件和 API 复用
+
+- `GapBPage.vue` 继续复用 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer`、`StatusChip`、`MoneyText`、`PermissionGate`、`LoadingState` 和 `KpiCard`。询价比价、合同价格表、导入映射、库存步骤和业务链卡片是字段/流程专属布局，保留 Vuetify `VCard`、`VTable`、`VStepper`、`VFileInput` 属于安全的一对一复用范围。
+- 采购退货页面复用 `ListPage`、`RecordDrawer`、`FormDrawer`、`StatusChip`、`MoneyText`、`PermissionGate` 和 `useConfirm`；订单、CRM 客户/商机详情复用 `DetailPage`、`MoneyText` 和既有 API 出口。没有新增通用 `.vue` 组件，也没有页面直接绕过 `src/api` 调 mock 服务。
+- `submitGapBAction` 对已知动作做 `assertCan` 权限映射；库存、采购退货和 CRM 写 API 也在 API 层取得当前角色后再进入 mock 服务。权限门禁满足演示原型的入口控制，但服务函数本身仍接收可直接调用的 `Actor`/payload，后端接入时需把权限校验和动作白名单下沉到真实服务边界。
+
+### 写入、审批和审计检查
+
+| 检查项 | 结论 |
+| --- | --- |
+| 稳定 userId | `useSessionStore().userId` 按演示角色映射到稳定 ID；当前 actor 会保留该 ID，盘点、IM 和采购审批均按 ID 判断。 |
+| 防自审 | I15、W08 IM 和采购单服务层均记录提交人 ID，并拒绝提交人批准/驳回自己的事项；另一身份可以继续审批。 |
+| 防跳级 | API 动作映射和 `applyGapBAction` 服务入口都按有效权限与动作白名单校验，未知动作和直接绕过 API 的越权调用均被拒绝。 |
+| 幂等 | 调拨、盘点、导入、IM 审批等状态迁移重复调用会被状态检查拦截；询价、同步、渠道创建、附件保存、测试发送、链路查询和绑定/解绑没有请求幂等键，重复请求会新增记录或重复审计，不能判定为完整幂等。 |
+| actorId 审计 | `Actor`、`AuditEvent`、`writeAudit`、批次 B `record()`、库存流水和采购服务均写入稳定 `actorId`；同名或角色切换仍可按 ID 追溯。 |
+
+### 金额检查
+
+金额计算路径总体使用 `utils/money` 的整数 `Minor`、`minorFromDecimal`、`addMinor`、`mulQty`，采购退货金额由采购行单价乘数量确定性计算，未发现使用 `float` 算钱的新增代码。
+
+本轮已统一金额口径：IM 卡片、IM 门槛和询价金额均以“元”录入并通过 `minorFromDecimal()` 转为万分位 `Minor`；`MoneyText minor` 按同一单位展示，服务层不再使用 `threshold * 100` 或裸 `Number(payload.amount)`。
+
+### 共享种子 VERSION 5 复核
+
+已恢复 `3e88c5a` 父版本的月份分布并递增种子版本到 5 清理旧缓存。订单总数为 100，10 月利润快照行恢复为 19；独立断言复核仪表盘销售额 `1975.68 USD`、净利润 `639.64 USD`，未再发生共享金额漂移。旧基线 `NW-TENT-2P-OLV` 详情改为回退到最近有数据的 `2026-06`，页面明确标注“示例数据”并列出 4 个来源订单。
+
+### 本轮结论
+
+组件复用符合现有 Vuexy/Vuetify 薄封装约定，页面层没有发现适合安全一对一替换的重复通用组件。actorId、W08/采购单防自审、服务入口权限、金额 scale 和共享种子基线已闭合；建议类请求幂等键按本轮范围外保留。

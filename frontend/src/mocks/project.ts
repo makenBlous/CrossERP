@@ -15,6 +15,7 @@ import type {
   OrderFee,
   OrderSummary,
   ProfitRow,
+  ProfitSkuDetail,
   ReconRun,
   StockAlert,
   Store,
@@ -22,7 +23,7 @@ import type {
   VoucherRow,
 } from '@/types/domain'
 import type { MockDatabase, SalesOrder } from '@/types/entities'
-import { profitOfLine } from '@/mocks/services/profit'
+import { PROFIT_INCLUDED_ORDER_STATUSES, PROFIT_SOURCE_ORDER_SCOPE, profitOfLine } from '@/mocks/services/profit'
 import { type Minor, addMinor, convertMinor, mulQty, percentRatio, toDisplay } from '@/utils/money'
 
 const ORDER_STATUS_ZH: Record<string, string> = {
@@ -126,6 +127,8 @@ export function projectOrder(db: MockDatabase, id: string): OrderDetail | null {
     fees.push({ type: '成本', amount: money(parts.cogs, order.currency), currency: order.currency })
   }
   const warehouse = db.warehouses.find(item => item.id === order.warehouseId)
+  const customer = order.customerId ? db.crmAccounts.find(item => item.id === order.customerId) : undefined
+  const opportunity = order.opportunityId ? db.crmOpportunities.find(item => item.id === order.opportunityId) : undefined
 
   return {
     ...summary,
@@ -144,6 +147,8 @@ export function projectOrder(db: MockDatabase, id: string): OrderDetail | null {
       trackingNo: order.trackingNo || '待生成',
       shippedAt: order.shippedAt ? utcLabel(order.shippedAt) : '未发货',
     },
+    customer: customer ? { id: customer.id, name: customer.name, to: `/crm/accounts/${customer.id}` } : undefined,
+    opportunity: opportunity ? { id: opportunity.id, name: opportunity.name, stage: opportunity.stage, to: `/crm/opportunities/${opportunity.id}` } : undefined,
     timeline: db.audit
       .filter(item => item.refId === order.id)
       .map(item => ({ time: utcLabel(item.at), title: item.action, detail: item.summary })),
@@ -164,6 +169,10 @@ export function projectOrder(db: MockDatabase, id: string): OrderDetail | null {
           label: item.id,
           to: '/orders/returns',
         })),
+      ...(customer ? [{ id: customer.id, type: '客户', label: customer.name, to: `/crm/accounts/${customer.id}` }] : []),
+      ...(opportunity ? [{ id: opportunity.id, type: '商机', label: `${opportunity.name}（${opportunity.stage}）`, to: `/crm/opportunities/${opportunity.id}` }] : []),
+      ...(order.shipmentId ? [{ id: order.shipmentId, type: '物流运单', label: order.trackingNo || order.shipmentId, to: `/logistics/shipments/${order.shipmentId}` }] : []),
+      ...(order.firstMileBatchId && order.firstMileBatchId !== order.shipmentId ? [{ id: order.firstMileBatchId, type: '头程批次', label: order.firstMileBatchId, to: `/logistics/shipments/${order.firstMileBatchId}` }] : []),
     ],
   }
 }
@@ -332,6 +341,67 @@ export function projectProfit(db: MockDatabase): { rows: ProfitRow[]; stores: St
   return { rows, stores }
 }
 
+export function projectProfitSku(db: MockDatabase, internalSku: string, currentPeriod = '2026-10', storeId?: string): ProfitSkuDetail | null {
+  const snapshots = db.profitSnapshots.filter(item => item.internalSku === internalSku)
+
+  const period = snapshots.some(item => item.period === currentPeriod)
+    ? currentPeriod
+    : snapshots.map(item => item.period).sort().at(-1)
+
+  if (!period)
+    return null
+
+  const periodSnapshots = snapshots.filter(item => item.period === period)
+  const snapshot = periodSnapshots.find(item => item.storeId === storeId) ?? periodSnapshots[0]
+
+  if (!snapshot)
+    return null
+
+  const sku = db.skus.find(item => item.internalSku === snapshot.internalSku)
+
+  const rows = periodSnapshots.map(item => ({
+    sku: item.internalSku,
+    name: sku?.title ?? item.internalSku,
+    storeId: item.storeId,
+    storeName: storeOf(db, item.storeId)?.name ?? item.storeId,
+    currency: item.currency,
+    revenue: item.revenue,
+    platformFee: item.fees,
+    ads: item.ads,
+    firstMile: item.freight,
+    cost: item.cogs,
+    profit: item.profit,
+  }))
+
+  const row = rows.find(item => item.storeId === snapshot.storeId) ?? rows[0]
+
+  const sourceOrders = db.orderLines
+    .filter(line => line.internalSku === internalSku)
+    .map(line => {
+      const order = db.orders.find(item => item.id === line.orderId)
+
+      if (!order || order.storeId !== snapshot.storeId || order.currency !== snapshot.currency || monthKey(order.orderedAt) !== period)
+        return null
+
+      if (!(PROFIT_INCLUDED_ORDER_STATUSES as readonly string[]).includes(order.status))
+        return null
+
+      return {
+        id: order.id,
+        orderNo: order.orderNo,
+        orderedAt: order.orderedAt.slice(0, 10),
+        qty: line.qty,
+        storeId: order.storeId,
+        currency: order.currency,
+        storeName: storeOf(db, order.storeId)?.name ?? order.storeId,
+        status: order.status,
+      }
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+
+  return { row, rows, period, exampleData: period !== currentPeriod, sourceOrderScope: PROFIT_SOURCE_ORDER_SCOPE, sourceOrders }
+}
+
 export function projectRecon(db: MockDatabase): ReconRun[] {
   return db.reconRuns.map(item => ({
     id: item.id,
@@ -434,16 +504,16 @@ export function projectAccount(db: MockDatabase, id: string): CrmAccountDetail |
       currency: item.currency,
       stage: item.stage,
     })),
-    relatedOrders: db.crmTickets
-      .filter(item => item.accountId === id && item.orderNo)
-      .map(item => {
-        const order = db.orders.find(row => row.orderNo === item.orderNo)
-
+    relatedOrders: db.orders
+      .filter(item => item.customerId === id)
+      .map(order => {
         return {
-          orderNo: item.orderNo ?? '',
+          id: order.id,
+          orderNo: order.orderNo,
           amount: order ? money(orderGross(db, order.id), order.currency) : 0,
           currency: order?.currency ?? raw.currency,
-          date: order ? order.orderedAt.slice(0, 10) : '',
+          date: order.orderedAt.slice(0, 10),
+          to: `/orders/${order.id}`,
         }
       }),
     tickets: db.crmTickets.filter(item => item.accountId === id).map(item => ({

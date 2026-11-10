@@ -80,3 +80,11 @@ export const batchAAuditSeed = [
   { id: 'vch-1-submit', refId: 'vch-1', action: '提交审批', detail: '借贷合计校验通过，提交统一审批中心。' },
   { id: 'vch-1-approve', refId: 'vch-1', action: '批准', detail: '财务复核通过，保留审计记录。' },
 ] as const
+
+// ---- 补齐批次 B ----
+// 渠道插件的演示扩展数据；密钥只保留配置状态，不写入仓库。
+export const gapBChannelSeed = [
+  { id: 'channel-feishu', pluginId: 'feishu', enabled: true, configured: true },
+  { id: 'channel-wecom', pluginId: 'wecom', enabled: true, configured: true },
+  { id: 'channel-dingtalk', pluginId: 'dingtalk', enabled: false, configured: false },
+]

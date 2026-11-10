@@ -85,7 +85,17 @@ export async function fetchOpportunity(id: string) {
   const db = database().db
   const item = db.crmOpportunities.find(row => row.id === id)
 
-  return item ? { ...item, amount: toDisplay(item.amount, item.currency), accountName: db.crmAccounts.find(account => account.id === item.accountId)?.name ?? item.accountId } : null
+  if (!item)
+    return null
+
+  return {
+    ...item,
+    amount: toDisplay(item.amount, item.currency),
+    accountName: db.crmAccounts.find(account => account.id === item.accountId)?.name ?? item.accountId,
+    relatedOrders: db.orders
+      .filter(order => order.opportunityId === item.id)
+      .map(order => ({ id: order.id, orderNo: order.orderNo })),
+  }
 }
 
 // 未来: GET /api/v1/crm/contacts/{id}

@@ -103,6 +103,8 @@ export interface OrderSummary {
 
 export interface OrderDetail extends OrderSummary {
   buyerRef: string
+  customer?: { id: string; name: string; to: string }
+  opportunity?: { id: string; name: string; stage: string; to: string }
   lines: OrderLine[]
   fees: OrderFee[]
   shipment: {
@@ -151,6 +153,29 @@ export interface ProfitRow {
   firstMile: number
   cost: number
   profit: number
+}
+
+export interface ProfitSkuSourceOrder {
+  id: string
+  orderNo: string
+  orderedAt: string
+  qty: number
+  storeId: string
+  currency: CurrencyCode
+  storeName: string
+  status: string
+}
+
+/** SKU 详情返回快照原始 Minor，页面展示时显式传 minor。 */
+export interface ProfitSkuRow extends ProfitRow {}
+
+export interface ProfitSkuDetail {
+  row: ProfitSkuRow
+  rows: ProfitSkuRow[]
+  period: string
+  exampleData: boolean
+  sourceOrderScope: string
+  sourceOrders: ProfitSkuSourceOrder[]
 }
 
 export interface StoreProfit {
@@ -255,10 +280,12 @@ export interface CrmOpportunity {
 }
 
 export interface CrmRelatedOrder {
+  id?: string
   orderNo: string
   amount: number
   currency: CurrencyCode
   date: string
+  to?: string
 }
 
 export interface CrmTicket {
@@ -670,6 +697,8 @@ export interface PurchaseReturnRow {
   status: string
   currency: CurrencyCode
   amount: number
+  lines?: Array<{ internalSku: string; warehouseName: string; batchNo: string; qty: number }>
+  payableReduction?: number
 }
 
 export interface StatementRow {

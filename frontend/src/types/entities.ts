@@ -8,6 +8,7 @@ export type WarehouseKind = 'fba' | 'overseas' | 'domestic'
 export type DocType = 'inbound' | 'outbound' | 'transfer' | 'count'
 
 export interface Actor {
+  userId: string
   name: string
   role: Role
   at: string
@@ -112,6 +113,12 @@ export interface SalesOrder {
   trackingNo: string
   shippedAt: string | null
   refund: Minor
+
+  /** 批次 B 业务链追溯字段；后端接入时改为正式外键。 */
+  customerId?: string
+  opportunityId?: string
+  shipmentId?: string
+  firstMileBatchId?: string
 }
 
 export interface SalesOrderLine {
@@ -164,6 +171,7 @@ export interface StockMovement {
   refType: string
   refId: string
   occurredAt: string
+  actorId: string
   createdBy: string
 }
 
@@ -223,6 +231,7 @@ export interface PurchaseOrder {
   expectedAt: string
   createdBy: string
   createdAt: string
+  submittedById?: string
 }
 
 export interface PurchaseOrderLine {
@@ -259,6 +268,13 @@ export interface PurchaseReturn {
   status: string
   currency: CurrencyCode
   amount: Minor
+  lines?: Array<{
+    internalSku: string
+    warehouseId: string
+    batchNo: string
+    qty: number
+  }>
+  payableReduction?: Minor
 }
 
 export interface SupplierStatement {
@@ -507,6 +523,7 @@ export interface MessageEntity {
 export interface AuditEvent {
   id: string
   at: string
+  actorId: string
   actor: string
   actorRole: Role
   action: string
@@ -626,6 +643,7 @@ export interface ArInvoice {
 export interface ApInvoice {
   id: string
   supplierId: string
+  purchaseOrderId?: string
   amount: Minor
   currency: CurrencyCode
   status: string

@@ -13,10 +13,10 @@ import { seedFinance } from '@/mocks/seed/finance'
 import { type Minor, addMinor, convertMinor, minorFromDecimal, mulQty } from '@/utils/money'
 
 const SEED = 20261109
-const VERSION = 3
+const VERSION = 5
 
 function actor(name: string, role: Actor['role'], at: string): Actor {
-  return { name, role, at }
+  return { userId: `demo-${role}`, name, role, at }
 }
 
 function iso(month: number, day: number, hour: number) {
@@ -379,8 +379,8 @@ function addPurchases(db: MockDatabase) {
       receivePurchaseOrder(db, poId, index % 2 === 0 ? 'wh-cn-sz' : 'wh-cn-nb', receiver)
   }
   db.purchaseReturns = [
-    { id: 'prt-1', no: 'PR-2026-001', supplierId: 'sup-01', purchaseOrderId: db.purchaseOrders[0].id, status: 'draft', currency: 'CNY', amount: minorFromDecimal('1860.0000') },
-    { id: 'prt-2', no: 'PR-2026-002', supplierId: 'sup-03', purchaseOrderId: db.purchaseOrders[1].id, status: 'draft', currency: 'CNY', amount: minorFromDecimal('460.0000') },
+    { id: 'prt-1', no: 'PR-2026-001', supplierId: 'sup-01', purchaseOrderId: db.purchaseOrders[0].id, status: 'draft', currency: 'CNY', amount: minorFromDecimal('1860.0000'), lines: [{ internalSku: db.skus[0].internalSku, warehouseId: 'wh-cn-sz', batchNo: 'B-2026-10-A', qty: 5 }], payableReduction: minorFromDecimal('1860.0000') },
+    { id: 'prt-2', no: 'PR-2026-002', supplierId: 'sup-03', purchaseOrderId: db.purchaseOrders[1].id, status: 'draft', currency: 'CNY', amount: minorFromDecimal('460.0000'), lines: [{ internalSku: db.skus[1].internalSku, warehouseId: 'wh-cn-sz', batchNo: 'B-2026-10-B', qty: 5 }], payableReduction: minorFromDecimal('460.0000') },
   ]
   db.statements = [0, 1, 2, 3].map(index => ({
     id: `stm-${index + 1}`,
@@ -483,6 +483,7 @@ function addOrders(db: MockDatabase) {
       return
 
     const month = months[index % months.length]
+
     const day = (index % 27) + 1
     const orderId = nextId(db, 'ord')
 
@@ -504,6 +505,8 @@ function addOrders(db: MockDatabase) {
       trackingNo: '',
       shippedAt: null,
       refund: 0,
+      shipmentId: store.platform === 'Amazon' ? db.shipments[index % Math.max(db.shipments.length, 1)]?.id : undefined,
+      firstMileBatchId: store.platform === 'Amazon' ? db.shipments[index % Math.max(db.shipments.length, 1)]?.id : undefined,
     })
     db.orderLines.push({
       id: nextId(db, 'oln'),
@@ -663,6 +666,7 @@ function addFinance(db: MockDatabase) {
   db.apInvoices = db.suppliers.slice(0, 4).map((supplier, index) => ({
     id: `ap-${index + 1}`,
     supplierId: supplier.id,
+    purchaseOrderId: db.purchaseOrders[index]?.id,
     amount: minorFromDecimal('8600.0000'),
     currency: supplier.currency,
     status: 'open',
@@ -715,6 +719,14 @@ function addCrm(db: MockDatabase) {
   })
 
   const sample = db.orders.find(order => order.storeId === 'shopify')
+
+  if (sample) {
+    sample.customerId = 'acc-summit'
+    sample.opportunityId = 'opp-acc-summit'
+  }
+  const won = db.crmOpportunities.find(item => item.id === 'opp-acc-summit')
+  if (won)
+    won.stage = '赢单'
 
   db.crmTickets.push({
     id: 'tkt-1',

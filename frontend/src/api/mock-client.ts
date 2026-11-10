@@ -30,11 +30,11 @@ function cloneMock<T>(data: T): T {
   }
 }
 
-export function currentActor(): Actor & { id: string } {
+export function currentActor(): Actor {
   const session = useSessionStore()
 
   return {
-    id: session.userId,
+    userId: session.userId,
     name: session.displayName,
     role: session.role,
     at: new Date().toISOString(),
@@ -53,7 +53,7 @@ export function assertCan(action: AppAction) {
 export function assertPermission(permissionKey: string) {
   const actor = currentActor()
 
-  if (!canPermission(roleSubject(actor.role, actor.id), permissionKey))
+  if (!canPermission(roleSubject(actor.role, actor.userId), permissionKey))
     throw new FlowError('当前角色不能执行这个操作')
 
   return actor
