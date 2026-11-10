@@ -1,10 +1,14 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { createPinia, setActivePinia } from 'pinia'
 import { ref } from 'vue'
 import { parseSafeMarkdown } from '../src/components/chat/markdown'
 import type { ChatState } from '../src/components/chat/types'
 import { useChatHistory } from '../src/components/chat/useChatHistory'
 import { useChatInflight } from '../src/components/chat/useChatInflight'
+import { recordAgentQuestion } from '@/api/agent-module'
+import { useMockDbStore } from '@/stores/mockdb'
+import { useSessionStore } from '@/stores/session'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -222,5 +226,52 @@ sessionGate.writeIfCurrent(roleTicket, () => {
   sessionBubbles.push('leaked after role switch')
 })
 assert(!sessionBubbles.includes('leaked after role switch'), 'role switch must drop the previous in-flight write')
+
+setActivePinia(createPinia())
+
+const persistSession = useSessionStore()
+const persistDb = useMockDbStore()
+const switchedQuestion = 'ux-chat-cross-user-persist-probe'
+
+persistSession.login('user-a')
+persistSession.setRole('admin')
+assert(persistSession.isLoggedIn && persistSession.userId === 'demo-admin', 'fixture must start logged in as the initiator')
+
+const beforeRunIds = new Set(persistDb.db.agentRuns.map(run => run.id))
+const beforeAuditIds = new Set(persistDb.db.audit.map(event => event.id))
+const pendingQuestion = recordAgentQuestion(switchedQuestion)
+
+persistSession.logout()
+persistSession.setRole('finance')
+persistSession.login('user-b')
+assert(persistSession.isLoggedIn && persistSession.userId === 'demo-finance' && persistSession.userId !== 'demo-admin', 'fixture must switch to a different logged-in user before the delayed return')
+
+try {
+  await pendingQuestion
+}
+catch {
+  // 身份变化后放弃写入；数据库断言不依赖拒绝或成功返回。
+}
+
+const newRuns = persistDb.db.agentRuns.filter(run => !beforeRunIds.has(run.id))
+const newAudits = persistDb.db.audit.filter(event => !beforeAuditIds.has(event.id))
+const questionRuns = newRuns.filter(run => run.question === switchedQuestion)
+const questionAudits = newAudits.filter(event => questionRuns.some(run => run.id === event.refId) || event.summary.includes(switchedQuestion))
+
+assert(questionRuns.length === 0, 'send, logout, switch user, then delayed return must abandon the write')
+assert(!questionAudits.some(event => event.actorId === persistSession.userId), 'the question must not be recorded as the new user')
+assert(!newAudits.some(event => !event.actorId), 'new records must not omit actorId')
+assert(!questionAudits.some(event => !event.actorId), 'the question must not be recorded without actorId')
+
+persistSession.setRole('admin')
+persistSession.login('user-a')
+
+const sameQuestion = 'ux-chat-initiator-persist-probe'
+const beforeSameAuditIds = new Set(persistDb.db.audit.map(event => event.id))
+const sameRun = await recordAgentQuestion(sameQuestion)
+const sameAudits = persistDb.db.audit.filter(event => !beforeSameAuditIds.has(event.id) && event.refId === sameRun.id)
+
+assert(sameAudits.length > 0 && sameAudits.every(event => event.actorId === 'demo-admin'), 'a stable session must record the initiator actorId')
+assert(persistDb.db.agentRuns.some(run => run.id === sameRun.id && run.question === sameQuestion), 'a stable session must persist the initiator question')
 
 console.log('U3 static checks passed')

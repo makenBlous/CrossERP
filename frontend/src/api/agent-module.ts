@@ -1,7 +1,10 @@
-import { assertPermission, database, delay, readMock } from '@/api/mock-client'
+import { assertPermission, currentActor, database, delay, readMock } from '@/api/mock-client'
 import { addSuggestionStep, listAgentTasks, listEvalCases, listEvalRuns, listKnowledgeDocuments, listPromptVersions, listRunSteps, listSecurityEvents, listUsageCalls, recordAgentRun } from '@/mocks/services/agent-module'
+import { FlowError } from '@/mocks/services/errors'
+import { useSessionStore } from '@/stores/session'
 import type { AgentRunStep, AgentTask, EvalCase, EvalRun, KnowledgeDocument, PromptVersion, SecurityEvent, UsageCall } from '@/types/agent-module'
 import type { AgentRun } from '@/types/domain'
+import { requireActorPermission } from '@/utils/service-permissions'
 
 // 未来: GET /api/v1/agent/tasks
 export async function fetchAgentTasks(): Promise<AgentTask[]> {
@@ -77,10 +80,34 @@ export async function fetchSecurityEvents(): Promise<SecurityEvent[]> {
 
 // 未来: POST /api/v1/agent/runs
 export async function recordAgentQuestion(question: string, agentName?: string): Promise<AgentRun> {
+  const session = useSessionStore()
+
+  // 未登录或身份不完整时默认拒绝，不进入延迟写入。
+  if (!session.isLoggedIn || !session.userId || !session.role)
+    throw new FlowError('当前用户没有权限：agent_tool:read')
+
+  const initiator = currentActor()
+  const userId = initiator.userId
+  const role = initiator.role
+  const actorId = initiator.userId
+
+  if (!userId || !role || !actorId)
+    throw new FlowError('当前用户没有权限：agent_tool:read')
+
+  requireActorPermission(initiator, 'agent_tool:read')
+
   await delay()
 
-  const actor = assertPermission('agent_tool:read')
-  const run = recordAgentRun(database().db, { question, agentName }, actor)
+  const sameIdentity = session.isLoggedIn
+    && session.userId === userId
+    && session.role === role
+    && session.userId === actorId
+
+  // 会话已换人或已登出时放弃写入，不得改用返回时的新身份落库。
+  if (!sameIdentity)
+    throw new FlowError('当前用户没有权限：agent_tool:read')
+
+  const run = recordAgentRun(database().db, { question, agentName }, initiator)
 
   database().persist()
 

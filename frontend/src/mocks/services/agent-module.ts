@@ -58,6 +58,9 @@ export function listSecurityEvents(db: MockDatabase) {
 }
 
 export function recordAgentRun(db: MockDatabase, input: { question: string; agentName?: string; runId?: string }, actor: Actor): AgentRunEntity {
+  if (!actor.userId)
+    throw new Error('当前用户没有权限：agent_tool:read')
+
   requireActorPermission(actor, 'agent_tool:read')
 
   const run: AgentRunEntity = {
