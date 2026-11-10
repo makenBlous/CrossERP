@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
 import { approveGapDPayroll, calculateGapDPayroll, getGapDPayrollRun, listGapDRecords, publishGapDPayslips, reviewGapDPayroll } from '../src/mocks/services/gap-d'
+import { canRoleOpen, findPageByPath } from '../src/config/pages'
 import type { Actor } from '../src/types/entities'
 import type { GapDPayrollRun, GapDPayslip } from '../src/types/gap-d'
 import { minorFromCents, toDisplay } from '../src/utils/money'
@@ -11,6 +12,13 @@ const employee: Actor = { userId: 'demo-employee', name: '演示普通员工', r
 const otherEmployee: Actor = { userId: 'demo-other-employee', name: '演示其他员工', role: 'employee', at }
 const hr: Actor = { userId: 'demo-hr-admin', name: '演示人事行政', role: 'hr_admin', at }
 const finance: Actor = { userId: 'demo-fin-manager', name: '演示财务主管', role: 'finance_manager', at }
+
+const payrollReviewPage = findPageByPath('/hr/payroll/payroll-2026-11/review')
+
+assert(payrollReviewPage)
+assert.equal(canRoleOpen('hr_admin', payrollReviewPage), true, 'HR 管理员必须能打开工资复核页')
+assert.equal(canRoleOpen('finance_manager', payrollReviewPage), true, '财务主管必须能打开工资复核页查看待审批批次')
+assert.equal(canRoleOpen('employee', payrollReviewPage), false, '普通员工不能打开工资复核页')
 
 let failures = 0
 
