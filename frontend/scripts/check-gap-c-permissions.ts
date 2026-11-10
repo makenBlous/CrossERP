@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert'
 import { readFileSync } from 'node:fs'
-import { canRoleOpen, pageCatalog } from '@/config/pages'
+import { canRoleOpen, findPageByPath, pageCatalog } from '@/config/pages'
 import { gapCReadHelpers } from '@/mocks/services/gap-c'
 import { computeEffectivePermissions, effectivePermission, narrowAiPermissions, roleSubject } from '@/utils/permission-engine'
 import type { Role } from '@/types/domain'
@@ -45,6 +45,15 @@ assert.deepEqual(
   [],
   '每个非公开页面必须声明页面级权限点',
 )
+
+const importWizard = findPageByPath('/integrations/import-wizard')
+
+assert.ok(importWizard, '必须登记 INT01 导入向导')
+
+assert.equal(canRoleOpen('admin', importWizard), true, 'admin 必须能打开 INT01 导入向导')
+assert.equal(canRoleOpen('operator', importWizard), true, 'operator 必须能打开 INT01 导入向导')
+for (const role of ['finance', 'viewer', 'auditor'] as Role[])
+  assert.equal(canRoleOpen(role, importWizard), false, `${role} 不得打开 INT01 导入向导`)
 
 for (const role of oldRoles) {
   const actual = pageCatalog.filter(page => page.batch === undefined && !page.public && canRoleOpen(role, page)).map(page => ({ path: page.path, role }))
