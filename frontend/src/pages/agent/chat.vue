@@ -18,6 +18,7 @@ definePage({ meta: { layoutWrapperClasses: 'layout-content-height-fixed' } })
 interface Bubble extends ChatMessage {
   card?: AgentCard
   submitted?: boolean
+  local?: boolean
 }
 
 const { t, locale } = useI18n({ useScope: 'global' })
@@ -36,31 +37,57 @@ const lastPrompt = ref('')
 const latestRunId = ref<string | null>(null)
 const adapter = createAgentAdapter()
 let requestId = 0
-const disabledReason = 'AI 已关闭，页面仍可按人工路径操作。'
-const history = useChatHistory<Bubble>('agent-center')
+const disabledReason = 'AI 已关闭，智能体中心仅可查看历史，不能发送消息。'
+const history = useChatHistory<Bubble>('agent-center', computed(() => session.userId))
+const hydratedUserId = ref<string | null>(null)
+const hydrating = ref(false)
 const canSuggest = computed(() => can(session.role, 'suggest'))
 const activeThread = computed(() => threads.value.find(item => item.id === activeId.value))
 const visibleThreads = computed(() => threads.value.filter(item => item.title.toLowerCase().includes(query.value.trim().toLowerCase())))
 
-watch(bubbles, value => history.save(value), { deep: true })
+watch(bubbles, value => {
+  if (!hydrating.value && hydratedUserId.value === session.userId)
+    history.save(value)
+}, { deep: true })
 
-onMounted(async () => {
+async function loadChat() {
+  const userId = session.userId || null
+
+  hydrating.value = true
+  bubbles.value = []
+
+  if (!userId) {
+    threads.value = []
+    hydratedUserId.value = null
+    hydrating.value = false
+
+    return
+  }
+
   const payload = await fetchChat()
 
+  if (session.userId !== userId)
+    return
+
   threads.value = payload.threads
-  bubbles.value = history.load(payload.messages.map(message => ({ ...message })))
-})
+  bubbles.value = history.load(payload.messages.map(message => ({ ...message, local: false })))
+  hydratedUserId.value = userId
+  hydrating.value = false
+}
+
+onMounted(loadChat)
+watch([() => session.userId, () => session.role], loadChat, { flush: 'sync' })
 
 function pushPart(part: AgentPart) {
   const last = bubbles.value[bubbles.value.length - 1]
 
-  if (part.kind === 'text' && last?.role === 'assistant' && !last.card) {
+  if (part.kind === 'text' && last?.local && last.role === 'assistant' && !last.card) {
     last.text += part.text ?? ''
 
     return
   }
 
-  bubbles.value.push({ id: `local-${bubbles.value.length + 1}`, role: 'assistant', text: part.text ?? '', card: part.card })
+  bubbles.value.push({ id: `local-${bubbles.value.length + 1}`, role: 'assistant', text: part.text ?? '', card: part.card, local: true })
 }
 
 async function sendMessage(text: string) {
@@ -74,7 +101,7 @@ async function sendMessage(text: string) {
   state.value = 'loading'
   statusText.value = '正在读取只读数据…'
   lastPrompt.value = text
-  bubbles.value.push({ id: `local-${bubbles.value.length + 1}`, role: 'user', text })
+  bubbles.value.push({ id: `local-${bubbles.value.length + 1}`, role: 'user', text, local: true })
 
   try {
     const run = await recordAgentQuestion(text)

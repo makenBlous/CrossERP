@@ -18,6 +18,7 @@ interface Bubble {
   text: string
   card?: AgentCard
   submitted?: boolean
+  local?: boolean
 }
 
 const { t, locale } = useI18n({ useScope: 'global' })
@@ -35,16 +36,34 @@ const lastPrompt = ref('')
 const adapter = createAgentAdapter()
 let requestId = 0
 const disabledReason = 'AI 已关闭，页面仍可按人工路径操作。'
-const history = useChatHistory<Bubble>(`assistant-${route.path}`)
+const history = useChatHistory<Bubble>('assistant', computed(() => session.userId))
+const hydratedUserId = ref<string | null>(null)
+const hydrating = ref(false)
 
 const canSuggest = computed(() => can(session.role, 'suggest'))
 
-watch(bubbles, value => history.save(value), { deep: true })
+watch(bubbles, value => {
+  if (!hydrating.value && hydratedUserId.value === session.userId)
+    history.save(value)
+}, { deep: true })
+
+function loadHistory() {
+  const userId = session.userId || null
+
+  hydrating.value = true
+  bubbles.value = userId ? history.load([]) : []
+  hydratedUserId.value = userId
+  nextTick(() => {
+    hydrating.value = false
+  })
+}
 
 onMounted(() => {
-  bubbles.value = history.load([])
+  loadHistory()
   window.addEventListener('keydown', onWindowKeydown)
 })
+
+watch([() => session.userId, () => session.role], loadHistory, { flush: 'sync' })
 
 onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown))
 
@@ -79,7 +98,7 @@ const selectedId = computed(() => {
 function pushPart(part: AgentPart) {
   const last = bubbles.value[bubbles.value.length - 1]
 
-  if (part.kind === 'text' && last?.role === 'assistant' && !last.card) {
+  if (part.kind === 'text' && last?.local && last.role === 'assistant' && !last.card) {
     last.text += part.text ?? ''
 
     return
@@ -90,6 +109,7 @@ function pushPart(part: AgentPart) {
     role: 'assistant',
     text: part.text ?? '',
     card: part.card,
+    local: true,
   })
 }
 
@@ -104,7 +124,7 @@ async function sendMessage(text: string) {
   state.value = 'loading'
   statusText.value = '正在读取只读数据…'
   lastPrompt.value = text
-  bubbles.value.push({ id: `u-${bubbles.value.length + 1}`, role: 'user', text })
+  bubbles.value.push({ id: `u-${bubbles.value.length + 1}`, role: 'user', text, local: true })
 
   try {
     await adapter.sendMessage({

@@ -1,4 +1,6 @@
 <script setup lang="ts" generic="T extends { id: string; role: 'user' | 'assistant'; text: string; time?: string }">
+import { parseSafeMarkdown } from '@/components/chat/markdown'
+
 export interface ChatBubble {
   id: string
   role: 'user' | 'assistant'
@@ -10,6 +12,7 @@ const props = defineProps<{
   messages: T[]
   contactName: string
   selfName: string
+  padded?: boolean
 }>()
 
 interface MessageGroup {
@@ -35,7 +38,10 @@ const groups = computed(() => {
 
 <template>
   <!-- 气泡样式改编自 Vuexy views/apps/chat/ChatLog.vue。不依赖演示用的 chat store。 -->
-  <div class="chat-log pa-6">
+  <div
+    class="chat-log"
+    :class="{ 'chat-log--padded': props.padded !== false }"
+  >
     <div
       v-for="(group, index) in groups"
       :key="`${group.role}-${index}`"
@@ -74,9 +80,32 @@ const groups = computed(() => {
               group.messages.length - 1 !== msgIndex ? 'mb-2' : 'mb-1',
             ]"
           >
-            <p class="mb-0 text-base">
-              {{ message.text }}
-            </p>
+            <div class="chat-markdown text-base">
+              <template
+                v-for="(block, blockIndex) in parseSafeMarkdown(message.text)"
+                :key="`${message.id}-${blockIndex}`"
+              >
+                <pre
+                  v-if="block.type === 'code'"
+                  class="chat-code"
+                ><code v-text="block.text" /></pre>
+                <ul
+                  v-else-if="block.type === 'list'"
+                  class="chat-list"
+                >
+                  <li
+                    v-for="(item, itemIndex) in block.items"
+                    :key="`${message.id}-${blockIndex}-${itemIndex}`"
+                    v-text="item"
+                  />
+                </ul>
+                <p
+                  v-else
+                  class="chat-paragraph"
+                  v-text="block.text"
+                />
+              </template>
+            </div>
           </div>
           <slot
             name="after"
@@ -96,6 +125,10 @@ const groups = computed(() => {
 
 <style lang="scss">
 .chat-log {
+  &--padded {
+    padding: 1.5rem;
+  }
+
   .chat-body {
     max-inline-size: calc(100% - 6.75rem);
 
@@ -103,8 +136,26 @@ const groups = computed(() => {
       border-end-end-radius: 6px;
       border-end-start-radius: 6px;
 
-      p {
+      .chat-paragraph {
+        margin-block: 0;
         overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+
+      .chat-list {
+        margin-block: 0;
+        padding-inline-start: 1.2rem;
+      }
+
+      .chat-code {
+        max-inline-size: 100%;
+        margin-block: 0;
+        border-radius: 0.5rem;
+        background: rgba(0, 0, 0, 0.28);
+        color: #f4f6ff;
+        overflow: auto;
+        padding: 0.65rem;
+        white-space: pre;
       }
 
       &.chat-left {

@@ -10,9 +10,10 @@
 ## 新增组件
 
 - `src/components/chat/ChatThread.vue`：两个入口共用的滚动消息区、状态行和固定输入区编排。
-- `src/components/chat/ChatMessage.vue`：品牌色用户消息、浅灰助手消息、头像、Markdown 文本、列表和代码块展示。
-- `src/components/chat/ChatComposer.vue`：多行自动增高输入、附件缩略名、Enter/Shift+Enter/Esc 和语音/发送操作。
+- `src/views/apps/chat/ChatLog.vue`：两个入口共用的消息分组、气泡、头像和安全 Markdown 文本渲染；通过 `v-text` 渲染文本节点，避免 HTML 注入。
+- `src/views/apps/chat/ChatMessageForm.vue`：两个入口共用的多行自动增高输入、附件缩略名、Enter/Shift+Enter/Esc 和语音/发送操作。
+- `src/components/chat/ChatMessage.vue`、`ChatComposer.vue`：仅保留旧引用的薄适配层，不再重复绘制气泡或输入区。
 - `src/components/chat/ChatStatusLine.vue`：加载中、失败重试、取消和已取消提示。
-- `src/components/chat/useChatHistory.ts`：按入口隔离的本地增量缓存；API 返回的历史优先合并，刷新后保留本地新增消息。
+- `src/components/chat/useChatHistory.ts`：按稳定 `session.userId` 和入口隔离的本地增量缓存；API 返回的历史按消息 ID 优先，只有带 `local: true` 的当前会话新增消息才会补充到结果中。
 
-新增这些组件是为了让浮动窗和智能体中心共享视觉层次与交互行为，同时保留各入口自己的数据上下文、权限门禁和审批卡片。
+这些复用点让浮动窗和智能体中心共享消息与输入 UI，同时保留各入口自己的数据上下文、权限门禁和审批卡片。没有稳定 `userId` 时不会读取或写入历史缓存；用户身份变化时会重新加载对应身份的会话。

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import ChatComposer from './ChatComposer.vue'
-import ChatMessage from './ChatMessage.vue'
 import ChatStatusLine from './ChatStatusLine.vue'
 import type { ChatDisplayMessage, ChatState } from './types'
+import ChatLog from '@/views/apps/chat/ChatLog.vue'
+import ChatMessageForm from '@/views/apps/chat/ChatMessageForm.vue'
 
 const props = withDefaults(defineProps<{
   messages: ChatDisplayMessage[]
@@ -60,20 +60,19 @@ onMounted(scrollToLatest)
         />
         <span>从一个问题开始，助手只读取已存储的数据。</span>
       </div>
-      <ChatMessage
-        v-for="message in messages"
-        :key="message.id"
-        :message="message"
-        :assistant-name="assistantName"
+      <ChatLog
+        :messages="messages"
+        :contact-name="assistantName"
         :self-name="selfName"
+        :padded="false"
       >
-        <template #default>
+        <template #after="{ message }">
           <slot
             name="message-after"
             :message="message"
           />
         </template>
-      </ChatMessage>
+      </ChatLog>
       <ChatStatusLine
         :state="state"
         :text="statusText"
@@ -81,7 +80,7 @@ onMounted(scrollToLatest)
         @cancel="emit('cancel')"
       />
     </div>
-    <ChatComposer
+    <ChatMessageForm
       v-model="draft"
       :placeholder="placeholder"
       :send-label="sendLabel"

@@ -1,8 +1,23 @@
-export function useChatHistory<T extends { id: string }>(scope: string) {
-  const key = `crosserp-chat-history:${scope}`
+import { type MaybeRefOrGetter, computed, toValue } from 'vue'
+
+export interface LocalChatItem {
+  id: string
+  local?: boolean
+}
+
+export function useChatHistory<T extends LocalChatItem>(scope: MaybeRefOrGetter<string>, userId: MaybeRefOrGetter<string | null | undefined>) {
+  const cacheKey = computed(() => {
+    const actor = toValue(userId)
+    const scopeValue = toValue(scope)
+
+    return actor && scopeValue ? `crosserp-chat-history:${actor}:${scopeValue}` : null
+  })
 
   function read(): T[] {
-    if (typeof localStorage === 'undefined')
+    const actor = toValue(userId)
+    const key = cacheKey.value
+
+    if (!actor || !key || typeof localStorage === 'undefined')
       return []
 
     try {
@@ -16,27 +31,29 @@ export function useChatHistory<T extends { id: string }>(scope: string) {
   }
 
   function load(seed: T[]) {
-    const merged = new Map<string, T>()
+    const seedIds = new Set(seed.map(item => item.id))
+    const localItems = read().filter(item => item.local === true && !seedIds.has(item.id))
 
-    for (const item of seed)
-      merged.set(item.id, item)
-    for (const item of read())
-      merged.set(item.id, item)
-
-    return [...merged.values()]
+    return [...seed, ...localItems]
   }
 
   function save(items: T[]) {
-    if (typeof localStorage === 'undefined')
+    const actor = toValue(userId)
+    const key = cacheKey.value
+
+    if (!actor || !key || typeof localStorage === 'undefined')
       return
 
-    localStorage.setItem(key, JSON.stringify(items))
+    localStorage.setItem(key, JSON.stringify(items.filter(item => item.local === true)))
   }
 
   function clear() {
-    if (typeof localStorage !== 'undefined')
+    const actor = toValue(userId)
+    const key = cacheKey.value
+
+    if (actor && key && typeof localStorage !== 'undefined')
       localStorage.removeItem(key)
   }
 
-  return { load, save, clear }
+  return { cacheKey, load, save, clear }
 }
