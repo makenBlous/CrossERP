@@ -44,7 +44,7 @@ export interface PageDef {
   requiredPermissions?: string[]
   requiredAnyPermissions?: string[]
   module?: string
-  batch?: 'A' | 'B' | 'C' | 'D' | 'E'
+  batch?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'
   erpnextRef?: string
   odooRef?: string
 }
@@ -71,7 +71,7 @@ interface PageInput {
   requiredPermissions?: string[]
   requiredAnyPermissions?: string[]
   module?: string
-  batch?: 'A' | 'B' | 'C' | 'D' | 'E'
+  batch?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'
   erpnextRef?: string
   odooRef?: string
 }
@@ -2281,6 +2281,12 @@ export const pageCatalog: PageDef[] = [
   page({ id: 'HR13', path: '/hr/employees/:id/files', group: 'hr', roles: opViewFin, icon: 'tabler-folder-lock', phase: 'now', implemented: true, nameZh: '员工个人档案', nameEn: 'Employee Files', purposeZh: '合同、身份证复印件、证书和审计下载', purposeEn: 'Contracts, ID copies and certificates with audited downloads.', blocksZh: ['敏感文件', '下载审计'], blocksEn: ['Sensitive files', 'Download audit'], requiredPermissions: ['employee_record:read'], module: 'hr', batch: 'E', erpnextRef: 'Employee', odooRef: 'hr.employee' }),
   page({ id: 'ON01', path: '/onboarding', group: 'knowledge', roles: opViewFin, icon: 'tabler-school', phase: 'now', implemented: true, showInMenu: true, nameZh: '新人上手', nameEn: 'New Hire Onboarding', purposeZh: '按角色清单、带出处问答、一键开始页面引导', purposeEn: 'Role checklist, cited answers and guided page starts.', blocksZh: ['上手清单', '带出处问答'], blocksEn: ['Checklist', 'Cited answers'], requiredPermissions: ['document:read'], module: 'knowledge', batch: 'E', odooRef: 'website_slides（未核实）' }),
   page({ id: 'ON02', path: '/onboarding/admin', group: 'knowledge', roles: ['admin'], icon: 'tabler-school', phase: 'now', implemented: true, showInMenu: true, nameZh: '上手清单与引导配置', nameEn: 'Onboarding Checklist and Guide Settings', purposeZh: '按角色模板维护上手清单和页面引导', purposeEn: 'Maintain role checklists and page tours.', blocksZh: ['清单表', '页面引导'], blocksEn: ['Checklist table', 'Page tours'], requiredPermissions: ['document:write'], module: 'knowledge', batch: 'E', odooRef: 'website_slides（未核实）' }),
+
+  // ---- 成本核算批次 F：只追加新页面，详情页不进菜单 ----
+  page({ id: 'I16', path: '/inventory/ledger', group: 'inventory', roles: ['admin', 'finance', 'auditor', 'accountant', 'finance_manager', 'warehouse_logistics', 'auditor_template'], icon: 'tabler-book-2', phase: 'now', implemented: true, showInMenu: true, nameZh: '库存台账', nameEn: 'Stock Ledger', purposeZh: '按仓库、SKU 和批次查看数量、金额、结存数量与结存金额。', purposeEn: 'View quantity, amount, balance quantity and balance amount by warehouse, SKU and batch.', blocksZh: ['台账表', '移动加权说明', '演示默认值提示'], blocksEn: ['Ledger table', 'Moving average note', 'Demo default notice'], requiredPermissions: ['stock_ledger:read'], module: 'inventory', batch: 'F', erpnextRef: 'Stock Ledger', odooRef: 'stock.valuation.layer' }),
+  page({ id: 'F35', path: '/finance/landed-costs', group: 'finance', roles: ['admin', 'finance', 'accountant', 'finance_manager', 'warehouse_logistics'], icon: 'tabler-route', phase: 'now', implemented: true, showInMenu: true, nameZh: '到岸成本分摊单', nameEn: 'Landed Cost Vouchers', purposeZh: '查看头程费用按计费重分摊到批次 × SKU 的结果。', purposeEn: 'Review first-mile charges allocated to batch × SKU by chargeable weight.', blocksZh: ['分摊单列表', '尾差提示', '审批状态'], blocksEn: ['Voucher list', 'Tail difference note', 'Approval status'], requiredPermissions: ['landed_cost_voucher:read'], module: 'finance', batch: 'F', erpnextRef: 'Landed Cost Voucher', odooRef: 'stock.landed.cost' }),
+  page({ id: 'F36', path: '/finance/landed-costs/:id', group: 'finance', roles: ['admin', 'finance', 'accountant', 'finance_manager', 'warehouse_logistics'], icon: 'tabler-route', phase: 'now', implemented: true, showInMenu: false, nameZh: '到岸成本分摊详情', nameEn: 'Landed Cost Voucher Details', purposeZh: '查看分摊预览并按职责分离提交或审批。', purposeEn: 'Review allocation preview and submit or approve with separation of duties.', blocksZh: ['分摊明细', '审批操作', '审计轨迹'], blocksEn: ['Allocation lines', 'Approval actions', 'Audit timeline'], requiredPermissions: ['landed_cost_voucher:read'], module: 'finance', batch: 'F', erpnextRef: 'Landed Cost Voucher', odooRef: 'stock.landed.cost' }),
+  page({ id: 'F37', path: '/finance/grni', group: 'finance', roles: ['admin', 'finance', 'accountant', 'finance_manager', 'purchaser'], icon: 'tabler-receipt-tax', phase: 'now', implemented: true, showInMenu: true, nameZh: '暂估应付', nameEn: 'GRNI Accruals', purposeZh: '查看货到票未到暂估余额与票到冲销进度。', purposeEn: 'View goods-received-not-invoiced balances and invoice offset progress.', blocksZh: ['暂估余额', '冲销进度', '结账清单提示'], blocksEn: ['Accrual balance', 'Offset progress', 'Closing checklist note'], requiredPermissions: ['purchase_receipt:read'], module: 'finance', batch: 'F', erpnextRef: 'Stock Received But Not Billed', odooRef: 'stock.valuation.layer' }),
 
 ]
 

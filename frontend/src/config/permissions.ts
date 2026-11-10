@@ -157,6 +157,14 @@ permissionCatalog.push(
 export const batchAPermissionKeys = [expenseApprovalPermissionKeys.manager, expenseApprovalPermissionKeys.finance, 'expense_claim:read', 'expense_claim:create', 'employee_advance:read', 'travel_request:read', 'expense_claim_type:read', 'report:read', 'period_closing_voucher:approve', 'stock_ledger:read', 'budget:read', 'exchange_rate_revaluation:read', 'vat_return:read', 'export_tax_rebate:read'] as const
 export const gapBPermissionKeys = ['request_for_quotation:read', 'request_for_quotation:create', 'request_for_quotation:select', 'contract:read', 'supplier_scorecard:read', 'batch:read', 'material_request:read', 'material_request:create', 'stock_entry:read', 'stock_reconciliation:read', 'report:read', 'integration:import', 'integration:read', 'integration:write', 'approval:approve', 'notification:read', 'notification:write', 'notification:create', 'im_binding:write'] as const
 
+// 成本核算批次 F 只登记到岸成本对象的三个动作，不把该对象加入 docTypes 展开全部动作。
+export const finCostPermissionKeys = ['landed_cost_voucher:read', 'landed_cost_voucher:submit', 'landed_cost_voucher:approve'] as const
+permissionCatalog.push(
+  { key: 'landed_cost_voucher:read', labelZh: '到岸成本分摊单查看', labelEn: 'Landed Cost Voucher Read', module: 'Accounts', kind: 'menu', dataScopeRuleTypes: ['all', 'warehouse'], erpnextRef: 'Landed Cost Voucher', odooRef: 'stock.landed.cost' },
+  { key: 'landed_cost_voucher:submit', labelZh: '到岸成本分摊单提交', labelEn: 'Landed Cost Voucher Submit', module: 'Accounts', kind: 'action', dataScopeRuleTypes: ['all', 'warehouse'], erpnextRef: 'Landed Cost Voucher', odooRef: 'stock.landed.cost' },
+  { key: 'landed_cost_voucher:approve', labelZh: '到岸成本分摊单审批', labelEn: 'Landed Cost Voucher Approve', module: 'Accounts', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all'], erpnextRef: 'Landed Cost Voucher', odooRef: 'stock.landed.cost' },
+)
+
 export const legacyPermissionKeys: Record<string, string> = {
   view: 'system:read',
   create: 'system:create',
@@ -216,17 +224,17 @@ const templatePermissions: Record<string, string[]> = {
   advertising: ['advertisement:read', 'advertisement:write', 'advertisement:create', 'advertisement:import', 'sales_order:read', 'listing:read', 'report:read', 'notification:read'],
   product_developer: ['item:read', 'item:write', 'item:create', 'item_group:read', 'item_group:write', 'brand:read', 'brand:write', 'listing:read', 'supplier:read', 'request_for_quotation:read', 'request_for_quotation:create', 'report:read', 'notification:read'],
   purchaser: ['supplier:read', 'supplier:write', 'supplier:create', 'purchase_order:read', 'purchase_order:write', 'purchase_order:create', 'purchase_receipt:read', 'purchase_receipt:submit', 'request_for_quotation:read', 'request_for_quotation:write', 'request_for_quotation:create', 'supplier_quotation:read', 'contract:read', 'material_request:read', 'report:read', 'approval:read', 'notification:read'],
-  warehouse_logistics: ['warehouse:read', 'warehouse:write', 'warehouse:create', 'stock_ledger:read', 'stock_entry:read', 'stock_entry:write', 'stock_entry:create', 'purchase_receipt:read', 'purchase_receipt:submit', 'delivery_note:read', 'delivery_note:submit', 'batch:read', 'stock_reconciliation:read', 'shipment:read', 'shipment:write', 'shipment:create', 'notification:read'],
+  warehouse_logistics: ['warehouse:read', 'warehouse:write', 'warehouse:create', 'stock_ledger:read', 'landed_cost_voucher:read', 'landed_cost_voucher:submit', 'stock_entry:read', 'stock_entry:write', 'stock_entry:create', 'purchase_receipt:read', 'purchase_receipt:submit', 'delivery_note:read', 'delivery_note:submit', 'batch:read', 'stock_reconciliation:read', 'shipment:read', 'shipment:write', 'shipment:create', 'notification:read'],
   customer_service: ['customer:read', 'contact:read', 'ticket:read', 'ticket:write', 'ticket:create', 'sales_order:read', 'delivery_note:read', 'report:read', 'notification:read'],
-  accountant: ['journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'payment_entry:read', accountsPayablePermissionKey, 'expense_claim:read', 'employee_advance:read', 'report:read', 'stock_ledger:read', 'budget:read', 'audit_log:read', 'approval:read', 'notification:read', 'integration:read'],
-  finance_manager: ['approval:read', 'approval:write', 'approval:approve', 'report:read', 'report:write', 'journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'journal_entry:approve', 'payment_entry:read', accountsPayablePermissionKey, 'payment_entry:write', 'payment_entry:approve', 'expense_claim:read', 'expense_claim:approve_finance', 'budget:read', 'budget:write', 'period_closing_voucher:approve', 'integration:write', 'audit_log:read', 'notification:read', 'salary_slip:approve'],
+  accountant: ['journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'payment_entry:read', accountsPayablePermissionKey, 'expense_claim:read', 'employee_advance:read', 'purchase_receipt:read', 'report:read', 'stock_ledger:read', 'sku.cost:read', 'landed_cost_voucher:read', 'landed_cost_voucher:submit', 'budget:read', 'audit_log:read', 'approval:read', 'notification:read', 'integration:read'],
+  finance_manager: ['approval:read', 'approval:write', 'approval:approve', 'report:read', 'report:write', 'journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'journal_entry:approve', 'payment_entry:read', accountsPayablePermissionKey, 'payment_entry:write', 'payment_entry:approve', 'expense_claim:read', 'expense_claim:approve_finance', 'landed_cost_voucher:read', 'landed_cost_voucher:approve', 'budget:read', 'budget:write', 'period_closing_voucher:approve', 'integration:write', 'audit_log:read', 'notification:read', 'salary_slip:approve'],
   cashier: ['payment_entry:read', accountsPayablePermissionKey, 'payment_entry:write', 'payment_entry:submit', 'journal_entry:read', 'report:read', 'approval:read', 'notification:read'],
   hr_admin: ['employee_record:read', 'employee_record:read_own', 'employee_record:write', 'employee_record:create', 'employee.salary:read', 'employee.id_number:read', 'salary_slip:read', 'salary_slip:read_own', 'salary_slip:read_all', 'salary_slip:write', 'salary_slip:create', 'salary_slip:review', 'payroll_run:calculate', 'attendance:read', 'attendance:write', 'leave_application:read', 'leave_application:write', 'leave_application:approve_hr', 'contract:read', 'contract:write', 'asset:read', 'asset:write', 'notification:read', 'notification:write', 'document:read', 'approval:read'],
   employee: ['expense_claim:read', 'expense_claim:create', 'expense_claim:write', 'employee_advance:read', 'employee_advance:create', 'travel_request:read', 'travel_request:create', 'leave_application:read', 'leave_application:create', 'salary_slip:read_own', 'employee_record:read_own', 'notification:read', 'document:read', 'office_supply:read', 'office_supply:create', 'approval:read'],
   department_manager: ['approval:read', 'approval:approve', 'expense_claim:read', 'expense_claim:approve_manager', 'leave_application:read', 'leave_application:approve_manager', 'purchase_order:read', 'sales_order:read', 'employee_record:read', 'budget:read', 'notification:read'],
 
   // 审计可以只读查看权限配置，便于核对改前改后；没有任何 permission:write/approve。
-  auditor_template: ['report:read', 'audit_log:read', 'audit_log:export', 'agent_tool:read', 'permission:read'],
+  auditor_template: ['report:read', 'audit_log:read', 'audit_log:export', 'agent_tool:read', 'permission:read', 'stock_ledger:read'],
   external_viewer: ['report:read', 'notification:read'],
 }
 
@@ -274,7 +282,7 @@ export const roleTemplates: RoleTemplate[] = [
   template('warehouse_logistics', '仓储/物流', 'Warehouse / Logistics', [], undefined, ['warehouse'], ['Stock User'], ['stock.group_stock_user']),
   template('customer_service', '客服/售后', 'Customer Service', [], undefined, ['store', 'owner'], ['Support User'], ['helpdesk.group_helpdesk_user']),
   template('accountant', '会计', 'Accountant', [], 'finance', ['all'], ['Accounts User'], ['account.group_account_user']),
-  template('finance_manager', '财务主管', 'Finance Manager', ['accountant'], 'finance', ['all'], ['Accounts Manager'], ['account.group_account_manager']),
+  template('finance_manager', '财务主管', 'Finance Manager', ['accountant'], 'finance', ['all'], ['Accounts Manager'], ['account.group_account_manager'], [{ permissionKey: 'landed_cost_voucher:submit', effect: 'deny', source: '职责分离：财务主管不制单' }]),
   template('cashier', '出纳', 'Cashier', [], undefined, ['owner'], ['Accounts User'], ['account.group_account_user']),
   template('hr_admin', '人事行政', 'HR & Administration', [], 'admin', ['all'], ['HR User', 'Payroll User'], ['hr.group_hr_user']),
   template('employee', '普通员工', 'Employee', [], 'operator', ['self'], ['Employee'], ['base.group_user']),
