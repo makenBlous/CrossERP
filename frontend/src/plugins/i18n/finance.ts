@@ -47,7 +47,12 @@ export const financeMessages = {
     cashIn: '流入',
     cashOut: '流出',
     mapping: '字段映射',
-    accountGroup: '科目分组', stockLedgerReport: '库存与总账核对', openingBalances: '期初启用', settlementSplit: '结算清分', voucherReversals: '红字冲销', periodReopen: '反结账',
+    accountGroup: '科目分组',
+    stockLedgerReport: '库存与总账核对',
+    openingBalances: '期初启用',
+    settlementSplit: '结算清分',
+    voucherReversals: '红字冲销',
+    periodReopen: '反结账',
   },
   'en': {
     financeCost: {
@@ -97,6 +102,11 @@ export const financeMessages = {
     cashIn: 'Cash in',
     cashOut: 'Cash out',
     mapping: 'Field mapping',
-    accountGroup: 'Account group', stockLedgerReport: 'Inventory / GL reconciliation', openingBalances: 'Opening balances', settlementSplit: 'Settlement split', voucherReversals: 'Voucher reversals', periodReopen: 'Period reopen',
+    accountGroup: 'Account group',
+    stockLedgerReport: 'Inventory / GL reconciliation',
+    openingBalances: 'Opening balances',
+    settlementSplit: 'Settlement split',
+    voucherReversals: 'Voucher reversals',
+    periodReopen: 'Period reopen',
   },
 } as const
