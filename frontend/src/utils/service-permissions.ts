@@ -13,3 +13,8 @@ export function requireActorPermission(actor: Actor, permissionKey: string) {
 export function actorCan(actor: Actor, permissionKey: string) {
   return effectivePermission(roleSubject(actor.role, actor.userId ?? `demo-${actor.role}`), permissionKey).allowed
 }
+
+export function assertHumanActor(origin: 'human' | 'ai' = 'human') {
+  if (origin === 'ai')
+    throw new Error('AI 只能起草，不能直接写入或审批')
+}

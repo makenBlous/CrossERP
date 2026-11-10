@@ -1230,3 +1230,19 @@ export const gapCMessages = {
   'zh-CN': { approvalCenter: '统一审批中心', permissionMatrix: '权限矩阵', effectivePermissions: '有效权限', auditTrace: '建议追溯' },
   'en': { approvalCenter: 'Approval Center', permissionMatrix: 'Permission Matrix', effectivePermissions: 'Effective Permissions', auditTrace: 'Suggestion Trace' },
 }
+
+// ---- 补齐批次 D：页面局部文案；业务页面仍沿用共享 foundation 文案 ----
+export const gapDMessages = {
+  'zh-CN': {
+    simulatedPayroll: '模拟规则，费率待会计/HR 核实，不代表已具备全国合规算税算社保能力',
+    aiClosed: 'AI 已关闭，页面仍可按人工路径操作。',
+    aiDegraded: 'AI 降级：仅提供只读提示，L3 动作已暂停。',
+    secretConfigured: '已配置',
+  },
+  'en': {
+    simulatedPayroll: 'Simulation rules; rates require accounting/HR verification and are not national tax compliance.',
+    aiClosed: 'AI is off; the manual path remains available.',
+    aiDegraded: 'AI degraded: read-only hints only; L3 actions are paused.',
+    secretConfigured: 'Configured',
+  },
+} as const

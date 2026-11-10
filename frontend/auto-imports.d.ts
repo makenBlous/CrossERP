@@ -16,6 +16,7 @@ declare global {
   const addMinor: typeof import('./src/utils/money')['addMinor']
   const alphaDashValidator: typeof import('./src/@core/utils/validators')['alphaDashValidator']
   const alphaValidator: typeof import('./src/@core/utils/validators')['alphaValidator']
+  const assertHumanActor: typeof import('./src/utils/service-permissions')['assertHumanActor']
   const asyncComputed: typeof import('@vueuse/core')['asyncComputed']
   const autoResetRef: typeof import('@vueuse/core')['autoResetRef']
   const avatarText: typeof import('./src/@core/utils/formatters')['avatarText']
@@ -423,6 +424,7 @@ declare module 'vue' {
     readonly addMinor: UnwrapRef<typeof import('./src/utils/money')['addMinor']>
     readonly alphaDashValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['alphaDashValidator']>
     readonly alphaValidator: UnwrapRef<typeof import('./src/@core/utils/validators')['alphaValidator']>
+    readonly assertHumanActor: UnwrapRef<typeof import('./src/utils/service-permissions')['assertHumanActor']>
     readonly asyncComputed: UnwrapRef<typeof import('@vueuse/core')['asyncComputed']>
     readonly autoResetRef: UnwrapRef<typeof import('@vueuse/core')['autoResetRef']>
     readonly avatarText: UnwrapRef<typeof import('./src/@core/utils/formatters')['avatarText']>

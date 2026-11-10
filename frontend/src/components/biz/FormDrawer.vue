@@ -5,6 +5,7 @@ const props = defineProps<{
   modelValue: boolean
   title: string
   saving?: boolean
+  saveDisabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -67,6 +68,7 @@ function onModel(value: boolean) {
                   type="submit"
                   class="me-3"
                   :loading="saving"
+                  :disabled="props.saveDisabled"
                 >
                   {{ t('foundation.save') }}
                 </VBtn>

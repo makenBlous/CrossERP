@@ -116,34 +116,32 @@ const fieldPermissionPoints: PermissionPoint[] = [
 
 permissionCatalog.push(...fieldPermissionPoints)
 
-/** 批次 A 报销审批按职责拆分；服务层按有效权限检查这些稳定 key。 */
+// ---- 补齐批次 D：页面动作权限点（薪资字段默认收窄） ----
+export const gapDPermissionPoints: PermissionPoint[] = [
+  { key: 'agent_autonomy:write', labelZh: '修改自主等级', labelEn: 'Edit autonomy policy', module: 'Agent', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all'] },
+  { key: 'agent_mode:write', labelZh: '切换 AI 总开关', labelEn: 'Change AI mode', module: 'Agent', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all'] },
+  { key: 'payroll_run:calculate', labelZh: '发起算薪', labelEn: 'Calculate payroll', module: 'Payroll', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all', 'department'] },
+  { key: 'leave_application:approve_manager', labelZh: '主管审批请假', labelEn: 'Approve leave as manager', module: 'HR', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all', 'department', 'self'] },
+  { key: 'leave_application:approve_hr', labelZh: '人事审批请假', labelEn: 'Approve leave as HR', module: 'HR', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all'] },
+  { key: 'salary_slip:review', labelZh: '人事复核工资条', labelEn: 'Review salary slips', module: 'Payroll', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all'] },
+  { key: 'salary_slip:read_own', labelZh: '查看本人工资条', labelEn: 'Read own payslip', module: 'Payroll', kind: 'field', sensitive: true, dataScopeRuleTypes: ['self'] },
+  { key: 'salary_slip:read_all', labelZh: '查看全部工资字段', labelEn: 'Read all salary fields', module: 'Payroll', kind: 'field', sensitive: true, dataScopeRuleTypes: ['all'] },
+]
+
+permissionCatalog.push(...gapDPermissionPoints)
+
 export const expenseApprovalPermissionKeys = {
   manager: 'expense_claim:approve_manager',
   finance: 'expense_claim:approve_finance',
 } as const
 
 permissionCatalog.push(
-  {
-    key: expenseApprovalPermissionKeys.manager,
-    labelZh: '费用报销主管审批',
-    labelEn: 'Expense Claim Manager Approval',
-    module: 'HR',
-    kind: 'action',
-    dataScopeRuleTypes: ['department', 'self', 'owner', 'amount'],
-    erpnextRef: 'Expense Claim',
-    odooRef: 'hr_expense',
-  },
-  {
-    key: expenseApprovalPermissionKeys.finance,
-    labelZh: '费用报销财务审批',
-    labelEn: 'Expense Claim Finance Approval',
-    module: 'Accounts',
-    kind: 'action',
-    dataScopeRuleTypes: ['all', 'department', 'amount'],
-    erpnextRef: 'Expense Claim',
-    odooRef: 'hr_expense',
-  },
+  { key: expenseApprovalPermissionKeys.manager, labelZh: '费用报销主管审批', labelEn: 'Expense Claim Manager Approval', module: 'HR', kind: 'action', dataScopeRuleTypes: ['department', 'self', 'owner', 'amount'], erpnextRef: 'Expense Claim', odooRef: 'hr_expense' },
+  { key: expenseApprovalPermissionKeys.finance, labelZh: '费用报销财务审批', labelEn: 'Expense Claim Finance Approval', module: 'Accounts', kind: 'action', dataScopeRuleTypes: ['all', 'department', 'amount'], erpnextRef: 'Expense Claim', odooRef: 'hr_expense' },
 )
+
+export const batchAPermissionKeys = [expenseApprovalPermissionKeys.manager, expenseApprovalPermissionKeys.finance, 'expense_claim:read', 'expense_claim:create', 'employee_advance:read', 'travel_request:read', 'expense_claim_type:read', 'report:read', 'period_closing_voucher:approve', 'stock_ledger:read', 'budget:read', 'exchange_rate_revaluation:read', 'vat_return:read', 'export_tax_rebate:read'] as const
+export const gapBPermissionKeys = ['request_for_quotation:read', 'request_for_quotation:create', 'request_for_quotation:select', 'contract:read', 'supplier_scorecard:read', 'batch:read', 'material_request:read', 'material_request:create', 'stock_entry:read', 'stock_reconciliation:read', 'report:read', 'integration:import', 'integration:read', 'integration:write', 'approval:approve', 'notification:read', 'notification:write', 'notification:create', 'im_binding:write'] as const
 
 export const legacyPermissionKeys: Record<string, string> = {
   view: 'system:read',
@@ -165,25 +163,21 @@ export const legacyRoleActions: Record<'admin' | 'operator' | 'finance' | 'viewe
   auditor: ['view', 'export'],
 }
 
-function expenseApprovalPermission(permissionKey: string): RolePermission {
-  return { permissionKey, effect: 'allow', source: '批次 A 审批职责' }
-}
-
 const templatePermissions: Record<string, string[]> = {
   owner_manager: permissionCatalog.map(point => point.key),
   store_operator: ['item:read', 'item:write', 'item:create', 'item_group:read', 'brand:read', 'listing:read', 'sales_order:read', 'delivery_note:read', 'report:read', 'stock_ledger:read', 'material_request:read', 'approval:read', 'notification:read', 'customer:read', 'lead:read', 'contact:read', 'ticket:read', 'document:read'],
-  operations_manager: ['approval:read', 'approval:approve', 'report:read', 'budget:read', 'notification:read'],
+  operations_manager: ['approval:read', 'approval:approve', 'report:read', 'budget:read', 'notification:read', 'leave_application:approve_manager'],
   advertising: ['advertisement:read', 'advertisement:write', 'advertisement:create', 'advertisement:import', 'sales_order:read', 'listing:read', 'report:read', 'notification:read'],
   product_developer: ['item:read', 'item:write', 'item:create', 'item_group:read', 'item_group:write', 'brand:read', 'brand:write', 'listing:read', 'supplier:read', 'request_for_quotation:read', 'request_for_quotation:create', 'report:read', 'notification:read'],
   purchaser: ['supplier:read', 'supplier:write', 'supplier:create', 'purchase_order:read', 'purchase_order:write', 'purchase_order:create', 'purchase_receipt:read', 'purchase_receipt:submit', 'request_for_quotation:read', 'request_for_quotation:write', 'request_for_quotation:create', 'supplier_quotation:read', 'contract:read', 'material_request:read', 'report:read', 'approval:read', 'notification:read'],
   warehouse_logistics: ['warehouse:read', 'warehouse:write', 'warehouse:create', 'stock_ledger:read', 'stock_entry:read', 'stock_entry:write', 'stock_entry:create', 'purchase_receipt:read', 'purchase_receipt:submit', 'delivery_note:read', 'delivery_note:submit', 'batch:read', 'stock_reconciliation:read', 'shipment:read', 'shipment:write', 'shipment:create', 'notification:read'],
   customer_service: ['customer:read', 'contact:read', 'ticket:read', 'ticket:write', 'ticket:create', 'sales_order:read', 'delivery_note:read', 'report:read', 'notification:read'],
   accountant: ['journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'payment_entry:read', 'expense_claim:read', 'employee_advance:read', 'report:read', 'stock_ledger:read', 'budget:read', 'audit_log:read', 'approval:read', 'notification:read', 'integration:read'],
-  finance_manager: ['approval:read', 'approval:write', 'approval:approve', 'report:read', 'report:write', 'journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'journal_entry:approve', 'payment_entry:read', 'payment_entry:write', 'payment_entry:approve', 'expense_claim:read', 'budget:read', 'budget:write', 'period_closing_voucher:approve', 'integration:write', 'audit_log:read', 'notification:read'],
+  finance_manager: ['approval:read', 'approval:write', 'approval:approve', 'report:read', 'report:write', 'journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'journal_entry:approve', 'payment_entry:read', 'payment_entry:write', 'payment_entry:approve', 'expense_claim:read', 'expense_claim:approve_finance', 'budget:read', 'budget:write', 'period_closing_voucher:approve', 'integration:write', 'audit_log:read', 'notification:read', 'salary_slip:read', 'salary_slip:approve'],
   cashier: ['payment_entry:read', 'payment_entry:write', 'payment_entry:submit', 'journal_entry:read', 'report:read', 'approval:read', 'notification:read'],
-  hr_admin: ['employee_record:read', 'employee_record:read_own', 'employee_record:write', 'employee_record:create', 'employee.salary:read', 'employee.id_number:read', 'salary_slip:read', 'salary_slip:read_own', 'salary_slip:read_all', 'salary_slip:write', 'salary_slip:create', 'attendance:read', 'attendance:write', 'leave_application:read', 'leave_application:write', 'leave_application:approve', 'contract:read', 'asset:read', 'asset:write', 'notification:read', 'notification:write', 'document:read', 'approval:read'],
+  hr_admin: ['employee_record:read', 'employee_record:read_own', 'employee_record:write', 'employee_record:create', 'employee.salary:read', 'employee.id_number:read', 'salary_slip:read', 'salary_slip:read_own', 'salary_slip:read_all', 'salary_slip:write', 'salary_slip:create', 'salary_slip:review', 'payroll_run:calculate', 'attendance:read', 'attendance:write', 'leave_application:read', 'leave_application:write', 'leave_application:approve_hr', 'contract:read', 'contract:write', 'asset:read', 'asset:write', 'notification:read', 'notification:write', 'document:read', 'approval:read'],
   employee: ['expense_claim:read', 'expense_claim:create', 'expense_claim:write', 'employee_advance:read', 'employee_advance:create', 'travel_request:read', 'travel_request:create', 'leave_application:read', 'leave_application:create', 'salary_slip:read_own', 'employee_record:read_own', 'notification:read', 'document:read', 'office_supply:read', 'office_supply:create', 'approval:read'],
-  department_manager: ['approval:read', 'approval:approve', 'expense_claim:read', 'leave_application:read', 'leave_application:approve', 'purchase_order:read', 'sales_order:read', 'employee_record:read', 'budget:read', 'notification:read'],
+  department_manager: ['approval:read', 'approval:approve', 'expense_claim:read', 'expense_claim:approve_manager', 'leave_application:read', 'leave_application:approve_manager', 'purchase_order:read', 'sales_order:read', 'employee_record:read', 'budget:read', 'notification:read'],
 
   // 审计可以只读查看权限配置，便于核对改前改后；没有任何 permission:write/approve。
   auditor_template: ['report:read', 'audit_log:read', 'audit_log:export', 'agent_tool:read', 'permission:read'],
@@ -234,14 +228,11 @@ export const roleTemplates: RoleTemplate[] = [
   template('warehouse_logistics', '仓储/物流', 'Warehouse / Logistics', [], undefined, ['warehouse'], ['Stock User'], ['stock.group_stock_user']),
   template('customer_service', '客服/售后', 'Customer Service', [], undefined, ['store', 'owner'], ['Support User'], ['helpdesk.group_helpdesk_user']),
   template('accountant', '会计', 'Accountant', [], 'finance', ['all'], ['Accounts User'], ['account.group_account_user']),
-  template('finance_manager', '财务主管', 'Finance Manager', ['accountant'], 'finance', ['all'], ['Accounts Manager'], ['account.group_account_manager'], [expenseApprovalPermission(expenseApprovalPermissionKeys.finance)]),
+  template('finance_manager', '财务主管', 'Finance Manager', ['accountant'], 'finance', ['all'], ['Accounts Manager'], ['account.group_account_manager']),
   template('cashier', '出纳', 'Cashier', [], undefined, ['owner'], ['Accounts User'], ['account.group_account_user']),
   template('hr_admin', '人事行政', 'HR & Administration', [], 'admin', ['all'], ['HR User', 'Payroll User'], ['hr.group_hr_user']),
   template('employee', '普通员工', 'Employee', [], 'operator', ['self'], ['Employee'], ['base.group_user']),
-  template('department_manager', '部门主管', 'Department Manager', ['employee'], undefined, ['department'], ['HR Manager'], ['hr.group_hr_manager'], [
-    { permissionKey: 'employee_record:read', effect: 'allow', dataScopes: ['department'], source: '模板 部门主管（本部门）' },
-    expenseApprovalPermission(expenseApprovalPermissionKeys.manager),
-  ]),
+  template('department_manager', '部门主管', 'Department Manager', ['employee'], undefined, ['department'], ['HR Manager'], ['hr.group_hr_manager'], [{ permissionKey: 'employee_record:read', effect: 'allow', dataScopes: ['department'], source: '模板 部门主管（本部门）' }]),
   template('auditor_template', '审计', 'Auditor', [], 'auditor', ['all'], ['System Manager'], ['base.group_system']),
   template('external_viewer', '只读/外部顾问', 'Read-only / External Advisor', [], 'viewer', ['store'], ['Employee'], ['base.group_user']),
 ]
@@ -253,45 +244,4 @@ export const moduleRegistry = [
   { id: 'knowledge', nameZh: '知识库', nameEn: 'Knowledge', enabled: true, defaultPhase: 'now' as const },
   { id: 'collaboration', nameZh: '协作', nameEn: 'Collaboration', enabled: true, defaultPhase: 'now' as const },
   { id: 'expense', nameZh: '费用', nameEn: 'Expenses', enabled: true, defaultPhase: 'now' as const },
-] as const
-
-// ---- 补齐批次 A：费用与财务做深权限点 ----
-export const batchAPermissionKeys = [
-  expenseApprovalPermissionKeys.manager,
-  expenseApprovalPermissionKeys.finance,
-  'expense_claim:read',
-  'expense_claim:create',
-  'employee_advance:read',
-  'travel_request:read',
-  'expense_claim_type:read',
-  'report:read',
-  'period_closing_voucher:approve',
-  'stock_ledger:read',
-  'budget:read',
-  'exchange_rate_revaluation:read',
-  'vat_return:read',
-  'export_tax_rebate:read',
-] as const
-
-// ---- 补齐批次 B ----
-export const gapBPermissionKeys = [
-  'request_for_quotation:read',
-  'request_for_quotation:create',
-  'request_for_quotation:select',
-  'contract:read',
-  'supplier_scorecard:read',
-  'batch:read',
-  'material_request:read',
-  'material_request:create',
-  'stock_entry:read',
-  'stock_reconciliation:read',
-  'report:read',
-  'integration:import',
-  'integration:read',
-  'integration:write',
-  'approval:approve',
-  'notification:read',
-  'notification:write',
-  'notification:create',
-  'im_binding:write',
 ] as const

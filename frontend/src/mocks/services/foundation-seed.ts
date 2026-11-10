@@ -73,23 +73,25 @@ export const departments: Department[] = [
   { id: 'dept-fin', code: 'FIN', name: '财务部', parentId: null, managerUserId: 'demo-finance', active: true },
 ]
 
-// ---- 补齐批次 A：凭证 vch-1 的演示审计轨迹 ----
-// 真实后端接入时由 audit_log 查询返回；前端只提供静态演示种子，不承担记账。
+// ---- 补齐批次 D：人事、行政、智能体控制的种子索引 ----
+export const gapDSeed = {
+  aiControl: { mode: 'normal' as const, reason: '演示默认正常；可由管理员切换为降级或关闭' },
+  payrollNotice: '模拟规则，费率待会计/HR 核实，不代表已具备全国合规算税算社保能力',
+  salaryFieldPolicy: '仅人事、获授权财务和员工本人可见',
+}
+
 export const batchAAuditSeed = [
   { id: 'vch-1-draft', refId: 'vch-1', action: '起草', detail: '按已存确定性金额生成凭证草稿。' },
   { id: 'vch-1-submit', refId: 'vch-1', action: '提交审批', detail: '借贷合计校验通过，提交统一审批中心。' },
   { id: 'vch-1-approve', refId: 'vch-1', action: '批准', detail: '财务复核通过，保留审计记录。' },
 ] as const
 
-// ---- 补齐批次 B ----
-// 渠道插件的演示扩展数据；密钥只保留配置状态，不写入仓库。
 export const gapBChannelSeed = [
   { id: 'channel-feishu', pluginId: 'feishu', enabled: true, configured: true },
   { id: 'channel-wecom', pluginId: 'wecom', enabled: true, configured: true },
   { id: 'channel-dingtalk', pluginId: 'dingtalk', enabled: false, configured: false },
 ]
 
-// ---- 补齐批次 C ----
 export const gapCSeed = {
   approvalThresholds: [{ type: '费用报销', firstLevel: 3000, secondLevel: 8000 }],
   notificationCategories: ['approval', 'budget', 'agent', 'system'],
