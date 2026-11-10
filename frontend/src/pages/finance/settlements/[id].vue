@@ -4,6 +4,7 @@ import MoneyText from '@/components/biz/MoneyText.vue'
 import FinanceDetail from '@/views/finance/FinanceDetail.vue'
 
 const route = useRoute()
+const isSplitChild = computed(() => route.path.includes('/split'))
 const row = ref<NonNullable<Awaited<ReturnType<typeof fetchSettlement>>> | null>(null)
 
 onMounted(async () => {
@@ -12,8 +13,9 @@ onMounted(async () => {
 </script>
 
 <template>
+  <RouterView v-if="isSplitChild" />
   <FinanceDetail
-    v-if="row"
+    v-else-if="row"
     :title="row.externalId"
     :subtitle="`${row.storeName} · ${row.periodStart} ~ ${row.periodEnd}`"
   >
@@ -25,7 +27,7 @@ onMounted(async () => {
         来源：{{ row.source === 'sp_api' ? 'API' : row.source === 'plugin' ? '插件' : '文件' }}
       </VChip>
       <VBtn
-        :to="`/finance/settlements/${row.id}/split`"
+        :to="{ path: `/finance/settlements/${row.id}/split` }"
         variant="tonal"
       >
         打开清分

@@ -4,7 +4,9 @@ import PermissionGate from '@/components/biz/PermissionGate.vue'
 import GapBPage from '@/views/gap-b/GapBPage.vue'
 
 const { t } = useI18n({ useScope: 'global' })
+const route = useRoute()
 const router = useRouter()
+const isPlanChild = computed(() => route.path.startsWith('/inventory/replenishment/plans'))
 const message = ref('')
 const running = ref(false)
 
@@ -38,7 +40,8 @@ async function runNew() {
 </script>
 
 <template>
-  <div>
+  <RouterView v-if="isPlanChild" />
+  <div v-else>
     <VAlert
       v-if="message"
       type="info"
