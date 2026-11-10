@@ -7,6 +7,7 @@ import PermissionGate from '@/components/biz/PermissionGate.vue'
 import { usePageContext } from '@/composables/usePageContext'
 import { pageCatalog } from '@/config/pages'
 import { useSessionStore } from '@/stores/session'
+import { useAiModeStore } from '@/stores/ai-mode'
 import { can } from '@/utils/permission'
 import ChatLog from '@/views/apps/chat/ChatLog.vue'
 import ChatMessageForm from '@/views/apps/chat/ChatMessageForm.vue'
@@ -22,6 +23,7 @@ interface Bubble {
 const { t, locale } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const session = useSessionStore()
+const aiMode = useAiModeStore()
 const pageContext = usePageContext()
 const open = ref(false)
 const draft = ref('')
@@ -129,7 +131,7 @@ async function submit(bubble: Bubble) {
 </script>
 
 <template>
-  <div>
+  <div v-if="aiMode.isEnabled">
     <VBtn
       class="assistant-fab"
       color="primary"

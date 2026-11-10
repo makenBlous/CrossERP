@@ -243,6 +243,7 @@
 
 批次 0 没有新增业务页面组件，98 条新路由统一复用现有 `components/PlaceholderPage.vue`。权限、AI 状态、渠道和校验属于共享地基，分别复用 Pinia、现有 `PermissionGate`、`AssistantDrawer`、`ChatLog` 与 `vue-i18n`；没有重复实现 Vuexy 页面或聊天卡片。
 
+
 ## 补齐批次 A
 
 
@@ -604,3 +605,60 @@
 
 继续复用 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer`、`MoneyText`、`StatusChip` 与 Vuetify 组件；新增操作通过既有页面壳组合，服务层负责权限、稳定主体、状态机、幂等与审计，AI 关闭时保留完整人工路径。
 
+
+## 补齐批次 E
+
+
+本批没有新增业务基础组件；12 个业务路由（K01–K09、HR13、ON01–ON02）都只是路由薄包装，实际由 `views/knowledge/KnowledgePage.vue` 按 `mode` 组合现有业务组件。逐页核对如下：
+
+| 组件/UI 块 | 位置 | 现成等价物 | 处理 | 原因 | 业务操作是否满足 |
+|---|---|---|---|---|---|
+| 通用知识库页 | `src/views/knowledge/KnowledgePage.vue` | `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer` | 保留并改为薄组合 | 一个视图只负责数据加载、动作和插槽组合，表格、详情、表单、抽屉均由 biz 组件承载 | 满足列表筛选/分页、详情、新建/编辑、审批、人工路径、AI 开关和审计入口 |
+| K01 空间列表与统计 | `src/pages/kb/index.vue`（`mode=home`） | Vuexy `front-pages/help-center/index.vue`、`apps/academy/my-course.vue`；项目 `ListPage`、`KpiCard` | 替换手写表格为 `ListPage`，统计保留 `KpiCard` | 空间行需要统一列设置、关键词筛选、分页和 CSV | 满足空间打开、全文搜索、新建入口；最近更新和收藏没有独立数据源，当前以空间列表/关键词检索承载，已记录为范围限制 |
+| K01 搜索结果 | `KnowledgePage.vue` 的全文搜索块 | Vuetify `VList`（Vuexy help-center 搜索结果模式） | 保留 `VList` | 每行需要同时展示空间、版本、摘要和点击出处，非通用数据表格 | 满足检索、打开文档、AI 关闭时仍可人工检索 |
+| K02 文档详情与版本 | `mode=doc` | 项目 `DetailPage` 时间线、`ListPage`、`RecordDrawer`；Vuexy `front-pages/help-center/article/[title].vue`、`TiptapEditor.vue` | 修正状态绑定，版本表改为 `ListPage`，版本正文用 `RecordDrawer` | 版本可筛选、分页、查看正文，详情右栏复用 `DetailPage` 时间线 | 满足阅读、版本历史、编辑/提交审核、标签/有效期、审计时间线；附件采用元数据 mock 登记，页面明确不伪造真实文件 |
+| K03 空间权限与文档 | `mode=space` | 项目 `DetailPage`、`ListPage`、`FormDrawer`；Vuexy `apps/academy/my-course.vue`、`apps/ecommerce/product/category-list.vue` | 文档 `VList` 改为 `ListPage`，权限开关改为 `FormDrawer` | 权限变更需要显式保存和审计，文档列表需要筛选/列设置 | 满足空间文档列表、打开详情、仅财务开关和审计；成员/文件夹采用 mock 可保存编辑，并通过可见角色过滤文档与检索 |
+| K04 编辑与发布 | `mode=edit` | 项目 `FormPage`；Vuexy `forms/editors.vue`、`TiptapEditor.vue` | 保留 `FormPage`，正文改用 `@core/components/TiptapEditor.vue` | 避免重复实现富文本工具栏，保存仍只产生草稿 | 满足新建、编辑、保存草稿、提交审核和人工发布检查；AI 关闭时表单仍可用 |
+| K05 发布审核 | `mode=review` | 项目 `ListPage`、`StatusChip`、`FormDrawer`；Vuexy `tables/data-table.vue`、`components/dialogs/ConfirmDialog.vue` | 保留说明卡片，审批/驳回改为 `PermissionGate` + `FormDrawer` 显式提交 | 驳回原因和批准动作必须在明确的提交抽屉中完成并写审计 | 满足队列筛选、批准、驳回、原因记录、发布审计 |
+| K06 问答沉淀 | `mode=qa` | 项目 `ListPage`、`RecordDrawer`、`PermissionGate`；Vuexy `pages/faq.vue` | 列表统一 `ListPage`，问答正文和出处用 `RecordDrawer` | 行内摘要不足以查看完整答案和引用 | 满足已发布问答查看、出处跳转、生成建议；建议动作受权限控制，AI 关闭时仍可查看和人工沉淀 |
+| K07 到期提醒 | `mode=expiring` | 项目 `ListPage`；Vuexy `tables/data-table.vue`、`pages/components/chip.vue` | 保留 `ListPage`，状态使用 Vuetify `VChip` | `upcoming/expired` 尚未进入项目 `StatusChip` 字典，避免伪造状态含义 | 满足到期清单筛选、状态和文档详情跳转；消息中心推送由 mock 服务幂等登记，真实渠道仍待后端接入 |
+| K08 检索与索引 | `mode=index` | 项目 `DetailPage`、`ListPage`、`PermissionGate`；Vuexy `pages/components/progress-linear.vue`、`tables/data-table.vue` | 检索结果 `VList` 改为嵌入式 `ListPage`，重建按钮加权限门 | 结果需要统一分页/列设置，重建是写动作 | 满足索引状态、重建、检索测试、引用文档；重建和检索均可在 AI 关闭时人工执行并写审计 |
+| K09 敏感访问日志 | `mode=access` | 项目 `ListPage`、`RecordDrawer`；Vuexy `tables/data-table.vue` | 增加来源筛选和访问详情抽屉 | 日志需要按人工/AI 过滤并查看完整字段 | 满足查看、筛选、详情和下载/AI 访问审计记录 |
+| HR13 个人档案 | `mode=employee` | 项目 `DetailPage`、`ListPage`、`RecordDrawer`、`PermissionGate`；Vuexy `views/apps/user/view/UserTabAccount.vue` | 文件 `VList` 改为 `ListPage`，详情/下载改用 `RecordDrawer` + 权限门 | 下载动作不能只靠展示列表，必须明确写访问审计 | 满足按权限查看、详情、下载和审计；上传登记接口已在本批 mock 数据中心提供，明确标注模拟存储 |
+| ON01 新人上手 | `mode=onboarding` | 项目 `DetailPage`、全局 `AssistantDrawer`；Vuexy `apps/academy/course-details.vue`、`pages/extensions/tour.vue` | 保留清单 `VList`，增加 `VProgressLinear`；AI 区继续由全局助手和本页引用问答承载 | 清单是可勾选任务而非通用数据表，进度条复用 Vuetify | 满足按角色清单、勾选保存、带我去做、带出处问答；AI 关闭时清单和页面跳转仍可用 |
+| ON02 清单配置 | `mode=onboarding-admin` | 项目 `ListPage`、`FormDrawer`；Vuexy `apps/kanban/index.vue`、`pages/extensions/tour.vue` | 移除行内失焦保存，改为点击行打开 `FormDrawer` 后显式保存 | 防止每次失焦产生不可见写入，统一表单校验/保存体验 | 满足清单筛选、编辑任务/说明/引导地址、保存审计；分步 tour 配置以角色模板和页面地址 mock 保存，真实引导引擎待后端接入 |
+| AI 交互与 AgentCard | `src/App.vue`、`src/components/biz/AssistantDrawer.vue` | 项目现有 `AssistantDrawer`、`ChatLog`、`ChatMessageForm`；AgentCard 渲染在助手内部 | 复用，不在知识库页新造卡片 | 批次 E 只需要带出处建议，助手已处理 AI 状态开关 | AI 关闭时助手和页面 AI 区隐藏，人工路径保留；没有金额或 AgentCard 专属业务块 |
+| 金额展示 | 批次 E 全部页面 | 项目 `MoneyText` | 不引入 | 知识库、档案、上手清单没有金额字段，使用 `MoneyText` 会制造无意义语义 | 不适用 |
+
+仍未接入的范围限制是：真实文件存储、外部通知渠道、向量索引和生产级 tour 引擎；本批 API/mock 已提供元数据登记、权限保存、通知写入和审计记录。
+
+
+
+## 补齐批次 E 缺口复核（2026-11-10）
+
+复核后仍沿用 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer`、`StatusChip`、`PermissionGate` 和 Vuetify `VList/VTreeview` 语义组合，没有新增通用业务组件。附件/档案上传复用原生文件 input + `FormDrawer`/详情抽屉；空间文件夹和成员区是空间专属编辑区，因需要同时展示树、角色范围和成员明细而保留在 `KnowledgePage`，数据操作全部经 `src/api/gap-e.ts`。消息中心复用 `ListPage`，管理员通知开关仍使用 Vuetify `VSwitch`。本轮已把此前「未补齐」的附件、成员/文件夹、通知推送、上手模板配置改为可保存、可校验、可追溯的 mock；真实存储和外部渠道仍明确标注为模拟。
+
+
+## 补齐批次 E 增量复用审计（第二轮）
+
+审计日期：2026-11-10
+审计范围：`b1cd3c3..137ec75` 的新增或改动文件，重点检查 `src/views/knowledge/KnowledgePage.vue`、`src/pages/agent/knowledge/[id].vue`、`src/plugins/1.router/index.ts`、`src/api/gap-e.ts`、`src/mocks/services/gap-e.ts`、`src/api/mock-client.ts` 及相关类型。
+
+### 复用结论
+
+- `KnowledgePage.vue` 继续组合 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`RecordDrawer`、`StatusChip`、`PermissionGate` 和 `@core/components/TiptapEditor.vue`。本轮没有新增页面级通用组件，也没有把列表、详情、表单、抽屉或状态标签重新实现一遍。
+- `pages/agent/knowledge/[id].vue` 仍是旧路由薄包装；`plugins/1.router/index.ts` 只调整静态 `/kb/index` 路由的匹配顺序。两处没有重复业务 UI。
+- 页面写操作仍经 `src/api/gap-e.ts`，展示金额在本增量中没有新增或改写；因此没有发现需要替换为 `MoneyText` 或 `utils/money` 的金额块。
+
+### 权限、身份、幂等与审计核对
+
+- **[通过] 有效权限：** API 层调用 `assertCan`，服务层对创建、更新、审核、建议、归档、附件、员工档案、空间成员和文件夹等写操作再次执行 `can`/管理员校验；读取路径按空间可见范围过滤。
+- **[通过] 稳定身份与防自审：** `currentActor()` 使用会话的 `session.userId`，审核记录保存 `submittedBy`，服务层按稳定身份比较提交人与审核人，显示名不参与自审判断。
+- **[通过] 防重复审核和重复提交：** 审核只接受 `pending`，文档只接受 `draft` 且不存在待审记录；独立接口验收覆盖了越权、仅财务空间隔离、不存在 ID、自审和重复审核。
+- **[通过] 稳定审计身份：** `writeAudit()` 持久化 `Actor.id` 为 `actorId`，文档、审核、空间权限、附件、员工档案等写审计均沿用会话身份；哈希链也覆盖该字段。
+- **[通过] 附件读回身份：** `uploadKbAttachment()` 复用同一个原始 `Actor` 完成上传后的读回，敏感文档访问审计保留真实角色和身份。
+- **[通过] 审核原子更新：** `decideReview()` 在任何状态写入前校验审核记录、提交人、目标文档/问答及文档状态，校验失败时保持原审核记录不变。
+- **[通过] 关闭「仅财务」：** `setSpaceFinanceOnly(false)` 同步清除 `visibleRoles`，空间提示、空间文档列表和检索范围重新对所有已授权角色一致开放。
+- **[建议修改] 部分写接口没有请求级幂等键或重复提交保护：** 创建文档、创建版本、生成建议问答、创建文件夹、上传附件和上传员工档案在网络重试时会追加重复记录；审核和提交文档已有状态保护。后续接入真实 API 时应补充幂等键或业务去重约束。
+
+本轮闭环修复以上四项阻断，并在 `verify-gap-e-writes.ts` 增加对应回归断言；旧 `/agent/knowledge` 入口继续通过薄包装迁移到新知识库，未知详情 ID 显示明确空态。真实文件存储、外部通知和生产级索引仍属于原有范围限制。

@@ -30,11 +30,12 @@ function cloneMock<T>(data: T): T {
   }
 }
 
-export function currentActor(): Actor {
+export function currentActor(): Actor & { id: string } {
   const session = useSessionStore()
 
   return {
     userId: session.userId,
+    id: session.userId,
     name: session.displayName,
     role: session.role,
     at: new Date().toISOString(),

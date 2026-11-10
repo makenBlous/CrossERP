@@ -1218,6 +1218,7 @@ export const uiMessages = {
   en,
 } as unknown as Record<AppLocale, typeof zhCN>
 
+
 // ---- 补齐批次 B ----
 // 页面主体使用中文业务文案；保留这组可复用标签供后端接口接入后的英文切换使用。
 export const gapBUiLabels = {
@@ -1246,3 +1247,9 @@ export const gapDMessages = {
     secretConfigured: 'Configured',
   },
 } as const
+
+
+// ---- 补齐批次 E ----
+// 批次 E 页面优先使用页面内中文业务文案；此块为后续接入服务端翻译键预留。
+export const gapEUiKeys = ['kb.title', 'kb.search', 'kb.review', 'kb.onboarding', 'kb.aiPrefill'] as const
+

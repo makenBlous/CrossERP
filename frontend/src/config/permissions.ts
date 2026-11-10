@@ -245,3 +245,17 @@ export const moduleRegistry = [
   { id: 'collaboration', nameZh: '协作', nameEn: 'Collaboration', enabled: true, defaultPhase: 'now' as const },
   { id: 'expense', nameZh: '费用', nameEn: 'Expenses', enabled: true, defaultPhase: 'now' as const },
 ] as const
+
+// ---- 补齐批次 E：企业知识库与新人上手 ----
+// 权限点由知识模块注册；页面仍叠加空间、文档和员工本人数据范围。
+export const gapEPermissionKeys = [
+  'kb.read',
+  'kb.edit',
+  'kb.review',
+  'kb.space.manage',
+  'kb.index.manage',
+  'kb.personal.read_own',
+  'kb.personal.manage',
+  'kb.sensitive.download',
+  'onboarding.manage',
+] as const

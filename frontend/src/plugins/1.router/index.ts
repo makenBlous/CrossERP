@@ -5,6 +5,7 @@ import { createRouter, createWebHistory } from 'vue-router/auto'
 import PlaceholderPage from '@/components/PlaceholderPage.vue'
 import { pageCatalog } from '@/config/pages'
 import { setupGuards } from '@/plugins/1.router/guards'
+import KnowledgePage from '@/views/knowledge/KnowledgePage.vue'
 
 function recursiveLayouts(route: RouteRecordRaw): RouteRecordRaw {
   if (route.children) {
@@ -46,7 +47,17 @@ const router = createRouter({
     if (root)
       root.redirect = '/dashboard'
 
-    return [...mapped, ...placeholderRoutes]
+    const knowledgeIndex = recursiveLayouts({
+      path: '/kb/index',
+      name: 'kb-index-search',
+      component: KnowledgePage,
+      props: { mode: 'index' },
+      meta: { pageId: 'K08' },
+    })
+
+    // /kb/index must precede generated /kb/:id routes; otherwise the dynamic
+    // route renders the 404 placeholder before the K08 page can match.
+    return [knowledgeIndex, ...mapped, ...placeholderRoutes]
   },
 })
 

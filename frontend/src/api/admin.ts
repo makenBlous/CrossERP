@@ -1,5 +1,6 @@
-import { assertPermission, database, delay } from '@/api/mock-client'
+import { assertPermission, currentActor, database, delay } from '@/api/mock-client'
 import type { Role } from '@/types/domain'
+import { writeAudit } from '@/mocks/services/audit'
 
 // 未来: GET /api/v1/admin/users
 export async function fetchAdminUsers() {
@@ -65,6 +66,23 @@ export async function fetchNotifications() {
   assertPermission('notification:read')
 
   return database().db.adminNotifications ?? []
+}
+
+// 未来: PATCH /api/v1/admin/notifications/{id}
+export async function updateNotification(id: string, enabled: boolean) {
+  await delay()
+
+  const actor = currentActor()
+  if (actor.role !== 'admin')
+    throw new Error('只有管理员可以修改通知规则')
+  const item = (database().db.adminNotifications ?? []).find(row => row.id === id)
+  if (!item)
+    throw new Error('通知规则不存在')
+  item.enabled = enabled
+  writeAudit(database().db, actor, 'admin.notification.updated', 'notification_rule', id, `${item.event}：${enabled ? '启用' : '停用'}`)
+  database().persist()
+
+  return item
 }
 
 // 未来: GET /api/v1/admin/settings
