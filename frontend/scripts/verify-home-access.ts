@@ -41,7 +41,7 @@ assert.equal(new Set(roles).size, 21, '首页访问检查必须覆盖 21 个角�
 
 /**
  * 原表 demoShopBindings（67e84fe）经允许的种子 ID 替换后的期望。
- * shop-cn-01 → amz-us，shop-us-01 → shopify，shop-eu-01 → amz-de。
+ * 店铺绑定应直接使用种子中的店铺 ID：amz-us、shopify、amz-de。
  * 未列出的用户期望为空。不要从当前绑定反推。
  * demo-store-operator 是原键 demo-store_operator 的身份对齐，店铺仍是原表的 1 店。
  */
