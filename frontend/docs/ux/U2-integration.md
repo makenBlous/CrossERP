@@ -1,6 +1,6 @@
 # U2 接入说明
 
-本任务只改动个人首页、首页只读聚合 API、服务层范围裁剪、引导组件和验证脚本，没有改动公共路由、布局、权限、会话或 i18n 文件。
+本任务在保留首页只读聚合 API 和服务层范围裁剪的基础上，补齐 D01 的已登录用户入口标记、根路径重定向、店铺主数据绑定和手动新人引导入口。经营数据仍由 `report:read` 单独控制，不会因为能打开首页而新增数据权限。
 
 ## 顶栏入口（由 U1 接入）
 
@@ -22,6 +22,8 @@ useOnboardingTour().restart()
 
 引导在初始页面检查侧栏 href；角色不可见 `/dashboard/todos` 时，会同时跳过“侧栏”和“跨页待办”两步。整合布局时请保留默认 Vuexy 垂直导航的链接 DOM。
 
-## 已发现的接入阻塞
+## 本轮接入结果
 
-D01 `/dashboard` 的输入没有显式填写 `requiredPermissions`，但 `page()` 工厂会默认注入 `system:read`；现有路由守卫因此会拦截没有该权限的模板角色。`employee`、`customer_service` 等角色要进入个人首页，需由整合者在公共权限配置中处理页面进入条件；本任务没有直接修改 `pages.ts`、权限引擎或路由守卫，首页各板块仍由服务层单独裁剪。仓库没有本任务可复用的 Playwright 脚本，只有 `frontend/scripts/verify-u2.ts` 的静态和 tsx 运行时检查；浏览器截图需按验收步骤现场执行。
+D01 通过 `authenticated: true` 声明任何已登录角色可访问；路由守卫和菜单生成均识别该标记，未登录仍跳转 `/login`，其他页面权限逻辑保持原样。根路径使用独立 `/` 重定向记录，避免 `setupLayouts` 生成的空首页子路由抢先匹配。
+
+首页新人引导不再自动启动，页面保留“重新开始引导”按钮；Shepherd 多步和跨页定义继续按可见菜单筛选。`frontend/scripts/verify-home-access.ts` 覆盖旧五角色与十六个模板角色的首页访问、菜单、范围读取、工资字段和经营指标权限。4222 preview 的现场截图保存在 `C:\Users\cimi\AppData\Local\Temp\cx-pw\par_home\`。

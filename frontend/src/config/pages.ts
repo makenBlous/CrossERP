@@ -39,6 +39,7 @@ export interface PageDef {
   showInMenu: boolean
   public: boolean
   unauthenticatedOnly: boolean
+  authenticated?: boolean
   layout: 'blank' | 'default'
   requiredPermissions?: string[]
   module?: string
@@ -64,6 +65,7 @@ interface PageInput {
   showInMenu?: boolean
   public?: boolean
   unauthenticatedOnly?: boolean
+  authenticated?: boolean
   layout?: 'blank' | 'default'
   requiredPermissions?: string[]
   module?: string
@@ -101,6 +103,7 @@ function page(input: PageInput): PageDef {
     showInMenu: input.showInMenu ?? false,
     public: input.public ?? false,
     unauthenticatedOnly: input.unauthenticatedOnly ?? false,
+    authenticated: input.authenticated,
     layout: input.layout ?? 'default',
     requiredPermissions: input.requiredPermissions ?? (input.public ? undefined : ['system:read']),
     module: input.module,
@@ -243,6 +246,7 @@ export const pageCatalog: PageDef[] = [
     phase: 'now',
     implemented: true,
     showInMenu: true,
+    authenticated: true,
     nameZh: '经营总览',
     nameEn: 'Overview',
     purposeZh: '一眼看到本期利润、费用、退款、匹配率、未处理异常和待审批。',
@@ -2298,6 +2302,9 @@ export function findPageByPath(path: string) {
 
 export function canRoleOpen(role: Role, item: PageDef) {
   if (item.public)
+    return true
+
+  if (item.authenticated)
     return true
 
   if (item.path === '/not-authorized' || item.path === '/me/data-scope')

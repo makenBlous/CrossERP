@@ -15,4 +15,6 @@
 - `src/components/tour/useOnboardingTour.ts`：集中管理 Shepherd 步骤、遮罩、跨页导航、角色可见菜单筛选和重新开始。
 - `src/components/tour/onboarding.scss`：只补充 CrossERP 品牌化的引导卡片视觉，保留 Shepherd 的定位和遮罩机制。
 - `src/pages/dashboard/index.vue`：在保留基线经营总览（周期/店铺筛选、KPI、趋势、原因分布、店铺表）的基础上增加个人工作台，内容包括按服务层范围返回的待办、审批、权限范围内摘要和常用入口；AI 关闭时仍显示人工操作入口。
-- `frontend/scripts/verify-u2.ts`：对本任务关键约束做静态守卫，并用 tsx 运行服务函数验证五类角色的本人/合法范围裁剪、其他用户负例和无 `report:read` 时 KPI 被拒绝；尤其检查聚合 API 不出现工资/工资条读取。
+- `frontend/scripts/verify-u2.ts`：对本任务关键约束做静态守卫，并用 tsx 运行服务函数验证五类角色的本人/合法范围裁剪、其他用户负例、合法店铺正例和无 `report:read` 时 KPI 被拒绝；尤其检查聚合 API 不出现工资/工资条读取。
+- `frontend/scripts/verify-home-access.ts`：覆盖 21 个角色的 D01 路由放行、首页菜单可见、首页各只读接口范围、员工工资隔离、经营指标权限和新人引导不自动弹出。店铺允许集合按原表硬编码，不从改后的绑定反推；运营主管、广告投放、客服的首页经营指标必须为空。员工他人待办断言要求数据里存在他人待办正例。
+- `src/mocks/services/gap-c.ts`：原有七行店铺绑定的 ID 换成种子里存在的店铺：`shop-cn-01` → `amz-us`，`shop-us-01` → `shopify`，`shop-eu-01` → `amz-de`。这七行的店铺个数没有增加，也没有扩到 `amz-uk`、`amz-jp`、`tiktok-us`。运营主管、广告投放、客服不在原表中，不新增绑定。键名 `demo-store_operator` 改为 `demo-store-operator`，与演示身份 id 对齐；旧键对不上用户，运行时原先是 0 店，修正后店铺运营绑定 `amz-us`（仍是原表的 1 店）。

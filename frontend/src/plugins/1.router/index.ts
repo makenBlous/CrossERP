@@ -36,10 +36,8 @@ const router = createRouter({
   },
   extendRoutes: pages => {
     const mapped = [...pages].map(route => recursiveLayouts(route))
-    const root = mapped.find(route => route.path === '/')
-
-    if (root)
-      root.redirect = '/dashboard'
+    const rootRedirect: RouteRecordRaw = { path: '/', redirect: '/dashboard' }
+    const mappedWithoutRoot = mapped.filter(route => route.path !== '/')
 
     const knowledgeIndex = recursiveLayouts({
       path: '/kb/index',
@@ -51,7 +49,7 @@ const router = createRouter({
 
     // /kb/index must precede generated /kb/:id routes; otherwise the dynamic
     // route renders the 404 placeholder before the K08 page can match.
-    return [knowledgeIndex, ...mapped, ...placeholderRoutes]
+    return [rootRedirect, knowledgeIndex, ...mappedWithoutRoot, ...placeholderRoutes]
   },
 })
 
