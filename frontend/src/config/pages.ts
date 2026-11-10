@@ -1,5 +1,5 @@
 import type { AppLocale, Role } from '@/types/domain'
-import { legacyRoleMap } from '@/config/permissions'
+import { canPermission, roleSubject } from '@/utils/permission-engine'
 
 export type PagePhase = 'now' | 'v1' | 'later'
 
@@ -102,7 +102,7 @@ function page(input: PageInput): PageDef {
     public: input.public ?? false,
     unauthenticatedOnly: input.unauthenticatedOnly ?? false,
     layout: input.layout ?? 'default',
-    requiredPermissions: input.requiredPermissions,
+    requiredPermissions: input.requiredPermissions ?? (input.public ? undefined : ['system:read']),
     module: input.module,
     batch: input.batch,
     erpnextRef: input.erpnextRef,
@@ -2227,6 +2227,7 @@ export const pageCatalog: PageDef[] = [
   page({ id: 'SYS23', path: '/admin/effective-permissions', group: 'admin', roles: ['admin', 'auditor'], icon: 'tabler-user-check', phase: 'now', nameZh: '有效权限查看', nameEn: 'Effective Permissions', purposeZh: '选一个用户：列出最终能做什么，每一条注明来自哪个角色/继承链/用户例外，被哪条拒绝覆盖；智能体代此人时的权限与此相同（除管理员收窄项）', purposeEn: '选一个用户：列出最终能做什么，每一条注明来自哪个角色/继承链/用户例外，被哪条拒绝覆盖；智能体代此人时的权限与此相同（除管理员收窄项）', blocksZh: ['占位页：SYS23'], blocksEn: ['Placeholder: SYS23'], requiredPermissions: ['permission:read'], module: 'admin', batch: 'C' }),
   page({ id: 'SYS24', path: '/admin/permission-changes', group: 'admin', roles: ['admin', 'auditor'], icon: 'tabler-history', phase: 'now', nameZh: '权限变更记录', nameEn: 'Permission Change Log', purposeZh: '角色、权限、字段、数据范围、用户例外、临时授权的每次变更：改前改后、谁改的、谁确认的', purposeEn: '角色、权限、字段、数据范围、用户例外、临时授权的每次变更：改前改后、谁改的、谁确认的', blocksZh: ['占位页：SYS24'], blocksEn: ['Placeholder: SYS24'], requiredPermissions: ['permission:read'], module: 'admin', batch: 'C' }),
   page({ id: 'SYS18', path: '/admin/sod-rules', group: 'admin', roles: ['admin', 'auditor'], icon: 'tabler-shield-lock', phase: 'now', nameZh: '职责分离规则', nameEn: 'Separation of Duties Rules', purposeZh: '哪些动作不能由同一人完成（做单/审单、建供应商/付款）', purposeEn: '哪些动作不能由同一人完成（做单/审单、建供应商/付款）', blocksZh: ['占位页：SYS18'], blocksEn: ['Placeholder: SYS18'], requiredPermissions: ['permission:write'], module: 'admin', batch: 'C' }),
+  page({ id: 'ME01', path: '/me/data-scope', group: 'account', roles: all, icon: 'tabler-shield-check', phase: 'now', implemented: true, showInMenu: true, nameZh: '我的数据范围', nameEn: 'My Data Scope', purposeZh: '只查看当前登录主体按数据范围规则可读取的订单、报销和员工档案记录', purposeEn: 'View orders, expenses and employee records readable by the current session subject', blocksZh: ['当前主体、数据范围、可见记录'], blocksEn: ['Current subject', 'Data scopes', 'Visible records'], requiredPermissions: ['user:read'], module: 'account', batch: 'C' }),
 
   // ---- 补齐批次 D ----
   page({ id: 'HR01', path: '/hr/org', group: 'hr', roles: ['admin', 'operator', 'viewer'], icon: 'tabler-sitemap', phase: 'later', nameZh: '组织架构', nameEn: 'Organization Structure', purposeZh: '部门树、负责人', purposeEn: '部门树、负责人', blocksZh: ['占位页：HR01'], blocksEn: ['Placeholder: HR01'], requiredPermissions: ['employee_record:read'], module: 'hr', batch: 'D', erpnextRef: 'Department / Employee（HRMS）', odooRef: 'hr.department' }),
@@ -2296,7 +2297,23 @@ export function canRoleOpen(role: Role, item: PageDef) {
   if (item.public)
     return true
 
-  const legacyRole = legacyRoleMap[role] ?? role
+  if (item.path === '/not-authorized' || item.path === '/me/data-scope')
+    return true
 
-  return item.roles.includes(legacyRole as Role)
+  if ((item.path === '/admin/roles' || item.path === '/admin/permission-matrix') && !['admin', 'operator', 'finance', 'viewer', 'auditor'].includes(role))
+    return role === 'owner_manager' || role === 'auditor_template'
+
+  const requiredPermissions = item.requiredPermissions
+  if (!requiredPermissions?.length)
+    return false
+
+  const legacyRoles: Role[] = ['admin', 'operator', 'finance', 'viewer', 'auditor']
+  if (legacyRoles.includes(role)) {
+    if (!item.roles.includes(role))
+      return false
+
+    return requiredPermissions.every(permissionKey => canPermission(roleSubject(role), permissionKey))
+  }
+
+  return requiredPermissions.every(permissionKey => canPermission(roleSubject(role), permissionKey))
 }
