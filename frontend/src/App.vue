@@ -4,6 +4,7 @@ import ScrollToTop from '@core/components/ScrollToTop.vue'
 import AssistantDrawer from '@/components/biz/AssistantDrawer.vue'
 import ConfirmHost from '@/components/biz/ConfirmHost.vue'
 import { useAiModeStore } from '@/stores/ai-mode'
+import { useSessionStore } from '@/stores/session'
 import initCore from '@core/initCore'
 import { initConfigStore, useConfigStore } from '@core/stores/config'
 import { hexToRgb } from '@core/utils/colorConverter'
@@ -15,6 +16,7 @@ initCore()
 initConfigStore()
 
 const configStore = useConfigStore()
+const session = useSessionStore()
 const aiMode = useAiModeStore()
 </script>
 
@@ -24,7 +26,7 @@ const aiMode = useAiModeStore()
     <VApp :style="`--v-global-theme-primary: ${hexToRgb(global.current.value.colors.primary)}`">
       <RouterView />
 
-      <AssistantDrawer v-if="aiMode.isEnabled" />
+      <AssistantDrawer v-if="session.isLoggedIn && aiMode.isEnabled" />
       <ConfirmHost />
       <ScrollToTop />
     </VApp>

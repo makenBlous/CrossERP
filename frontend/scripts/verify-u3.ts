@@ -7,6 +7,7 @@ import type { ChatState } from '../src/components/chat/types'
 import { useChatHistory } from '../src/components/chat/useChatHistory'
 import { useChatInflight } from '../src/components/chat/useChatInflight'
 import { recordAgentQuestion, recordSuggestionStep, submitAgentSuggestion } from '@/api/agent-module'
+import { submitAgentSuggestion as submitWorkflowSuggestion } from '@/api/workflows'
 import { addSuggestionStep } from '@/mocks/services/agent-module'
 import { useMockDbStore } from '@/stores/mockdb'
 import { loginPageHref, useSessionStore } from '@/stores/session'
@@ -25,12 +26,14 @@ for (const file of ['src/components/chat/ChatThread.vue', 'src/views/apps/chat/C
 
 const drawer = read('src/components/biz/AssistantDrawer.vue')
 const agent = read('src/pages/agent/chat.vue')
+const appSource = read('src/App.vue')
 const i18n = read('src/plugins/i18n/ui.ts')
 const sessionSource = read('src/stores/session.ts')
 const profile = read('src/layouts/components/UserProfile.vue')
 const setRoleAt = sessionSource.indexOf('setRole(role: Role)')
 const logoutAt = sessionSource.indexOf('logout() {')
 
+assert(appSource.includes('<AssistantDrawer v-if="session.isLoggedIn && aiMode.isEnabled" />'), 'floating assistant must stay unmounted when logged out, and AI off must still unmount it')
 assert(drawer.includes('@/components/chat/ChatThread.vue'), 'assistant drawer must use ChatThread')
 assert(agent.includes('@/components/chat/ChatThread.vue'), 'agent center must use ChatThread')
 assert(i18n.includes('aiClosed'), 'i18n must define assistant.aiClosed')
@@ -132,6 +135,19 @@ assertCallbackGuard(agent, 'agent center')
 const agentApi = read('src/api/agent-module.ts')
 const suggestionService = read('src/mocks/services/agent-module.ts')
 
+const watchAt = agent.indexOf('inflight.watchIdentity(')
+const watchEnd = agent.indexOf('function pushPart', watchAt)
+const watchBody = agent.slice(watchAt, watchEnd)
+
+assert(watchAt >= 0 && watchEnd > watchAt && watchBody.includes('latestRunId.value = null'), 'agent center must clear latestRunId when watchIdentity fires')
+
+const workflows = read('src/api/workflows.ts')
+const alerts = read('src/pages/inventory/alerts.vue')
+const workflowSuggestion = workflows.slice(workflows.indexOf('export async function submitAgentSuggestion'))
+
+assert(alerts.includes('from \'@/api/workflows\'') && alerts.includes('submitAgentSuggestion('), 'inventory alerts must submit through workflows submitAgentSuggestion')
+assert(workflowSuggestion.includes('return submitBoundAgentSuggestion(input)'), 'workflow suggestion must reuse the initiator-bound submit')
+assert(!workflowSuggestion.includes('await delay(') && !workflowSuggestion.includes('assertPermission('), 'workflow suggestion must not authorize against the session after delay')
 assert(agentApi.includes('会话已变更，已放弃写入'), 'identity change must use the explicit abandon reason')
 assert((agentApi.match(/bindInitiator\(/g) ?? []).length >= 4, 'question, suggestion step, and suggestion submit must share bindInitiator')
 assert(agent.includes('from \'@/api/agent-module\'') && !agent.includes('@/api/workflows'), 'agent center must submit suggestions through the initiator-bound API')
@@ -464,5 +480,57 @@ const expectedLogin = `${base.endsWith('/') ? base : `${base}/`}login`
 
 assert(loginPageHref() === expectedLogin, 'login href must be Vite base plus login')
 assert(logoutReplaces.length === 4 && logoutReplaces.every(url => url === expectedLogin), 'logout must location.replace to Vite base + login')
+
+const alertMarker = 'ux-chat-alert-suggestion-cross-user-probe'
+const stableAlertMarker = 'ux-chat-alert-suggestion-initiator-probe'
+
+persistSession.setRole('admin')
+persistSession.login('user-a')
+assert(persistSession.userId === 'demo-admin', 'inventory suggestion fixture must start as the initiator')
+
+const beforeAlertIds = new Set(persistDb.db.approvals.map(item => item.id))
+
+const pendingAlert = submitWorkflowSuggestion({
+  ...suggestionDraft,
+  title: alertMarker,
+  summary: alertMarker,
+  amount: '0.0000',
+  targetType: 'stock_alert',
+  targetId: 'alert-probe',
+})
+
+persistSession.logout()
+persistSession.setRole('operator')
+persistSession.login('user-b')
+
+let alertError = ''
+
+try {
+  await pendingAlert
+}
+catch (error) {
+  alertError = error instanceof Error ? error.message : String(error)
+}
+
+const leakedAlertApprovals = persistDb.db.approvals.filter(item => !beforeAlertIds.has(item.id) && (item.title === alertMarker || item.targetId === 'alert-probe'))
+
+assert(alertError.includes('会话已变更，已放弃写入'), 'inventory alert suggestion must abandon when the initiator changes')
+assert(!alertError.includes('没有权限'), 'abandoning an inventory suggestion must not look like a permission denial')
+assert(leakedAlertApprovals.length === 0, 'inventory alert suggestion must not be stored under the later user')
+
+persistSession.setRole('admin')
+persistSession.login('user-a')
+
+const stableAlert = await submitWorkflowSuggestion({
+  ...suggestionDraft,
+  title: stableAlertMarker,
+  summary: stableAlertMarker,
+  amount: '0.0000',
+  targetType: 'stock_alert',
+  targetId: 'alert-stable',
+})
+
+assert(stableAlert.status === 'pending' && stableAlert.submitter === '演示管理员', 'a stable inventory suggestion must stay pending under the initiator')
+assert(persistDb.db.approvals.some(item => item.id === stableAlert.id && item.targetId === 'alert-stable'), 'a stable inventory suggestion must be stored for the initiator')
 
 console.log('U3 static checks passed')

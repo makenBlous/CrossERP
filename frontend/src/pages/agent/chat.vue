@@ -84,7 +84,10 @@ async function loadChat() {
 }
 
 onMounted(loadChat)
-inflight.watchIdentity(loadChat)
+inflight.watchIdentity(() => {
+  latestRunId.value = null
+  loadChat()
+})
 
 function pushPart(part: AgentPart) {
   const last = bubbles.value[bubbles.value.length - 1]
