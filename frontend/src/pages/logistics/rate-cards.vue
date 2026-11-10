@@ -114,16 +114,6 @@ async function save() {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="create">
-        <VBtn
-          color="primary"
-          @click="startCreate"
-        >
-          {{ t('logistics.createRate') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="logistics-rate-cards"
       :title="t('logistics.ratesTitle')"
@@ -136,6 +126,16 @@ async function save() {
       :error="error"
       @retry="load"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            color="primary"
+            @click="startCreate"
+          >
+            {{ t('logistics.createRate') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.price="{ item }">
         <MoneyText
           :amount="item.price"

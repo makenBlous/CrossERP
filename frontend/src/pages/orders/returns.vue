@@ -140,16 +140,6 @@ function openRow(row: ReturnRow) {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="update">
-        <VBtn
-          color="primary"
-          @click="open = true"
-        >
-          {{ t('orders.createReturn') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="order-returns"
       :title="t('orders.returnsTitle')"
@@ -165,6 +155,16 @@ function openRow(row: ReturnRow) {
       @open="openRow"
       @batch="onBatch"
     >
+      <template #actions>
+        <PermissionGate action="update">
+          <VBtn
+            color="primary"
+            @click="open = true"
+          >
+            {{ t('orders.createReturn') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.status="{ item }">
         <StatusChip
           domain="return"

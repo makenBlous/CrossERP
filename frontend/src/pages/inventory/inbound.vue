@@ -141,16 +141,6 @@ async function onBatch(_action: string, selected: StockDocRow[]) {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="create">
-        <VBtn
-          color="primary"
-          @click="startCreate"
-        >
-          {{ t('inventory.createDoc') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="inventory-inbound"
       :title="t('inventory.inboundTitle')"
@@ -166,6 +156,16 @@ async function onBatch(_action: string, selected: StockDocRow[]) {
       @open="openRow"
       @batch="onBatch"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            color="primary"
+            @click="startCreate"
+          >
+            {{ t('inventory.createDoc') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.status="{ item }">
         <StatusChip
           domain="stock_doc"

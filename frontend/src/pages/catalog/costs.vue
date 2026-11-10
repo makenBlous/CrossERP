@@ -138,24 +138,6 @@ function exportSelected(selected: CostListRow[]) {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex flex-wrap justify-end gap-3 mb-4">
-      <PermissionGate action="create">
-        <VFileInput
-          :label="t('catalog.importCost')"
-          accept=".csv,text/csv"
-          prepend-icon="tabler-upload"
-          style="max-width: 280px;"
-          hide-details
-          @update:model-value="importFile"
-        />
-        <VBtn
-          color="primary"
-          @click="open = true"
-        >
-          {{ t('catalog.addCost') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <p class="text-body-2 text-medium-emphasis">
       {{ t('catalog.importHint') }}
     </p>
@@ -174,6 +156,24 @@ function exportSelected(selected: CostListRow[]) {
       @open="row => setSelected(row.id)"
       @batch="(_action, selected) => exportSelected(selected)"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VFileInput
+            :label="t('catalog.importCost')"
+            accept=".csv,text/csv"
+            prepend-icon="tabler-upload"
+            style="max-width: 280px;"
+            hide-details
+            @update:model-value="importFile"
+          />
+          <VBtn
+            color="primary"
+            @click="open = true"
+          >
+            {{ t('catalog.addCost') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.validTo="{ item }">
         {{ item.validTo || t('catalog.openEnded') }}
       </template>

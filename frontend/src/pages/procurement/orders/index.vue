@@ -60,16 +60,6 @@ function openRow(row: PurchaseOrderRow) {
 
 <template>
   <div>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="create">
-        <VBtn
-          color="primary"
-          :to="{ path: '/procurement/orders/new' }"
-        >
-          {{ t('procurement.newOrder') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="procurement-orders"
       :title="t('procurement.ordersTitle')"
@@ -83,6 +73,16 @@ function openRow(row: PurchaseOrderRow) {
       @retry="load"
       @open="openRow"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            color="primary"
+            :to="{ path: '/procurement/orders/new' }"
+          >
+            {{ t('procurement.newOrder') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.status="{ item }">
         <StatusChip
           domain="purchase_order"

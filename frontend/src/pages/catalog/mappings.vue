@@ -108,16 +108,6 @@ async function onBatch(action: string, selected: MappingRow[]) {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="create">
-        <VBtn
-          color="primary"
-          @click="startCreate"
-        >
-          {{ t('catalog.createMapping') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="catalog-mappings"
       :title="t('catalog.mappingTitle')"
@@ -131,6 +121,16 @@ async function onBatch(action: string, selected: MappingRow[]) {
       @retry="load"
       @batch="onBatch"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            color="primary"
+            @click="startCreate"
+          >
+            {{ t('catalog.createMapping') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.platformSku="{ item }">
         <span class="font-weight-medium">{{ item.platformSku }}</span>
       </template>

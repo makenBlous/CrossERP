@@ -123,16 +123,6 @@ async function onBatch(action: string, selected: CategoryRow[]) {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="create">
-        <VBtn
-          color="primary"
-          @click="startCreate"
-        >
-          {{ t('catalog.createCategory') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="catalog-categories"
       :title="t('catalog.categoryTitle')"
@@ -146,6 +136,16 @@ async function onBatch(action: string, selected: CategoryRow[]) {
       @retry="load"
       @batch="onBatch"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            color="primary"
+            @click="startCreate"
+          >
+            {{ t('catalog.createCategory') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.status="{ item }">
         <StatusChip
           domain="generic"

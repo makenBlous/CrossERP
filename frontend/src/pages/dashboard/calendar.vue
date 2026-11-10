@@ -14,12 +14,14 @@ const { t, locale } = useI18n({ useScope: 'global' })
 const router = useRouter()
 const { setSelected } = usePageContext()
 const { isLeftSidebarOpen } = useResponsiveLeftSidebar()
+const { width: windowWidth } = useWindowSize()
 const events = ref<CalendarEventRow[]>([])
 const selected = ref<CalendarEventRow | null>(null)
 const loading = ref(true)
 const error = ref('')
 const calendarRef = ref<{ getApi: () => CalendarApi } | null>(null)
 const selectedKinds = ref<string[]>(['arrival', 'payout', 'ship'])
+const isNarrow = computed(() => windowWidth.value > 0 && windowWidth.value < 768)
 
 const kindColor: Record<string, string> = {
   arrival: 'success',
@@ -79,15 +81,20 @@ function jumpToDate(date: string) {
 
 const options = computed<CalendarOptions>(() => ({
   plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
-  initialView: 'dayGridMonth',
+  initialView: isNarrow.value ? 'listMonth' : 'dayGridMonth',
   initialDate: '2026-10-01',
-  height: 'auto',
+  height: '100%',
+  contentHeight: '100%',
+  expandRows: true,
+  fixedWeekCount: false,
+  dayMaxEvents: isNarrow.value ? false : 2,
+  dayMaxEventRows: isNarrow.value ? false : 2,
+  moreLinkContent: ({ num }) => `+${num} 更多`,
+  moreLinkClick: 'popover',
   locale: String(locale.value).startsWith('en') ? 'en' : zhCn,
-  headerToolbar: {
-    start: 'prev,next today',
-    center: 'title',
-    end: 'dayGridMonth,timeGridWeek,listMonth',
-  },
+  headerToolbar: isNarrow.value
+    ? { start: 'prev,next', center: 'title', end: 'today' }
+    : { start: 'prev,next today', center: 'title', end: 'dayGridMonth,timeGridWeek,listMonth' },
   events: visibleEvents.value.map(item => ({
     id: item.id,
     title: item.title,
@@ -96,6 +103,18 @@ const options = computed<CalendarOptions>(() => ({
   })),
   eventClick: pick,
 }))
+
+watch(isNarrow, narrow => {
+  const api = calendarRef.value?.getApi()
+
+  if (!api)
+    return
+
+  const view = narrow ? 'listMonth' : 'dayGridMonth'
+
+  if (api.view.type !== view)
+    api.changeView(view)
+})
 </script>
 
 <template>
@@ -119,8 +138,15 @@ const options = computed<CalendarOptions>(() => ({
       v-if="loading"
       type="image, article"
     />
-    <VCard v-else>
-      <VLayout style="z-index: 0;">
+    <VCard
+      v-else
+      class="calendar-shell"
+      :class="{ 'calendar-shell--narrow': isNarrow }"
+    >
+      <VLayout
+        class="calendar-layout"
+        style="z-index: 0;"
+      >
         <VNavigationDrawer
           v-model="isLeftSidebarOpen"
           data-allow-mismatch
@@ -183,10 +209,13 @@ const options = computed<CalendarOptions>(() => ({
             <EmptyState v-else />
           </VCardText>
         </VNavigationDrawer>
-        <VMain>
-          <VCard flat>
+        <VMain class="calendar-main">
+          <VCard
+            flat
+            class="calendar-card"
+          >
             <div
-              v-if="$vuetify.display.mdAndDown"
+              v-if="isNarrow"
               class="pa-4"
             >
               <VBtn
@@ -199,6 +228,7 @@ const options = computed<CalendarOptions>(() => ({
             </div>
             <FullCalendar
               ref="calendarRef"
+              class="calendar-view"
               :options="options"
             />
           </VCard>
@@ -229,6 +259,33 @@ const options = computed<CalendarOptions>(() => ({
   }
 }
 
+.calendar-shell {
+  block-size: min(760px, calc(100dvh - 180px));
+  min-block-size: 520px;
+  overflow: hidden;
+}
+
+.calendar-layout,
+.calendar-main,
+.calendar-card,
+.calendar-view {
+  block-size: 100%;
+  min-block-size: 0;
+}
+
+.calendar-main {
+  min-inline-size: 0;
+}
+
+.calendar-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-view {
+  flex: 1 1 auto;
+}
+
 .calendar-date-picker {
   display: none;
 
@@ -251,6 +308,54 @@ const options = computed<CalendarOptions>(() => ({
 
   .v-card {
     overflow: visible;
+  }
+}
+
+.calendar-view {
+  :deep(.fc-view-harness) {
+    block-size: calc(100% - 85px) !important;
+    min-block-size: 0 !important;
+  }
+
+  :deep(.fc-scroller-harness-liquid),
+  :deep(.fc-scroller-liquid-absolute) {
+    block-size: 100% !important;
+  }
+
+  :deep(.fc-scrollgrid),
+  :deep(.fc-scrollgrid-sync-table),
+  :deep(.fc-daygrid-body) {
+    block-size: 100% !important;
+    min-block-size: 0 !important;
+  }
+
+  :deep(.fc-daygrid-day-frame),
+  :deep(.fc-daygrid-day-events) {
+    min-block-size: 0 !important;
+  }
+
+  :deep(.fc-daygrid-event-harness) {
+    block-size: 24px !important;
+  }
+
+  :deep(.fc-daygrid-event) {
+    block-size: 22px !important;
+    margin-block: 1px !important;
+  }
+
+  :deep(.fc-daygrid-day-top) {
+    block-size: 28px !important;
+  }
+
+  :deep(.fc-daygrid-day-frame) {
+    block-size: 100% !important;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .calendar-shell {
+    block-size: calc(100dvh - 160px);
+    min-block-size: 440px;
   }
 }
 </style>

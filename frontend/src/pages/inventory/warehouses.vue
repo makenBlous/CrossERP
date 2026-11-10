@@ -142,16 +142,6 @@ async function onBatch(action: string, selected: WarehouseRow[]) {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="create">
-        <VBtn
-          color="primary"
-          @click="startCreate"
-        >
-          {{ t('inventory.createWarehouse') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="inventory-warehouses"
       :title="t('inventory.warehousesTitle')"
@@ -165,6 +155,16 @@ async function onBatch(action: string, selected: WarehouseRow[]) {
       @retry="load"
       @batch="onBatch"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            color="primary"
+            @click="startCreate"
+          >
+            {{ t('inventory.createWarehouse') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.kind="{ item }">
         {{ item.kind === 'fba' ? t('inventory.kindFba') : item.kind === 'overseas' ? t('inventory.kindOverseas') : t('inventory.kindDomestic') }}
       </template>

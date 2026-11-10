@@ -281,6 +281,12 @@ function setPageSize(value: unknown) {
           {{ subtitle }}
         </p>
       </div>
+      <div
+        v-if="$slots.actions"
+        class="d-flex align-center gap-3 flex-wrap"
+      >
+        <slot name="actions" />
+      </div>
     </div>
 
     <slot name="widgets" />

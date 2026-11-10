@@ -132,16 +132,6 @@ function openRow(row: ListingListRow) {
     >
       {{ message }}
     </VAlert>
-    <div class="d-flex justify-end mb-4">
-      <PermissionGate action="create">
-        <VBtn
-          color="primary"
-          @click="startCreate"
-        >
-          {{ t('catalog.createListing') }}
-        </VBtn>
-      </PermissionGate>
-    </div>
     <ListPage
       storage-key="catalog-listings"
       :title="t('catalog.listingTitle')"
@@ -156,6 +146,16 @@ function openRow(row: ListingListRow) {
       @open="openRow"
       @batch="onBatch"
     >
+      <template #actions>
+        <PermissionGate action="create">
+          <VBtn
+            color="primary"
+            @click="startCreate"
+          >
+            {{ t('catalog.createListing') }}
+          </VBtn>
+        </PermissionGate>
+      </template>
       <template #item.status="{ item }">
         <StatusChip
           domain="generic"
