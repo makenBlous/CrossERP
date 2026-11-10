@@ -243,4 +243,142 @@
 
 批次 0 没有新增业务页面组件，98 条新路由统一复用现有 `components/PlaceholderPage.vue`。权限、AI 状态、渠道和校验属于共享地基，分别复用 Pinia、现有 `PermissionGate`、`AssistantDrawer`、`ChatLog` 与 `vue-i18n`；没有重复实现 Vuexy 页面或聊天卡片。
 
+## 补齐批次 A
+
+| 页面/组件 | 复用内容 | 新增原因 |
+|---|---|---|
+| `components/biz/GapAPage.vue` | `ListPage`、`DetailPage`、`KpiCard`、`MoneyText`、`StatusChip`、`AssistantDrawer` | 批次 A 的费用、总账、报表和结账共用一套确定性 mock 状态；现有单一领域页面无法表达这些跨页流程，因此新增批次专用编排壳。 |
+| `pages/expense/claims/new.vue` | `AppTextField`、`AppTextarea`、`VForm` | 复用现有表单控件；AI 预填只显示 `VAlert`/`VChip`，没有新增 AI 对话界面。 |
+| `pages/finance/vouchers/[id].vue` | `DetailPage`、`MoneyText`、`VTimeline` | 凭证来源追溯需要把结算单、订单和审计时间轴放在同一详情页，现有凭证详情字段不足。 |
+
+订单到凭证、报销审批和利润凭证都通过 `src/api/gap-a.ts` 调用批次专用 mock；金额展示统一使用 `MoneyText`，金额生成和审批护栏在服务层完成。
+
+## 补齐批次 A 独立复用审计
+
+本节按 `docs/design/01-前端页面设计.md` 的 EX01–EX07、F23–F34 逐页核对。页面路由文件只保留 `GapAPage` 的薄包装；跨页面的列表筛选、分页、列管理、导出和空/错/加载态由 `ListPage` 提供，详情双栏、时间线和关联记录由 `DetailPage` 提供，金额由 `MoneyText` 提供，业务状态由 `StatusChip` 提供。
+
+| 组件/UI 块 | 位置 | 现成等价物 | 处理 | 原因 | 业务操作是否满足 |
+|---|---|---|---|---|---|
+| 批次 A 通用编排壳 | `src/components/biz/GapAPage.vue` | 项目 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`MoneyText`、`StatusChip`、`PermissionGate`；Vuexy `apps/invoice/*` | 保留为薄组合；移除重复表单壳和手写状态 Chip | 19 页共享加载/错误/权限/金额规则，差异仅是字段与动作 | 已覆盖列表、详情、人工审批、AI 开关与审计时间线 |
+| 页面路由包装 | `src/pages/expense/{claims,loans,trips,policies}/*`、`src/pages/finance/{cogs,fx-revaluation,gl,period-close,trial-balance,statements,tax,budgets}/*` | Vuexy 页面路由只负责装配业务视图 | 保留 7 行左右薄包装 | 避免每个页面重复 API、状态和表格模板 | 路由、权限点和 `data-test` 不变 |
+| 报销新建表单 | `GapAPage.vue` 的 EX02 | `FormPage`；Vuexy `apps/invoice/add/index.vue`；`DropZone`/`AppDateTimePicker` 为可替换控件 | 改用 `FormPage` 顶栏保存/取消、右栏提交检查，保留 AI 预填和人工填写 | 原实现手写 `VCard`/`VForm`，重复了统一表单布局 | AI 开启可预填；AI 关闭仍可人工提交；超标准由服务层拦截 |
+| 报销审批详情 | EX03 分支 | `DetailPage`、`MoneyText`、`PermissionGate`；Vuexy `apps/invoice/preview/[id].vue` | 保留字段专属 `VTable`，审批按钮改由 `PermissionGate` 包裹；时间线优先读 `fetchGapAAudits` | 明细行和审批动作不是通用列表字段，时间线必须保留审计来源 | 提交、主管批、财务批、驳回、凭证关联和审计记录均可用 |
+| 借款列表/还款 | EX04 分支 | `ListPage`、`FormDrawer`；Vuexy `InvoiceAddPaymentDrawer` | 增加状态筛选、`登记还款` `FormDrawer`，余额更新仍走服务层 | 原页面只有展示，缺少设计要求的还款登记 | 列表、详情、还款和报销冲抵均可用 |
+| 借款详情 | EX05 分支 | `DetailPage`、Vuexy invoice preview/timeline | 保留三张 KPI 卡和专属冲抵按钮；时间线接审计接口 | 借款余额与冲抵是领域字段，套通用表格会丢失语义 | 查看借/还/冲抵记录；冲抵动作可用 |
+| 差旅列表/新建 | EX06 分支 | `ListPage`、`FormPage`、`AppDateTimePicker`；Vuexy `wizard-examples/create-deal.vue`、`AppStepper` | 增加新建差旅表单，保存走批次 mock；自动匹配仍保留为后续接口 | 设计阶段标注 v1.0，但当前页面可先完成出差前申请 | 列表筛选、人工新建和状态查看可用；自动匹配待后续接口 |
+| 费用标准 | EX07 分支 | `ListPage`、`FormDrawer`；Vuexy tables/data-table | 增加 `编辑标准` `FormDrawer`，保存调用专用 mock 更新 | 原页面只读，缺少维护上限操作 | 列表、筛选和人工编辑可用 |
+| 总账与报表 | F23–F27 分支 | `ListPage`、`MoneyText`、`StatusChip`；Vuexy tables/simple-table | 保留领域专属来源链接和订单→凭证规则卡，状态/金额统一复用业务组件；F24 增加借贷平衡提示 | 规则选择、来源追溯和余额校验不能由通用列渲染猜测 | 期间筛选、来源追溯、平衡校验、利润凭证生成可用 |
+| 期末结账 | F28 分支 | `ListPage` 的检查清单 + Vuetify `VAlert`；Vuexy `form-wizard-numbered`/`AppStepper` | 保留清单式列表并使用现成分页/状态壳，结账按钮走服务层 | 结账是逐期间检查动作，`FormPage` 单一保存语义不适合多行检查项 | 未审批凭证时拒绝；检查通过后人工点击结账 |
+| 成本结转/汇兑重估 | F29、F32 分支 | `ListPage`、`MoneyText`、`StatusChip` | 保留领域操作按钮，生成凭证统一走 API | 生成草稿需要行级期间/重估 ID | 预览、生成草稿和金额展示可用 |
+| 预算与预算详情 | F30、F31 分支 | `ListPage`、`DetailPage`、`MoneyText`、`KpiCard` | 保留预算进度专属 KPI；详情时间线接审计接口，调整走保存动作 | 使用率、预警和调整记录是页面特有业务块 | 80% 预警、详情、人工调整和审计记录可用 |
+| VAT/出口退税 | F33、F34 分支 | `ListPage`、`StatusChip`、`MoneyText`；Vuexy invoice list/file input | 保留列表字段专属渲染，移除通用页外的重复表格 | 当前接口是跟踪查询，状态和金额需要业务字典 | 期间筛选、状态、税额/退税额展示可用；资料上传待后端接口 |
+| AgentCard、RecordDrawer、AssistantDrawer | 批次 A 全部页面 | 项目现成组件 | 未引入；AI 仅使用现有 `useAiModeStore` 提示/预填，审计记录放入 `DetailPage` 时间线 | 设计对批次 A 的 AI 是 L1/L2 建议，不能增加独立对话或写入口；详情记录不适合只读抽屉 | AI 关闭时人工路径仍可用，AI 不绕过审批 |
+| 凭证列表/详情与利润页 | `pages/finance/vouchers/*`、`pages/finance/profit/*` | `ListPage`、`DetailPage`、`MoneyText`、`StatusChip` | 保留领域专属分录/来源追溯，期间选择和审批动作接 `api/gap-a` | 凭证分录、借贷平衡和来源链接不是通用 CRUD 字段 | 草稿→审批→批准护栏、来源追溯和利润期间选择可用 |
+
+### Gap A 补齐复查（2026-11-10）
+
+| 新增交互 | 复用组件/来源 | 保留专用代码的原因 | 追溯与状态 |
+|---|---|---|---|
+| EX06 差旅匹配 | `GapAPage` + `ListPage` + `FormPage` + `MoneyText` + `VDialog` | 匹配候选需要展示代码规则、分数和人工确认，无法由通用列表列渲染表达 | `src/api/gap-a.ts` 调用 mock；提交、建议、确认均追加审计 |
+| F34 资料登记 | `FormDrawer` + Vuetify `VFileInput`/`AppSelect` + `StatusChip` | 只登记元数据且按三种资料类型做齐全校验，业务字段是退税专属 | 不保存文件内容；上传和校验状态写审计 |
+| F33 模拟申报 | `ListPage` + `AppSelect` + `StatusChip` | 期间筛选由通用列表外的页面级查询条件驱动，申报动作是行级税务专属行为 | 期间作为 API 参数；保存模拟申报追加审计 |
+
+批次 A 页面仍通过 `src/api/*.ts` 访问服务层，金额继续使用 `MoneyText` 展示；未新增 AI 对话界面，AI 关闭时上述人工路径完整可用。
+
+### 批次 A 增量审计（`d0946a4..f548479`，2026-11-10）
+
+本节复核本批补齐与两轮修复的实际代码，不以改动行数代替逐项检查。
+
+#### 1. Vuexy / biz 组件复用
+
+| 交互或区块 | 复用情况 | 理由与处理 |
+|---|---|---|
+| EX06 差旅列表、新建表单 | **已复用** `ListPage`、`FormPage`、`AppDateTimePicker`、`MoneyText`、`StatusChip` | 列表分页/筛选/列插槽由 `ListPage` 承担；表单壳由 `FormPage` 承担；金额和状态没有页面自写格式化或标签。 |
+| EX06 匹配建议 | **保留专用** Vuetify `VDialog`，内部仍复用 `MoneyText` | 弹窗展示候选报销、规则、分数并等待人工确认，属于带业务内容的审阅视图；没有另写抽屉、确认组件或状态标签。 |
+| F33 VAT | **已复用** `ListPage`、`AppSelect`、`StatusChip`、`MoneyText` | 期间筛选是页面查询条件，行级“保存模拟申报”调用 API；没有自写表格或金额格式化。 |
+| F34 出口退税 | **已复用** `ListPage`、`FormDrawer`、`AppSelect`、Vuetify `VFileInput`、`StatusChip`、`MoneyText` | 抽屉、文件选择、状态和金额均使用现成组件；只登记文件元数据，不重复实现上传组件。 |
+| EX03 报销明细 | **复用** `DetailPage`、`PermissionGate`、`MoneyText`；保留 Vuetify `VTable` | 明细行是凭证/审批专属字段，和列表分页列语义不同；表格没有复制分页、筛选、状态或金额组件。 |
+| 其他批次 A 列表、详情、抽屉 | **已复用** `ListPage`、`DetailPage`、`FormDrawer`、`KpiCard`、`StatusChip`、`PermissionGate` | 未新增 `.vue` 通用组件；页面只做字段、插槽和 API 编排。 |
+
+**组件结论：** 本批没有发现可安全一对一替换的重复通用表格、抽屉、确认框、金额组件或状态标签；因此没有代码级复用重构，已改内容仅在上一轮补齐中完成并由本节复核。
+
+#### 2. `GapAPage.vue` 业务动作与追溯
+
+| 功能 | API / mock 路径 | 实质检查 | 结论 |
+|---|---|---|---|
+| EX06 创建、提交、匹配建议、人工确认 | `src/api/gap-a.ts` → `mocks/services/gap-a.ts` | 保存状态、确定性规则（人员/日期窗口/预算）、人工确认、幂等拦截和审计追加均在服务层完成。 | **复用且可追溯** |
+| F33 模拟申报 | `fetchGapAVat(period)`、`submitGapAVat(id)` | 期间作为 API 参数；状态由 `draft/ready` 到 `submitted`，重复提交拒绝，审计记录包含期间。 | **复用且可追溯** |
+| F34 资料登记、资料校验 | `uploadGapARebateDocument(id)`、`validateGapARebate(id)` | 只存文件名、类型、大小；重复资料、后续状态上传和资料齐全校验均在 mock 服务层，动作追加审计。 | **复用且可追溯** |
+| 既有报销、借款、凭证、结账、预算和重估动作 | 各自 `src/api/gap-a.ts` 写接口 | 页面没有直接写 mock 状态；按钮由 `run()` 调 API 后重新加载。 | **通过** |
+| AI 识别并预填 | `identifyReceipt()` | 只在前端填充演示字段，不写数据库、不追加审计；明确标为只读演示建议，不伪装成真实识别接口，也不属于写动作。 | **通过**：AI 关闭时人工填写路径完整可用。 |
+
+#### 3. 写接口权限、身份、审批和幂等
+
+- `src/api/gap-a.ts` 的所有写函数均先调用 `assertCan()` 或 `assertAny()`；独立脚本逐项验证 viewer 越权均在接口层拒绝。
+- 创建报销和差旅时由服务层 `actorId()` 适配器写入稳定 `claimantId`，凭证创建写入 `createdById`；审批自审和差旅匹配均按稳定 ID 判断，没有按显示名回退。报销审批顺序、凭证 `draft → pending`、重复提交/重复生成/已结账拦截均有服务层护栏。
+- 所有批次 A 写动作均经 API 层进入 mock 服务并追加带 `actorId` 的审计；种子审计也补齐稳定 ID。
+- `savePolicy()` 和 `closePeriod()` 均追加带期间/科目/限额或检查结果的审计事件；EX07 借方科目只能从 `EXPENSE_ACCOUNT_MAPPINGS` 选择。
+
+#### 4. 报销科目映射与凭证来源
+
+- 默认映射唯一来源是 `src/mocks/config/gap-a-expense-accounts.ts` 的 `EXPENSE_ACCOUNT_MAPPINGS`，每条配置和 EX07 提示均标注“示例映射，待会计核实”；报销凭证按费用类别取费用科目，贷方为 `其他应付款-员工`，没有沿用销售结算的 `主营业务成本 / 平台结算清算`。
+- EX07 抽屉通过 `AppSelect` 展示 `EXPENSE_ACCOUNT_MAPPINGS` 的借方科目；服务层再次校验配置集合，保存后的科目不会脱离示例映射。提示继续标注“示例映射，待会计核实”。
+
+#### 5. 金额确定性与地基契约
+
+- 新增金额输入走 `minorFromDecimal()`；列表、详情和匹配建议的金额展示走 `MoneyText`，服务层金额使用万分位整数，独立脚本验证报销凭证借贷相等且金额等于明细金额。
+- `GapAPage.vue` 的 KPI/提示金额使用 `MoneyText` 或现有格式化函数；服务层预算预警使用配置化 basis points 与 `percentOf()`，审计金额使用 `minorToDecimal()`，还款幂等使用借款状态/还款记录。
+- `src/api/mock-client.ts` 地基文件保持不变；批次 A 内部统一通过 `actorId()` 适配器取稳定身份，后续可无缝对接批次 C 的 `userId` 契约，未回退到显示名。
+
+#### 6. 验证证据与本轮变更
+
+- `pnpm run typecheck`：通过。
+- `node_modules\\.bin\\eslint.cmd . -c .eslintrc.cjs --ext .ts,.js,.cjs,.vue,.tsx,.jsx`：0 error，23 个既有 warning。
+- `pnpm run build`：通过；构建后已恢复 `auto-imports.d.ts`、`components.d.ts`、`typed-router.d.ts`。
+- 独立脚本 `%TEMP%\\cx-pw\\xbatch\\xa.ts`、`xa2.ts` 均复制到 `scripts\\_x*.ts` 后用 `pnpm exec tsx` 运行：均为 `== FAIL 0`；临时文件已删除，断言未修改。
+
+### 批次 A 第四轮修复（2026-11-10）
+
+对应提交：`fix(frontend): 批次 A 科目配置约束、写动作审计与稳定身份`
+
+本轮已修复前述科目配置、写动作审计、稳定身份、金额确定性和还款幂等问题；页面金额继续复用现有 `MoneyText`/格式化能力，未修改批次 C 的 mock-client 地基文件。AI 预填继续是只读演示建议，不写状态，因此不产生写审计；这不是写动作遗漏。
+
+### 批次 A 增量复用审计（`bc0fde0..092541b`，第二轮，2026-11-10）
+
+本轮逐项复核范围内的改动文件：`src/components/biz/GapAPage.vue`、`src/mocks/services/gap-a.ts`、`src/types/gap-a.ts`，并对照 `src/api/gap-a.ts`、权限表和金额工具。当前工作树只恢复了构建生成的 `.d.ts` 文件，没有改动功能代码。
+
+#### 1. 组件与金额复用
+
+- `GapAPage.vue` 继续复用 `ListPage`、`DetailPage`、`FormPage`、`FormDrawer`、`MoneyText`、`StatusChip`、`PermissionGate`；费用科目下拉直接使用 `EXPENSE_ACCOUNT_MAPPINGS` 和现成 `AppSelect`，没有新增通用表格、抽屉、确认框或金额组件。
+- 差旅匹配的 `VDialog` 仍保留为业务专用审阅弹窗：它同时展示候选报销、规则和分数并等待人工确认，现有 `useConfirm` 只提供二选一确认，不能一对一替换；弹窗内部金额仍使用 `MoneyText`。
+- 页面显示金额改由 `minorToDecimal`、`toDisplay`、`formatMoney` 或 `MoneyText` 处理；服务层预算预警使用整数万分位和 `percentOf`，未发现新增金额浮点计算。**[建议修改]** `savePolicy`、`saveBudget`、`repayLoan`、`createTrip`、`createClaim` 的服务边界仍只检查 `<= 0`，没有统一的 `Number.isFinite`/`Number.isSafeInteger` 校验；当前页面调用均先经 `minorFromDecimal`，但直接调用 API 仍可能写入非整数最小单位。
+
+#### 2. 写接口、身份、审批和幂等
+
+- `src/api/gap-a.ts` 的写函数均先调用 `assertCan` 或 `assertAny`，创建报销/差旅使用 `session.userId`，审批自审和差旅匹配按 `claimantId`/`actorId` 比较；`savePolicy` 也在服务层限制借方科目必须来自配置集合，属于有效的服务层复核。
+- 新增 `audit()` 事件带当前 `actorId`，本轮种子凭证审计也补齐了稳定 ID。
+- **[必须修复] 审批存在跳级和同人完成两级的问题。** `decideGapAClaim` 只调用通用 `assertCan('approve')`，服务层按调用者传入的 `step` 执行；没有把 `manager`/`finance` 步骤绑定到对应角色或权限，也没有禁止同一个审批人连续处理两步。因此有 `approve` 权限的财务角色可以直接请求主管步骤，再请求财务步骤，绕过职责分离。建议在 API/服务层按步骤检查角色/权限，并拒绝与前一步相同的 `actorId`。
+- **[必须修复] 旧 `localStorage` 数据没有稳定身份迁移。** `loadState()` 对旧 claims/loans/trips 只做浅复制，没有补回 `claimantId`；对 `audits` 及 voucher timeline 也没有补回 `actorId`。旧记录因此可能在 `item.claimantId` 为空时绕过自审检查，差旅匹配也无法按稳定身份过滤，历史审计仍缺操作人 ID。建议做显式版本迁移，无法确认身份时拒绝审批/匹配并标记待人工修复。
+- **[建议修改] 部分动作不是幂等的。** `suggestTripClaim()` 每次重复调用都会新增一条匹配建议审计，`validateRebate()` 每次重复校验也会新增审计；若要求重试安全，建议使用稳定动作键或已有结果直接返回。还款去重依赖新增的 `repaymentAmounts`，旧数据未迁移时仍可能重复登记同一金额。
+- **[必须修复] 页面角色与写权限不一致。** `EX07`、`F33`、`F34` 等页面把 `finance` 列为可见角色，但对应写 API 使用 `assertCan('update')`；`legacyRoleActions.finance` 没有 `update`，因此财务用户可看到编辑/申报/资料按钮却必然被接口拒绝。F23 的收入凭证生成同样使用 `create`，而财务角色没有 `create`。应统一页面可见角色、按钮门控和 API 所需权限，避免误导并确保有效权限模型一致。
+
+#### 3. 结论
+
+组件复用和金额展示方向符合现有地基，未发现可以安全一对一替换的通用 UI。科目配置约束、稳定 ID 写入和新增审计字段在新鲜状态下有效；但上述审批职责、旧状态迁移、幂等和角色权限问题会影响安全或实际写入路径，不能按“本轮全部通过”记录。按任务要求本轮只提交本审计文档，未擅自扩大功能修复。
+
+#### 4. 本轮验证
+
+- `pnpm run typecheck`：通过（退出码 0）。
+- `node_modules\\.bin\\eslint.cmd . -c .eslintrc.cjs --ext .ts,.js,.cjs,.vue,.tsx,.jsx`：通过（退出码 0，0 errors、23 个既有 warnings）。
+
+### 批次 A 第五轮修复（2026-11-10，1935bc1 审计问题）
+
+本轮已关闭前一节列出的三项「必须修复」：
+
+- **审批职责分离：已修复。** `manager`/`finance` 使用独立的有效权限点，服务层和 API 层都检查；审批步骤按顺序推进，提交人不能自审，同一 `actorId` 不能连续完成两级，重复审批拒绝。
+- **旧 localStorage 身份迁移：已修复。** 状态版本升级为 2，迁移 claims/loans/trips、审批步骤、voucher timeline 和业务审计的稳定身份；无法映射的记录标为 `needs_manual_repair`（待人工修复），审批与差旅匹配均拒绝继续。
+- **页面写权限一致性：已修复。** EX07、F30、F33、F34、EX04、F23 的写 API 改用对应细粒度权限；财务获得设计允许的费用标准、借款、预算、VAT、出口退税和财务审批权限，其他角色未放宽；无权限按钮禁用并给出提示。
+
+服务层金额入口统一拒绝非 `Number.isSafeInteger` 或不大于零的最小单位金额。独立验收脚本 `xa.ts`、`xa2.ts` 已覆盖职责分离和非整数金额，均为 `== FAIL 0`；另以临时迁移断言验证未知身份记录的待人工修复护栏。
+
 

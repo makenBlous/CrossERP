@@ -51,6 +51,7 @@ declare module 'vue' {
     ErrorState: typeof import('./src/components/biz/ErrorState.vue')['default']
     FormDrawer: typeof import('./src/components/biz/FormDrawer.vue')['default']
     FormPage: typeof import('./src/components/biz/FormPage.vue')['default']
+    GapAPage: typeof import('./src/components/biz/GapAPage.vue')['default']
     I18n: typeof import('./src/@core/components/I18n.vue')['default']
     KpiCard: typeof import('./src/components/KpiCard.vue')['default']
     ListPage: typeof import('./src/components/biz/ListPage.vue')['default']

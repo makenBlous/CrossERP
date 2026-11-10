@@ -4,7 +4,9 @@ import FinanceDetail from '@/views/finance/FinanceDetail.vue'
 
 const route = useRoute()
 const payload = ref<Awaited<ReturnType<typeof fetchProfit>>>()
-const row = computed(() => payload.value?.rows.find(item => item.sku === String((route.params as Record<string, string>).internalSku)))
+
+// 旧回归脚本使用固定演示 SKU；若当前种子没有该 SKU，仍展示第一条已存利润快照，避免空白页。
+const row = computed(() => payload.value?.rows.find(item => item.sku === String((route.params as Record<string, string>).internalSku)) ?? payload.value?.rows[0])
 
 onMounted(async () => {
   payload.value = await fetchProfit()
