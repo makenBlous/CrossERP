@@ -37,8 +37,7 @@ const lastPrompt = ref('')
 const latestRunId = ref<string | null>(null)
 const adapter = createAgentAdapter()
 let requestId = 0
-const disabledReason = 'AI 已关闭，智能体中心仅可查看历史，不能发送消息。'
-const history = useChatHistory<Bubble>('agent-center', computed(() => session.userId))
+const history = useChatHistory<Bubble>('agent-center', computed(() => session.userId), computed(() => session.isLoggedIn))
 const hydratedUserId = ref<string | null>(null)
 const hydrating = ref(false)
 const canSuggest = computed(() => can(session.role, 'suggest'))
@@ -51,7 +50,7 @@ watch(bubbles, value => {
 }, { deep: true })
 
 async function loadChat() {
-  const userId = session.userId || null
+  const userId = session.isLoggedIn ? session.userId : null
 
   hydrating.value = true
   bubbles.value = []
@@ -66,7 +65,7 @@ async function loadChat() {
 
   const payload = await fetchChat()
 
-  if (session.userId !== userId)
+  if (!session.isLoggedIn || session.userId !== userId)
     return
 
   threads.value = payload.threads
@@ -76,7 +75,7 @@ async function loadChat() {
 }
 
 onMounted(loadChat)
-watch([() => session.userId, () => session.role], loadChat, { flush: 'sync' })
+watch([() => session.isLoggedIn, () => session.userId, () => session.role], loadChat, { flush: 'sync' })
 
 function pushPart(part: AgentPart) {
   const last = bubbles.value[bubbles.value.length - 1]
@@ -261,7 +260,7 @@ async function submitSuggestion(message: { id: string }) {
           variant="tonal"
           class="ma-4 mb-0"
         >
-          {{ disabledReason }}
+          {{ t('assistant.aiClosed') }}
         </VAlert>
         <ChatThread
           v-model="draft"
@@ -274,7 +273,7 @@ async function submitSuggestion(message: { id: string }) {
           :state="state"
           :status-text="statusText"
           :ai-enabled="aiMode.isEnabled"
-          :disabled-reason="disabledReason"
+          :disabled-reason="t('assistant.aiClosed')"
           @send="send"
           @retry="retry"
           @cancel="cancel"

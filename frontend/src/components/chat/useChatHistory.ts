@@ -5,17 +5,24 @@ export interface LocalChatItem {
   local?: boolean
 }
 
-export function useChatHistory<T extends LocalChatItem>(scope: MaybeRefOrGetter<string>, userId: MaybeRefOrGetter<string | null | undefined>) {
+export function useChatHistory<T extends LocalChatItem>(
+  scope: MaybeRefOrGetter<string>,
+  userId: MaybeRefOrGetter<string | null | undefined>,
+  isLoggedIn: MaybeRefOrGetter<boolean>,
+) {
   const cacheKey = computed(() => {
     const actor = toValue(userId)
     const scopeValue = toValue(scope)
 
-    return actor && scopeValue ? `crosserp-chat-history:${actor}:${scopeValue}` : null
+    return toValue(isLoggedIn) && actor && scopeValue ? `crosserp-chat-history:${actor}:${scopeValue}` : null
   })
 
   function read(): T[] {
     const actor = toValue(userId)
     const key = cacheKey.value
+
+    if (!toValue(isLoggedIn))
+      return []
 
     if (!actor || !key || typeof localStorage === 'undefined')
       return []
@@ -41,6 +48,9 @@ export function useChatHistory<T extends LocalChatItem>(scope: MaybeRefOrGetter<
     const actor = toValue(userId)
     const key = cacheKey.value
 
+    if (!toValue(isLoggedIn))
+      return
+
     if (!actor || !key || typeof localStorage === 'undefined')
       return
 
@@ -51,7 +61,7 @@ export function useChatHistory<T extends LocalChatItem>(scope: MaybeRefOrGetter<
     const actor = toValue(userId)
     const key = cacheKey.value
 
-    if (actor && key && typeof localStorage !== 'undefined')
+    if (toValue(isLoggedIn) && actor && key && typeof localStorage !== 'undefined')
       localStorage.removeItem(key)
   }
 

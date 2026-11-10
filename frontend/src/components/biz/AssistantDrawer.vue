@@ -35,8 +35,7 @@ const statusText = ref('')
 const lastPrompt = ref('')
 const adapter = createAgentAdapter()
 let requestId = 0
-const disabledReason = 'AI 已关闭，页面仍可按人工路径操作。'
-const history = useChatHistory<Bubble>('assistant', computed(() => session.userId))
+const history = useChatHistory<Bubble>('assistant', computed(() => session.userId), computed(() => session.isLoggedIn))
 const hydratedUserId = ref<string | null>(null)
 const hydrating = ref(false)
 
@@ -48,7 +47,7 @@ watch(bubbles, value => {
 }, { deep: true })
 
 function loadHistory() {
-  const userId = session.userId || null
+  const userId = session.isLoggedIn ? session.userId : null
 
   hydrating.value = true
   bubbles.value = userId ? history.load([]) : []
@@ -63,7 +62,7 @@ onMounted(() => {
   window.addEventListener('keydown', onWindowKeydown)
 })
 
-watch([() => session.userId, () => session.role], loadHistory, { flush: 'sync' })
+watch([() => session.isLoggedIn, () => session.userId, () => session.role], loadHistory, { flush: 'sync' })
 
 onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown))
 
@@ -223,7 +222,7 @@ async function submit(message: { id: string }) {
           type="info"
           variant="tonal"
         >
-          {{ disabledReason }}
+          {{ t('assistant.aiClosed') }}
         </VAlert>
       </div>
       <VDivider />
@@ -238,7 +237,7 @@ async function submit(message: { id: string }) {
         :state="state"
         :status-text="statusText"
         :ai-enabled="aiMode.isEnabled"
-        :disabled-reason="disabledReason"
+        :disabled-reason="t('assistant.aiClosed')"
         @send="send"
         @retry="retry"
         @cancel="cancel"
