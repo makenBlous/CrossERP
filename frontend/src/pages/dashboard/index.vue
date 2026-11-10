@@ -1,8 +1,12 @@
 <script setup lang="ts">
+import type { ApexOptions } from 'apexcharts'
 import { fetchHome } from '@/api/home'
+import { fetchMyDashboard, fetchPeriods } from '@/api/dashboard'
 import type { HomePayload } from '@/api/home'
+import type { DashboardPayload } from '@/types/domain'
 import { canPermission } from '@/api/mock-client'
 import { useOnboardingTour } from '@/components/tour/useOnboardingTour'
+import { useChartTheme } from '@/composables/useChartTheme'
 import { useAiModeStore } from '@/stores/ai-mode'
 import { useSessionStore } from '@/stores/session'
 import { formatInteger, formatMoney, formatPercent } from '@/utils/format'
@@ -10,10 +14,15 @@ import { formatInteger, formatMoney, formatPercent } from '@/utils/format'
 const session = useSessionStore()
 const aiMode = useAiModeStore()
 const { isRunning, restart, start } = useOnboardingTour()
+const chart = useChartTheme()
 
 const loading = ref(true)
 const home = ref<HomePayload | null>(null)
 const error = ref('')
+const reportData = ref<DashboardPayload | null>(null)
+const reportPeriods = ref<string[]>([])
+const reportPeriod = ref('2026-10')
+const reportStoreId = ref('all')
 
 const roleNames: Record<string, string> = {
   admin: '管理员',
@@ -37,6 +46,42 @@ const shortcuts = computed(() => [
 
 const visibleTasks = computed(() => home.value?.tasks.slice(0, 6) ?? [])
 const visibleApprovals = computed(() => home.value?.approvals.slice(0, 5) ?? [])
+
+const reportReadable = computed(() => canPermission('report:read'))
+
+const reportStoreItems = computed(() => [
+  { title: '全部可见店铺', value: 'all' },
+  ...(reportData.value?.stores ?? []).map(item => ({ title: `${item.storeName} · ${item.marketplace}`, value: item.storeId })),
+])
+
+const reportPeriodItems = computed(() => reportPeriods.value.map(item => ({ title: item, value: item })))
+
+const trendOptions = computed<ApexOptions>(() => ({
+  chart: { toolbar: { show: false }, parentHeightOffset: 0, fontFamily: 'inherit' },
+  stroke: { curve: 'smooth', width: 3 },
+  colors: [chart.primary.value, chart.success.value],
+  dataLabels: { enabled: false },
+  xaxis: { categories: reportData.value?.trend.map(item => item.month) ?? [], labels: { style: { colors: chart.label.value } } },
+  yaxis: { labels: { style: { colors: chart.label.value } } },
+  grid: { borderColor: chart.grid.value },
+  legend: { labels: { colors: chart.label.value } },
+  tooltip: { theme: chart.label.value.includes('225') ? 'dark' : 'light' },
+}))
+
+const trendSeries = computed(() => [
+  { name: '销售额', data: reportData.value?.trend.map(item => item.sales) ?? [] },
+  { name: '净利润', data: reportData.value?.trend.map(item => item.profit) ?? [] },
+])
+
+const reasonOptions = computed<ApexOptions>(() => ({
+  labels: reportData.value?.reasons.map(item => item.code) ?? [],
+  colors: [chart.error.value, chart.warning.value, chart.info.value, chart.primary.value],
+  legend: { position: 'bottom', labels: { colors: chart.label.value } },
+  dataLabels: { enabled: false },
+  stroke: { width: 0 },
+}))
+
+const reasonSeries = computed(() => reportData.value?.reasons.map(item => item.count) ?? [])
 
 const scopeLabels = computed(() => {
   const scopes = home.value?.scope?.dataScopes
@@ -77,6 +122,12 @@ async function load() {
   error.value = ''
   try {
     home.value = await fetchHome()
+    reportData.value = home.value.dashboard ?? null
+    if (reportReadable.value) {
+      reportPeriods.value = await fetchPeriods()
+      if (reportPeriods.value.length && !reportPeriods.value.includes(reportPeriod.value))
+        reportPeriod.value = reportPeriods.value[reportPeriods.value.length - 1]!
+    }
   }
   catch (err) {
     error.value = err instanceof Error ? err.message : '首页数据暂时不可用'
@@ -86,9 +137,21 @@ async function load() {
   }
 }
 
+async function loadReport() {
+  if (!reportReadable.value)
+    return
+
+  reportData.value = await fetchMyDashboard(reportStoreId.value, reportPeriod.value) ?? null
+}
+
 onMounted(async () => {
   await load()
   window.setTimeout(() => start(), 500)
+})
+
+watch([reportStoreId, reportPeriod], () => {
+  if (!loading.value)
+    loadReport()
 })
 
 function retry() {
@@ -409,6 +472,222 @@ function retry() {
           </VCard>
         </VCol>
       </VRow>
+
+      <section
+        v-if="reportReadable && reportData"
+        class="mt-8"
+      >
+        <div class="d-flex flex-wrap justify-space-between align-center gap-4 mb-4">
+          <div>
+            <h2 class="text-h5 mb-1">
+              经营总览
+            </h2>
+            <p class="text-body-2 text-medium-emphasis mb-0">
+              {{ reportData.periodLabel }} · 仅展示当前主体允许店铺的数据
+            </p>
+          </div>
+          <div class="d-flex flex-wrap gap-3">
+            <AppSelect
+              v-model="reportPeriod"
+              :items="reportPeriodItems"
+              label="周期"
+              style="min-width: 150px;"
+            />
+            <AppSelect
+              v-model="reportStoreId"
+              :items="reportStoreItems"
+              label="店铺"
+              style="min-width: 220px;"
+            />
+          </div>
+        </div>
+
+        <VRow>
+          <VCol
+            cols="12"
+            sm="6"
+            lg="3"
+          >
+            <KpiCard
+              title="销售额"
+              :value="formatMoney(reportData.kpi.sales, 'USD')"
+              icon="tabler-currency-dollar"
+              color="primary"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            sm="6"
+            lg="3"
+          >
+            <KpiCard
+              title="平台费用"
+              :value="formatMoney(reportData.kpi.fees, 'USD')"
+              icon="tabler-receipt-tax"
+              color="warning"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            sm="6"
+            lg="3"
+          >
+            <KpiCard
+              title="净利润"
+              :value="formatMoney(reportData.kpi.netProfit, 'USD')"
+              icon="tabler-chart-line"
+              color="success"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            sm="6"
+            lg="3"
+          >
+            <KpiCard
+              title="毛利率"
+              :value="formatPercent(reportData.kpi.grossMargin)"
+              icon="tabler-percentage"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            sm="6"
+            lg="3"
+          >
+            <KpiCard
+              title="退款率"
+              :value="formatPercent(reportData.kpi.refundRate)"
+              icon="tabler-arrow-back"
+              color="warning"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            sm="6"
+            lg="3"
+          >
+            <KpiCard
+              title="匹配率"
+              :value="formatPercent(reportData.kpi.matchRate)"
+              icon="tabler-arrows-join"
+              color="info"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            sm="6"
+            lg="3"
+          >
+            <KpiCard
+              title="待处理异常"
+              :value="formatInteger(reportData.kpi.openIssues)"
+              icon="tabler-alert-circle"
+              color="error"
+            />
+          </VCol>
+          <VCol
+            cols="12"
+            sm="6"
+            lg="3"
+          >
+            <KpiCard
+              title="待审批"
+              :value="formatInteger(reportData.kpi.pendingApprovals)"
+              icon="tabler-checkbox"
+              color="secondary"
+            />
+          </VCol>
+
+          <VCol
+            cols="12"
+            lg="8"
+          >
+            <VCard>
+              <VCardItem>
+                <VCardTitle>趋势</VCardTitle>
+                <VCardSubtitle>销售额与净利润</VCardSubtitle>
+              </VCardItem>
+              <VCardText>
+                <VueApexCharts
+                  type="area"
+                  height="320"
+                  :options="trendOptions"
+                  :series="trendSeries"
+                />
+              </VCardText>
+            </VCard>
+          </VCol>
+          <VCol
+            cols="12"
+            lg="4"
+          >
+            <VCard class="h-100">
+              <VCardItem>
+                <VCardTitle>异常原因分布</VCardTitle>
+              </VCardItem>
+              <VCardText>
+                <VueApexCharts
+                  v-if="reasonSeries.length"
+                  type="donut"
+                  height="300"
+                  :options="reasonOptions"
+                  :series="reasonSeries"
+                />
+                <EmptyState v-else />
+              </VCardText>
+            </VCard>
+          </VCol>
+
+          <VCol cols="12">
+            <VCard>
+              <VCardItem>
+                <VCardTitle>店铺表现</VCardTitle>
+              </VCardItem>
+              <VTable>
+                <thead>
+                  <tr>
+                    <th>店铺</th>
+                    <th class="text-end">
+                      销售额
+                    </th>
+                    <th class="text-end">
+                      净利润
+                    </th>
+                    <th class="text-end">
+                      匹配率
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="store in reportData.stores"
+                    :key="store.storeId"
+                  >
+                    <td>
+                      <div class="font-weight-medium">
+                        {{ store.storeName }}
+                      </div>
+                      <div class="text-caption text-medium-emphasis">
+                        {{ store.platform }} · {{ store.marketplace }}
+                      </div>
+                    </td>
+                    <td class="text-end">
+                      {{ formatMoney(store.sales, store.currency) }}
+                    </td>
+                    <td class="text-end">
+                      {{ formatMoney(store.profit, store.currency) }}
+                    </td>
+                    <td class="text-end">
+                      {{ formatPercent(store.matchRate) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </VTable>
+            </VCard>
+          </VCol>
+        </VRow>
+      </section>
     </template>
   </div>
 </template>

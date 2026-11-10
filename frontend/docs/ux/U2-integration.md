@@ -1,6 +1,6 @@
 # U2 接入说明
 
-本任务只改动个人首页、首页只读聚合 API、引导组件和验证脚本，没有改动公共路由、布局、权限、会话或 i18n 文件。
+本任务只改动个人首页、首页只读聚合 API、服务层范围裁剪、引导组件和验证脚本，没有改动公共路由、布局、权限、会话或 i18n 文件。
 
 ## 顶栏入口（由 U1 接入）
 
@@ -16,7 +16,7 @@ useOnboardingTour().restart()
 
 ## 首页 API 契约
 
-`src/api/home.ts` 只编排现有的 `dashboard`、`approvals`、`scoped-reads` API。每个读取板块独立处理无权限异常，页面收到空数组或 `undefined` 时自动隐藏该板块。若后端替换 mock API，应保持这些现有 API 的权限断言和 scope 裁剪契约；不应从首页直接访问数据库或员工工资接口。
+`src/api/home.ts` 只编排现有的 `dashboard`、`approvals`、`scoped-reads` API 和新增的当前会话范围读取函数。待办、审批和提醒在服务层按 `userId`、审批权限和 C 批 scope 引擎裁剪；经营总览在服务层按当前角色允许的店铺集合裁剪。每个读取板块独立处理无权限异常，页面收到空数组或 `undefined` 时自动隐藏该板块。若后端替换 mock API，应保持这些权限断言和 scope 裁剪契约；不应从首页直接访问数据库或员工工资接口。
 
 ## 不可见菜单步骤
 
@@ -24,4 +24,4 @@ useOnboardingTour().restart()
 
 ## 已发现的接入阻塞
 
-当前 `src/config/pages.ts` 的 D01 `/dashboard` 条目没有 `requiredPermissions`。现有路由守卫对非旧五角色会因此拒绝 D01，所以 `employee`、`customer_service` 等模板角色直接深链 `/dashboard` 会落到 `/not-authorized`，无法完成首页验收。该文件属于公共文件，本任务没有直接修改；整合时请为 D01 补充与现有首页 API 一致的只读权限（建议 `report:read` 或按板块拆分并允许空板块），并确认不扩大数据范围。修复后可复用本任务的 Playwright 脚本重跑全部角色截图。
+D01 `/dashboard` 的输入没有显式填写 `requiredPermissions`，但 `page()` 工厂会默认注入 `system:read`；现有路由守卫因此会拦截没有该权限的模板角色。`employee`、`customer_service` 等角色要进入个人首页，需由整合者在公共权限配置中处理页面进入条件；本任务没有直接修改 `pages.ts`、权限引擎或路由守卫，首页各板块仍由服务层单独裁剪。仓库没有本任务可复用的 Playwright 脚本，只有 `frontend/scripts/verify-u2.ts` 的静态和 tsx 运行时检查；浏览器截图需按验收步骤现场执行。

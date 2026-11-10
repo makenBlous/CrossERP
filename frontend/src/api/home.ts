@@ -1,5 +1,5 @@
-import { fetchApprovals } from '@/api/approvals'
-import { fetchDashboard, fetchTodos } from '@/api/dashboard'
+import { fetchMyApprovals } from '@/api/approvals'
+import { fetchMyDashboard, fetchMyTodos } from '@/api/dashboard'
 import { canPermission, currentActor } from '@/api/mock-client'
 import { fetchScopedContext, fetchScopedExpenses, fetchScopedOrders } from '@/api/scoped-reads'
 import type { ScopedContext } from '@/api/scoped-reads'
@@ -55,9 +55,9 @@ export async function fetchHome(): Promise<HomePayload> {
   const expenseReadable = canPermission('expense_claim:read')
 
   const [dashboard, tasks, approvals, orders, expenses, scope] = await Promise.all([
-    reportReadable ? safely(() => fetchDashboard(), undefined) : Promise.resolve(undefined),
-    reportReadable ? safely(() => fetchTodos(), []) : Promise.resolve([]),
-    approvalReadable ? safely(() => fetchApprovals(), []) : Promise.resolve([]),
+    reportReadable ? safely(() => fetchMyDashboard(), undefined) : Promise.resolve(undefined),
+    safely(() => fetchMyTodos(), []),
+    approvalReadable ? safely(() => fetchMyApprovals(), []) : Promise.resolve([]),
     orderReadable ? safely(() => fetchScopedOrders(), []) : Promise.resolve([]),
     expenseReadable ? safely(() => fetchScopedExpenses(), []) : Promise.resolve([]),
     safely(() => fetchScopedContext(), undefined),
