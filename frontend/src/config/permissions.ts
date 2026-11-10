@@ -116,6 +116,20 @@ const fieldPermissionPoints: PermissionPoint[] = [
 
 permissionCatalog.push(...fieldPermissionPoints)
 
+/** 应付账款明细属于财务敏感数据，不能用泛用 report:read 放行。 */
+export const accountsPayablePermissionKey = 'accounts_payable:read'
+permissionCatalog.push({
+  key: accountsPayablePermissionKey,
+  labelZh: '应付账款查看',
+  labelEn: 'Accounts Payable Read',
+  module: 'Accounts',
+  kind: 'menu',
+  sensitive: true,
+  dataScopeRuleTypes: ['all', 'department', 'owner'],
+  erpnextRef: 'Accounts Payable',
+  odooRef: 'account.move',
+})
+
 // ---- 补齐批次 D：页面动作权限点（薪资字段默认收窄） ----
 export const gapDPermissionPoints: PermissionPoint[] = [
   { key: 'agent_autonomy:write', labelZh: '修改自主等级', labelEn: 'Edit autonomy policy', module: 'Agent', kind: 'action', sensitive: true, dataScopeRuleTypes: ['all'] },
@@ -163,6 +177,37 @@ export const legacyRoleActions: Record<'admin' | 'operator' | 'finance' | 'viewe
   auditor: ['view', 'export'],
 }
 
+/**
+ * 合并 C 的细粒度权限引擎后，旧主体不能再依赖动作名推断 A/D/C 新权限。
+ * 这里只列出基准版本已经合法的具体权限点；模板角色不会读取这张表。
+ */
+export const legacyCompatibilityPermissions: Record<'admin' | 'operator' | 'finance' | 'viewer' | 'auditor', string[]> = {
+  admin: [
+    expenseApprovalPermissionKeys.manager,
+    expenseApprovalPermissionKeys.finance,
+    'agent_autonomy:write',
+    'agent_mode:write',
+    'payroll_run:calculate',
+    'leave_application:approve_manager',
+    'leave_application:approve_hr',
+    'salary_slip:review',
+    accountsPayablePermissionKey,
+  ],
+  operator: ['agent_autonomy:write', 'agent_mode:write'],
+  finance: [
+    'budget:write',
+    'employee_advance:write',
+    expenseApprovalPermissionKeys.finance,
+    'expense_claim_type:write',
+    'export_tax_rebate:write',
+    'vat_return:write',
+    'journal_entry:submit',
+    accountsPayablePermissionKey,
+  ],
+  viewer: [accountsPayablePermissionKey],
+  auditor: [],
+}
+
 const templatePermissions: Record<string, string[]> = {
   owner_manager: permissionCatalog.map(point => point.key),
   store_operator: ['item:read', 'item:write', 'item:create', 'item_group:read', 'brand:read', 'listing:read', 'sales_order:read', 'delivery_note:read', 'report:read', 'stock_ledger:read', 'material_request:read', 'approval:read', 'notification:read', 'customer:read', 'lead:read', 'contact:read', 'ticket:read', 'document:read'],
@@ -172,9 +217,9 @@ const templatePermissions: Record<string, string[]> = {
   purchaser: ['supplier:read', 'supplier:write', 'supplier:create', 'purchase_order:read', 'purchase_order:write', 'purchase_order:create', 'purchase_receipt:read', 'purchase_receipt:submit', 'request_for_quotation:read', 'request_for_quotation:write', 'request_for_quotation:create', 'supplier_quotation:read', 'contract:read', 'material_request:read', 'report:read', 'approval:read', 'notification:read'],
   warehouse_logistics: ['warehouse:read', 'warehouse:write', 'warehouse:create', 'stock_ledger:read', 'stock_entry:read', 'stock_entry:write', 'stock_entry:create', 'purchase_receipt:read', 'purchase_receipt:submit', 'delivery_note:read', 'delivery_note:submit', 'batch:read', 'stock_reconciliation:read', 'shipment:read', 'shipment:write', 'shipment:create', 'notification:read'],
   customer_service: ['customer:read', 'contact:read', 'ticket:read', 'ticket:write', 'ticket:create', 'sales_order:read', 'delivery_note:read', 'report:read', 'notification:read'],
-  accountant: ['journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'payment_entry:read', 'expense_claim:read', 'employee_advance:read', 'report:read', 'stock_ledger:read', 'budget:read', 'audit_log:read', 'approval:read', 'notification:read', 'integration:read'],
-  finance_manager: ['approval:read', 'approval:write', 'approval:approve', 'report:read', 'report:write', 'journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'journal_entry:approve', 'payment_entry:read', 'payment_entry:write', 'payment_entry:approve', 'expense_claim:read', 'expense_claim:approve_finance', 'budget:read', 'budget:write', 'period_closing_voucher:approve', 'integration:write', 'audit_log:read', 'notification:read', 'salary_slip:read', 'salary_slip:approve'],
-  cashier: ['payment_entry:read', 'payment_entry:write', 'payment_entry:submit', 'journal_entry:read', 'report:read', 'approval:read', 'notification:read'],
+  accountant: ['journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'payment_entry:read', accountsPayablePermissionKey, 'expense_claim:read', 'employee_advance:read', 'report:read', 'stock_ledger:read', 'budget:read', 'audit_log:read', 'approval:read', 'notification:read', 'integration:read'],
+  finance_manager: ['approval:read', 'approval:write', 'approval:approve', 'report:read', 'report:write', 'journal_entry:read', 'journal_entry:write', 'journal_entry:create', 'journal_entry:approve', 'payment_entry:read', accountsPayablePermissionKey, 'payment_entry:write', 'payment_entry:approve', 'expense_claim:read', 'expense_claim:approve_finance', 'budget:read', 'budget:write', 'period_closing_voucher:approve', 'integration:write', 'audit_log:read', 'notification:read', 'salary_slip:approve'],
+  cashier: ['payment_entry:read', accountsPayablePermissionKey, 'payment_entry:write', 'payment_entry:submit', 'journal_entry:read', 'report:read', 'approval:read', 'notification:read'],
   hr_admin: ['employee_record:read', 'employee_record:read_own', 'employee_record:write', 'employee_record:create', 'employee.salary:read', 'employee.id_number:read', 'salary_slip:read', 'salary_slip:read_own', 'salary_slip:read_all', 'salary_slip:write', 'salary_slip:create', 'salary_slip:review', 'payroll_run:calculate', 'attendance:read', 'attendance:write', 'leave_application:read', 'leave_application:write', 'leave_application:approve_hr', 'contract:read', 'contract:write', 'asset:read', 'asset:write', 'notification:read', 'notification:write', 'document:read', 'approval:read'],
   employee: ['expense_claim:read', 'expense_claim:create', 'expense_claim:write', 'employee_advance:read', 'employee_advance:create', 'travel_request:read', 'travel_request:create', 'leave_application:read', 'leave_application:create', 'salary_slip:read_own', 'employee_record:read_own', 'notification:read', 'document:read', 'office_supply:read', 'office_supply:create', 'approval:read'],
   department_manager: ['approval:read', 'approval:approve', 'expense_claim:read', 'expense_claim:approve_manager', 'leave_application:read', 'leave_application:approve_manager', 'purchase_order:read', 'sales_order:read', 'employee_record:read', 'budget:read', 'notification:read'],

@@ -1,12 +1,13 @@
 import { assertPermission, database, delay } from '@/api/mock-client'
-import { changePassword as changePasswordService } from '@/mocks/services/crm-admin'
+import { changePassword as changePasswordService, listTokens } from '@/mocks/services/crm-admin'
 
 // 未来: GET /api/v1/account/tokens
 export async function fetchTokens() {
   await delay()
-  assertPermission('user:read')
 
-  return database().db.accountTokens ?? []
+  const actor = assertPermission('user:read')
+
+  return listTokens(database().db, actor)
 }
 
 // 未来: GET /api/v1/account/sessions

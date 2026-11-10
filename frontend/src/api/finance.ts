@@ -1,4 +1,5 @@
 import { assertPermission, database, delay, readMock } from '@/api/mock-client'
+import { accountsPayablePermissionKey } from '@/config/permissions'
 import { projectIssues, projectProfit, projectProfitSku, projectRecon, projectVouchers } from '@/mocks/project'
 import { accounts, addFxRate, apAging, apRows, arAging, arRows, cashRows, clearingRows, columnMapDetail, columnMapRows, confirmFeeMap, createVoucherFromIssue, createVoucherFromProfit, exportRows, feeMapRows, fxRates, handleIssue, importDetail, issueDetail, listImports, reconDetail, recordImport, saveColumnMap, settlementDetail, settlements, sourceRow, submitClearing, submitVoucher, voucherDetail } from '@/mocks/services/finance'
 
@@ -153,7 +154,7 @@ export async function fetchAr() {
 }
 export async function fetchAp() {
   await delay()
-  assertPermission('report:read')
+  assertPermission(accountsPayablePermissionKey)
 
   return readMock(apRows(database().db))
 }
@@ -165,7 +166,7 @@ export async function fetchArAging() {
 }
 export async function fetchApAging() {
   await delay()
-  assertPermission('report:read')
+  assertPermission(accountsPayablePermissionKey)
 
   return readMock(apAging(database().db))
 }

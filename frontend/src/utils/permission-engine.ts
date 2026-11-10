@@ -1,5 +1,5 @@
 /* eslint-disable indent */
-import { legacyPermissionKeys, legacyRoleActions, permissionCatalog, roleTemplates } from '@/config/permissions'
+import { legacyCompatibilityPermissions, legacyPermissionKeys, legacyRoleActions, permissionCatalog, roleTemplates } from '@/config/permissions'
 import type { Role } from '@/types/domain'
 import type { DataScopeRuleType, EffectivePermission, PermissionSubject, RolePermission } from '@/types/foundation'
 import type { FieldAccess } from '@/types/gap-c'
@@ -98,6 +98,7 @@ export function computeEffectivePermissions(subject: PermissionSubject, now = Da
           ...permissionCatalog
             .filter(point => (!point.sensitive && point.kind !== 'field' && point.key.endsWith(':read')) || legacySensitiveFieldPermissions[roleId as LegacyRole].includes(point.key) || (roleId === 'admin' && point.sensitive && point.kind !== 'field') || (roleId === 'operator' && point.key === 'permission:read') || (roleId === 'admin' && ['salary_slip:read_own', 'employee_record:read_own'].includes(point.key)) || legacyAllowsAction(roleId as LegacyRole, point.key.split(':')[1] ?? ''))
             .map(point => ({ permissionKey: point.key, effect: 'allow' as const, source: `旧角色 ${roleId}` })),
+          ...legacyCompatibilityPermissions[roleId as LegacyRole].map(permissionKey => ({ permissionKey, effect: 'allow' as const, source: `旧角色兼容 ${roleId}` })),
         ]
       : [])
 

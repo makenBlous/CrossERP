@@ -91,8 +91,20 @@ function loadDatabase(): MockDatabase {
 
     const parsed: unknown = JSON.parse(raw)
 
-    if (isDatabase(parsed))
+    if (isDatabase(parsed)) {
+      const tokens = parsed.accountTokens ?? []
+      let migrated = false
+      for (const token of tokens) {
+        if (!token.ownerUserId) {
+          token.ownerUserId = 'demo-admin'
+          migrated = true
+        }
+      }
+      if (migrated)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+
       return parsed
+    }
   }
   catch {
     // 损坏的演示缓存直接丢弃，回到种子。

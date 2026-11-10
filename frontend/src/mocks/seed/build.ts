@@ -828,8 +828,8 @@ function addAdmin(db: MockDatabase) {
     { id: 'setting-3', key: 'default_currency', label: '默认币种', value: 'USD', description: '报表默认展示币种。' },
   ]
   db.accountTokens = [
-    { id: 'tok-1', name: 'MCP 只读', prefix: 'csp_demo…', createdAt: '2026-10-15 09:00', lastUsedAt: '2026-11-08 18:20', revoked: false },
-    { id: 'tok-2', name: '报表脚本（已撤销）', prefix: 'csp_old…', createdAt: '2026-08-02 11:30', lastUsedAt: '2026-10-01 07:45', revoked: true },
+    { id: 'tok-1', name: 'MCP 只读', prefix: 'csp_demo…', createdAt: '2026-10-15 09:00', lastUsedAt: '2026-11-08 18:20', revoked: false, ownerUserId: 'demo-admin' },
+    { id: 'tok-2', name: '报表脚本（已撤销）', prefix: 'csp_old…', createdAt: '2026-08-02 11:30', lastUsedAt: '2026-10-01 07:45', revoked: true, ownerUserId: 'demo-admin' },
   ]
   db.accountSessions = [
     { id: 'session-current', device: 'Chrome · Windows', location: '上海', ip: '192.0.2.10', lastSeenAt: '2026-11-09 09:00', current: true },

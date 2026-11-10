@@ -1,5 +1,5 @@
 import type { Actor, MockDatabase } from '@/types/entities'
-import type { LeadStage } from '@/types/crm-admin'
+import type { AccountToken, LeadStage } from '@/types/crm-admin'
 import { nextId } from '@/mocks/services/ids'
 import { writeAudit } from '@/mocks/services/audit'
 import { requireActorPermission } from '@/utils/service-permissions'
@@ -98,7 +98,7 @@ export function createToken(db: MockDatabase, name: string, actor: Actor) {
   if (!db.accountTokens)
     db.accountTokens = []
   const secret = `csp_${Math.random().toString(36).slice(2, 18)}`
-  const token = { id: nextId(db, 'tok'), name, prefix: `${secret.slice(0, 8)}…`, createdAt: actor.at, lastUsedAt: null, revoked: false }
+  const token: AccountToken = { id: nextId(db, 'tok'), name, prefix: `${secret.slice(0, 8)}…`, createdAt: actor.at, lastUsedAt: null, revoked: false, ownerUserId: actor.userId }
 
   db.accountTokens.push(token)
   writeAudit(db, actor, '创建 API Token', 'account_token', token.id, `${name}（仅创建时显示明文）`)
@@ -106,12 +106,25 @@ export function createToken(db: MockDatabase, name: string, actor: Actor) {
   return { token, secret }
 }
 
+function migrateTokenOwner(token: AccountToken) {
+  if (!token.ownerUserId)
+    token.ownerUserId = 'demo-admin'
+
+  return token
+}
+
+export function listTokens(db: MockDatabase, actor: Actor) {
+  return (db.accountTokens ?? []).map(migrateTokenOwner).filter(token => token.ownerUserId === actor.userId)
+}
+
 export function revokeToken(db: MockDatabase, id: string, actor: Actor) {
   requireActorPermission(actor, 'user:write')
 
-  const token = db.accountTokens?.find(item => item.id === id)
+  const token = db.accountTokens?.map(migrateTokenOwner).find(item => item.id === id)
   if (!token)
     return null
+  if (token.ownerUserId !== actor.userId)
+    throw new Error('只能撤销自己的 API Token')
   token.revoked = true
   writeAudit(db, actor, '撤销 API Token', 'account_token', id, token.name)
 

@@ -11,7 +11,7 @@ export interface AdminModule { id: string; name: string; description: string; en
 export interface AdminDictionary { id: string; group: string; code: string; label: string; active: boolean }
 export interface AdminNotification { id: string; channel: string; event: string; enabled: boolean; target: string }
 export interface AdminSetting { id: string; key: string; label: string; value: string | boolean; description: string }
-export interface AccountToken { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; revoked: boolean }
+export interface AccountToken { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; revoked: boolean; ownerUserId: string }
 export interface AccountSession { id: string; device: string; location: string; ip: string; lastSeenAt: string; current: boolean }
 
 export interface CrmOpportunityView { id: string; accountId: string; name: string; amount: number; currency: CurrencyCode; stage: string; accountName: string }

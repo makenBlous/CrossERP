@@ -1227,6 +1227,7 @@ export const pageCatalog: PageDef[] = [
     purposeEn: 'Unpaid supplier and forwarder balances.',
     blocksZh: ['账龄', '余额'],
     blocksEn: ['Aging', 'Balance'],
+    requiredPermissions: ['accounts_payable:read'],
   }),
   page({
     id: 'F20',
@@ -1243,6 +1244,7 @@ export const pageCatalog: PageDef[] = [
     purposeEn: 'Match payouts or bank receipts to AR. Code checks the amounts.',
     blocksZh: ['左右对照'],
     blocksEn: ['Side-by-side match'],
+    requiredPermissions: ['payment_entry:read'],
   }),
   page({
     id: 'F21',
@@ -1275,6 +1277,7 @@ export const pageCatalog: PageDef[] = [
     purposeEn: 'Bank or marketplace cash movements.',
     blocksZh: ['流水表'],
     blocksEn: ['Journal table'],
+    requiredPermissions: ['payment_entry:read'],
   }),
   page({
     id: 'AD01',
