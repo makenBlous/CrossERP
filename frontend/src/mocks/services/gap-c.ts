@@ -143,10 +143,9 @@ const demoShopBindings: Record<string, string[]> = {
   'demo-viewer': ['amz-us'],
   'demo-operator': ['amz-us'],
   'demo-external-viewer': ['amz-de'],
+
+  // 原表键名 demo-store_operator 对不上演示身份，改为 demo-store-operator；店铺仍是原表的 1 店。
   'demo-store-operator': ['amz-us'],
-  'demo-operations-manager': ['amz-us'],
-  'demo-advertising': ['amz-us'],
-  'demo-customer-service': ['shopify'],
 }
 
 export function dataScopesFor(subject: PermissionSubject, permissionKey: string): DataScopeRuleType[] {
