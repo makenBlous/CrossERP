@@ -96,7 +96,7 @@ export interface GapDPayslip {
   taxCents: number
   netCents: number
   ruleVersion: string
-  status: '待复核' | '待审批' | '已出凭证'
+  status: '待复核' | '待审批' | '已出凭证' | '已发布'
 }
 
 export interface GapDPayrollRun {

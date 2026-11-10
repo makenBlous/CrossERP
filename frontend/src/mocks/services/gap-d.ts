@@ -237,8 +237,16 @@ function ownPayslips(run: GapDPayrollRun, actor: Actor) {
   })
 }
 
+function payslipStatus(run: GapDPayrollRun, payslip: GapDPayslip): GapDPayslip['status'] {
+  return run.publishedAt ? '已发布' : payslip.status
+}
+
+function payrollRecord(run: GapDPayrollRun, payslip: GapDPayslip): GapDRecord {
+  return { id: payslip.id, title: `${payslip.period} 工资条`, status: payslipStatus(run, payslip), owner: payslip.employeeName, amount: payslip.netCents / 100, currency: 'CNY', detail: `实发 ¥${(payslip.netCents / 100).toFixed(2)}，个税仅本人可见`, updatedAt: now }
+}
+
 function filteredPayrollRun(run: GapDPayrollRun, payslips: GapDPayslip[]): GapDPayrollRun {
-  return { ...run, employeeCount: payslips.length, payslips }
+  return { ...run, employeeCount: payslips.length, payslips: payslips.map(payslip => ({ ...payslip, status: payslipStatus(run, payslip) })) }
 }
 
 export function listGapDRecords(pageId: GapDPageId, actor: Actor): GapDRecord[] {
@@ -272,12 +280,15 @@ export function listGapDRecords(pageId: GapDPageId, actor: Actor): GapDRecord[] 
   if (pageId === 'HR05')
     return gapDImportRecords.filter(row => row.kind === 'attendance').map(row => ({ id: row.id, title: row.fileName, status: row.status, owner: row.createdBy, detail: `登记 ${row.rowCount} 行，不存文件`, updatedAt: row.createdAt }))
   if (pageId === 'HR12') {
+    const canReadAll = hasScope(actor, gapDPermissionKeys.payslipReadAll, 'all') || hasScope(actor, gapDPermissionKeys.payrollApprove, 'all')
+
+    if (canReadAll)
+      return gapDPayrollRuns.flatMap(run => run.payslips.map(payslip => payrollRecord(run, payslip)))
+
     if (!hasScope(actor, gapDPermissionKeys.payslipReadOwn, 'self'))
       return []
 
-    const own = gapDPayrollRuns.flatMap(run => ownPayslips(run, actor))
-
-    return own.map(row => ({ id: row.id, title: `${row.period} 工资条`, status: row.status, owner: row.employeeName, amount: row.netCents / 100, currency: 'CNY', detail: `实发 ¥${(row.netCents / 100).toFixed(2)}，个税仅本人可见`, updatedAt: now }))
+    return gapDPayrollRuns.filter(run => run.publishedAt).flatMap(run => ownPayslips(run, actor).map(payslip => payrollRecord(run, payslip)))
   }
   if (pageId === 'G18')
     return gapDAutonomyPolicies.map(row => ({ ...row, id: row.id, title: row.action, status: row.level, detail: row.reason, updatedAt: now }))
@@ -481,7 +492,7 @@ export function getGapDPayrollRun(id: string, actor: Actor): GapDPayrollRun | nu
     return filteredPayrollRun(run, run.payslips)
 
   if (hasScope(actor, gapDPermissionKeys.payslipReadOwn, 'self'))
-    return filteredPayrollRun(run, ownPayslips(run, actor))
+    return filteredPayrollRun(run, run.publishedAt ? ownPayslips(run, actor) : [])
 
   return null
 }
@@ -751,6 +762,7 @@ export function publishGapDPayslips(runId: string, actor: Actor, origin: GapDWri
   if (run.publishedAt)
     throw new Error('工资条已经发布，重复发布被拒绝')
   run.publishedAt = new Date().toISOString()
+  run.payslips = run.payslips.map(payslip => ({ ...payslip, status: '已发布' }))
   addAudit('发布工资条', actor, run.id, origin)
   persistGapDState()
 

@@ -28,16 +28,17 @@ const payslips: GapDPayslip[] = gapDEmployees.map((item, index) => ({
   taxCents: 0,
   netCents: 998000,
   ruleVersion: 'verify',
-  status: '待复核',
+  status: '已发布',
 }))
 
 const run: GapDPayrollRun = {
   id: 'payroll-verify-security',
   period: '2026-11',
-  status: '待复核',
+  status: '已出凭证',
   employeeCount: payslips.length,
   payslips,
   createdAt: at,
+  publishedAt: at,
 }
 
 gapDPayrollRuns.push(run)
