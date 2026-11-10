@@ -6,7 +6,8 @@ import { parseSafeMarkdown } from '../src/components/chat/markdown'
 import type { ChatState } from '../src/components/chat/types'
 import { useChatHistory } from '../src/components/chat/useChatHistory'
 import { useChatInflight } from '../src/components/chat/useChatInflight'
-import { recordAgentQuestion } from '@/api/agent-module'
+import { recordAgentQuestion, recordSuggestionStep, submitAgentSuggestion } from '@/api/agent-module'
+import { addSuggestionStep } from '@/mocks/services/agent-module'
 import { useMockDbStore } from '@/stores/mockdb'
 import { useSessionStore } from '@/stores/session'
 
@@ -113,6 +114,15 @@ function assertCallbackGuard(source: string, label: string) {
 
 assertCallbackGuard(drawer, 'assistant drawer')
 assertCallbackGuard(agent, 'agent center')
+
+const agentApi = read('src/api/agent-module.ts')
+const suggestionService = read('src/mocks/services/agent-module.ts')
+
+assert(agentApi.includes('会话已变更，已放弃写入'), 'identity change must use the explicit abandon reason')
+assert((agentApi.match(/bindInitiator\(/g) ?? []).length >= 4, 'question, suggestion step, and suggestion submit must share bindInitiator')
+assert(agent.includes('from \'@/api/agent-module\'') && !agent.includes('@/api/workflows'), 'agent center must submit suggestions through the initiator-bound API')
+assert(drawer.includes('from \'@/api/agent-module\'') && !drawer.includes('@/api/workflows'), 'assistant drawer must submit suggestions through the initiator-bound API')
+assert(suggestionService.includes('if (!actor.userId)'), 'suggestion step must reject an empty userId before the role fallback')
 
 const gateLogin = ref(true)
 const gateUserId = ref<string | null>('user-a')
@@ -273,5 +283,152 @@ const sameAudits = persistDb.db.audit.filter(event => !beforeSameAuditIds.has(ev
 
 assert(sameAudits.length > 0 && sameAudits.every(event => event.actorId === 'demo-admin'), 'a stable session must record the initiator actorId')
 assert(persistDb.db.agentRuns.some(run => run.id === sameRun.id && run.question === sameQuestion), 'a stable session must persist the initiator question')
+
+const suggestionMarker = 'ux-chat-suggestion-cross-user-probe'
+const stepRunId = 'ux-chat-suggestion-step-cross-user'
+
+const suggestionDraft = {
+  title: suggestionMarker,
+  summary: suggestionMarker,
+  amount: '10.00',
+  currency: 'CNY' as const,
+  storeId: null,
+  targetType: 'issue_note',
+  targetId: 'issue-probe',
+}
+
+persistSession.setRole('admin')
+persistSession.login('user-a')
+assert(persistSession.userId === 'demo-admin', 'suggestion fixture must start as the initiator')
+
+const beforeApprovalIds = new Set(persistDb.db.approvals.map(item => item.id))
+const beforeStepIds = new Set((persistDb.db.agentRunSteps ?? []).map(item => item.id))
+const beforeSuggestionAuditIds = new Set(persistDb.db.audit.map(event => event.id))
+const pendingSuggestion = submitAgentSuggestion(suggestionDraft)
+const pendingStep = recordSuggestionStep(stepRunId, suggestionMarker)
+
+persistSession.logout()
+persistSession.setRole('operator')
+persistSession.login('user-b')
+assert(persistSession.isLoggedIn && persistSession.userId === 'demo-operator' && persistSession.userId !== 'demo-admin', 'suggestion fixture must switch to a different user who can still write suggestions')
+
+let suggestionError = ''
+let stepError = ''
+
+try {
+  await pendingSuggestion
+}
+catch (error) {
+  suggestionError = error instanceof Error ? error.message : String(error)
+}
+try {
+  await pendingStep
+}
+catch (error) {
+  stepError = error instanceof Error ? error.message : String(error)
+}
+
+const newSteps = (persistDb.db.agentRunSteps ?? []).filter(item => !beforeStepIds.has(item.id))
+const newApprovals = persistDb.db.approvals.filter(item => !beforeApprovalIds.has(item.id))
+const newSuggestionAudits = persistDb.db.audit.filter(event => !beforeSuggestionAuditIds.has(event.id))
+const leakedSteps = newSteps.filter(item => item.runId === stepRunId || item.detail.includes(suggestionMarker))
+const leakedApprovals = newApprovals.filter(item => item.title === suggestionMarker || item.summary.includes(suggestionMarker) || item.targetId === 'issue-probe')
+const leakedAudits = newSuggestionAudits.filter(event => event.actorId === 'demo-operator' || event.summary.includes(suggestionMarker) || event.refId === suggestionMarker)
+
+assert(suggestionError.includes('会话已变更，已放弃写入'), 'identity change must abandon the suggestion with an explicit reason')
+assert(stepError.includes('会话已变更，已放弃写入'), 'identity change must abandon the suggestion step with an explicit reason')
+assert(!suggestionError.includes('没有权限') && !stepError.includes('没有权限'), 'abandoning a suggestion must not look like a permission denial')
+assert(leakedSteps.length === 0, 'send suggestion, logout, switch user, then delayed return must not write a step for the new user')
+assert(leakedApprovals.length === 0, 'send suggestion, logout, switch user, then delayed return must not write an approval for the new user')
+assert(leakedAudits.length === 0, 'send suggestion, logout, switch user, then delayed return must not write an audit for the new user')
+assert(!newSuggestionAudits.some(event => !event.actorId), 'new suggestion audits must not omit actorId')
+
+persistSession.logout()
+
+let loggedOutError = ''
+
+try {
+  await submitAgentSuggestion(suggestionDraft)
+}
+catch (error) {
+  loggedOutError = error instanceof Error ? error.message : String(error)
+}
+assert(loggedOutError.includes('没有权限：agent_suggestion:create'), 'a logged-out suggestion must stay a permission denial')
+assert(!loggedOutError.includes('会话已变更'), 'a permission denial must not use the session-changed reason')
+
+persistSession.setRole('viewer')
+persistSession.login('viewer')
+
+let viewerError = ''
+
+try {
+  await recordSuggestionStep(stepRunId, suggestionMarker)
+}
+catch (error) {
+  viewerError = error instanceof Error ? error.message : String(error)
+}
+assert(viewerError.includes('没有权限：agent_tool:write'), 'a viewer must still be denied suggestion steps')
+assert(!viewerError.includes('会话已变更'), 'a real permission denial must not use the session-changed reason')
+
+const escalateMarker = 'ux-chat-suggestion-escalate-probe'
+
+persistSession.setRole('operator')
+persistSession.login('operator-init')
+
+const pendingEscalate = submitAgentSuggestion({ ...suggestionDraft, title: escalateMarker, summary: escalateMarker, targetId: 'issue-escalate' })
+
+persistSession.logout()
+persistSession.setRole('admin')
+persistSession.login('admin-later')
+
+let escalateError = ''
+
+try {
+  await pendingEscalate
+}
+catch (error) {
+  escalateError = error instanceof Error ? error.message : String(error)
+}
+assert(escalateError.includes('会话已变更，已放弃写入'), 'switching to a higher role must abandon the original suggestion')
+assert(!persistDb.db.approvals.some(item => item.title === escalateMarker || item.targetId === 'issue-escalate'), 'a later admin must not receive the earlier user suggestion')
+
+persistSession.setRole('admin')
+persistSession.login('user-a')
+
+const stableMarker = 'ux-chat-suggestion-initiator-probe'
+const beforeStableAuditIds = new Set(persistDb.db.audit.map(event => event.id))
+const stableApproval = await submitAgentSuggestion({ ...suggestionDraft, title: stableMarker, summary: stableMarker, targetId: 'issue-stable' })
+
+await recordSuggestionStep(sameRun.id, stableApproval.id)
+
+const stableAudits = persistDb.db.audit.filter(event => !beforeStableAuditIds.has(event.id) && (event.refId === stableApproval.id || event.summary.includes(stableApproval.id)))
+const stableSteps = (persistDb.db.agentRunSteps ?? []).filter(item => item.runId === sameRun.id && item.detail.includes(stableApproval.id))
+
+assert(stableApproval.status === 'pending' && stableApproval.submitter === '演示管理员', 'a stable suggestion must stay pending under the initiator')
+assert(stableSteps.length === 1, 'a stable session must record the suggestion step')
+assert(stableAudits.length > 0 && stableAudits.every(event => event.actorId === 'demo-admin'), 'approval, step, and audit actorId must be the initiator')
+
+let selfApprovalError = ''
+
+try {
+  persistDb.decide(stableApproval.id, 'approved', { userId: 'demo-admin', name: '演示管理员', role: 'admin', at: new Date().toISOString() }, '')
+}
+catch (error) {
+  selfApprovalError = error instanceof Error ? error.message : String(error)
+}
+assert(selfApprovalError.includes('不能审批自己'), 'the initiator must not self-approve the suggestion')
+assert(persistDb.db.approvals.find(item => item.id === stableApproval.id)?.status === 'pending', 'a rejected self-approval must leave the suggestion pending')
+
+const beforeEmptySteps = (persistDb.db.agentRunSteps ?? []).length
+let emptyActorError = ''
+
+try {
+  addSuggestionStep(persistDb.db, 'empty-actor', 'apr-empty', { userId: '', name: '空身份', role: 'admin', at: new Date().toISOString() })
+}
+catch (error) {
+  emptyActorError = error instanceof Error ? error.message : String(error)
+}
+assert(emptyActorError.includes('没有权限：agent_tool:write'), 'an empty userId must not inherit the role demo identity')
+assert((persistDb.db.agentRunSteps ?? []).length === beforeEmptySteps, 'an empty userId must not write a suggestion step')
 
 console.log('U3 static checks passed')

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AgentCard, AgentPart } from '@/agent/adapter'
 import { createAgentAdapter } from '@/agent/index'
-import { submitAgentSuggestion } from '@/api/workflows'
+import { submitAgentSuggestion } from '@/api/agent-module'
 import ChatThread from '@/components/chat/ChatThread.vue'
 import type { ChatState } from '@/components/chat/types'
 import { useChatHistory } from '@/components/chat/useChatHistory'

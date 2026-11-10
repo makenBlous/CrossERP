@@ -90,8 +90,15 @@ export function recordAgentRun(db: MockDatabase, input: { question: string; agen
 }
 
 export function addSuggestionStep(db: MockDatabase, runId: string, approvalId: string, actor: Actor) {
+  if (!actor.userId)
+    throw new Error('当前用户没有权限：agent_tool:write')
+
   requireActorPermission(actor, 'agent_tool:write')
-  collections(db).agentRunSteps.push({ id: nextId(db, 'step'), runId, kind: 'suggestion', title: '生成待审批建议', detail: `建议 ${approvalId} 已进入审批队列，未写入业务数据`, at: actor.at.slice(11, 19), output: '{"approval":"pending"}', redacted: true })
+
+  const step: AgentRunStep = { id: nextId(db, 'step'), runId, kind: 'suggestion', title: '生成待审批建议', detail: `建议 ${approvalId} 已进入审批队列，未写入业务数据`, at: actor.at.slice(11, 19), output: '{"approval":"pending"}', redacted: true }
+
+  collections(db).agentRunSteps.push(step)
+  writeAudit(db, actor, 'agent.suggestion_step', 'agent_run_step', step.id, `建议步骤 ${approvalId} 已记录。未写入业务数据。`)
 }
 
 export function addSecurityEvent(db: MockDatabase, event: SecurityEvent) {
