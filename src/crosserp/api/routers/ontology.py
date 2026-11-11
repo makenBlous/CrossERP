@@ -29,7 +29,12 @@ def _page(items: list[Any], page: int, page_size: int, total: int) -> dict[str, 
 
 
 def _require(principal: Principal, permission: str) -> None:
-    _permission_service.require(principal, permission)
+    try:
+        _permission_service.require(principal, permission)
+    except APIError as exc:
+        if exc.code is ErrorCode.AUTH_REQUIRED:
+            raise not_found() from exc
+        raise
 
 
 def _entity_or_404(entity_type: str) -> EntityTypeDef:
