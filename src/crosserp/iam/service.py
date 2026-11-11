@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.db.schema import (
     AppUser,
+    AppSetting,
     IamDataScopeRule,
     IamFieldPolicy,
     IamPermissionOverride,
@@ -358,7 +359,11 @@ class IAMService:
                     select(IamDataScopeRule).where(IamDataScopeRule.entity.in_((entity, "*")))
                 )
             )
-        filters = {row.scope_type: row.values for row in rules}
+            filters = {row.scope_type: row.values for row in rules}
+            if not rules:
+                setting = session.get(AppSetting, f"data_scope:{effective_user_id}")
+                if setting is not None and isinstance(setting.value_json, dict):
+                    return dict(setting.value_json)
         return {"entity": entity, "scopes": sorted(scopes | set(filters)), "filters": filters}
 
     def serialize(
