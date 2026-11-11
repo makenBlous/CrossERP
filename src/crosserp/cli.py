@@ -14,7 +14,7 @@ import unicodedata
 import warnings
 import webbrowser
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from getpass import getuser
 from pathlib import Path
 from uuid import UUID
@@ -1832,8 +1832,6 @@ def audit_tail(
     count: int = typer.Option(20, "-n", min=1, max=200, help="显示最近多少条。"),
 ) -> None:
     """按 Asia/Shanghai 时间显示最近审计记录。"""
-    from zoneinfo import ZoneInfo
-
     url_text, engine = _open_ready_engine()
     try:
         with session_scope(engine) as session:
@@ -1841,7 +1839,7 @@ def audit_tail(
                 session.scalars(select(AuditLog).order_by(AuditLog.seq.desc()).limit(count))
             )
             for row in rows:
-                timestamp = row.ts.astimezone(ZoneInfo("Asia/Shanghai"))
+                timestamp = row.ts.astimezone(_shanghai_timezone())
                 actor = row.actor_name or row.actor_user_id or row.actor_type
                 reason = "" if row.reason is None else f" 原因: {row.reason}"
                 typer.echo(
@@ -1866,10 +1864,9 @@ def audit_export_command(
 ) -> None:
     """导出可离线校验的审计包。"""
     from datetime import timedelta
-    from zoneinfo import ZoneInfo
 
     try:
-        timezone = ZoneInfo("Asia/Shanghai")
+        timezone = _shanghai_timezone()
         start = datetime.fromisoformat(from_date).replace(tzinfo=timezone).astimezone(UTC)
         end_local = datetime.fromisoformat(to_date).replace(tzinfo=timezone) + timedelta(days=1)
         end = end_local.astimezone(UTC)
@@ -1898,6 +1895,17 @@ def audit_export_command(
         raise typer.Exit(code=1) from exc
     finally:
         engine.dispose()
+
+
+def _shanghai_timezone() -> tzinfo:
+    """返回上海时区; 系统无 IANA tzdata 时使用固定 UTC+8。"""
+    from datetime import timezone as fixed_timezone
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        return ZoneInfo("Asia/Shanghai")
+    except ZoneInfoNotFoundError:
+        return fixed_timezone(timedelta(hours=8), "Asia/Shanghai")
 
 
 @audit_app.command("verify-export")

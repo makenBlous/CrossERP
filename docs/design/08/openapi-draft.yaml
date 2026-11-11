@@ -66,6 +66,20 @@ security:
 - apiToken: []
 - delegationToken: []
 paths:
+  /api/v1/health:
+    get:
+      operationId: apiHealth
+      tags:
+      - 平台底座
+      summary: JSON API 健康检查
+      responses:
+        '200':
+          description: 成功
+      x-crosserp:
+        permission: public
+        riskTier: none
+        entity: Health
+        action: Health.read
   /api/v1/auth/login:
     post:
       operationId: postAuthLogin

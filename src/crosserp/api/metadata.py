@@ -1,0 +1,46 @@
+"""端点的 x-crosserp 元数据声明。"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any, ParamSpec, TypeVar, cast
+
+API_METADATA_KEY = "__crosserp_api_metadata__"
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+@dataclass(frozen=True)
+class EndpointMetadata:
+    entity: str
+    action: str
+    permission: str
+    risk_tier: str
+
+    def as_openapi(self) -> dict[str, str]:
+        return {
+            "entity": self.entity,
+            "action": self.action,
+            "permission": self.permission,
+            "riskTier": self.risk_tier,
+        }
+
+
+def api_endpoint(
+    *, entity: str, action: str, permission: str, risk_tier: str
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    metadata = EndpointMetadata(entity, action, permission, risk_tier)
+
+    def decorate(function: Callable[P, R]) -> Callable[P, R]:
+        setattr(function, API_METADATA_KEY, metadata)
+        existing = getattr(function, "openapi_extra", {})
+        existing = dict(existing) if isinstance(existing, dict) else {}
+        existing["x-crosserp"] = metadata.as_openapi()
+        cast(Any, function).openapi_extra = existing
+        return function
+
+    return decorate
+
+
+__all__ = ["API_METADATA_KEY", "EndpointMetadata", "api_endpoint"]

@@ -42,6 +42,12 @@ agent 继承登录人的权限，只能收窄，不能扩权；网页按钮、CL
 
 DeerFlow 以 SDK 嵌入独立 agent worker 进程和独立 Python 环境运行，不部署 DeerFlow 服务；CrossERP API 进程通过任务/事件表通信。通行证由系统自动签发、静默续期并在登出、切换账号、权限变化、停用或关闭 AI 时作废，用户无感。详见 [ADR 0008](../adr/0008-deerflow-embedded-worker.md) 和 [08 第 10 章](../design/08-后端模块与API设计.md)。AI 不执行代码：不开 bash、沙箱和 Docker，只调用注册函数或 MCP 工具。
 
-## 8. 分期验收
+## 8. P0 公共底座迁移与路由约定
+
+P0 公共底座使用迁移 `0020_idempotency_key`，为 API 的 `Idempotency-Key` 提供 24 小时重放记录。后续并行块从 `0020` 派生：platform=`0021`、iam=`0022`、audit-approval=`0023`、ontology=`0024`；各迁移的 `down_revision` 先写 `0020`，合并时由合并任务串成线性历史。
+
+JSON 路由放在 `src/crosserp/api/routers/<module>.py` 并暴露名为 `router` 的 FastAPI 路由器。`crosserp.api` 会自动发现并以 `/api/v1` 前缀注册；端点用 `api_endpoint` 声明 `entity`、`action`、`permission` 和 `risk_tier`，同时生成 OpenAPI 的 `x-crosserp`。业务代码通过 `get_principal`、`PermissionService.require` 做身份和权限检查，用 `AuditRecorder.record` 在同一事务追加审计，并把改写动作交给 `ActionDispatcher` 按固定阶段执行。
+
+## 9. 分期验收
 
 P0–P5、累计页面和每期验收以 [08 第 8 节](../design/08-后端模块与API设计.md) 为准；任务卡见 [`docs/tasks/backend-phases.md`](../tasks/backend-phases.md)（由其他组维护，若尚不存在视为预定文件）。每期都要证明人工路径可用、权限与审计可追溯、金额逐分一致。

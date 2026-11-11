@@ -712,4 +712,20 @@ class SecurityEvent(Base):
     hash: Mapped[str] = mapped_column(String(64))
 
 
+class IdempotencyKey(Base):
+    """JSON API 幂等键及首次响应; 过期记录可由维护任务清理。"""
+
+    __tablename__ = "idempotency_key"
+    __table_args__ = (Index("ix_idempotency_key_expires_at", "expires_at"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    key: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    request_hash: Mapped[str] = mapped_column(String(64))
+    status_code: Mapped[int] = mapped_column(Integer)
+    response_body: Mapped[str] = mapped_column(Text())
+    response_headers: Mapped[Any] = mapped_column(JSON(), default=dict)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
 V01_TABLES: frozenset[str] = frozenset(Base.metadata.tables)
