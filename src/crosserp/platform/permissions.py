@@ -31,8 +31,17 @@ class DefaultPermissionService:
             return
         if permission in principal.permissions:
             return
+        aliases = {
+            "audit_log:read": "audit.read",
+            "audit_log:export": "audit.export",
+            "audit_log:write": "setting.manage",
+            "approval:read": "report.read",
+            "approval:create": "approval.submit",
+            "approval:approve": "approval.decide",
+            "approval:write": "setting.manage",
+        }
         try:
-            allowed = has_permission(set(principal.roles), permission)
+            allowed = has_permission(set(principal.roles), aliases.get(permission, permission))
         except ValueError:
             allowed = False
         if not allowed:

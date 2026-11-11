@@ -183,7 +183,7 @@ def test_reason_over_512_is_rejected_and_actor_name_is_stored(engine: Engine) ->
             )
             assert row.actor_user_id is None
             assert row.actor_name == "maken"
-            assert row.hash_version == 2
+            assert row.hash_version == 3
             assert verify_chain(session).ok
     finally:
         downgrade_base(url)

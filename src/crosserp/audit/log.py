@@ -15,7 +15,7 @@ from crosserp.db.dialects import lock_for_update
 from crosserp.db.schema import AuditCheckpoint, AuditHead, AuditLog
 
 AUDIT_LOG_CHAIN = "audit_log"
-_ACTOR_TYPES = frozenset({"user", "agent", "system"})
+_ACTOR_TYPES = frozenset({"user", "human", "agent", "system"})
 _OPTIONAL = frozenset(
     {
         "actor_user_id",
@@ -29,6 +29,23 @@ _OPTIONAL = frozenset(
         "user_agent",
         "self_approved",
         "ts",
+        "agent_id",
+        "on_behalf_of",
+        "delegation_id",
+        "run_id",
+        "tool_call_id",
+        "is_subagent",
+        "subagent_name",
+        "channel",
+        "entity_type",
+        "entity_id",
+        "diff_json",
+        "evidence_json",
+        "model",
+        "prompt_version",
+        "llm_call",
+        "confidence",
+        "autonomy_level",
     }
 )
 _LIMITS = {
@@ -109,8 +126,48 @@ def append(
         self_approved=_require_bool(optional.get("self_approved", False)),
         prev_hash=previous,
         hash=GENESIS_PREV_HASH,
-        hash_version=2,
+        hash_version=3,
+        agent_id=_optional_text("agent_id", optional),
+        on_behalf_of=_optional_uuid_text("on_behalf_of", optional),
+        delegation_id=_optional_text("delegation_id", optional),
+        run_id=_optional_text("run_id", optional),
+        tool_call_id=_optional_text("tool_call_id", optional),
+        is_subagent=_require_bool(optional.get("is_subagent", False)),
+        subagent_name=_optional_text("subagent_name", optional),
+        channel=_optional_text("channel", optional),
+        entity_type=_optional_text("entity_type", optional),
+        entity_id=_optional_text("entity_id", optional),
+        diff_json=_stored_json(optional.get("diff_json")),
+        evidence_json=_stored_json(optional.get("evidence_json")),
+        model=_optional_text("model", optional),
+        prompt_version=_optional_text("prompt_version", optional),
+        llm_call=_optional_text("llm_call", optional),
+        confidence=optional.get("confidence"),
+        autonomy_level=_optional_text("autonomy_level", optional),
     )
+    if any(
+        key in optional
+        for key in (
+            "agent_id",
+            "on_behalf_of",
+            "delegation_id",
+            "run_id",
+            "tool_call_id",
+            "is_subagent",
+            "subagent_name",
+            "channel",
+            "entity_type",
+            "entity_id",
+            "diff_json",
+            "evidence_json",
+            "model",
+            "prompt_version",
+            "llm_call",
+            "confidence",
+            "autonomy_level",
+        )
+    ):
+        row.hash_version = 3
     session.add(row)
     session.flush()
     # 先写入再读回。哈希按数据库读出的值计算。避免时间精度在三库上不一致。
@@ -214,6 +271,33 @@ def payload_from_log(row: AuditLog) -> dict[str, object]:
     if version >= 2:
         payload["actor_name"] = row.actor_name
         payload["hash_version"] = version
+    if version >= 3:
+        for name in (
+            "agent_id",
+            "on_behalf_of",
+            "delegation_id",
+            "run_id",
+            "tool_call_id",
+            "is_subagent",
+            "subagent_name",
+            "channel",
+            "entity_type",
+            "entity_id",
+            "diff_json",
+            "evidence_json",
+            "model",
+            "prompt_version",
+            "llm_call",
+            "confidence",
+            "autonomy_level",
+        ):
+            value = getattr(row, name)
+            if name == "on_behalf_of":
+                payload[name] = _uuid_text(value)
+            elif name == "confidence" and value is not None:
+                payload[name] = str(value)
+            else:
+                payload[name] = value
     return payload
 
 
@@ -274,6 +358,17 @@ def _optional_uuid(name: str, optional: dict[str, object]) -> uuid.UUID | None:
     value = optional[name]
     if not isinstance(value, uuid.UUID):
         raise TypeError(f"{name} 必须是 UUID")
+    return value
+
+
+def _optional_uuid_text(name: str, optional: dict[str, object]) -> str | None:
+    if name not in optional or optional[name] is None:
+        return None
+    value = optional[name]
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    if not isinstance(value, str):
+        raise TypeError(f"{name} 必须是 UUID 或字符串")
     return value
 
 

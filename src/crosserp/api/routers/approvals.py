@@ -1,0 +1,358 @@
+"""审批中心 API。"""
+# ruff: noqa: B008
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Any
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import func, select
+
+from crosserp.api.errors import APIError, ErrorCode
+from crosserp.api.metadata import api_endpoint
+from crosserp.approval.gateway import ApprovalGatewayImpl, ApproverResolver
+from crosserp.db.schema import Approval, ApprovalType, WorkflowRule
+from crosserp.platform.audit import DefaultAuditRecorder
+from crosserp.platform.principal import Principal, get_principal
+
+router = APIRouter()
+
+
+def _session(request: Request) -> Any:
+    from sqlalchemy.orm import Session
+
+    return Session(request.app.state.database_engine)
+
+
+def _auth(principal: Principal, permission: str) -> None:
+    from crosserp.platform.permissions import DefaultPermissionService
+
+    DefaultPermissionService().require(principal, permission)
+
+
+def _item(row: Approval) -> dict[str, Any]:
+    return {
+        "id": str(row.id),
+        "type": row.approval_type or row.target_type,
+        "targetType": row.target_type,
+        "targetId": row.target_id,
+        "title": row.target_type,
+        "status": row.state,
+        "submitter": row.requested_by,
+        "onBehalfOf": str(row.on_behalf_of) if row.on_behalf_of else None,
+        "origin": row.actor_type,
+        "payloadHash": row.payload_hash,
+        "step": row.current_step,
+        "resolution": row.resolution or {},
+    }
+
+
+def _page(items: list[Any], page: int, page_size: int, total: int) -> dict[str, Any]:
+    return {"items": items, "page": page, "pageSize": page_size, "total": total}
+
+
+@router.get("/approvals")
+@api_endpoint(
+    entity="Approval", action="Approval.list", permission="approval:read", risk_tier="none"
+)
+def list_approvals(
+    request: Request,
+    principal: Principal = Depends(get_principal),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, alias="pageSize", ge=1, le=200),
+    q: str | None = None,
+    sort: str | None = None,
+) -> dict[str, Any]:
+    _auth(principal, "approval:read")
+    with _session(request) as session:
+        stmt = select(Approval).order_by(Approval.requested_at.desc())
+        if q:
+            stmt = stmt.where(Approval.state == q)
+        total = session.scalar(select(func.count()).select_from(Approval)) or 0
+        rows = list(session.scalars(stmt.offset((page - 1) * page_size).limit(page_size)))
+        return _page([_item(row) for row in rows], page, page_size, int(total))
+
+
+@router.get("/approvals/types")
+@api_endpoint(
+    entity="ApprovalType", action="ApprovalType.list", permission="approval:read", risk_tier="none"
+)
+def approval_types_early(
+    request: Request,
+    principal: Principal = Depends(get_principal),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, alias="pageSize", ge=1, le=200),
+    q: str | None = None,
+    sort: str | None = None,
+) -> dict[str, Any]:
+    _auth(principal, "approval:read")
+    with _session(request) as session:
+        rows = list(
+            session.scalars(
+                select(ApprovalType)
+                .where(ApprovalType.enabled.is_(True))
+                .order_by(ApprovalType.code)
+            )
+        )
+        return _page(
+            [
+                {
+                    "id": str(row.id),
+                    "code": row.code,
+                    "name": row.name,
+                    "riskTier": row.risk_tier,
+                    "template": row.template_json,
+                }
+                for row in rows
+            ],
+            page,
+            page_size,
+            len(rows),
+        )
+
+
+@router.get("/approvals/{id}")
+@api_endpoint(
+    entity="Approval", action="Approval.get", permission="approval:read", risk_tier="none"
+)
+def get_approval(
+    id: str, request: Request, principal: Principal = Depends(get_principal)
+) -> dict[str, Any]:
+    _auth(principal, "approval:read")
+    with _session(request) as session:
+        try:
+            row = session.get(Approval, UUID(id))
+        except ValueError:
+            row = None
+        if row is None:
+            raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
+        return _item(row)
+
+
+@router.post("/approvals/{id}/decide")
+@api_endpoint(
+    entity="Approval", action="Approval.decide", permission="approval:approve", risk_tier="critical"
+)
+def decide_approval(
+    id: str, request: Request, body: dict[str, Any], principal: Principal = Depends(get_principal)
+) -> dict[str, Any]:
+    _auth(principal, "approval:approve")
+    try:
+        approval_id = UUID(id)
+    except ValueError:
+        raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
+    with _session(request) as session, session.begin():
+        row = ApprovalGatewayImpl(session).decide(
+            approval_id,
+            principal=principal,
+            decision=str(body.get("decision", "")),
+            comment=str(body.get("comment", "")),
+            content_hash=body.get("payloadHash"),
+        )
+        return {"approval": _item(row), "status": row.state}
+
+
+@router.post("/approvals/{id}/withdraw")
+@api_endpoint(
+    entity="Approval",
+    action="Approval.withdraw",
+    permission="approval:create",
+    risk_tier="critical",
+)
+def withdraw_approval(
+    id: str,
+    request: Request,
+    body: dict[str, Any] | None = None,
+    principal: Principal = Depends(get_principal),
+) -> dict[str, Any]:
+    _auth(principal, "approval:create")
+    try:
+        approval_id = UUID(id)
+    except ValueError:
+        raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
+    with _session(request) as session, session.begin():
+        row = ApprovalGatewayImpl(session).withdraw(approval_id, principal=principal)
+        return {"approval": _item(row), "status": row.state}
+
+
+@router.post("/approvals/{id}/initiator-confirm")
+@api_endpoint(
+    entity="Approval",
+    action="Approval.initiator_confirm",
+    permission="approval:create",
+    risk_tier="critical",
+)
+def initiator_confirm(
+    id: str,
+    request: Request,
+    body: dict[str, Any] | None = None,
+    principal: Principal = Depends(get_principal),
+) -> dict[str, Any]:
+    _auth(principal, "approval:create")
+    try:
+        approval_id = UUID(id)
+    except ValueError:
+        raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
+    with _session(request) as session, session.begin():
+        row = ApprovalGatewayImpl(session).initiator_confirm(
+            approval_id, principal=principal, content=body or {}
+        )
+        return {"approval": _item(row), "status": row.state}
+
+
+@router.get("/workflow/rules/resolve")
+@api_endpoint(
+    entity="WorkflowRule",
+    action="WorkflowRule.read_resolve",
+    permission="approval:read",
+    risk_tier="none",
+)
+def resolve_rule(
+    request: Request,
+    principal: Principal = Depends(get_principal),
+    approval_type: str = Query("default", alias="approvalType"),
+    target_type: str | None = Query(None, alias="targetType"),
+    target_id: str | None = Query(None, alias="targetId"),
+) -> dict[str, Any]:
+    _auth(principal, "approval:read")
+    with _session(request) as session:
+        result = ApproverResolver(session).resolve(
+            approval_type, principal.user_id, principal.on_behalf_of
+        )
+        if result["approvers"]:
+            return {
+                "mode": "approver",
+                "approvers": result["approvers"],
+                "note": "等待审批人审批",
+                "ruleVersion": result["ruleVersion"],
+                "snapshot": result["snapshot"],
+            }
+        return {
+            "mode": "no_approver_auto",
+            "approvers": [],
+            "note": f"提交即生效 ({result['reason'] or 'no_account'})",
+            "ruleVersion": result["ruleVersion"],
+            "snapshot": result["snapshot"],
+        }
+
+
+@router.get("/approvals/types")
+@api_endpoint(
+    entity="ApprovalType", action="ApprovalType.list", permission="approval:read", risk_tier="none"
+)
+def approval_types(
+    request: Request,
+    principal: Principal = Depends(get_principal),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, alias="pageSize", ge=1, le=200),
+    q: str | None = None,
+    sort: str | None = None,
+) -> dict[str, Any]:
+    _auth(principal, "approval:read")
+    with _session(request) as session:
+        rows = list(
+            session.scalars(
+                select(ApprovalType)
+                .where(ApprovalType.enabled.is_(True))
+                .order_by(ApprovalType.code)
+            )
+        )
+        return _page(
+            [
+                {
+                    "id": str(row.id),
+                    "code": row.code,
+                    "name": row.name,
+                    "riskTier": row.risk_tier,
+                    "template": row.template_json,
+                }
+                for row in rows
+            ],
+            page,
+            page_size,
+            len(rows),
+        )
+
+
+@router.get("/workflow/rules")
+@api_endpoint(
+    entity="WorkflowRule", action="WorkflowRule.list", permission="approval:read", risk_tier="none"
+)
+def workflow_rules(
+    request: Request,
+    principal: Principal = Depends(get_principal),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, alias="pageSize", ge=1, le=200),
+    q: str | None = None,
+    sort: str | None = None,
+) -> dict[str, Any]:
+    _auth(principal, "approval:read")
+    with _session(request) as session:
+        rows = list(
+            session.scalars(
+                select(WorkflowRule).order_by(
+                    WorkflowRule.approval_type, WorkflowRule.version.desc()
+                )
+            )
+        )
+        return _page(
+            [
+                {
+                    "id": str(row.id),
+                    "approvalType": row.approval_type,
+                    "version": row.version,
+                    "steps": row.steps_json,
+                    "enabled": row.enabled,
+                }
+                for row in rows
+            ],
+            page,
+            page_size,
+            len(rows),
+        )
+
+
+@router.put("/workflow/rules/{id}")
+@api_endpoint(
+    entity="WorkflowRule",
+    action="WorkflowRule.update",
+    permission="approval:write",
+    risk_tier="critical",
+)
+def update_workflow_rule(
+    id: str,
+    request: Request,
+    body: dict[str, Any] | None = None,
+    principal: Principal = Depends(get_principal),
+) -> dict[str, Any]:
+    _auth(principal, "approval:write")
+    if principal.is_agent:
+        raise APIError(ErrorCode.FORBIDDEN, "仅真人可修改审批规则")
+    try:
+        rule_id = UUID(id)
+    except ValueError:
+        raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
+    with _session(request) as session, session.begin():
+        row = session.get(WorkflowRule, rule_id)
+        if row is None:
+            raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
+        body = body or {}
+        row.steps_json = body.get("steps", row.steps_json)
+        row.version = int(body.get("version", row.version + 1))
+        row.updated_by = principal.user_id
+        row.updated_at = datetime.now(UTC)
+        DefaultAuditRecorder(session).record(
+            principal=principal,
+            entity="WorkflowRule",
+            action="WorkflowRule.update",
+            diff={"steps": row.steps_json},
+            request_id=getattr(request.state, "request_id", None),
+        )
+        return {
+            "id": str(row.id),
+            "approvalType": row.approval_type,
+            "version": row.version,
+            "steps": row.steps_json,
+        }

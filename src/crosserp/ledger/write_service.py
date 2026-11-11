@@ -67,6 +67,15 @@ def export_many(
                 select(Approval).where(Approval.token_hash == hash_token(approval_token))
             )
         if approval is None:
+            approval = validation.scalar(
+                select(Approval)
+                .where(
+                    Approval.target_type + ":" + Approval.target_id == batch_id,
+                    Approval.state.in_({"auto_effective", "initiator_confirmed"}),
+                )
+                .order_by(Approval.requested_at.desc())
+            )
+        if approval is None:
             reason = ("MISSING_APPROVAL", "没有有效审批或审批 token 不正确")
         else:
             approval_id = approval.id
@@ -74,7 +83,11 @@ def export_many(
                 reason = ("TARGET_MISMATCH", "审批对象与要导出的对象不一致")
             elif approval.used_at is not None:
                 reason = ("TOKEN_USED", "审批已被使用，不能重复导出")  # noqa: RUF001
-            elif approval.state != ApprovalState.APPROVED.value:
+            elif approval.state not in {
+                ApprovalState.APPROVED.value,
+                "auto_effective",
+                "initiator_confirmed",
+            }:
                 reason = ("NOT_APPROVED", "审批当前不是已批准状态")
             else:
                 current_hash = _payload_hash(validation, approval.target_type, approval.target_id)
