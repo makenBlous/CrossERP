@@ -115,13 +115,13 @@ def load_catalog(path: Path | str | None = None) -> OntologyCatalog:
         entity_actions: list[ActionTypeDef] = []
         for raw_action in item["actions"]:
             action_id = str(raw_action["id"])
-                risk = _RISK_MAP.get(str(raw_action["riskTier"])) if "riskTier" in raw_action else None
+            risk = _RISK_MAP.get(str(raw_action["riskTier"])) if "riskTier" in raw_action else None
             if risk is None:
                 risk = _risk_from_autonomy(
-                        str(raw_action["aiMaxAutonomy"]),
-                        str(raw_action["riskTier"]) if "riskTier" in raw_action else "",
+                    str(raw_action["aiMaxAutonomy"]),
+                    str(raw_action["riskTier"]) if "riskTier" in raw_action else "",
                 )
-                autonomy = str(raw_action["aiMaxAutonomy"])
+            autonomy = str(raw_action["aiMaxAutonomy"])
             action = ActionTypeDef(
                 id=action_id,
                 entity=str(item["id"]),
@@ -131,10 +131,10 @@ def load_catalog(path: Path | str | None = None) -> OntologyCatalog:
                 risk_tier=risk,
                 ai_callable=autonomy != "L0",
                 ai_max_autonomy=autonomy,
-                    emits=tuple(str(x) for x in raw_action["emits"]) if "emits" in raw_action else (),
-                    projections=tuple(str(x) for x in raw_action["projections"])
-                    if "projections" in raw_action
-                    else (),
+                emits=tuple(str(x) for x in raw_action["emits"]) if "emits" in raw_action else (),
+                projections=tuple(str(x) for x in raw_action["projections"])
+                if "projections" in raw_action
+                else (),
                 raw=dict(raw_action),
             )
             entity_actions.append(action)
