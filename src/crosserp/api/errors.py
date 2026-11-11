@@ -52,6 +52,7 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.FORBIDDEN: 404,
     ErrorCode.DATA_SCOPE_DENIED: 404,
     ErrorCode.NOT_FOUND: 404,
+    ErrorCode.VALIDATION_ERROR: 422,
     ErrorCode.CONFLICT_VERSION: 409,
     ErrorCode.IDEMPOTENCY_REPLAY_MISMATCH: 409,
     ErrorCode.IDEMPOTENCY_CONFLICT: 409,

@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -132,6 +132,7 @@ class SkuCost(Base):
     __tablename__ = "sku_cost"
     __table_args__ = (
         Index("ix_sku_cost_internal_sku", "internal_sku"),
+        Index("ix_sku_cost_period", "internal_sku", "period"),
         Index("ix_sku_cost_source_batch_id", "source_batch_id"),
     )
 
@@ -144,6 +145,21 @@ class SkuCost(Base):
     freight_per_unit: Mapped[Decimal] = mapped_column(Money4())
     # 手工成本可以没有导入批次。推断。
     source_batch_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("import_batch.id"))
+    # P1 成本期间 API 字段。旧导入数据没有 period, 按 valid_from 映射展示。
+    period: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    source: Mapped[str] = mapped_column(String(16), default="purchase", server_default="purchase")
+    status: Mapped[str] = mapped_column(String(16), default="effective", server_default="effective")
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    created_at: Mapped[datetime | None] = mapped_column(
+        UtcDateTime(), default=lambda: datetime.now(UTC), nullable=True
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        UtcDateTime(),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=True,
+    )
+    provenance_json: Mapped[Any | None] = mapped_column(JSON(), nullable=True)
 
 
 class FeeReference(Base):
