@@ -18,12 +18,10 @@ from crosserp.api.schemas import PageParams
 from crosserp.auth.permissions import ROLE_PERMISSIONS
 from crosserp.auth.roles import Role
 from crosserp.db.schema import (
-    ApiToken,
     AppSetting,
     AppUser,
     DocumentLink,
     UserRole,
-    UserSession,
 )
 from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
