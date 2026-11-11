@@ -1,5 +1,8 @@
 # 组件复用审计
 
+> **历史记录：** 2026-11-11。本文保留当时结论；现行规范见 [前端开发规范](./前端开发规范.md) 和 [对接真实接口](./对接真实接口.md)。
+
+
 审计日期：2026-11-09  
 审计范围：`src/components/**`、`src/views/**`，以及 `src/pages/dashboard`、`catalog`、`orders`、`inventory`、`procurement`、`logistics` 下的 Vue 页面。参考实现为 Vuexy full-version（只读）和 Vuetify 3.10。
 
