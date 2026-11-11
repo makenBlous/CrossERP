@@ -9,7 +9,7 @@ CrossERP 前端是 Vue 3 + TypeScript + Vite 的业务原型，使用 Vuetify �
 - Vue 3、TypeScript、Vite、Vue Router auto routes、Pinia。
 - Vuetify 3 与 Vuexy full-version 的页面结构和可复用组件。
 - `vue-i18n` 提供中文和英文文案；页面不直接访问 mock 数据。
-- 业务操作由确定性 TypeScript 代码完成，金额使用 `Minor` 万分位整数；AI 只读已存储结果，写操作最多形成待审批建议。
+- 业务操作由确定性 TypeScript 代码完成，金额使用 `Minor` 万分位整数；`src/agent/mock-adapter.ts` 中的 AI 只读已存储结果，写操作最多形成待审批建议。
 - 后端沿用 Python / FastAPI 的设计，但目前只存在接口草案和 service 注释，前端运行不需要后端。
 
 ## 目录与事实来源
@@ -60,9 +60,9 @@ node node_modules\vite\bin\vite.js build
 
 ## AI 开关与人工兜底
 
-`useAiModeStore` 提供正常、降级、关闭三种模式。关闭 AI 时，`App.vue` 不挂载全局 `AssistantDrawer`，业务页面仍可使用人工表单、提交和审批流程；降级模式只允许只读查询。助手适配器当前是 `MockAgentAdapter`，只读取 mock 数据中的订单、SKU、采购、物流、利润和异常等已存储结果。建议卡调用 `submitAgentSuggestion` 进入待审批记录，不直接改金额、库存或凭证。
+`useAiModeStore` 提供正常、降级、关闭三种模式。`src/App.vue` 用 `session.isLoggedIn && aiMode.isEnabled` 控制全局 `AssistantDrawer` 的挂载，因此未登录或 AI 关闭时不显示浮动助手；业务页面仍可使用人工表单、提交和审批流程。降级模式的只读限制虽然有 `src/stores/ai-mode.ts` 的 `isReadOnly` 状态，但聊天入口没有据此拦截建议提交，完整限制**未核实**。`src/agent/mock-adapter.ts` 的 `MockAgentAdapter` 只读取 mock 数据中的订单、SKU、采购、物流、利润和异常等已存储结果，不重算或改写金额；建议卡经 `src/api/agent-module.ts` 的 `submitAgentSuggestion` 进入待审批记录，不直接改金额、库存或凭证。
 
-聊天请求在登出、切换用户或切换角色时由 `useChatInflight` 使旧请求失效，旧回调不能写入新会话；登出还会整页刷新到登录页。未登录或 AI 关闭时不显示浮动助手。模型设置的目标界面只保留 `baseUrl`、`apiKey`、`model` 三项；`apiKey` 必须加密存储、不回显、不写日志。当前仓库没有把该真实模型配置接通，属于设计约束。
+聊天请求在登出、切换用户或切换角色时由 `src/components/chat/useChatInflight.ts` 使旧请求失效；`src/pages/agent/chat.vue` 和 `src/components/biz/AssistantDrawer.vue` 都使用它，旧回调不能写入新会话。`src/stores/session.ts` 的 `logout()` 清理会话后用 `window.location.replace(loginPageHref())` 整页跳转到登录页。模型设置的目标界面只保留 `baseUrl`、`apiKey`、`model` 三项；`apiKey` 必须加密存储、不回显、不写日志。当前仓库没有把该真实模型配置接通，属于设计约束。
 
 ## 数据与业务约束
 
