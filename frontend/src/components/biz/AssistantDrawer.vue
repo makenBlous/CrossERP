@@ -28,6 +28,7 @@ const session = useSessionStore()
 const aiMode = useAiModeStore()
 const pageContext = usePageContext()
 const open = ref(false)
+const minimized = ref(false)
 const draft = ref('')
 const sending = ref(false)
 const bubbles = ref<Bubble[]>([])
@@ -80,6 +81,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown))
 function onWindowKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape' && open.value && !sending.value)
     open.value = false
+}
+
+function openAssistant() {
+  minimized.value = false
+  open.value = true
+}
+
+function closeAssistant() {
+  minimized.value = false
+  open.value = false
 }
 
 function matchPage(path: string) {
@@ -240,22 +251,80 @@ async function submit(message: { id: string }) {
       size="large"
       position="fixed"
       :aria-label="t('assistant.open')"
-      @click="open = true"
+      @click="openAssistant"
     >
       <VIcon icon="tabler-message-chatbot" />
     </VBtn>
-    <VNavigationDrawer
-      v-model="open"
-      location="end"
-      temporary
-      width="420"
-      class="assistant-drawer"
+    <VCard
+      v-if="open && minimized"
+      class="assistant-minimized"
+      elevation="12"
+      role="dialog"
+      :aria-label="t('assistant.title')"
     >
-      <AppDrawerHeaderSection
-        :title="t('assistant.title')"
-        @cancel="open = false"
-      />
-      <div class="px-6 pb-4 text-caption text-medium-emphasis">
+      <VCardTitle class="assistant-window__title text-body-1">
+        <VIcon
+          icon="tabler-message-chatbot"
+          size="20"
+          class="me-2"
+        />
+        <span class="text-truncate">{{ t('assistant.title') }}</span>
+        <VSpacer />
+        <VBtn
+          icon
+          variant="text"
+          density="compact"
+          :aria-label="t('assistant.restore')"
+          @click="minimized = false"
+        >
+          <VIcon icon="tabler-maximize" />
+        </VBtn>
+        <VBtn
+          icon
+          variant="text"
+          density="compact"
+          :aria-label="t('assistant.close')"
+          @click="closeAssistant"
+        >
+          <VIcon icon="tabler-x" />
+        </VBtn>
+      </VCardTitle>
+    </VCard>
+    <VCard
+      v-else-if="open"
+      class="assistant-window assistant-drawer"
+      elevation="12"
+      role="dialog"
+      :aria-label="t('assistant.title')"
+    >
+      <VCardTitle class="assistant-window__title text-body-1">
+        <VIcon
+          icon="tabler-message-chatbot"
+          size="20"
+          class="me-2"
+        />
+        <span class="text-truncate">{{ t('assistant.title') }}</span>
+        <VSpacer />
+        <VBtn
+          icon
+          variant="text"
+          density="compact"
+          :aria-label="t('assistant.minimize')"
+          @click="minimized = true"
+        >
+          <VIcon icon="tabler-minus" />
+        </VBtn>
+        <VBtn
+          icon
+          variant="text"
+          density="compact"
+          :aria-label="t('assistant.close')"
+          @click="closeAssistant"
+        >
+          <VIcon icon="tabler-x" />
+        </VBtn>
+      </VCardTitle>
+      <div class="assistant-window__context px-6 pb-4 text-caption text-medium-emphasis">
         {{ pageName }}
         <span v-if="selectedId"> · {{ selectedId }}</span>
         <span v-else> · {{ t('assistant.noSelection') }}</span>
@@ -332,37 +401,70 @@ async function submit(message: { id: string }) {
           </VCard>
         </template>
       </ChatThread>
-    </VNavigationDrawer>
+    </VCard>
   </div>
 </template>
 
 <style scoped>
+.assistant-window,
+.assistant-minimized {
+  position: fixed;
+  z-index: 1006;
+  inset-inline-end: 24px;
+  bottom: 24px;
+  inline-size: min(420px, calc(100vw - 48px));
+  border: 1px solid rgba(var(--v-theme-on-surface), .1);
+  border-radius: 1rem;
+  pointer-events: auto;
+}
+
+.assistant-window {
+  display: flex;
+  block-size: min(680px, calc(100vh - 112px));
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.assistant-window__title {
+  display: flex;
+  align-items: center;
+  min-block-size: 56px;
+  flex: 0 0 auto;
+  padding-block: .5rem;
+}
+
+.assistant-window__context {
+  flex: 0 0 auto;
+}
+
+.assistant-window :deep(.chat-thread) {
+  min-block-size: 0;
+  flex: 1 1 auto;
+}
+
+.assistant-window :deep(.chat-thread__log) {
+  padding-inline: 1rem;
+}
+
 .assistant-fab {
   z-index: 1006;
   bottom: 24px;
   inset-inline-end: 24px;
 }
 
-.assistant-drawer :deep(.v-navigation-drawer__content) {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.assistant-drawer :deep(.chat-thread) {
-  min-block-size: 0;
-  flex: 1 1 auto;
-}
-
-.assistant-drawer {
-  max-inline-size: calc(100vw - 1rem);
-}
-
-.assistant-drawer :deep(.chat-thread__log) {
-  padding-inline: 1rem;
+.assistant-minimized .assistant-window__title {
+  min-block-size: 48px;
+  padding-inline: .75rem;
 }
 
 @media (max-width: 600px) {
+  .assistant-window,
+  .assistant-minimized {
+    inset-inline-end: 16px;
+    bottom: 16px;
+    inline-size: calc(100vw - 32px);
+  }
+
   .assistant-fab {
     inset-inline-end: 16px;
     bottom: 16px;

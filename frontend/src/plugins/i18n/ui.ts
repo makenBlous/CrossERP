@@ -666,6 +666,9 @@ const zhCN = {
   assistant: {
     title: '智能助手',
     open: '打开智能助手',
+    minimize: '最小化智能助手',
+    restore: '恢复智能助手',
+    close: '关闭智能助手',
     placeholder: '问本页指标、查记录，或起草待审批建议',
     send: '发送',
     noSelection: '未选中记录',
@@ -1342,6 +1345,9 @@ const en = {
   assistant: {
     title: 'Assistant',
     open: 'Open assistant',
+    minimize: 'Minimize assistant',
+    restore: 'Restore assistant',
+    close: 'Close assistant',
     placeholder: 'Ask about this page, a record, or a suggestion',
     send: 'Send',
     noSelection: 'No record selected',
