@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import hashlib
-import inspect
 import json
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
@@ -73,7 +72,7 @@ class ActionDispatcher:
         ai_enabled: bool = True,
         ai_mode: str = "normal",
     ) -> None:
-        self.hooks = hooks or {}
+        self.hooks = {} if hooks is None else hooks
         self.session = session
         self.permission_service = permission_service or DefaultPermissionService()
         self.audit_recorder = audit_recorder
@@ -90,7 +89,7 @@ class ActionDispatcher:
         permission: str,
         risk_tier: RiskTier | str,
         action: str,
-        business_action: Callable[..., Any],
+        business_action: Callable[[], Any],
         hooks: dict[str, Callable[..., Any]] | None = None,
         entity: str | None = None,
         entity_id: UUID | str | None = None,
@@ -106,12 +105,13 @@ class ActionDispatcher:
         represented_permissions: frozenset[str] | None = None,
     ) -> Any:
         all_hooks = dict(self.hooks)
-        all_hooks.update(hooks or {})
+        if hooks is not None:
+            all_hooks.update(hooks)
         context: dict[str, Any] = {
             "principal": principal,
             "permission": permission,
             "action": action,
-            "entity": entity or action.split(".", 1)[0],
+            "entity": action.split(".", 1)[0] if entity is None else entity,
             "entity_id": str(entity_id) if entity_id is not None else None,
             "payload": payload,
             "expected_version": expected_version,
@@ -141,7 +141,7 @@ class ActionDispatcher:
 
             self._hook(all_hooks, "separation_of_duties", context)
             self._hook(all_hooks, "idempotency_and_version", context)
-            replay = self._find_replay(idempotency_key, context, payload)
+            replay = self._find_replay(idempotency_key, payload)
             if replay is not None:
                 return replay
             current_version = self._current_version(context["entity"], context["entity_id"])
@@ -176,7 +176,7 @@ class ActionDispatcher:
                 )
                 return result
 
-            result = _call_business_action(business_action, context)
+            result = _call_business_action(business_action)
             context["result"] = result
             context["version"] = self._write_version_and_audit(
                 principal=principal,
@@ -226,16 +226,11 @@ class ActionDispatcher:
     ) -> None:
         if principal.user_id is None and permission not in {"public", "authenticated"}:
             raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录")
-        current = getattr(self.permission_service, "current_permissions", None)
+        current = self.permission_service.current_permissions
         effective = principal.represented_permissions
-        if (
-            effective is None
-            and principal.is_agent
-            and principal.on_behalf_of is not None
-            and callable(current)
-        ):
+        if effective is None and principal.is_agent and principal.on_behalf_of is not None:
             effective = frozenset(current(principal))
-        represented = represented_permissions or effective
+        represented = effective if represented_permissions is None else represented_permissions
         if represented is not None and not principal.permissions.issubset(represented):
             raise APIError(ErrorCode.DELEGATION_SCOPE_EXCEEDED, "智能体不能扩展被代表人权限")
         if (
@@ -274,9 +269,9 @@ class ActionDispatcher:
                 EntityVersion.entity_type == entity, EntityVersion.entity_id == entity_id
             )
         )
-        return int(value or 0)
+        return 0 if value is None else int(value)
 
-    def _find_replay(self, key: str | None, context: dict[str, Any], payload: Any) -> Any:
+    def _find_replay(self, key: str | None, payload: Any) -> Any:
         if self.session is None or not key:
             return None
         row = self.session.scalar(
@@ -341,7 +336,7 @@ class ActionDispatcher:
             before_json=before,
             after_json=after,
             diff_json=diff,
-            audit_log_id=getattr(audit, "id", None),
+            audit_log_id=audit.id,
         )
         self.session.add(row)
         self.session.flush()
@@ -412,26 +407,15 @@ class ActionDispatcher:
         )
 
 
-def _call_business_action(action: Callable[..., Any], context: dict[str, Any]) -> Any:
+def _call_business_action(action: Callable[[], Any]) -> Any:
     try:
-        parameters = inspect.signature(action).parameters.values()
-        if all(
-            parameter.default is not inspect.Parameter.empty
-            or parameter.kind in {inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD}
-            for parameter in parameters
-        ):
-            return action()
-    except (TypeError, ValueError):
-        pass
-    return action(context)
+        return action()
+    except TypeError as exc:
+        raise APIError(ErrorCode.INTERNAL_ERROR, "业务动作必须是无参可调用对象") from exc
 
 
-def _approval_result(value: Any) -> dict[str, Any]:
-    return (
-        dict(value)
-        if isinstance(value, dict)
-        else {"approval": value, "resolution": "awaiting_initiator"}
-    )
+def _approval_result(value: dict[str, Any]) -> dict[str, Any]:
+    return value
 
 
 def _as_mapping(value: Any) -> dict[str, Any]:

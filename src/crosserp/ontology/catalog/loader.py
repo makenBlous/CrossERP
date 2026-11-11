@@ -184,7 +184,9 @@ def validate_catalog(payload: dict[str, Any]) -> None:
             action_ids.add(action_id)
     for entity in entities:
         entity_id = str(entity.get("id"))
-        state_machine = entity.get("stateMachine") or {}
+        state_machine = entity.get("stateMachine")
+        if state_machine is None:
+            continue
         for transition in state_machine.get("transitions", []):
             references = [".".join(match) for match in _ACTION_RE.findall(str(transition))]
             explicit = [ref for ref in references if ref in action_ids]

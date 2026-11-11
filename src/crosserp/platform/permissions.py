@@ -33,11 +33,13 @@ class DefaultPermissionService:
             return
         if permission in principal.permissions:
             return
-        try:
-            allowed = has_permission(set(principal.roles), permission)
-        except ValueError:
-            # 旧权限矩阵尚未登记 ontology 的系统只读点; 管理员仍可查看目录事件。
-            allowed = permission == "system:read" and "admin" in principal.roles
+        if permission == "system:read":
+            allowed = "admin" in principal.roles
+        else:
+            try:
+                allowed = has_permission(set(principal.roles), permission)
+            except ValueError as exc:
+                raise PermissionDenied(permission) from exc
         if not allowed:
             raise PermissionDenied(permission)
 

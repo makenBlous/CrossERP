@@ -141,6 +141,9 @@ def test_stage_failure_stops_pipeline_without_success_artifacts() -> None:
         seen: list[str] = []
 
         class Deny:
+            def current_permissions(self, _principal: Principal) -> frozenset[str]:
+                return frozenset()
+
             def require(self, *_args: object, **_kwargs: object) -> None:
                 raise APIError(ErrorCode.FORBIDDEN, "无权执行该操作")
 
@@ -397,6 +400,20 @@ def test_ai_medium_has_no_count_limit_and_critical_is_rejected() -> None:
         )
     assert error.value.code is ErrorCode.AI_AUTONOMY_CAPPED
     assert 99 not in calls
+
+
+def test_business_action_rejects_nonzero_argument_contract() -> None:
+    dispatcher = ActionDispatcher()
+    principal = Principal(user_id=uuid4(), permissions=frozenset({"store:write"}))
+    with pytest.raises(APIError) as error:
+        dispatcher.dispatch(
+            principal=principal,
+            permission="store:write",
+            risk_tier=RiskTier.LOW,
+            action="Store.update",
+            business_action=lambda _context: {"ok": True},
+        )
+    assert error.value.code is ErrorCode.INTERNAL_ERROR
 
 
 def test_three_channels_have_same_result_and_denial() -> None:

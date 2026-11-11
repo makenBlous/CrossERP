@@ -124,7 +124,7 @@ def dry_run(
         "riskTier": action.risk_tier,
         "permission": action.permission,
         "approval": "required" if decision is AutonomyDecision.DRAFT_OR_APPROVAL else "none",
-        "payload": body or {},
+        "payload": {} if body is None else body,
     }
 
 
@@ -173,7 +173,8 @@ def list_versions(
         )
         if q:
             statement = statement.where(EntityVersion.action_id.contains(q))
-        total = int(session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
+        count = session.scalar(select(func.count()).select_from(statement.subquery()))
+        total = 0 if count is None else int(count)
         if total == 0:
             raise not_found(message="实体不存在")
         rows = list(
