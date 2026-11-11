@@ -3,11 +3,12 @@ from tempfile import TemporaryDirectory
 from typing import Any
 from uuid import uuid4
 
+import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
-import pytest
 
 from crosserp.api import install_api
+from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.schemas import Money, PageParams
 from crosserp.db.migrate import downgrade_base, upgrade_head
 from crosserp.db.session import make_engine, sqlite_file_url

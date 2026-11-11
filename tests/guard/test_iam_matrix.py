@@ -5,10 +5,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from crosserp.db.migrate import downgrade_base, upgrade_head
-from crosserp.iam.service import IAMService
-from crosserp.db.schema import AppUser, UserRole
 from sqlalchemy.orm import Session
+
+from crosserp.db.migrate import downgrade_base, upgrade_head
+from crosserp.db.schema import AppUser, UserRole
+from crosserp.iam.service import IAMService
 from crosserp.platform.principal import ActorType, Principal
 
 DATA = json.loads(
@@ -42,7 +43,9 @@ def test_all_21_roles_cover_all_35_routes_and_ai_cap(engine) -> None:
                         permission_version=0,
                     )
                 )
-                session.add(UserRole(user_id=user_id, role=row["role"], granted_at=datetime.now(UTC)))
+                session.add(
+                    UserRole(user_id=user_id, role=row["role"], granted_at=datetime.now(UTC))
+                )
             human = Principal(user_id=user_id, roles=frozenset({row["role"]}))
             allowed = service.effective_permission(
                 user_id, row["permission"], principal=human

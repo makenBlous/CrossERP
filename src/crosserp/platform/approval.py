@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import Any, Protocol
-from uuid import UUID
 
 from crosserp.platform.principal import Principal
 
@@ -31,15 +30,7 @@ class ApprovalGateway(Protocol):
         payload: Any,
         risk_tier: str,
         approval_type: str,
-    ) -> Any: ...
-
-    def resolve(
-        self,
-        *,
-        approval_id: UUID,
-        principal: Principal,
-        decision: str,
-        comment: str | None = None,
+        request_id: str | None = None,
     ) -> Any: ...
 
 

@@ -18,8 +18,8 @@ from crosserp.auth.roles import Role
 from crosserp.db.migrate import downgrade_base, upgrade_head
 from crosserp.db.repo.users import create_user, grant_role
 from crosserp.db.schema import (
-    AppUser,
     Approval,
+    AppUser,
     AuditAlert,
     AuditLog,
     WorkflowRule,

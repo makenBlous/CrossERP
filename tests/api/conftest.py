@@ -11,8 +11,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from crosserp.db.repo.users import create_user, grant_role
 from crosserp.db.migrate import downgrade_base, upgrade_head
+from crosserp.db.repo.users import create_user, grant_role
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.platform.principal import ActorType, Principal
 from crosserp.web.app import create_app

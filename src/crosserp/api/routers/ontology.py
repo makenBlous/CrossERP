@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
@@ -24,7 +24,7 @@ _CATALOG = load_catalog()
 
 
 def _permission_service(request: Request) -> PermissionService:
-    return request.app.state.permission_service
+    return cast(PermissionService, request.app.state.permission_service)
 
 
 def _page(items: list[Any], page: int, page_size: int, total: int) -> dict[str, Any]:

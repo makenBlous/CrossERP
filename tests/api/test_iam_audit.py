@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from uuid import uuid4
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.audit.security import verify_security_chain
-from crosserp.db.schema import AuditLog, SecurityEvent
 from crosserp.auth.roles import Role
 from crosserp.db.repo.users import create_user
+from crosserp.db.schema import AuditLog, SecurityEvent
 from crosserp.platform.principal import ActorType, Principal, get_principal
 
 
