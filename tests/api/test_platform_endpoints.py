@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.auth.roles import Role
 from crosserp.db.repo.users import create_user
-from crosserp.db.schema import AppSetting, Delegation, Store
+from crosserp.db.schema import Delegation, IamDataScopeRule, Store
 
 
 def _login(client: TestClient, username: str, password: str) -> str:
@@ -50,16 +50,16 @@ def test_store_idempotency_and_data_scope(json_client: TestClient, api_engine) -
         second = Store(platform="amazon", marketplace="DE", name="hidden", currency="EUR")
         session.add_all([first, second])
         session.flush()
-        user_role = session.get(AppSetting, f"data_scope:{user.id}")
-        if user_role is None:
-            session.add(
-                AppSetting(
-                    key=f"data_scope:{user.id}",
-                    value_json={"storeIds": [str(first.id)]},
-                    updated_by=user.id,
-                    updated_at=datetime.now(UTC),
-                )
+        session.add(
+            IamDataScopeRule(
+                name="scope-user-stores",
+                entity="*",
+                scope_type="storeIds",
+                values=[str(first.id)],
+                updated_by=user.id,
+                updated_at=datetime.now(UTC),
             )
+        )
     _login(json_client, "scope-user", "password-123")
     first_response = json_client.get("/api/v1/stores")
     replay = json_client.get("/api/v1/stores")

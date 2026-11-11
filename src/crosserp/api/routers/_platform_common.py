@@ -22,13 +22,10 @@ from crosserp.db.schema import (
     UserRole,
 )
 from crosserp.platform.audit import DefaultAuditRecorder
-from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
-from crosserp.platform.permissions import DefaultPermissionService
+from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter()
-_permission_service = DefaultPermissionService()
-_dispatcher = ActionDispatcher()
 
 
 def _engine(request: Request) -> Any:
@@ -40,9 +37,7 @@ def _db(request: Request) -> Session:
 
 
 def _principal_db(request: Request) -> tuple[Principal, Session]:
-    from crosserp.api.routers import platform as platform_compat
-
-    principal = platform_compat.get_principal(request)
+    principal = get_principal(request)
     session = _db(request)
     user = session.get(AppUser, principal.user_id) if principal.user_id else None
     if user is None or not user.is_active:
@@ -62,14 +57,14 @@ def _principal_db(request: Request) -> tuple[Principal, Session]:
         run_id=principal.run_id,
         is_subagent=principal.is_subagent,
         channel=principal.channel,
-        permissions=_permission_service.current_permissions(principal),
-        data_scope=_permission_service.data_scope_filter(principal, "UserAccount"),
+        permissions=request.app.state.permission_service.current_permissions(principal),
+        data_scope=request.app.state.permission_service.data_scope_filter(principal, "UserAccount"),
     )
     return resolved, session
 
 
-def _require(principal: Principal, permission: str, *, entity: str) -> None:
-    _permission_service.require(principal, permission)
+def _require(request: Request, principal: Principal, permission: str, *, entity: str) -> None:
+    request.app.state.permission_service.require(principal, permission)
 
 
 def _write_guard(request: Request, principal: Principal, csrf: str | None) -> None:
@@ -94,8 +89,8 @@ def _dispatch_write(
     action: str,
     work: Any,
 ) -> Any:
-    _require(principal, permission, entity=entity)
-    result = _dispatcher.dispatch(
+    _require(request, principal, permission, entity=entity)
+    result = request.app.state.dispatcher.dispatch(
         principal=principal,
         permission=permission,
         risk_tier=risk,

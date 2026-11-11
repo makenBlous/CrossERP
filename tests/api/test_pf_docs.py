@@ -8,10 +8,10 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from crosserp.api.routers import documents, platform
+from crosserp.api.routers import _platform_common, documents
 from crosserp.auth.roles import Role
 from crosserp.db.repo.users import create_user
-from crosserp.db.schema import AppSetting, DocumentLink, Store
+from crosserp.db.schema import DocumentLink, IamDataScopeRule, Store
 
 
 def _login(client: TestClient, username: str, password: str) -> str:
@@ -33,7 +33,7 @@ def _link(from_type: str, from_id: str, to_type: str, to_id: str, relation: str)
 
 
 def test_document_routes_are_discovered_from_documents_module() -> None:
-    platform_paths = {route.path for route in platform.router.routes}
+    platform_paths = {route.path for route in _platform_common.router.routes}
     document_paths = {route.path for route in documents.router.routes}
 
     assert "/documents/links" not in platform_paths
@@ -61,9 +61,11 @@ def test_document_links_filter_by_store_scope(json_client: TestClient, api_engin
             ]
         )
         session.add(
-            AppSetting(
-                key=f"data_scope:{user.id}",
-                value_json={"storeIds": [str(visible_store.id)], "all": False},
+            IamDataScopeRule(
+                name="document-scope",
+                entity="*",
+                scope_type="storeIds",
+                values=[str(visible_store.id)],
                 updated_by=user.id,
                 updated_at=datetime.now(UTC),
             )
@@ -128,9 +130,11 @@ def test_document_chain_hides_unauthorized_nodes_and_deduplicates_cycles(
             ]
         )
         session.add(
-            AppSetting(
-                key=f"data_scope:{user.id}",
-                value_json={"storeIds": [str(visible_store.id)]},
+            IamDataScopeRule(
+                name="document-chain-scope",
+                entity="*",
+                scope_type="storeIds",
+                values=[str(visible_store.id)],
                 updated_by=user.id,
                 updated_at=datetime.now(UTC),
             )
@@ -163,9 +167,11 @@ def test_document_chain_returns_not_found_for_unknown_or_hidden_root(
         session.add(hidden_store)
         session.add(_link("Store", str(hidden_store.id), "Order", "hidden-order", "creates"))
         session.add(
-            AppSetting(
-                key=f"data_scope:{user.id}",
-                value_json={"storeIds": [str(uuid4())]},
+            IamDataScopeRule(
+                name="document-hidden-scope",
+                entity="*",
+                scope_type="storeIds",
+                values=[str(uuid4())],
                 updated_by=user.id,
                 updated_at=datetime.now(UTC),
             )

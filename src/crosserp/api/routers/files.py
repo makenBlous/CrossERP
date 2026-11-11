@@ -15,7 +15,7 @@ from sqlalchemy import select
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.metadata import api_endpoint
-from crosserp.api.routers.platform import _dispatch_write, _principal_db, _write_guard
+from crosserp.api.routers._platform_common import _dispatch_write, _principal_db, _write_guard
 from crosserp.api.schemas import CamelModel
 from crosserp.db.schema import FileObject
 from crosserp.platform.dispatcher import RiskTier

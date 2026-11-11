@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.auth.roles import Role
 from crosserp.db.repo.users import create_user
-from crosserp.db.schema import AppSetting, AuditLog, Store
+from crosserp.db.schema import AuditLog, IamDataScopeRule, Store
 from crosserp.platform.principal import ActorType, Principal
 
 
@@ -45,9 +45,11 @@ def test_store_list_uses_store_data_scope(json_client: TestClient, api_engine) -
         session.add_all([visible, hidden])
         session.flush()
         session.add(
-            AppSetting(
-                key=f"data_scope:{user.id}",
-                value_json={"storeIds": [str(visible.id)]},
+            IamDataScopeRule(
+                name="store-scope",
+                entity="*",
+                scope_type="storeIds",
+                values=[str(visible.id)],
                 updated_by=user.id,
                 updated_at=datetime.now(UTC),
             )
@@ -125,7 +127,7 @@ def test_store_writes_require_human_principal(
     user_id = _create_admin(api_engine, "store-agent")
     csrf = _login(json_client, "store-agent", "Store-test-password-123")
     monkeypatch.setattr(
-        "crosserp.api.routers.platform.get_principal",
+        "crosserp.api.routers._platform_common.get_principal",
         lambda _request: Principal(
             user_id=user_id,
             roles=frozenset({Role.ADMIN.value}),
@@ -157,7 +159,8 @@ def test_data_scope_delegates_to_permission_service(
     _login(json_client, "scope-service", "Store-test-password-123")
     sentinel = {"storeIds": ["permission-service-store"]}
     monkeypatch.setattr(
-        "crosserp.api.routers.stores._permission_service.data_scope_filter",
+        json_client.app.state.permission_service,
+        "data_scope_filter",
         lambda _principal, _entity: sentinel,
     )
 

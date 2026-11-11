@@ -21,7 +21,7 @@ from crosserp.api.errors import APIError, ErrorCode
 from crosserp.db.schema import ActionExecution, EntityEvent, EntityVersion
 from crosserp.platform.approval import ApprovalGateway, DefaultApprovalGateway
 from crosserp.platform.audit import AuditRecorder, DefaultAuditRecorder
-from crosserp.platform.permissions import DefaultPermissionService, PermissionService
+from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 
 
@@ -74,7 +74,9 @@ class ActionDispatcher:
     ) -> None:
         self.hooks = {} if hooks is None else hooks
         self.session = session
-        self.permission_service = permission_service or DefaultPermissionService()
+        if permission_service is None:
+            raise RuntimeError("ActionDispatcher 必须绑定 PermissionService")
+        self.permission_service = permission_service
         self.audit_recorder = audit_recorder
         self.approval_gateway = approval_gateway or DefaultApprovalGateway()
         if ai_mode not in {"normal", "degraded", "off"}:

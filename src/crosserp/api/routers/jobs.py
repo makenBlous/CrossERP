@@ -12,7 +12,7 @@ from pydantic import Field
 
 from crosserp.api.errors import not_found
 from crosserp.api.metadata import api_endpoint
-from crosserp.api.routers.platform import _principal_db
+from crosserp.api.routers._platform_common import _principal_db
 from crosserp.api.schemas import CamelModel
 from crosserp.db.schema import Job
 

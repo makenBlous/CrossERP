@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError
 from crosserp.db.migrate import downgrade_base, upgrade_head
-from crosserp.db.schema import AppUser
+from crosserp.db.schema import AppSetting, AppUser
 from crosserp.iam.service import IAMService
 from crosserp.platform.principal import ActorType, Principal
 
@@ -37,6 +37,24 @@ def _add_user(engine, user_id) -> None:
                 permission_version=0,
             )
         )
+
+
+def test_data_scope_rules_do_not_read_app_settings(iam_service: IAMService, engine) -> None:
+    user_id = uuid4()
+    _add_user(engine, user_id)
+    with Session(engine) as session, session.begin():
+        session.add(
+            AppSetting(
+                key=f"data_scope:{user_id}",
+                value_json={"storeIds": ["from-app-setting"]},
+                updated_by=user_id,
+                updated_at=datetime.now(UTC),
+            )
+        )
+
+    scope = iam_service.data_scope_filter(Principal(user_id=user_id), "Store")
+
+    assert scope == {"entity": "Store", "scopes": [], "filters": {}}
 
 
 def test_denial_wins_over_role_and_user_grant(iam_service: IAMService, engine) -> None:

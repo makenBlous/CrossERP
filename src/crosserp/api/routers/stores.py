@@ -11,10 +11,9 @@ from sqlalchemy import select
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.metadata import api_endpoint
-from crosserp.api.routers.platform import (
+from crosserp.api.routers._platform_common import (
     _dispatch_write,
     _page,
-    _permission_service,
     _principal_db,
     _require,
     _write_guard,
@@ -72,12 +71,13 @@ def list_stores(
 ) -> dict[str, object]:
     principal, session = _principal_db(request)
     try:
-        _require(principal, "report:read", entity="Store")
+        _require(request, principal, "report:read", entity="Store")
         statement = select(Store).order_by(Store.name)
-        scope = _permission_service.data_scope_filter(principal, "Store")
-        if "all" not in scope and "storeIds" in scope:
+        scope = request.app.state.permission_service.data_scope_filter(principal, "Store")
+        filters = scope.get("filters", scope)
+        if "all" not in scope.get("scopes", ()) and "storeIds" in filters:
             statement = statement.where(
-                Store.id.in_([UUID(str(value)) for value in scope["storeIds"]])
+                Store.id.in_([UUID(str(value)) for value in filters["storeIds"]])
             )
         if q is not None:
             statement = statement.where(Store.name.contains(q))
@@ -181,8 +181,8 @@ def update_store(
 def data_scope(request: Request) -> dict[str, list[object]]:
     principal, session = _principal_db(request)
     try:
-        _require(principal, "user:read", entity="UserAccount")
-        scope = _permission_service.data_scope_filter(principal, "UserAccount")
+        _require(request, principal, "user:read", entity="UserAccount")
+        scope = request.app.state.permission_service.data_scope_filter(principal, "UserAccount")
         return {"scopes": [scope]}
     finally:
         session.close()

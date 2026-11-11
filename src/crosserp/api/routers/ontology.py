@@ -16,25 +16,23 @@ from crosserp.api.metadata import api_endpoint
 from crosserp.db.schema import EntityVersion
 from crosserp.ontology.catalog import ActionTypeDef, EntityTypeDef, load_catalog
 from crosserp.platform.dispatcher import AutonomyDecision, can_ai_execute
-from crosserp.platform.permissions import DefaultPermissionService
+from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter(tags=["本体与实体目录"])
 _CATALOG = load_catalog()
-_permission_service = DefaultPermissionService()
+
+
+def _permission_service(request: Request) -> PermissionService:
+    return request.app.state.permission_service
 
 
 def _page(items: list[Any], page: int, page_size: int, total: int) -> dict[str, Any]:
     return {"items": items, "page": page, "pageSize": page_size, "total": total}
 
 
-def _require(principal: Principal, permission: str) -> None:
-    try:
-        _permission_service.require(principal, permission)
-    except APIError as exc:
-        if exc.code is ErrorCode.AUTH_REQUIRED:
-            raise not_found() from exc
-        raise
+def _require(principal: Principal, permission: str, service: PermissionService) -> None:
+    service.require(principal, permission)
 
 
 def _entity_or_404(entity_type: str) -> EntityTypeDef:
@@ -57,12 +55,13 @@ def _action_or_404(action_id: str) -> ActionTypeDef:
 )
 def list_entity_types(
     principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(_permission_service),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
     sort: str | None = None,
 ) -> dict[str, Any]:
-    _require(principal, "authenticated")
+    _require(principal, "authenticated", permission_service)
     values = list(_CATALOG.entity_types)
     if q:
         values = [x for x in values if q.casefold() in (x.id + x.name_zh).casefold()]
@@ -77,8 +76,12 @@ def list_entity_types(
 @api_endpoint(
     entity="EntityType", action="EntityType.get", permission="authenticated", risk_tier="none"
 )
-def get_entity_type(type: str, principal: Principal = Depends(get_principal)) -> dict[str, Any]:
-    _require(principal, "authenticated")
+def get_entity_type(
+    type: str,
+    principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(_permission_service),
+) -> dict[str, Any]:
+    _require(principal, "authenticated", permission_service)
     return _entity_or_404(type).as_dict()
 
 
@@ -88,12 +91,13 @@ def get_entity_type(type: str, principal: Principal = Depends(get_principal)) ->
 )
 def list_actions(
     principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(_permission_service),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
     sort: str | None = None,
 ) -> dict[str, Any]:
-    _require(principal, "authenticated")
+    _require(principal, "authenticated", permission_service)
     values = list(_CATALOG.actions)
     if q:
         values = [x for x in values if q.casefold() in (x.id + x.summary).casefold()]
@@ -112,8 +116,9 @@ def dry_run(
     actionId: str,
     body: dict[str, Any] | None = None,
     principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(_permission_service),
 ) -> dict[str, Any]:
-    _require(principal, "authenticated")
+    _require(principal, "authenticated", permission_service)
     action = _action_or_404(actionId)
     decision = can_ai_execute(action.risk_tier) if principal.is_agent else AutonomyDecision.EXECUTE
     if principal.is_agent and decision is AutonomyDecision.REJECT:
@@ -140,12 +145,13 @@ def dry_run(
 )
 def list_event_types(
     principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(_permission_service),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
     sort: str | None = None,
 ) -> dict[str, Any]:
-    _require(principal, "system:read")
+    _require(principal, "system:read", permission_service)
     values = list(_CATALOG.events)
     if q:
         values = [x for x in values if q.casefold() in x.id.casefold()]
@@ -166,12 +172,13 @@ def list_versions(
     type: str,
     id: str,
     principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(_permission_service),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
     sort: str | None = None,
 ) -> dict[str, Any]:
-    _require(principal, "authenticated")
+    _require(principal, "authenticated", permission_service)
     _entity_or_404(type)
     with Session(request.app.state.database_engine) as session:
         statement = select(EntityVersion).where(
@@ -205,8 +212,9 @@ def get_version(
     id: str,
     version: str,
     principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(_permission_service),
 ) -> dict[str, Any]:
-    _require(principal, "authenticated")
+    _require(principal, "authenticated", permission_service)
     _entity_or_404(type)
     try:
         number = int(version)
@@ -233,9 +241,13 @@ def get_version(
     risk_tier="none",
 )
 def lineage(
-    request: Request, type: str, id: str, principal: Principal = Depends(get_principal)
+    request: Request,
+    type: str,
+    id: str,
+    principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(_permission_service),
 ) -> dict[str, Any]:
-    _require(principal, "authenticated")
+    _require(principal, "authenticated", permission_service)
     _entity_or_404(type)
     with Session(request.app.state.database_engine) as session:
         rows = list(

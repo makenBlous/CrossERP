@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.metadata import api_endpoint
-from crosserp.api.routers.platform import (
+from crosserp.api.routers._platform_common import (
     _dispatch_write,
     _page,
     _principal_db,

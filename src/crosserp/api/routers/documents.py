@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.metadata import api_endpoint
-from crosserp.api.routers.platform import _page, _principal_db, _require
+from crosserp.api.routers._platform_common import _page, _principal_db, _require
 from crosserp.api.schemas import PageParams
 from crosserp.db.schema import DocumentLink
 
@@ -35,14 +35,15 @@ def _link_payload(row: DocumentLink) -> dict[str, Any]:
 
 
 def _scope_nodes(rows: list[DocumentLink], scope: Any) -> set[tuple[str, str]]:
-    if "storeIds" not in scope or scope.get("all") is True:
+    filters = scope.get("filters", scope)
+    if "all" in scope.get("scopes", ()) or "storeIds" not in filters or filters.get("all") is True:
         return {
             (kind, identifier)
             for row in rows
             for kind, identifier in ((row.from_type, row.from_id), (row.to_type, row.to_id))
         }
 
-    allowed_stores = {str(value) for value in scope["storeIds"]}
+    allowed_stores = {str(value) for value in filters["storeIds"]}
     adjacency: dict[tuple[str, str], set[tuple[str, str]]] = {}
     for row in rows:
         source = (row.from_type, row.from_id)
@@ -90,7 +91,7 @@ def links(
 ) -> dict[str, Any]:
     principal, session = _principal_db(request)
     try:
-        _require(principal, "document:read", entity="DocumentLink")
+        _require(request, principal, "document:read", entity="DocumentLink")
         if sort not in {"createdAt", "-createdAt"}:
             raise APIError(ErrorCode.VALIDATION_FAILED, "sort 参数无效")
         ordering = (
@@ -127,7 +128,7 @@ def links(
 def chain(request: Request, docType: str, id: str) -> dict[str, Any]:
     principal, session = _principal_db(request)
     try:
-        _require(principal, "report:read", entity="DocumentLink")
+        _require(request, principal, "report:read", entity="DocumentLink")
         rows = list(
             session.scalars(
                 select(DocumentLink).order_by(

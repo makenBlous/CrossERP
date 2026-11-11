@@ -170,7 +170,7 @@ def test_agent_is_rejected_from_critical_account_write(
         user_id = user.id
     _login(json_client, "agent-account-user", "password-123")
     monkeypatch.setattr(
-        "crosserp.api.routers.platform.get_principal",
+        "crosserp.api.routers._platform_common.get_principal",
         lambda _request: Principal(
             user_id=user_id,
             roles=frozenset({"admin"}),

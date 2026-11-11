@@ -37,10 +37,30 @@ _TEMPLATE_ROLE_IDS = (
 )
 _LEGACY_ROLE_PERMISSIONS = {
     "admin": "owner_manager",
-    "operator": ("report:read", "integration:import", "agent_tool:read"),
-    "finance": ("report:read", "approval:approve", "journal_entry:export"),
-    "viewer": ("report:read", "agent_tool:read"),
-    "auditor": ("report:read", "audit_log:read", "audit_log:export"),
+    "operator": (
+        "user:read",
+        "user:write",
+        "report:read",
+        "document:read",
+        "integration:import",
+        "agent_tool:read",
+    ),
+    "finance": (
+        "user:read",
+        "user:write",
+        "report:read",
+        "document:read",
+        "approval:approve",
+        "journal_entry:export",
+    ),
+    "viewer": ("user:read", "report:read", "document:read", "agent_tool:read"),
+    "auditor": (
+        "user:read",
+        "report:read",
+        "document:read",
+        "audit_log:read",
+        "audit_log:export",
+    ),
 }
 _PARENTS = {
     "operations_manager": ("store_operator",),

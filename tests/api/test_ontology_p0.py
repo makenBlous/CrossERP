@@ -15,12 +15,28 @@ from sqlalchemy.orm import Session
 from crosserp.api import install_api
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.db.migrate import upgrade_head
-from crosserp.db.schema import ActionExecution, AuditLog, EntityEvent, EntityVersion
+from crosserp.db.repo.users import create_user
+from crosserp.db.schema import ActionExecution, AuditLog, EntityEvent, EntityVersion, UserRole
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.ontology.catalog import load_catalog, validate_catalog
 from crosserp.platform.approval import ApprovalResolution
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
 from crosserp.platform.principal import ActorType, Principal, get_principal
+
+
+class _UnitPermissionService:
+    def require(self, principal, permission, _resource=None) -> None:
+        if (
+            permission not in {"public", "authenticated"}
+            and permission not in principal.permissions
+        ):
+            raise APIError(ErrorCode.FORBIDDEN, "无权执行该操作")
+
+    def data_scope_filter(self, _principal, _entity):
+        return {}
+
+    def current_permissions(self, principal):
+        return principal.permissions
 
 
 def test_expected_version_conflict_and_idempotent_replay_do_not_write_twice() -> None:
@@ -30,7 +46,9 @@ def test_expected_version_conflict_and_idempotent_replay_do_not_write_twice() ->
         engine = make_engine(url)
         entity_id = uuid4()
         principal = Principal(user_id=uuid4(), permissions=frozenset({"store:write"}))
-        dispatcher = ActionDispatcher(session=Session(engine))
+        dispatcher = ActionDispatcher(
+            session=Session(engine), permission_service=_UnitPermissionService()
+        )
         with dispatcher.session.begin():
             first = dispatcher.dispatch(
                 principal=principal,
@@ -181,7 +199,7 @@ def test_ai_off_and_degraded_modes_are_read_only() -> None:
         user_id=uuid4(), actor_type=ActorType.AGENT, permissions=frozenset({"store:write"})
     )
     for mode in ("off", "degraded"):
-        dispatcher = ActionDispatcher(ai_mode=mode)
+        dispatcher = ActionDispatcher(ai_mode=mode, permission_service=_UnitPermissionService())
         with pytest.raises(APIError) as error:
             dispatcher.dispatch(
                 principal=principal,
@@ -208,7 +226,7 @@ def test_medium_action_keeps_reversible_preimage_and_daily_summary_event() -> No
         session = Session(engine)
         entity_id = uuid4()
         with session.begin():
-            ActionDispatcher(session=session).dispatch(
+            ActionDispatcher(session=session, permission_service=_UnitPermissionService()).dispatch(
                 principal=Principal(
                     user_id=uuid4(), actor_type=ActorType.AGENT, permissions=frozenset({"x"})
                 ),
@@ -239,8 +257,22 @@ def test_all_ontology_endpoints_have_success_and_404_paths_and_dry_run_is_read_o
         engine = make_engine(url)
         app = FastAPI()
         install_api(app, engine)
+        with Session(engine) as session, session.begin():
+            allowed_user = create_user(
+                session,
+                username="ontology-owner",
+                password="Ontology-test-password-123",
+            )
+            session.add(
+                UserRole(
+                    user_id=allowed_user.id, role="owner_manager", granted_at=datetime.now(UTC)
+                )
+            )
+            allowed_user_id = allowed_user.id
         allowed = Principal(
-            user_id=uuid4(), permissions=frozenset({"authenticated", "system:read"})
+            user_id=allowed_user_id,
+            roles=frozenset({"owner_manager"}),
+            permissions=frozenset({"authenticated"}),
         )
         entity_id = str(uuid4())
         with Session(engine) as session, session.begin():
@@ -293,9 +325,9 @@ def test_all_ontology_endpoints_have_success_and_404_paths_and_dry_run_is_read_o
                 f"/api/v1/entities/Store/{entity_id}/versions/1",
                 f"/api/v1/entities/Store/{entity_id}/lineage",
             ]
-            assert all(client.get(path).status_code == 404 for path in unauthorized_paths)
-            assert client.post("/api/v1/ontology/actions/Store.update/dry-run").status_code == 404
-            assert client.get("/api/v1/entities/Unknown/id/lineage").status_code == 404
+            assert all(client.get(path).status_code == 401 for path in unauthorized_paths)
+            assert client.post("/api/v1/ontology/actions/Store.update/dry-run").status_code == 401
+            assert client.get("/api/v1/entities/Unknown/id/lineage").status_code == 401
         engine.dispose()
 
 
@@ -332,7 +364,9 @@ def test_agent_high_risk_submits_approval_without_business_action() -> None:
         delegation_id="del-1",
         channel="agent",
     )
-    result = ActionDispatcher(approval_gateway=Gateway()).dispatch(
+    result = ActionDispatcher(
+        approval_gateway=Gateway(), permission_service=_UnitPermissionService()
+    ).dispatch(
         principal=principal,
         permission="public",
         risk_tier=RiskTier.HIGH,
@@ -352,7 +386,9 @@ def test_dispatch_writes_entity_version_and_rolls_back_with_audit() -> None:
         engine = make_engine(url)
         principal = Principal(user_id=uuid4(), permissions=frozenset({"store:write"}))
         entity_id = uuid4()
-        dispatcher = ActionDispatcher(session=Session(engine))
+        dispatcher = ActionDispatcher(
+            session=Session(engine), permission_service=_UnitPermissionService()
+        )
         with dispatcher.session.begin():
             result = dispatcher.dispatch(
                 principal=principal,
@@ -380,7 +416,7 @@ def test_ai_medium_has_no_count_limit_and_critical_is_rejected() -> None:
         actor_type=ActorType.AGENT,
     )
     calls: list[int] = []
-    dispatcher = ActionDispatcher()
+    dispatcher = ActionDispatcher(permission_service=_UnitPermissionService())
     for index in range(8):
         dispatcher.dispatch(
             principal=principal,
@@ -403,7 +439,7 @@ def test_ai_medium_has_no_count_limit_and_critical_is_rejected() -> None:
 
 
 def test_business_action_rejects_nonzero_argument_contract() -> None:
-    dispatcher = ActionDispatcher()
+    dispatcher = ActionDispatcher(permission_service=_UnitPermissionService())
     principal = Principal(user_id=uuid4(), permissions=frozenset({"store:write"}))
     with pytest.raises(APIError) as error:
         dispatcher.dispatch(
@@ -417,7 +453,7 @@ def test_business_action_rejects_nonzero_argument_contract() -> None:
 
 
 def test_three_channels_have_same_result_and_denial() -> None:
-    dispatcher = ActionDispatcher()
+    dispatcher = ActionDispatcher(permission_service=_UnitPermissionService())
     results = []
     for channel in ("web", "agent", "import"):
         results.append(

@@ -15,10 +15,9 @@ from sqlalchemy import select
 
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.metadata import api_endpoint
-from crosserp.api.routers.platform import (
+from crosserp.api.routers._platform_common import (
     _db,
     _dispatch_write,
-    _permission_service,
     _principal_db,
     _user_payload,
     _write_guard,
@@ -111,7 +110,7 @@ def login(request: Request, payload: LoginInput) -> JSONResponse:
         principal = Principal(
             user_id=user.id,
             roles=user_roles,
-            permissions=_permission_service.current_permissions(
+            permissions=request.app.state.permission_service.current_permissions(
                 Principal(user_id=user.id, roles=user_roles)
             ),
         )

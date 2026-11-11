@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 
 from crosserp.db.schema import (
     AppUser,
-    AppSetting,
     IamDataScopeRule,
     IamFieldPolicy,
     IamPermissionOverride,
@@ -285,8 +284,6 @@ class IAMService:
                 )
                 if row.revoked_at is None
             ]
-        if principal is not None:
-            roles.update(principal.roles)
         allows: list[str] = []
         denies: list[str] = []
         scopes: set[str] = set()
@@ -302,8 +299,6 @@ class IAMService:
                 elif effect == "allow":
                     allows.append(f"角色 {inherited}")
                     scopes.update(role.data_scopes)
-        if principal is not None and permission in principal.permissions:
-            allows.append("Principal")
         for grant in [*overrides, *temporary]:
             if grant.permission != permission or not _active(grant, checked_at):
                 continue
@@ -315,6 +310,42 @@ class IAMService:
             tuple(allows),
             tuple(denies),
             tuple(sorted(scopes)),
+        )
+
+    def current_permissions(self, principal: Principal) -> frozenset[str]:
+        """返回数据库中当前有效的权限点，不读取 Principal 快照。"""
+        effective_user_id = principal.effective_user_id
+        if effective_user_id is None:
+            return frozenset()
+        self._refresh_roles()
+        with Session(self.engine) as session:
+            role_ids = set(
+                session.scalars(select(UserRole.role).where(UserRole.user_id == effective_user_id))
+            )
+            candidates: set[str] = set()
+            visited: set[str] = set()
+            for role_id in role_ids:
+                for inherited in self._role_chain(role_id, visited):
+                    candidates.update(self.roles[inherited].permissions)
+            candidates.update(
+                session.scalars(
+                    select(IamPermissionOverride.permission).where(
+                        IamPermissionOverride.user_id == effective_user_id
+                    )
+                )
+            )
+            candidates.update(
+                session.scalars(
+                    select(IamTemporaryGrant.permission).where(
+                        IamTemporaryGrant.user_id == effective_user_id,
+                        IamTemporaryGrant.revoked_at.is_(None),
+                    )
+                )
+            )
+        return frozenset(
+            permission
+            for permission in candidates
+            if self.effective_permission(effective_user_id, permission).allowed
         )
 
     def require(
@@ -348,11 +379,6 @@ class IAMService:
             raise _api_error("AUTH_REQUIRED", "需要登录")
         decision = self.effective_permission(effective_user_id, entity, principal=principal)
         scopes = set(decision.data_scopes)
-        if isinstance(principal.data_scope, dict):
-            allowed = set(principal.data_scope.get("scopes", principal.data_scope.keys()))
-            scopes &= allowed
-        elif principal.data_scope:
-            scopes &= {str(principal.data_scope)}
         with Session(self.engine) as session:
             rules = list(
                 session.scalars(
@@ -360,10 +386,6 @@ class IAMService:
                 )
             )
             filters = {row.scope_type: row.values for row in rules}
-            if not rules:
-                setting = session.get(AppSetting, f"data_scope:{effective_user_id}")
-                if setting is not None and isinstance(setting.value_json, dict):
-                    return dict(setting.value_json)
         return {"entity": entity, "scopes": sorted(scopes | set(filters)), "filters": filters}
 
     def serialize(

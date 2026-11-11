@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
+import pytest
 
 from crosserp.api import install_api
 from crosserp.api.schemas import Money, PageParams
@@ -21,6 +22,21 @@ from crosserp.platform.permissions import DefaultPermissionService, PermissionDe
 from crosserp.platform.principal import ActorType, Principal
 
 
+class _UnitPermissionService:
+    def require(self, principal, permission, _resource=None) -> None:
+        if (
+            permission not in {"public", "authenticated"}
+            and permission not in principal.permissions
+        ):
+            raise APIError(ErrorCode.FORBIDDEN, "无权执行该操作")
+
+    def data_scope_filter(self, _principal, _entity):
+        return {}
+
+    def current_permissions(self, principal):
+        return principal.permissions
+
+
 def test_money_and_pagination_use_camel_case() -> None:
     assert Money(amountMinor=12300, currency="CNY").model_dump(by_alias=True) == {
         "amountMinor": 12300,
@@ -35,7 +51,8 @@ def test_ai_risk_cap_and_dispatch_stage_order() -> None:
     assert can_ai_execute(RiskTier.CRITICAL) is AutonomyDecision.REJECT
     calls: list[str] = []
     dispatcher = ActionDispatcher(
-        {name: (lambda name=name, **_: calls.append(name)) for name in ActionDispatcher.STAGES}
+        {name: (lambda name=name, **_: calls.append(name)) for name in ActionDispatcher.STAGES},
+        permission_service=_UnitPermissionService(),
     )
     dispatcher.dispatch(
         principal=Principal(user_id=None),
@@ -57,6 +74,18 @@ def test_permission_denial_uses_not_found_status(engine) -> None:
         assert exc.status_code == 404
     else:
         raise AssertionError("permission check unexpectedly passed")
+    finally:
+        downgrade_base(url)
+
+
+def test_permission_denied_by_iam_is_not_granted_by_role_name(engine) -> None:
+    url = engine.url.render_as_string(hide_password=False)
+    upgrade_head(url)
+    try:
+        service = DefaultPermissionService(IAMService(engine))
+        with pytest.raises(PermissionDenied) as denied:
+            service.require(Principal(user_id=uuid4(), roles=frozenset({"viewer"})), "user:read")
+        assert denied.value.status_code == 404
     finally:
         downgrade_base(url)
 
