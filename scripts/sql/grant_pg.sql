@@ -31,9 +31,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.approval, public.api_token,
   public.audit_head, public.audit_log, public.eval_run, public.export_artifact,
   public.fee, public.fee_reference, public.fx_rate, public.import_batch, public.issue,
   public.llm_alert, public.llm_budget, public.llm_call, public.llm_tool_call,
-  public.match, public.order_line, public.profit_snapshot, public.prompt_version,
+  public.idempotency_key, public.match, public.order_line, public.profit_snapshot, public.prompt_version,
   public.raw_row, public.recon_run, public.security_event, public.settlement,
   public.settlement_line, public.sku, public.sku_cost, public.store, public.user_role,
+  public.password_reset_token, public.file_object, public.job, public.document_link, public.delegation,
   public.user_session, public.voucher, public.voucher_line TO crosserp_app;
 REVOKE UPDATE, DELETE ON TABLE public.audit_log FROM crosserp_app;
 GRANT SELECT, INSERT ON TABLE public.audit_log TO crosserp_app;
@@ -53,10 +54,11 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO crosserp_agent;
 GRANT SELECT ON TABLE public.approval, public.api_token, public.app_setting, public.app_user,
   public.audit_checkpoint, public.audit_export, public.audit_head, public.audit_log,
   public.eval_run, public.export_artifact, public.fee, public.fee_reference, public.fx_rate,
-  public.import_batch, public.issue, public.llm_alert, public.llm_budget, public.llm_call,
+  public.import_batch, public.idempotency_key, public.issue, public.llm_alert, public.llm_budget, public.llm_call,
   public.llm_tool_call, public.match, public.order_line, public.profit_snapshot,
   public.prompt_version, public.raw_row, public.recon_run, public.security_event,
   public.settlement, public.settlement_line, public.sku, public.sku_cost, public.store,
+  public.password_reset_token, public.file_object, public.job, public.document_link, public.delegation,
   public.user_role, public.user_session, public.voucher, public.voucher_line TO crosserp_agent;
 REVOKE SELECT ON TABLE public.app_user, public.user_session, public.api_token FROM crosserp_agent;
 GRANT SELECT ON TABLE public.eval_run, public.voucher, public.voucher_line,

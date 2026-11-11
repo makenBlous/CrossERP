@@ -27,7 +27,7 @@ EXCLUDED_DIRS = {
 
 
 def iter_markdown():
-    """遍历阶段即剪掉依赖/生成目录，避免进入 node_modules 等。"""
+    """遍历阶段即剪掉依赖/生成目录, 避免进入 node_modules 等。"""
     for dirpath, dirnames, filenames in os.walk(ROOT):
         dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIRS]
         for name in filenames:

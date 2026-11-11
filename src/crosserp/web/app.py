@@ -28,6 +28,7 @@ from starlette.background import BackgroundTask
 
 from crosserp import __version__
 from crosserp.agent.runtime import ask as ask_agent
+from crosserp.api import install_api
 from crosserp.approval.service import approve as approve_approval
 from crosserp.approval.service import check_fresh
 from crosserp.approval.service import create as create_approval
@@ -93,6 +94,12 @@ def create_app(database_url: str | None = None) -> FastAPI:
     ensure_database_directory(resolved)
     upgrade_head(resolved)
     engine = make_engine(resolved)
+    install_api(app, engine)
+
+    @app.on_event("shutdown")
+    async def dispose_database_engine() -> None:
+        engine.dispose()
+
     ask_times: dict[str, list[float]] = {}
 
     @contextmanager
