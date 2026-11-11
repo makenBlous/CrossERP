@@ -145,29 +145,6 @@ def append(
         confidence=optional.get("confidence"),
         autonomy_level=_optional_text("autonomy_level", optional),
     )
-    if any(
-        key in optional
-        for key in (
-            "agent_id",
-            "on_behalf_of",
-            "delegation_id",
-            "run_id",
-            "tool_call_id",
-            "is_subagent",
-            "subagent_name",
-            "channel",
-            "entity_type",
-            "entity_id",
-            "diff_json",
-            "evidence_json",
-            "model",
-            "prompt_version",
-            "llm_call",
-            "confidence",
-            "autonomy_level",
-        )
-    ):
-        row.hash_version = 3
     session.add(row)
     session.flush()
     # 先写入再读回。哈希按数据库读出的值计算。避免时间精度在三库上不一致。
@@ -272,32 +249,27 @@ def payload_from_log(row: AuditLog) -> dict[str, object]:
         payload["actor_name"] = row.actor_name
         payload["hash_version"] = version
     if version >= 3:
-        for name in (
-            "agent_id",
-            "on_behalf_of",
-            "delegation_id",
-            "run_id",
-            "tool_call_id",
-            "is_subagent",
-            "subagent_name",
-            "channel",
-            "entity_type",
-            "entity_id",
-            "diff_json",
-            "evidence_json",
-            "model",
-            "prompt_version",
-            "llm_call",
-            "confidence",
-            "autonomy_level",
-        ):
-            value = getattr(row, name)
-            if name == "on_behalf_of":
-                payload[name] = _uuid_text(value)
-            elif name == "confidence" and value is not None:
-                payload[name] = str(value)
-            else:
-                payload[name] = value
+        payload.update(
+            {
+                "agent_id": row.agent_id,
+                "on_behalf_of": _uuid_text(row.on_behalf_of),
+                "delegation_id": row.delegation_id,
+                "run_id": row.run_id,
+                "tool_call_id": row.tool_call_id,
+                "is_subagent": row.is_subagent,
+                "subagent_name": row.subagent_name,
+                "channel": row.channel,
+                "entity_type": row.entity_type,
+                "entity_id": row.entity_id,
+                "diff_json": row.diff_json,
+                "evidence_json": row.evidence_json,
+                "model": row.model,
+                "prompt_version": row.prompt_version,
+                "llm_call": row.llm_call,
+                "confidence": str(row.confidence) if row.confidence is not None else None,
+                "autonomy_level": row.autonomy_level,
+            }
+        )
     return payload
 
 

@@ -4,14 +4,17 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
+from pydantic import RootModel
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.metadata import api_endpoint
+from crosserp.api.schemas import CamelModel
 from crosserp.approval.gateway import ApprovalGatewayImpl, ApproverResolver
 from crosserp.approval.state import ConcurrentModification
 from crosserp.db.schema import Approval, ApprovalType, WorkflowRule
@@ -21,9 +24,22 @@ from crosserp.platform.principal import Principal, get_principal
 router = APIRouter()
 
 
-def _session(request: Request) -> Any:
-    from sqlalchemy.orm import Session
+class ApprovalDecisionBody(CamelModel):
+    decision: Literal["approve", "reject"]
+    comment: str = ""
+    payload_hash: str | None = None
 
+
+class InitiatorConfirmBody(RootModel[dict[str, Any]]):
+    root: dict[str, Any]
+
+
+class WorkflowRuleUpdateBody(CamelModel):
+    steps: Any | None = None
+    version: int | None = None
+
+
+def _session(request: Request) -> Session:
     return Session(request.app.state.database_engine)
 
 
@@ -36,7 +52,7 @@ def _auth(principal: Principal, permission: str) -> None:
 def _item(row: Approval) -> dict[str, Any]:
     return {
         "id": str(row.id),
-        "type": row.approval_type or row.target_type,
+        "type": row.approval_type,
         "targetType": row.target_type,
         "targetId": row.target_id,
         "title": row.target_type,
@@ -46,7 +62,7 @@ def _item(row: Approval) -> dict[str, Any]:
         "origin": row.actor_type,
         "payloadHash": row.payload_hash,
         "step": row.current_step,
-        "resolution": row.resolution or {},
+        "resolution": row.resolution,
         "initiatorConfirmedBy": (
             str(row.initiator_confirmed_by) if row.initiator_confirmed_by else None
         ),
@@ -71,20 +87,22 @@ def list_approvals(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
-    sort: str | None = None,
 ) -> dict[str, Any]:
     _auth(principal, "approval:read")
     with _session(request) as session:
         stmt = select(Approval).order_by(Approval.requested_at.desc())
         all_rows = list(session.scalars(stmt))
         if q:
-            all_rows = [
-                row
-                for row in all_rows
-                if row.state == q
-                or (row.resolution or {}).get("mode") == q
-                or (row.resolution or {}).get("reason") == q
-            ]
+            filtered: list[Approval] = []
+            for row in all_rows:
+                assert row.resolution is not None
+                if (
+                    row.state == q
+                    or row.resolution.get("mode") == q
+                    or row.resolution.get("reason") == q
+                ):
+                    filtered.append(row)
+            all_rows = filtered
         total = len(all_rows)
         rows = all_rows[(page - 1) * page_size : page * page_size]
         return _page([_item(row) for row in rows], page, page_size, int(total))
@@ -100,7 +118,6 @@ def approval_types_early(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
-    sort: str | None = None,
 ) -> dict[str, Any]:
     _auth(principal, "approval:read")
     with _session(request) as session:
@@ -140,7 +157,7 @@ def get_approval(
         try:
             row = session.get(Approval, UUID(id))
         except ValueError:
-            row = None
+            raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
         if row is None:
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
         return _item(row)
@@ -151,7 +168,10 @@ def get_approval(
     entity="Approval", action="Approval.decide", permission="approval:approve", risk_tier="critical"
 )
 def decide_approval(
-    id: str, request: Request, body: dict[str, Any], principal: Principal = Depends(get_principal)
+    id: str,
+    request: Request,
+    body: ApprovalDecisionBody,
+    principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
     _auth(principal, "approval:approve")
     try:
@@ -163,10 +183,10 @@ def decide_approval(
             row = ApprovalGatewayImpl(session).decide(
                 approval_id,
                 principal=principal,
-                decision=str(body.get("decision", "")),
-                comment=str(body.get("comment", "")),
-                content_hash=body.get("payloadHash"),
-                request_id=getattr(request.state, "request_id", None),
+                decision=body.decision,
+                comment=body.comment,
+                content_hash=body.payload_hash,
+                request_id=request.state.request_id,
             )
         except ConcurrentModification as exc:
             raise APIError(ErrorCode.CONFLICT_VERSION, str(exc)) from exc
@@ -183,7 +203,6 @@ def decide_approval(
 def withdraw_approval(
     id: str,
     request: Request,
-    body: dict[str, Any] | None = None,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
     _auth(principal, "approval:create")
@@ -195,7 +214,7 @@ def withdraw_approval(
         row = ApprovalGatewayImpl(session).withdraw(
             approval_id,
             principal=principal,
-            request_id=getattr(request.state, "request_id", None),
+            request_id=request.state.request_id,
         )
         return {"approval": _item(row), "status": row.state}
 
@@ -210,7 +229,7 @@ def withdraw_approval(
 def initiator_confirm(
     id: str,
     request: Request,
-    body: dict[str, Any] | None = None,
+    body: InitiatorConfirmBody,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
     _auth(principal, "approval:create")
@@ -222,8 +241,8 @@ def initiator_confirm(
         row = ApprovalGatewayImpl(session).initiator_confirm(
             approval_id,
             principal=principal,
-            content=body or {},
-            request_id=getattr(request.state, "request_id", None),
+            content=body.root,
+            request_id=request.state.request_id,
         )
         return {"approval": _item(row), "status": row.state}
 
@@ -274,7 +293,6 @@ def workflow_rules(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
-    sort: str | None = None,
 ) -> dict[str, Any]:
     _auth(principal, "approval:read")
     with _session(request) as session:
@@ -312,7 +330,7 @@ def workflow_rules(
 def update_workflow_rule(
     id: str,
     request: Request,
-    body: dict[str, Any] | None = None,
+    body: WorkflowRuleUpdateBody,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
     _auth(principal, "approval:write")
@@ -326,9 +344,9 @@ def update_workflow_rule(
         row = session.get(WorkflowRule, rule_id)
         if row is None:
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
-        body = body or {}
-        row.steps_json = body.get("steps", row.steps_json)
-        row.version = int(body.get("version", row.version + 1))
+
+        row.steps_json = row.steps_json if body.steps is None else body.steps
+        row.version = row.version + 1 if body.version is None else body.version
         row.updated_by = principal.user_id
         row.updated_at = datetime.now(UTC)
         DefaultAuditRecorder(session).record(
@@ -336,7 +354,7 @@ def update_workflow_rule(
             entity="WorkflowRule",
             action="WorkflowRule.update",
             diff={"steps": row.steps_json},
-            request_id=getattr(request.state, "request_id", None),
+            request_id=request.state.request_id,
         )
         return {
             "id": str(row.id),

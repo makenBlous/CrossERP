@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import hashlib
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
@@ -40,11 +41,10 @@ class ApproverResolver:
                 "approvers": [],
                 "snapshot": [],
             }
-        steps = rule.steps_json if isinstance(rule.steps_json, list) else []
+        steps = rule.steps_json
         resolved_steps: list[dict[str, Any]] = []
         all_ids: list[str] = []
         for index, step in enumerate(steps):
-            step = step if isinstance(step, dict) else {"kind": str(step)}
             candidates = self._candidates(step)
             excluded = {str(x) for x in (submitter, on_behalf_of) if x is not None}
             candidate_ids = [str(u.id) for u in candidates]
@@ -85,29 +85,27 @@ class ApproverResolver:
         }
 
     def _candidates(self, step: dict[str, Any]) -> list[AppUser]:
-        kind = step.get("kind") or step.get("type")
+        kind = step["kind"]
         approver_roles = (Role.ADMIN.value, Role.FINANCE.value)
         query = select(AppUser).where(
             AppUser.is_active.is_(True),
             AppUser.id.in_(select(UserRole.user_id).where(UserRole.role.in_(approver_roles))),
         )
         if kind in {"user", "specific_user"}:
-            value = step.get("userId") or step.get("user_id")
-            if value:
-                try:
-                    user = self.session.get(AppUser, UUID(str(value)))
-                except ValueError:
-                    user = None
-                if user is None or not user.is_active:
-                    return []
-                role_exists = self.session.scalar(
-                    select(UserRole.user_id).where(
-                        UserRole.user_id == user.id, UserRole.role.in_(approver_roles)
-                    )
+            value = step.get("userId", step.get("user_id"))
+            user = self.session.get(AppUser, UUID(str(value)))
+            if user is None:
+                return []
+            if not user.is_active:
+                return []
+            role_exists = self.session.scalar(
+                select(UserRole.user_id).where(
+                    UserRole.user_id == user.id, UserRole.role.in_(approver_roles)
                 )
-                return [user] if role_exists is not None else []
+            )
+            return [user] if role_exists is not None else []
         if kind in {"role", "department_manager", "manager", "default"}:
-            role = step.get("role") or step.get("value")
+            role = step.get("role", step.get("value"))
             if role:
                 return list(
                     self.session.scalars(
@@ -119,7 +117,7 @@ class ApproverResolver:
                     )
                 )
             return list(self.session.scalars(query))
-        return list(self.session.scalars(query)) if kind else []
+        raise APIError(ErrorCode.VALIDATION_ERROR, f"不支持的审批步骤类型: {kind}")
 
 
 class ApprovalGatewayImpl:
@@ -135,10 +133,9 @@ class ApprovalGatewayImpl:
         action: str,
         payload: Any,
         risk_tier: str,
-        approval_type: str | None = None,
+        approval_type: str,
         request_id: str | None = None,
     ) -> Approval:
-        approval_type = approval_type or entity
         payload_hash = hashlib.sha256(_canonical(payload).encode()).hexdigest()
         requested_by = principal.effective_user_id
         if requested_by is None:
@@ -239,7 +236,7 @@ class ApprovalGatewayImpl:
         *,
         principal: Principal,
         decision: str,
-        comment: str,
+        comment: str | None,
         content_hash: str | None = None,
         request_id: str | None = None,
     ) -> Approval:
@@ -257,7 +254,8 @@ class ApprovalGatewayImpl:
             str(row.on_behalf_of) if row.on_behalf_of else "",
         }:
             raise APIError(ErrorCode.FORBIDDEN, "提交人或被代表人不能审批")
-        allowed = {str(x) for x in (row.approver_ids or [])}
+        assert row.approver_ids is not None
+        allowed = {str(x) for x in row.approver_ids}
         if allowed and str(principal.user_id) not in allowed:
             raise APIError(ErrorCode.FORBIDDEN, "不是当前步骤审批人")
         if decision not in {"approve", "reject"}:
@@ -265,7 +263,8 @@ class ApprovalGatewayImpl:
         new_state = "approved" if decision == "approve" else "rejected"
         next_step: dict[str, Any] | None = None
         if new_state == "approved":
-            snapshot = (row.resolution or {}).get("snapshot", [])
+            assert row.resolution is not None
+            snapshot = row.resolution["snapshot"]
             next_step = next(
                 (
                     step
@@ -276,22 +275,29 @@ class ApprovalGatewayImpl:
             )
             if next_step is not None:
                 new_state = "pending"
-        result = self.session.execute(
-            update(Approval)
-            .where(
-                Approval.id == row.id, Approval.version == row.version, Approval.state == "pending"
-            )
-            .values(
-                state=new_state,
-                approver=str(principal.user_id),
-                decided_at=datetime.now(UTC),
-                comment=comment,
-                approver_ids=next_step["approvers"] if next_step is not None else row.approver_ids,
-                current_step=next_step["index"] if next_step is not None else row.current_step,
-                version=Approval.version + 1,
-            )
+        result = cast(
+            CursorResult[Any],
+            self.session.execute(
+                update(Approval)
+                .where(
+                    Approval.id == row.id,
+                    Approval.version == row.version,
+                    Approval.state == "pending",
+                )
+                .values(
+                    state=new_state,
+                    approver=str(principal.user_id),
+                    decided_at=datetime.now(UTC),
+                    comment=comment,
+                    approver_ids=next_step["approvers"]
+                    if next_step is not None
+                    else row.approver_ids,
+                    current_step=next_step["index"] if next_step is not None else row.current_step,
+                    version=Approval.version + 1,
+                )
+            ),
         )
-        if getattr(result, "rowcount", None) != 1:
+        if result.rowcount != 1:
             raise ConcurrentModification(row.id)
         self.session.refresh(row)
         append(
@@ -327,7 +333,7 @@ class ApprovalGatewayImpl:
         approval_id: UUID,
         *,
         principal: Principal,
-        content: Any = None,
+        content: Any,
         request_id: str | None = None,
     ) -> Approval:
         if principal.is_agent:
@@ -337,19 +343,22 @@ class ApprovalGatewayImpl:
             raise APIError(ErrorCode.NOT_FOUND, "审批单不存在")
         if row.state != "awaiting_initiator" or str(principal.user_id) != row.requested_by:
             raise APIError(ErrorCode.FORBIDDEN, "只有发起本人可确认")
-        digest = hashlib.sha256(_canonical(content or {}).encode()).hexdigest()
-        result = self.session.execute(
-            update(Approval)
-            .where(Approval.id == row.id, Approval.version == row.version)
-            .values(
-                state="initiator_confirmed",
-                initiator_confirmed_by=principal.user_id,
-                initiator_confirmed_at=datetime.now(UTC),
-                initiator_confirmation_hash=digest,
-                version=Approval.version + 1,
-            )
+        digest = hashlib.sha256(_canonical(content).encode()).hexdigest()
+        result = cast(
+            CursorResult[Any],
+            self.session.execute(
+                update(Approval)
+                .where(Approval.id == row.id, Approval.version == row.version)
+                .values(
+                    state="initiator_confirmed",
+                    initiator_confirmed_by=principal.user_id,
+                    initiator_confirmed_at=datetime.now(UTC),
+                    initiator_confirmation_hash=digest,
+                    version=Approval.version + 1,
+                )
+            ),
         )
-        if getattr(result, "rowcount", None) != 1:
+        if result.rowcount != 1:
             raise ConcurrentModification(row.id)
         self.session.refresh(row)
         append(
@@ -415,12 +424,12 @@ def _canonical(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
 
 
-def _note(mode: str, reason: str | None) -> str:
+def _note(mode: str, reason: str) -> str:
     if mode == "approver":
         return "等待审批人审批"
     if mode == "initiator_confirm":
         return "需要发起人本人确认"
-    return f"无审批人, 直接生效 ({reason or 'no_account'})"
+    return f"无审批人, 直接生效 ({reason})"
 
 
 __all__ = ["ApprovalGatewayImpl", "ApproverResolver"]

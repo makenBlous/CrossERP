@@ -30,6 +30,7 @@ class ApprovalGateway(Protocol):
         action: str,
         payload: Any,
         risk_tier: str,
+        approval_type: str,
     ) -> Any: ...
 
     def resolve(
@@ -42,38 +43,4 @@ class ApprovalGateway(Protocol):
     ) -> Any: ...
 
 
-class DefaultApprovalGateway:
-    """底座兼容入口, 实际委托给 P0-03a 网关。"""
-
-    def __init__(self, session: Any) -> None:
-        self._session = session
-
-    def submit(self, **kwargs: Any) -> Any:
-        from crosserp.approval.gateway import ApprovalGatewayImpl
-
-        return ApprovalGatewayImpl(self._session).submit(**kwargs)
-
-    def resolve(
-        self, *, approval_id: UUID, principal: Principal, decision: str, comment: str | None = None
-    ) -> Any:
-        from crosserp.approval.gateway import ApprovalGatewayImpl
-
-        return ApprovalGatewayImpl(self._session).decide(
-            approval_id, principal=principal, decision=decision, comment=comment or ""
-        )
-
-
-def gateway_for(session: Any) -> Any:
-    """返回 P0-03a 的真实审批网关, 保留底座导入路径。"""
-    from crosserp.approval.gateway import ApprovalGatewayImpl
-
-    return ApprovalGatewayImpl(session)
-
-
-__all__ = [
-    "ApprovalGateway",
-    "ApprovalReason",
-    "ApprovalResolution",
-    "DefaultApprovalGateway",
-    "gateway_for",
-]
+__all__ = ["ApprovalGateway", "ApprovalReason", "ApprovalResolution"]

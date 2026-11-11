@@ -32,6 +32,7 @@ def test_resolution_auto_effective_and_agent_confirmation(engine) -> None:
                 action="create",
                 payload={"x": 1},
                 risk_tier="low",
+                approval_type="mapping",
             )
             assert auto.state == "auto_effective"
             assert auto.resolution["reason"] == "no_rule"
@@ -48,6 +49,7 @@ def test_resolution_auto_effective_and_agent_confirmation(engine) -> None:
                 action="post",
                 payload={"x": 2},
                 risk_tier="high",
+                approval_type="voucher",
             )
             assert waiting.state == "awaiting_initiator"
             confirmed = ApprovalGatewayImpl(session).initiator_confirm(
@@ -85,6 +87,7 @@ def test_configured_approver_excludes_submitter_and_rejects_self_approval(engine
                 action="post",
                 payload={"x": 1},
                 risk_tier="high",
+                approval_type="voucher",
             )
             assert row.state == "pending"
             assert str(approver.id) in row.approver_ids
@@ -163,6 +166,7 @@ def test_resolution_no_account_and_only_self_are_distinct(engine) -> None:
                 action="create",
                 payload={"x": 1},
                 risk_tier="low",
+                approval_type="no-account",
             )
             only_self = ApprovalGatewayImpl(session).submit(
                 principal=principal,
@@ -170,6 +174,7 @@ def test_resolution_no_account_and_only_self_are_distinct(engine) -> None:
                 action="create",
                 payload={"x": 2},
                 risk_tier="low",
+                approval_type="only-self",
             )
             assert no_account.state == only_self.state == "auto_effective"
             assert no_account.resolution["reason"] == "no_account"
@@ -205,6 +210,7 @@ def test_multilevel_rule_skips_unresolvable_step_and_requires_each_live_step(eng
                 action="post",
                 payload={"x": 1},
                 risk_tier="high",
+                approval_type="multi",
             )
             assert row.state == "pending"
             assert row.current_step == 1
@@ -261,6 +267,7 @@ def test_approval_rejects_payload_mismatch_and_represented_human(engine) -> None
                 action="post",
                 payload={"x": 1},
                 risk_tier="high",
+                approval_type="represented",
             )
             assert row.requested_by == str(represented.id)
             assert row.state == "pending"

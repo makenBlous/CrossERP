@@ -6,16 +6,18 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
+from pydantic import Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.metadata import api_endpoint
+from crosserp.api.schemas import CamelModel
 from crosserp.audit.log import verify_chain
 from crosserp.db.schema import (
     Approval,
@@ -34,6 +36,15 @@ from crosserp.platform.principal import Principal, get_principal
 router = APIRouter()
 
 
+class AuditExportBody(CamelModel):
+    format: Literal["jsonl"] = "jsonl"
+
+
+class RetentionUpdateBody(CamelModel):
+    chain: str = "audit_log"
+    retain_days: int = Field(default=3650, alias="retainDays", gt=0)
+
+
 def _session(request: Request) -> Session:
     return Session(request.app.state.database_engine)
 
@@ -47,18 +58,18 @@ def _log(row: AuditLog) -> dict[str, Any]:
         "id": str(row.id),
         "seq": row.seq,
         "at": row.ts.isoformat(),
-        "actorType": "human" if row.actor_type == "user" else row.actor_type,
+        "actorType": row.actor_type,
         "actorId": str(row.actor_user_id) if row.actor_user_id else None,
         "agentId": row.agent_id,
         "onBehalfOf": str(row.on_behalf_of) if row.on_behalf_of else None,
         "action": row.action,
-        "refType": row.entity_type or row.target_type,
-        "refId": row.entity_id or row.target_id,
-        "diff": row.diff_json if row.diff_json is not None else row.after_json,
+        "refType": row.entity_type,
+        "refId": row.entity_id,
+        "diff": row.diff_json,
         "reason": row.reason,
-        "evidence": row.evidence_json or [],
+        "evidence": row.evidence_json,
         "approvalId": str(row.approval_id) if row.approval_id else None,
-        "channel": row.channel or "system",
+        "channel": row.channel,
         "requestId": row.request_id,
         "ai": {
             "model": row.model,
@@ -76,7 +87,7 @@ def _log(row: AuditLog) -> dict[str, Any]:
 def _approval(row: Approval) -> dict[str, Any]:
     return {
         "id": str(row.id),
-        "type": row.approval_type or row.target_type,
+        "type": row.approval_type,
         "targetType": row.target_type,
         "targetId": row.target_id,
         "title": row.target_type,
@@ -86,7 +97,7 @@ def _approval(row: Approval) -> dict[str, Any]:
         "origin": row.actor_type,
         "payloadHash": row.payload_hash,
         "step": row.current_step,
-        "resolution": row.resolution or {},
+        "resolution": row.resolution,
         "initiatorConfirmedBy": (
             str(row.initiator_confirmed_by) if row.initiator_confirmed_by else None
         ),
@@ -97,12 +108,12 @@ def _approval(row: Approval) -> dict[str, Any]:
     }
 
 
-def _page(items: list[Any], page: int, page_size: int, total: int | None = None) -> dict[str, Any]:
+def _page(items: list[Any], page: int, page_size: int, total: int) -> dict[str, Any]:
     return {
         "items": items,
         "page": page,
         "pageSize": page_size,
-        "total": total if total is not None else len(items),
+        "total": total,
     }
 
 
@@ -116,7 +127,6 @@ def list_audit_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
-    sort: str | None = None,
 ) -> dict[str, Any]:
     _auth(principal, "audit_log:read")
     with _session(request) as session, session.begin():
@@ -128,8 +138,9 @@ def list_audit_logs(
                 | AuditLog.target_id.contains(q)
             )
         rows = list(session.scalars(stmt.offset((page - 1) * page_size).limit(page_size)))
-        total = session.scalar(select(func.count()).select_from(AuditLog)) or 0
-        return _page([_log(row) for row in rows], page, page_size, int(total))
+        total = session.scalar(select(func.count()).select_from(AuditLog))
+        assert total is not None
+        return _page([_log(row) for row in rows], page, page_size, total)
 
 
 @router.get("/audit/logs/{id}")
@@ -144,7 +155,7 @@ def get_audit_log(
         try:
             row = session.get(AuditLog, UUID(id))
         except ValueError:
-            row = None
+            raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
         if row is None:
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
         return _log(row)
@@ -187,7 +198,7 @@ def verify_audit(request: Request, principal: Principal = Depends(get_principal)
             entity="AuditLog",
             action="AuditLog.create",
             diff={"ok": result.ok, "checked": result.checked},
-            request_id=getattr(request.state, "request_id", None),
+            request_id=request.state.request_id,
         )
         return {
             "ok": result.ok,
@@ -206,11 +217,11 @@ def verify_audit(request: Request, principal: Principal = Depends(get_principal)
 )
 def create_audit_export(
     request: Request,
-    body: dict[str, Any] | None = None,
+    body: AuditExportBody,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
     _auth(principal, "audit_log:export")
-    body = body or {}
+
     with _session(request) as session, session.begin():
         rows = list(session.scalars(select(AuditLog).order_by(AuditLog.seq)))
         content = (
@@ -223,7 +234,7 @@ def create_audit_export(
             requested_by=str(principal.effective_user_id or principal.user_id),
             from_ts=rows[0].ts if rows else now,
             to_ts=rows[-1].ts if rows else now,
-            format=str(body.get("format", "jsonl")),
+            format=body.format,
             row_count=len(rows),
             first_hash=rows[0].hash if rows else None,
             last_hash=rows[-1].hash if rows else None,
@@ -232,14 +243,13 @@ def create_audit_export(
         )
         session.add(export)
         session.flush()
-        request.app.state.audit_exports = getattr(request.app.state, "audit_exports", {})
         request.app.state.audit_exports[str(export.id)] = content
         DefaultAuditRecorder(session).record(
             principal=principal,
             entity="AuditExport",
             action="AuditExport.create",
             diff={"id": str(export.id), "rowCount": export.row_count},
-            request_id=getattr(request.state, "request_id", None),
+            request_id=request.state.request_id,
         )
         return {
             "id": str(export.id),
@@ -264,10 +274,10 @@ def download_audit_export(
         try:
             export = session.get(AuditExport, UUID(id))
         except ValueError:
-            export = None
+            raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
         if export is None:
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
-        content = getattr(request.app.state, "audit_exports", {}).get(id, b"")
+        content = request.app.state.audit_exports[id]
         return Response(
             content=content,
             media_type="application/octet-stream",
@@ -288,7 +298,6 @@ def security_events(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
-    sort: str | None = None,
 ) -> dict[str, Any]:
     _auth(principal, "audit_log:read")
     with _session(request) as session:
@@ -300,6 +309,8 @@ def security_events(
                 .limit(page_size)
             )
         )
+        total = session.scalar(select(func.count()).select_from(SecurityEvent))
+        assert total is not None
         return _page(
             [
                 {
@@ -314,6 +325,7 @@ def security_events(
             ],
             page,
             page_size,
+            total,
         )
 
 
@@ -346,7 +358,6 @@ def alerts(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
-    sort: str | None = None,
 ) -> dict[str, Any]:
     _auth(principal, "audit_log:read")
     with _session(request) as session:
@@ -358,6 +369,8 @@ def alerts(
                 .limit(page_size)
             )
         )
+        total = session.scalar(select(func.count()).select_from(AuditAlert))
+        assert total is not None
         return _page(
             [
                 {
@@ -371,6 +384,7 @@ def alerts(
             ],
             page,
             page_size,
+            total,
         )
 
 
@@ -384,7 +398,6 @@ def alerts(
 def resolve_alert(
     id: str,
     request: Request,
-    body: dict[str, Any] | None = None,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
     _auth(principal, "audit_log:write")
@@ -392,7 +405,7 @@ def resolve_alert(
         try:
             row = session.get(AuditAlert, UUID(id))
         except ValueError:
-            row = None
+            raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
         if row is None:
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
         ActionDispatcher().dispatch(
@@ -409,7 +422,7 @@ def resolve_alert(
             entity="AuditAlert",
             action="AuditAlert.resolve",
             diff={"id": id, "status": row.status},
-            request_id=getattr(request.state, "request_id", None),
+            request_id=request.state.request_id,
         )
         return {"id": id, "status": row.status}
 
@@ -447,24 +460,24 @@ def retention(request: Request, principal: Principal = Depends(get_principal)) -
 )
 def update_retention(
     request: Request,
-    body: dict[str, Any] | None = None,
+    body: RetentionUpdateBody,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
     _auth(principal, "audit_log:write")
-    body = body or {}
-    chain = str(body.get("chain", "audit_log"))
+
+    chain = body.chain
     with _session(request) as session, session.begin():
         row = session.scalar(select(RetentionPolicy).where(RetentionPolicy.chain == chain))
         if row is None:
             row = RetentionPolicy(
                 id=uuid4(),
                 chain=chain,
-                retain_days=int(body.get("retainDays", 3650)),
+                retain_days=body.retain_days,
                 updated_at=datetime.now(UTC),
             )
             session.add(row)
         else:
-            row.retain_days = int(body.get("retainDays", row.retain_days))
+            row.retain_days = body.retain_days
             row.updated_at = datetime.now(UTC)
         row.updated_by = principal.user_id
         ActionDispatcher().dispatch(
@@ -479,7 +492,7 @@ def update_retention(
             entity="RetentionPolicy",
             action="RetentionPolicy.update",
             diff={"id": str(row.id), "chain": row.chain, "retainDays": row.retain_days},
-            request_id=getattr(request.state, "request_id", None),
+            request_id=request.state.request_id,
         )
         return {"id": str(row.id), "chain": row.chain, "retainDays": row.retain_days}
 
@@ -493,7 +506,6 @@ def update_retention(
 )
 def archive_retention(
     request: Request,
-    body: dict[str, Any] | None = None,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
     _auth(principal, "audit_log:write")
@@ -522,7 +534,7 @@ def archive_retention(
             entity="RetentionPolicy",
             action="RetentionPolicy.archive",
             diff={"id": str(run.id), "rowCount": run.row_count},
-            request_id=getattr(request.state, "request_id", None),
+            request_id=request.state.request_id,
         )
         return {"id": str(run.id), "rowCount": run.row_count, "uptoHash": run.upto_hash}
 
