@@ -1,6 +1,6 @@
 # 对账异常分类
 
-状态：草案，待 maken 确认。本文只定分类，不实现对账，也不改 `IssueKind`。
+状态：规则目录已与当前 `IssueKind` 和对账代码核对；本文只说明分类，不实现对账。原先「候选码待确认」的历史说明已被 2026-11-02 的确认取代。
 人话模板的机器可读稿在 `src/crosserp/issues/catalog_draft.yaml`。W3 的 issues 模块再读它。
 事实来源：实施方案第 6.1、6.2、6.5 节；`samples/synthetic/expected/anomalies.json`；`samples/synthetic/EXPECTED.md`。
 查询日期：2026-11-02。
@@ -16,7 +16,7 @@ v0.1 只对照这两边：
 
 v0.1 没有银行流水。不设「缺银行流水」「银行参考号不符」这类结果。合成样本也没有这些字段。
 
-候选原因码在 maken 确认前不得写入 `IssueKind`。确认前，合成样本里 `expected_issue_kind` 为空或写着 `FEE_OVERCHARGE?` 的场景，正式输出仍不得使用候选码。
+`FEE_OVERCHARGE`、`SETTLEMENT_DELAYED`、`CHARGEBACK`、`PARTIAL_REFUND`、`DUPLICATE_SETTLEMENT` 已进入 `IssueKind`；代码和测试已核实。合成样本中的 `FEE_OVERCHARGE?` 是历史期望文件标记，当前正式输出使用 `FEE_OVERCHARGE`，不要修改历史 golden 结论。
 
 ## 2. 借鉴来源
 
@@ -29,7 +29,7 @@ v0.1 没有银行流水。不设「缺银行流水」「银行参考号不符」
 
 - 对上与对不上由确定规则判定。模型只解释原因，并建议下一步。
 - 费用与预期不一致、结算偏晚、同一笔收款出现两次，值得分开看。
-- 可以有「只对上一部分」的状态。它的部分对账包含银行流水。我们没有银行流水，不能照搬那个定义。`partial` 的定义见第 4 节，是推断，待确认。
+- 可以有「只对上一部分」的状态。它的部分对账包含银行流水。我们没有银行流水，不能照搬那个定义。`partial` 的定义见第 4 节；本项目现行定义已由 maken 确认。
 
 从第二个仓库只取这几条思路：
 
@@ -49,10 +49,10 @@ v0.1 没有银行流水。不设「缺银行流水」「银行参考号不符」
 - 数量只从收款行取一次。Amazon 用 `transaction-type=Order` 的 `quantity-purchased`，同一 `order-item-code` 不把费用行加总。Refund 行的数量不参与这次比较。这是样本答案里的推断，待真实数据验证。
 - 货款只加收款行的 Principal。Amazon：`transaction-type=Order` 且 `amount-description=Principal` 的 `amount`。不要把 Refund、Chargeback 的 Principal 轧进去再和 `item_price` 比。`amount-description` 的取值待真实数据验证。
 - 样本里的 Amazon 费用是负数，货款是正数。和参考费率比时用费用绝对值。
-- 实施方案 6.2 写了 `normalize(sku)`，没有定义怎么规范化。推断：只去掉首尾空白，不改大小写。待 maken 确认。不要编造平台 SKU 的大小写规则。
+- 实施方案 6.2 写了 `normalize(sku)`，现行规则只去掉首尾空白，不改大小写或其他字符。不要编造平台 SKU 的大小写规则。
 - 订单索引窗口是对账期间前后 60 天。这是实施方案 6.2 的规则，不是平台字段。
 - `GRACE_DAYS` 默认 14，可配置。合成样本是 14。
-- `period_end` 的取法，实施方案写了这个名字，没有写它是自然月月末还是文件里的 `settlement-end-date`。推断：对账命令按 `YYYY-MM` 跑，`period_end` 是该月最后一天。待 maken 确认。现有在途样本在两种取法下都不会报错，所以样本不能区分这两种取法。
+- `period_end` 使用对账月份的自然月最后一天；这是 maken 已确认的现行规则。文件里的 `settlement-end-date` 不替代该期间边界。
 - 一条异常的 `status` 初始是 `open`。v0.1 不提供关闭、忽略或解释落库。那些状态是以后的网页流程，不是本文件要实现的。
 
 判定顺序，避免一条单子报一串互相打架的码：
@@ -63,7 +63,7 @@ v0.1 没有银行流水。不设「缺银行流水」「银行参考号不符」
 4. 数量不一致：只报 `QTY_MISMATCH`，不再比货款。
 5. 币种不一致：只报 `CURRENCY_MISMATCH`，不报 `AMOUNT_MISMATCH`。这是推断。样本未覆盖。
 6. 货款不一致：报 `AMOUNT_MISMATCH`，不写 `matched`。
-7. 否则写 `matched`。利润阶段可以再挂 `COST_MISSING`、`FX_MISSING`。候选码即使确认，也只能再挂提示，不能把 `matched` 改成未匹配。
+7. 否则写 `matched`。利润阶段可以再挂 `COST_MISSING`、`FX_MISSING`。已确认的提示码也不能把 `matched` 改成未匹配。
 
 ## 4. 匹配三态
 
@@ -83,7 +83,7 @@ v0.1 没有银行流水。不设「缺银行流水」「银行参考号不符」
 
 ### partial
 
-推断，待 maken 确认。建议只用于这一种情况：
+本项目现行定义已由 maken 确认。只用于这一种情况：
 
 - 订单表能找到该订单和 SKU。
 - 本期结算里只有退款或拒付，没有 `Order` 或 Shopify `charge` 收款行。
@@ -105,7 +105,7 @@ v0.1 没有银行流水。不设「缺银行流水」「银行参考号不符」
 
 `NOT_IN_ERP`、`REFUND_WITHOUT_ORDER`、`QTY_MISMATCH`、`AMOUNT_MISMATCH`、`SKU_UNMAPPED`。
 
-`CURRENCY_MISMATCH` 是否也算未匹配：推断为算，因为不能安全比金额。样本未覆盖，待确认。
+`CURRENCY_MISMATCH` 计入未匹配，因为不能安全比金额；样本未覆盖，仍需真实文件验证字段取值。
 
 订单有、结算没有，不是结算行组。它不进入匹配率分母，也不叫未匹配组。它走「待下期」或 `NOT_IN_SETTLEMENT`。
 
@@ -129,7 +129,7 @@ v0.1 没有银行流水。不设「缺银行流水」「银行参考号不符」
 
 ## 6. 宽限期和待下期
 
-这是 `NOT_IN_SETTLEMENT` 与候选 `SETTLEMENT_DELAYED` 的边界。
+这是 `NOT_IN_SETTLEMENT` 与正式原因码 `SETTLEMENT_DELAYED` 的边界。
 
 订单没有对应的已结算收款，或 Shopify 行的 `Payout Status` 不是已打款，就看下单日期：
 
@@ -176,7 +176,7 @@ cutoff = period_end - GRACE_DAYS
 | `SETTLEMENT_DELAYED` | 待下期 | maken 已于 2026-11-02 确认 | info | 订单侧 | `in_transit` 三笔 |
 | `CHARGEBACK` | 拒付单独提示 | maken 已于 2026-11-02 确认 | info | 已匹配组 | `chargeback` 两笔 |
 | `PARTIAL_REFUND` | 部分退款提示 | maken 已于 2026-11-02 确认 | info | 已匹配组 | `partial_refund` |
-| `DUPLICATE_SETTLEMENT` | 两个结算里都有收款 | maken 已于 2026-11-02 确认 | error | 已匹配组（计法待确认） | 样本未覆盖 |
+| `DUPLICATE_SETTLEMENT` | 两个结算里都有收款 | maken 已于 2026-11-02 确认 | error | 第二笔不计入匹配成功 | 样本未覆盖 |
 
 人话模板里的 `{名字}` 是占位符。展示时替换，不把花括号留给用户。
 
@@ -357,12 +357,12 @@ cutoff = period_end - GRACE_DAYS
 - 状态：maken 已于 2026-11-02 确认。
 - 借鉴：第一个公开仓库把「费用和预期不一致」单独看。我们只对用户自己提供的参考表做这件事，不复制它的判定或文字。
 - 触发条件：匹配已经成功。Amazon 收款行里，`amount-type=ItemFees` 且 `amount-description=FBAPerUnitFulfillmentFee`。这两个取值待真实数据验证。费用绝对值，大于 `fee_reference.csv` 的 `expected_fba_fee_per_unit` 乘以数量。数量同样只取一次，不把三行费用的数量加总。参考表列是本项目的 `platform_sku`、`currency`、`expected_fba_fee_per_unit`，不是亚马逊费率字段，也不是真实费率。结算 `currency` 必须等于参考表 `currency`。币种不同时不报本码。
-- 草案阈值：严格大于参考合计就提示。不设百分比，不设绝对差额门槛。待确认。
+- 阈值：严格大于参考合计就提示。不设百分比，不设绝对差额门槛。
 - 严重度：warn。
 - 匹配率：已匹配组。匹配仍然成功。
 - 人话模板：订单 {order_id}（SKU {sku}）的配送费是 {fee_amount}，参考是每件 {fee_reference}。按数量 {qty} 计算，参考合计是 {fee_expected}。这单仍然算对上了。
 - 建议处理：对照平台费用说明。这只是提示，不改利润，也不把这单算成没对上。
-- 合成样本：`fee_overcharge`。同一 Amazon 文件第 262–264 行，订单 `SYN-US-FEE`，SKU `CUP-US-001`。FBA 行金额 -5.50，数量取一次是 1，参考 3.50。订单表第 108 行。`anomalies.json` 写的是 `FEE_OVERCHARGE?`。确认前正式原因码仍为空。
+- 合成样本：`fee_overcharge`。同一 Amazon 文件第 262–264 行，订单 `SYN-US-FEE`，SKU `CUP-US-001`。FBA 行金额 -5.50，数量取一次是 1，参考 3.50。订单表第 108 行。`anomalies.json` 中的 `FEE_OVERCHARGE?` 是历史 golden 标记，现行代码输出正式原因码 `FEE_OVERCHARGE`。
 - 样本未覆盖：佣金高于参考。参考表没有佣金列，不编造。Shopify 的 `Fee` 高于某个费率：没有参考列，样本未覆盖。
 
 ### SETTLEMENT_DELAYED
@@ -371,10 +371,10 @@ cutoff = period_end - GRACE_DAYS
 - 状态：maken 已于 2026-11-02 确认。
 - 借鉴：第一个公开仓库把「结算明显晚于预期」单独看。我们的边界是自己的 `GRACE_DAYS`，不是它的延迟定义。
 - 触发条件：与 `NOT_IN_SETTLEMENT` 同一组事实，但 `order_date` 还没有早于 `period_end - GRACE_DAYS`。包括 Shopify `Payout Status=pending` 且仍在宽限期内。
-- 和正式码的边界：宽限期内只提示、不报错；过了宽限期才用 `NOT_IN_SETTLEMENT`，并且不再用本候选码。不要两个一起报。
+- 和正式码的边界：宽限期内只提示、不报错；过了宽限期才用 `NOT_IN_SETTLEMENT`，并且不再用本码。不要两个一起报。
 - 严重度：info。
 - 匹配率：订单侧。不进入分母。
-- 它是原因码还是只是一个状态：待确认。若 maken 不要新码，界面仍应显示「待下期」，只是不写进 `issue.kind`。
+- `SETTLEMENT_DELAYED` 是正式原因码，界面同时显示「待下期」。
 - 人话模板：订单 {order_id}（SKU {sku}）下单日期 {order_date}，还在 {grace_days} 天内，先标待下期，不算错。
 - 人话模板：订单 {order_id} 在打款导出里，但打款状态是 {payout_status}，还不能当成已结算。下单日期 {order_date}，仍在宽限期内，标待下期。
 - 建议处理：等下一期结算。未超过宽限期时，不要当成漏单。
@@ -385,11 +385,11 @@ cutoff = period_end - GRACE_DAYS
 - 中文名：拒付单独提示。
 - 状态：maken 已于 2026-11-02 确认。
 - 来源：本项目 T08 场景，不是外部仓库的原因码。
-- 触发条件：能匹配到原订单，并且存在拒付行。Amazon 用 `transaction-type=Chargeback`。Shopify 用 `Type=dispute`。两个取值都待真实数据验证。确认前，利润仍按退款类计入，不单列。
+- 触发条件：能匹配到原订单，并且存在拒付行。Amazon 用 `transaction-type=Chargeback`。Shopify 用 `Type=dispute`。两个取值都待真实数据验证；利润仍按退款类计入，不单列。
 - 严重度：info。推断。
 - 匹配率：已匹配组。不改变匹配。
 - 人话模板：订单 {order_id}（SKU {sku}）有一笔拒付，金额 {amount}。目前按退款计入利润。这只是单独提示，匹配仍然成功。
-- 建议处理：若要在利润表把拒付和普通退款分开，先确认。确认前不改利润算法。
+- 建议处理：若要在利润表把拒付和普通退款分开，另行设计；当前不改利润算法。
 - 合成样本：
   - Amazon：`amazon_us_2026-10-01_2026-10-14.tsv` 第 278 行，订单 `SYN-US-CB`，SKU `CUP-US-001`。原 Order 在第 275–277 行。订单表第 111 行。当前期望原因码为空。
   - Shopify：`shopify_payout_2026-10-21.csv` 第 8 行，订单 `SYN-SH-CB`，`Type=dispute`，金额 -35.00。原 `charge` 在 `shopify_payout_2026-10-07.csv` 第 6 行。当前期望原因码为空。
@@ -415,14 +415,14 @@ cutoff = period_end - GRACE_DAYS
 - 借鉴：第一个公开仓库把「同一笔有多条结算」单独看。我们的判定用自己的结算标识，不复制它的实现。
 - 触发条件：同一个 `order-id` + `sku`（Shopify 用同一个 `Order`）的收款，出现在两个不同结算里。Amazon 的结算标识用 `settlement-id`。Shopify 没有官方打款总额标识；`Payout ID` 待真实数据验证。没有该列时，只能暂用 `Payout Date` 区分打款批次。这是推断，待确认。两笔都必须是收款：Amazon `transaction-type=Order` 且 Principal 为正；Shopify `Type=charge` 且 `Amount` 为正。一笔收款加一笔退款不是本码。
 - 严重度：error。推断。不自动删任何一行。
-- 匹配率：草案仍算已匹配组，避免没确认就改匹配率。是否把其中一组算未匹配，待确认。
+- 匹配率：第二笔重复收款不计入匹配成功，并计入异常统计；这与当前对账代码一致。
 - 人话模板：订单 {order_id}（SKU {sku}）在结算 {settlement_id_a} 和 {settlement_id_b} 里都有收款。请核对是不是同一笔钱记了两次。
 - 建议处理：人工核对两张结算。不要自动删掉其中一笔，也不要自动改利润。
 - 合成样本：样本未覆盖。文件内完全相同的两行是 `DUPLICATE_ROW`，不是本码。
 
 ## 9. 不应报错的样本
 
-这些场景的正式原因码为空。确认前也不得输出候选码。
+这些场景的正式原因码为空。历史 golden 文件中的问号标记不改变当前 `IssueKind` 输出。
 
 | 场景 | 订单 | 应有结果 |
 |---|---|---|
@@ -430,7 +430,7 @@ cutoff = period_end - GRACE_DAYS
 | `refund` | `SYN-US-REFUND` | 按订单号合并后匹配成功。利润里退款为负。不得报 `AMOUNT_MISMATCH` |
 | `partial_refund` | `SYN-US-PARTIAL` | 匹配成功。不得报 `QTY_MISMATCH` |
 | `chargeback` | `SYN-US-CB`、`SYN-SH-CB` | 匹配到原订单，按退款类计入利润 |
-| `fee_overcharge` | `SYN-US-FEE` | 匹配成功。候选码未确认，正式原因码为空 |
+| `fee_overcharge` | `SYN-US-FEE` | 匹配成功。正式原因码为 `FEE_OVERCHARGE`，不影响匹配 |
 | `in_transit` | 第 6 节三笔 | 待下期，不报 `NOT_IN_SETTLEMENT` |
 
 本样本没有生成仓储费、移除费、FBA 赔偿、促销。不是费用全集。真实文件里如果有，应进 `UNKNOWN_FEE_TYPE`，不要猜。
@@ -478,6 +478,6 @@ maken 已确认以下口径（2026-11-03）。
 
 ## 13. 本文没有做的事
 
-- 没有写对账代码，没有改 `IssueKind`，没有把候选码写进枚举。
+- 本文没有修改对账代码；现行 `IssueKind` 已包含并由测试覆盖 5 个确认原因码。
 - 没有克隆或引用两个公开仓库的代码。
 - 没有把未核实的平台取值写成事实。`transaction-type`、`amount-type`、`amount-description`、Shopify `Type`、`Payout Status` 的全集都待真实数据验证。
