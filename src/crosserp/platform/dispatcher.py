@@ -10,7 +10,7 @@ import inspect
 import json
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
@@ -71,13 +71,17 @@ class ActionDispatcher:
         audit_recorder: AuditRecorder | None = None,
         approval_gateway: ApprovalGateway | None = None,
         ai_enabled: bool = True,
+        ai_mode: str = "normal",
     ) -> None:
         self.hooks = hooks or {}
         self.session = session
         self.permission_service = permission_service or DefaultPermissionService()
         self.audit_recorder = audit_recorder
         self.approval_gateway = approval_gateway or DefaultApprovalGateway()
-        self.ai_enabled = ai_enabled
+        if ai_mode not in {"normal", "degraded", "off"}:
+            raise ValueError("ai_mode 必须是 normal、degraded 或 off")
+        self.ai_enabled = ai_enabled and ai_mode == "normal"
+        self.ai_mode = ai_mode
 
     def dispatch(
         self,
@@ -99,6 +103,7 @@ class ActionDispatcher:
         request_id: str | None = None,
         tool_call_id: str | None = None,
         parent_permissions: frozenset[str] | None = None,
+        represented_permissions: frozenset[str] | None = None,
     ) -> Any:
         all_hooks = dict(self.hooks)
         all_hooks.update(hooks or {})
@@ -113,7 +118,9 @@ class ActionDispatcher:
         }
         with self._transaction():
             self._hook(all_hooks, "identity_and_scope", context)
-            self._identity_and_scope(principal, permission, parent_permissions)
+            self._identity_and_scope(
+                principal, permission, parent_permissions, represented_permissions
+            )
             context["data_scope"] = self.permission_service.data_scope_filter(
                 principal, context["entity"]
             )
@@ -183,6 +190,7 @@ class ActionDispatcher:
                 source_file=source_file,
                 request_id=request_id,
                 tool_call_id=tool_call_id,
+                payload=payload,
             )
             self._emit_events(context, action, result, risk_tier)
             self._save_execution(
@@ -210,16 +218,46 @@ class ActionDispatcher:
         return self.session.begin()
 
     def _identity_and_scope(
-        self, principal: Principal, permission: str, parent_permissions: frozenset[str] | None
+        self,
+        principal: Principal,
+        permission: str,
+        parent_permissions: frozenset[str] | None,
+        represented_permissions: frozenset[str] | None,
     ) -> None:
         if principal.user_id is None and permission not in {"public", "authenticated"}:
             raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录")
+        current = getattr(self.permission_service, "current_permissions", None)
+        effective = principal.represented_permissions
+        if (
+            effective is None
+            and principal.is_agent
+            and principal.on_behalf_of is not None
+            and callable(current)
+        ):
+            effective = frozenset(current(principal))
+        represented = represented_permissions or effective
+        if represented is not None and not principal.permissions.issubset(represented):
+            raise APIError(ErrorCode.DELEGATION_SCOPE_EXCEEDED, "智能体不能扩展被代表人权限")
+        if (
+            parent_permissions is not None
+            and represented is not None
+            and not parent_permissions.issubset(represented)
+        ):
+            raise APIError(ErrorCode.DELEGATION_SCOPE_EXCEEDED, "主智能体不能扩展被代表人权限")
         if (
             principal.is_subagent
             and parent_permissions is not None
             and not principal.permissions.issubset(parent_permissions)
         ):
             raise APIError(ErrorCode.DELEGATION_SCOPE_EXCEEDED, "子智能体不能扩展主智能体权限")
+        if (
+            represented is not None
+            and principal.is_agent
+            and principal.on_behalf_of is not None
+            and permission not in {"public", "authenticated"}
+            and permission not in represented
+        ):
+            raise APIError(ErrorCode.PERMISSIONS_CHANGED, "被代表人的权限已变化")
 
     def _hook(
         self, hooks: dict[str, Callable[..., Any]], name: str, context: dict[str, Any]
@@ -264,11 +302,14 @@ class ActionDispatcher:
         source_file: str | None,
         request_id: str | None,
         tool_call_id: str | None,
+        payload: Any,
     ) -> int | None:
         if self.session is None or entity_id is None:
             return None
         values = _as_mapping(result)
         before = values.get("before")
+        if before is None and isinstance(payload, dict):
+            before = payload.get("before")
         after = values.get("after", result)
         diff = values.get("diff", {"before": before, "after": after})
         recorder = self.audit_recorder or DefaultAuditRecorder(self.session)
@@ -323,6 +364,7 @@ class ActionDispatcher:
             )
         )
         if RiskTier(risk_tier) is RiskTier.MEDIUM:
+            reversible_until = datetime.now(UTC) + timedelta(hours=24)
             self.session.add(
                 EntityEvent(
                     id=uuid4(),
@@ -330,7 +372,11 @@ class ActionDispatcher:
                     entity_type=context["entity"],
                     entity_id=context["entity_id"],
                     action_id=action,
-                    payload_json={"action": action},
+                    payload_json={
+                        "action": action,
+                        "notificationKind": "daily_summary",
+                        "reversibleUntil": reversible_until.isoformat(),
+                    },
                     created_at=datetime.now(UTC),
                 )
             )

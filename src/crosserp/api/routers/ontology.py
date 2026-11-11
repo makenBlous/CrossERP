@@ -174,6 +174,8 @@ def list_versions(
         if q:
             statement = statement.where(EntityVersion.action_id.contains(q))
         total = int(session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
+        if total == 0:
+            raise not_found(message="实体不存在")
         rows = list(
             session.scalars(
                 statement.order_by(EntityVersion.version.desc())
@@ -181,6 +183,8 @@ def list_versions(
                 .limit(page_size)
             )
         )
+    if not rows:
+        raise not_found(message="实体不存在")
     return _page([_version_dict(row) for row in rows], page, page_size, total)
 
 
@@ -234,6 +238,8 @@ def lineage(
                 .order_by(EntityVersion.version)
             )
         )
+    if not rows:
+        raise not_found(message="实体不存在")
     nodes: list[dict[str, Any]] = [
         {"id": f"{type}:{id}", "kind": "entity", "label": type, "visible": True}
     ]

@@ -49,7 +49,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         self.engine = engine
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.method != "POST":
+        if request.method != "POST" or request.url.path.rstrip("/").endswith("/dry-run"):
             return await call_next(request)
         key = request.headers.get("Idempotency-Key")
         if not key:

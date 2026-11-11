@@ -20,6 +20,8 @@ class PermissionService(Protocol):
 
     def data_scope_filter(self, principal: Principal, entity: str) -> Mapping[str, Any]: ...
 
+    def current_permissions(self, principal: Principal) -> frozenset[str]: ...
+
 
 class DefaultPermissionService:
     """临时桥接旧 15 点权限; iam 块可替换此实现而不改业务调用方。"""
@@ -45,6 +47,12 @@ class DefaultPermissionService:
         if isinstance(principal.data_scope, Mapping):
             return dict(principal.data_scope)
         return {"scope": principal.data_scope}
+
+    def current_permissions(self, principal: Principal) -> frozenset[str]:
+        """返回本次动作应使用的被代表人权限快照。"""
+        if principal.represented_permissions is not None:
+            return principal.represented_permissions
+        return principal.permissions
 
 
 __all__ = ["DefaultPermissionService", "PermissionDenied", "PermissionService"]
