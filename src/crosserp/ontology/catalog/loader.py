@@ -147,8 +147,10 @@ def load_catalog(path: Path | str | None = None) -> OntologyCatalog:
                 name_zh=str(item["nameZh"]),
                 module=str(item["module"]),
                 kind=str(item["kind"]),
-                properties=tuple(str(x) for x in item["properties"]),
-                relations=tuple(str(x) for x in item["relations"]),
+                properties=tuple(str(x) for x in item["properties"])
+                if "properties" in item
+                else (),
+                relations=tuple(str(x) for x in item["relations"]) if "relations" in item else (),
                 state_machine=item["stateMachine"] if "stateMachine" in item else None,
                 actions=tuple(entity_actions),
                 raw=dict(item),
