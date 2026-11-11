@@ -10,7 +10,6 @@ from typing import Any, cast
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, Request
-from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -19,7 +18,7 @@ from crosserp.api.metadata import api_endpoint
 from crosserp.api.schemas import PageParams
 from crosserp.audit.security import SecurityEventName
 from crosserp.audit.security import record as record_security
-from crosserp.auth.passwords import hash_password, verify_password
+from crosserp.auth.passwords import verify_password
 from crosserp.auth.permissions import ROLE_PERMISSIONS
 from crosserp.auth.roles import Role
 from crosserp.auth.sessions import create_session, revoke_session
@@ -31,7 +30,6 @@ from crosserp.db.schema import (
     AppSetting,
     AppUser,
     DocumentLink,
-    PasswordResetToken,
     UserRole,
     UserSession,
 )
@@ -183,176 +181,6 @@ def _user(session: Session, user_id: UUID | None) -> AppUser:
     if row is None:
         raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录", status_code=401)
     return row
-
-
-@router.post("/auth/login")
-@api_endpoint(
-    entity="UserAccount", action="UserAccount.login", permission="public", risk_tier="critical"
-)
-def login(request: Request, payload: dict[str, Any]) -> JSONResponse:
-    username = str(payload.get("username", "")).strip()
-    password = str(payload.get("password", ""))
-    now = datetime.now(UTC)
-    settings = load_settings().auth
-    with _db(request) as session:
-        user = get_by_username(session, username)
-        valid = verify_password(
-            user.password_hash if user else hash_password("dummy-login-password"), password
-        )
-        locked = bool(user and user.locked_until and user.locked_until > now)
-        if user is None or not user.is_active or locked or not valid:
-            if user is not None and not locked:
-                user.failed_logins += 1
-                if user.failed_logins >= settings.max_failed_logins:
-                    user.locked_until = now + timedelta(minutes=settings.lockout_minutes)
-            record_security(
-                session,
-                SecurityEventName.LOGIN_FAILED,
-                user_id=user.id if user else None,
-                username=username,
-            )
-            session.commit()
-            raise APIError(ErrorCode.AUTH_REQUIRED, "账号或密码错误", status_code=401)
-        user.failed_logins = 0
-        user.locked_until = None
-        token = create_session(
-            session,
-            user,
-            ip=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent"),
-            hours=settings.session_hours,
-        )
-        record_security(
-            session, SecurityEventName.LOGIN_SUCCESS, user_id=user.id, username=user.username
-        )
-        roles = frozenset(session.scalars(select(UserRole.role).where(UserRole.user_id == user.id)))
-        principal = Principal(
-            user_id=user.id, roles=roles, permissions=_effective_permissions(roles)
-        )
-        session.commit()
-    response = JSONResponse(_user_payload(session, user, principal, token.csrf_token))
-    secure = load_settings().cookie_secure or request.url.scheme == "https"
-    response.set_cookie(
-        "crosserp_session", token.value, httponly=True, samesite="lax", secure=secure, path="/"
-    )
-    response.set_cookie(
-        "crosserp_csrf", token.csrf_token, httponly=False, samesite="lax", secure=secure, path="/"
-    )
-    return response
-
-
-@router.post("/auth/logout")
-@api_endpoint(
-    entity="UserAccount",
-    action="UserAccount.logout",
-    permission="authenticated",
-    risk_tier="critical",
-)
-def logout(
-    request: Request, csrf: str | None = Header(None, alias="X-CSRF-Token")
-) -> dict[str, Any]:
-    principal, session = _principal_db(request)
-    try:
-        _write_guard(request, principal, csrf)
-        _require(principal, "authenticated", entity="UserAccount")
-        token = request.cookies.get("crosserp_session")
-
-        def work() -> dict[str, Any]:
-            revoke_session(session, token)
-            on_session_revoked(session, token, reason="logout")
-            record_security(session, SecurityEventName.LOGOUT, user_id=principal.user_id)
-            return {"id": str(principal.user_id), "status": "logged_out"}
-
-        result = _dispatch_write(
-            request,
-            principal,
-            session,
-            permission="authenticated",
-            risk=RiskTier.CRITICAL,
-            entity="UserAccount",
-            action="UserAccount.logout",
-            work=work,
-        )
-        session.commit()
-        return dict(result)
-    finally:
-        session.close()
-
-
-@router.get("/auth/me")
-@api_endpoint(
-    entity="UserAccount", action="UserAccount.read_me", permission="authenticated", risk_tier="none"
-)
-def me(request: Request) -> dict[str, Any]:
-    principal, session = _principal_db(request)
-    try:
-        user = session.get(AppUser, principal.user_id)
-        return (
-            _user_payload(session, user, principal, request.cookies.get("crosserp_csrf"))
-            if user
-            else (_ for _ in ()).throw(not_found())
-        )
-    finally:
-        session.close()
-
-
-@router.post("/auth/forgot-password")
-@api_endpoint(
-    entity="UserAccount",
-    action="UserAccount.forgot_password",
-    permission="public",
-    risk_tier="critical",
-)
-def forgot_password(request: Request, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    username = str((payload or {}).get("username", "")).strip()
-    with _db(request) as session:
-        user = get_by_username(session, username)
-        result: dict[str, Any] = {"status": "accepted"}
-        if user:
-            plain = secrets.token_urlsafe(32)
-            session.add(
-                PasswordResetToken(
-                    id=uuid4(),
-                    user_id=user.id,
-                    token_hash=hashlib.sha256(plain.encode()).hexdigest(),
-                    created_at=datetime.now(UTC),
-                    expires_at=datetime.now(UTC) + timedelta(hours=1),
-                )
-            )
-            result["resetToken"] = plain
-        session.commit()
-        return result
-
-
-@router.post("/auth/reset-password")
-@api_endpoint(
-    entity="UserAccount",
-    action="UserAccount.reset_password",
-    permission="public",
-    risk_tier="critical",
-)
-def reset_password(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
-    plain = str(payload.get("token", ""))
-    new_password = str(payload.get("newPassword", payload.get("password", "")))
-    digest = hashlib.sha256(plain.encode()).hexdigest()
-    with _db(request) as session:
-        row = session.scalar(
-            select(PasswordResetToken).where(
-                PasswordResetToken.token_hash == digest, PasswordResetToken.used_at.is_(None)
-            )
-        )
-        if row is None or row.expires_at <= datetime.now(UTC):
-            raise APIError(ErrorCode.AUTH_REQUIRED, "重置令牌无效", status_code=401)
-        set_password(session, row.user_id, new_password)
-        row.used_at = datetime.now(UTC)
-        for active in session.scalars(
-            select(UserSession).where(
-                UserSession.user_id == row.user_id, UserSession.revoked_at.is_(None)
-            )
-        ):
-            active.revoked_at = datetime.now(UTC)
-        session.commit()
-        return {"id": str(row.user_id), "status": "password_reset"}
 
 
 @router.get("/account/profile")

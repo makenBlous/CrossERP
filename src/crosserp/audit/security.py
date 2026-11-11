@@ -20,6 +20,7 @@ class SecurityEventName(StrEnum):
     LOGIN_FAILED = "login_failed"
     LOGOUT = "logout"
     PASSWORD_CHANGED = "password_changed"
+    PASSWORD_RESET = "password_reset"
     USER_CREATED = "user_created"
     USER_DISABLED = "user_disabled"
     USER_ENABLED = "user_enabled"
