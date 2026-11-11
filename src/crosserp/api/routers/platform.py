@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, Header, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Header, Request, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -34,9 +34,7 @@ from crosserp.db.schema import (
     AppUser,
     DocumentLink,
     FileObject,
-    Job,
     PasswordResetToken,
-    Store,
     UserRole,
     UserSession,
 )
@@ -678,113 +676,6 @@ def get_file(request: Request, id: UUID) -> dict[str, Any]:
             "size": row.size,
             "createdAt": row.created_at.isoformat(),
         }
-    finally:
-        session.close()
-
-
-@router.get("/stores")
-@api_endpoint(entity="Store", action="Store.list", permission="report:read", risk_tier="none")
-def list_stores(
-    request: Request, params: PageParams = Depends(), q: str | None = Query(None)
-) -> dict[str, Any]:
-    principal, session = _principal_db(request)
-    try:
-        statement = select(Store).order_by(Store.name)
-        scope = principal.data_scope or {}
-        ids = scope.get("storeIds") if isinstance(scope, dict) else None
-        if ids and "all" not in scope:
-            statement = statement.where(Store.id.in_([UUID(str(v)) for v in ids]))
-        if q:
-            statement = statement.where(Store.name.contains(q))
-        rows = list(session.scalars(statement))
-        items = [
-            {
-                "id": str(r.id),
-                "platform": r.platform,
-                "marketplace": r.marketplace,
-                "name": r.name,
-                "currency": r.currency,
-            }
-            for r in rows
-        ]
-        return _page(params, items, len(items))
-    finally:
-        session.close()
-
-
-@router.post("/admin/stores", status_code=201)
-@api_endpoint(
-    entity="Store", action="Store.create", permission="system:write", risk_tier="critical"
-)
-def create_store(
-    request: Request, payload: dict[str, Any], csrf: str | None = Header(None, alias="X-CSRF-Token")
-) -> dict[str, Any]:
-    principal, session = _principal_db(request)
-    try:
-        _write_guard(request, principal, csrf)
-        row = Store(
-            id=uuid4(),
-            platform=str(payload.get("platform", "")),
-            marketplace=str(payload.get("marketplace", "")),
-            name=str(payload.get("name", "")),
-            currency=str(payload.get("currency", "CNY")).upper(),
-        )
-        session.add(row)
-        _dispatch_write(
-            request,
-            principal,
-            session,
-            permission="system:write",
-            risk=RiskTier.CRITICAL,
-            entity="Store",
-            action="Store.create",
-            work=lambda: row,
-        )
-        session.commit()
-        return {"id": str(row.id), "status": "created", "version": 1}
-    finally:
-        session.close()
-
-
-@router.patch("/admin/stores/{id}")
-@api_endpoint(
-    entity="Store", action="Store.update", permission="system:write", risk_tier="critical"
-)
-def update_store(
-    request: Request,
-    id: UUID,
-    payload: dict[str, Any],
-    csrf: str | None = Header(None, alias="X-CSRF-Token"),
-) -> dict[str, Any]:
-    principal, session = _principal_db(request)
-    try:
-        _write_guard(request, principal, csrf)
-        row = session.get(Store, id)
-        if row is None:
-            raise not_found()
-
-        def work() -> dict[str, Any]:
-            for key in ("platform", "marketplace", "name", "currency"):
-                if key in payload:
-                    setattr(
-                        row,
-                        key,
-                        str(payload[key]).upper() if key == "currency" else str(payload[key]),
-                    )
-            return {"id": str(row.id), "status": "updated", "version": 1}
-
-        result = _dispatch_write(
-            request,
-            principal,
-            session,
-            permission="system:write",
-            risk=RiskTier.CRITICAL,
-            entity="Store",
-            action="Store.update",
-            work=work,
-        )
-        session.commit()
-        return cast(dict[str, Any], result)
     finally:
         session.close()
 
