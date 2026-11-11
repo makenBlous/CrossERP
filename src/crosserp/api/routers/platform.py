@@ -172,65 +172,6 @@ def _user(session: Session, user_id: UUID | None) -> AppUser:
     return row
 
 
-@router.get("/documents/links")
-@api_endpoint(
-    entity="DocumentLink",
-    action="DocumentLink.read_links",
-    permission="document:read",
-    risk_tier="none",
-)
-def links(request: Request, params: PageParams = Depends()) -> dict[str, Any]:
-    principal, session = _principal_db(request)
-    try:
-        rows = list(session.scalars(select(DocumentLink).order_by(DocumentLink.created_at.desc())))
-        items = [
-            {
-                "id": str(r.id),
-                "from": {"type": r.from_type, "id": r.from_id},
-                "to": {"type": r.to_type, "id": r.to_id},
-                "relation": r.relation,
-            }
-            for r in rows
-        ]
-        return _page(params, items, len(items))
-    finally:
-        session.close()
-
-
-@router.get("/documents/chain/{docType}/{id}")
-@api_endpoint(
-    entity="DocumentLink",
-    action="DocumentLink.read_chain",
-    permission="report:read",
-    risk_tier="none",
-)
-def chain(request: Request, docType: str, id: str) -> dict[str, Any]:
-    principal, session = _principal_db(request)
-    try:
-        rows = list(
-            session.scalars(
-                select(DocumentLink).where(
-                    (DocumentLink.from_type == docType) & (DocumentLink.from_id == id)
-                    | (DocumentLink.to_type == docType) & (DocumentLink.to_id == id)
-                )
-            )
-        )
-        return {
-            "entity": {"type": docType, "id": id},
-            "links": [
-                {
-                    "id": str(r.id),
-                    "fromType": r.from_type,
-                    "fromId": r.from_id,
-                    "toType": r.to_type,
-                    "toId": r.to_id,
-                    "relation": r.relation,
-                }
-                for r in rows
-            ],
-        }
-    finally:
-        session.close()
 
 
 __all__ = ["router"]
