@@ -4,18 +4,17 @@
 from __future__ import annotations
 
 import secrets
-from datetime import UTC, datetime
+from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from crosserp.api.errors import APIError, ErrorCode, not_found
+from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.metadata import api_endpoint
 from crosserp.api.schemas import PageParams
-from crosserp.audit.security import SecurityEventName
-from crosserp.audit.security import record as record_security
 from crosserp.auth.permissions import ROLE_PERMISSIONS
 from crosserp.auth.roles import Role
 from crosserp.db.schema import (
