@@ -156,15 +156,23 @@ def _request_hash(request: Request, body: bytes) -> str:
         if name is None:
             raise ValueError("multipart 字段缺少 name")
         filename = part.get_filename()
-        payload = part.get_payload(decode=True) or b""
+        payload = part.get_payload(decode=True)
+        data = payload if isinstance(payload, bytes) else b""
         item = {"name": str(name), "filename": filename or ""}
         if filename is None:
-            item["value"] = payload.decode(part.get_content_charset() or "utf-8")
+            item["value"] = data.decode(part.get_content_charset() or "utf-8")
         else:
-            item["sha256"] = sha256(payload).hexdigest()
+            item["sha256"] = sha256(data).hexdigest()
             item["contentType"] = part.get_content_type()
         parts.append(item)
-    parts.sort(key=lambda item: (item["name"], item["filename"], item.get("value", ""), item.get("sha256", "")))
+    parts.sort(
+        key=lambda item: (
+            item["name"],
+            item["filename"],
+            item.get("value", ""),
+            item.get("sha256", ""),
+        )
+    )
     return sha256(json.dumps(parts, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 
