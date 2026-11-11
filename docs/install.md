@@ -1,33 +1,15 @@
-# 从本地 wheel 安装
+# 安装
 
-T53 的安装检查从本地构建的 wheel 开始，不访问 PyPI。它会初始化 SQLite 数据库、运行合成数据检查、启动本地网页、请求登录页并用初始化账号完成真实登录；计时结果写入 JSON。v1.0 前不发布 PyPI 包。
+本文状态：**已实现安装路径 + 仅设计部署目标**。
 
-## Linux / macOS
+## 本机演示
 
-在仓库根目录执行：
+代码包要求 Python 3.12 或更高版本，使用 `uv` 安装依赖；默认数据库为 SQLite `~/.crosserp/data.db`。运行 `crosserp init` 后可启动现有 FastAPI/Jinja 网页。具体命令以 `README.md`、`pyproject.toml` 和 CLI 帮助为准。
 
-```bash
-uv sync --all-extras
-uv build
-uv run python scripts/install_check.py --wheel 'dist/*.whl'
-```
+## 正式环境目标
 
-脚本会把临时 uv 工具目录放在项目的 `.ci/` 下，不修改公有 Python 环境。结果默认写到 `.ci/install-timing.json`。
+部署到内网服务器，使用 MySQL 8.4 LTS，单法人、不做多租户。FastAPI 与 agent worker 是两个进程；worker 采用独立 Python 环境嵌入 DeerFlow SDK。生产不需要 Docker，也不需要独立 DeerFlow 服务；仓库 Compose 仅可选。
 
-## Windows PowerShell
+## 安全
 
-```powershell
-uv sync --all-extras
-uv build
-uv run python scripts/install_check.py --wheel 'dist/*.whl'
-```
-
-浏览器验收可打开脚本输出的本地地址；脚本本身已经验证 `/login` 和登录跳转。若只需要查看计时：
-
-```powershell
-Get-Content .ci\install-timing.json
-```
-
-## CI 证据
-
-GitHub Actions 的 `install-smoke` 在 Ubuntu、Windows、macOS 三个 runner 上执行同一脚本，并把每个平台的 JSON 上传为 `install-timing-<平台>` artifact。artifact 是测试证据，不是发布产物。
+不把 `.env`、密钥、密码或真实卖家数据写进仓库。模型配置使用 OpenAI 兼容的 `baseUrl`、`apiKey`、`model`，密钥加密存储、不回显、不写日志。详见 [安全](security.md) 和 [08 第 10、11 章](design/08-后端模块与API设计.md)。

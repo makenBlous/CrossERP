@@ -1,23 +1,9 @@
-# 凭证草稿
+# 凭证与写账
 
-T39 只生成数据库中的凭证草稿，不向金蝶或其他外部系统写出。科目编码来自
-`CROSSERP_ACCOUNTS_FILE` 指向的 YAML；没有设置时读取 `~/.crosserp/accounts.yaml`。
-可以复制 `config/accounts.example.yaml` 后填写实际科目编码。示例中的编码均标为「待会计核实」，不能直接生成凭证。
+本文状态：**凭证和审批已实现；扩展实体动作仅设计**。
 
-当前支持按店铺月份生成：
+现有 `vouchers/` 生成凭证草稿，`approval/` 管理 `draft → pending → approved/rejected → exported`，`ledger/write_service.py` 是唯一写账/导出出口。它检查批准状态、内容哈希和一次性令牌；其他模块不得直接导入 `ledger.targets`。金额由确定性代码计算，AI 只能解释、建议或生成草稿。
 
-```bash
-cp config/accounts.example.yaml ~/.crosserp/accounts.yaml
-# 编辑 ~/.crosserp/accounts.yaml，替换所有「待会计核实」编码
-.venv/bin/crosserp voucher draft --store <店铺名> --period 2026-10 --by month --as maken
-.venv/bin/crosserp voucher list
-.venv/bin/crosserp voucher show <凭证 UUID>
-.venv/bin/crosserp voucher submit <凭证 UUID> --as maken
-# 批准后由唯一写出口生成金蝶常见列版本（模板待真实验证）
-.venv/bin/crosserp export --target kingdee_xlsx --batch voucher:<凭证 UUID> --token <一次性 token>
-```
+目标设计增加实体动作投射、按流程配置解析审批人和 `awaiting_initiator`。配置了审批人必须审批；没有可用审批人时，人发起的单据直接生效并留痕，AI 发起的钱账或高风险动作须由本人确认。审批不设金额上限。金额统一 `Money.amountMinor` 万分位整数；会计科目和税务口径是演示默认值，真实使用前需核实。
 
-每条分录只能有借方或贷方；保存前用 Decimal 检查借贷合计，任何不平衡的草稿都会被拒绝。
-凭证审批哈希包含输入哈希、科目文件哈希和规范化分录，科目文件修改后旧审批会失效。
-金蝶输出模板位于 `src/crosserp/ledger/templates/kingdee_voucher.yaml`，当前列名和顺序是常见列草案，拿到真实模板后只改 YAML。
-网页凭证详情页也提供两种格式的下载链接；批准时文件已生成，下载不会再次消费审批 token。
+详见 [ADR 0001](adr/0001-single-write-path.md)、[ADR 0009](adr/0009-approval-resolution.md) 和 [08 第 4.6、7、8 章](design/08-后端模块与API设计.md)。

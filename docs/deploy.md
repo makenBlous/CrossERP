@@ -1,76 +1,19 @@
-# Docker Compose 部署
+# 部署
 
-T52 提供本地构建的 CrossERP 镜像和三个数据库 profile。镜像只在本机使用，不推送到 GHCR、Docker Hub 或其他仓库。
+本文状态：**目标部署设计；当前代码可直接运行的部分已实现**。
 
-## 准备配置
+## 目标
 
-在仓库根目录执行：
+- 内网服务器、单法人、单套账，不做多租户。
+- 正式数据库为 MySQL 8.4 LTS；本机演示可用 SQLite。
+- FastAPI 应用进程与独立 agent worker 进程分开；worker 使用独立 Python 环境并以 DeerFlow SDK 运行。
+- 不安装 Docker 也可运行。仓库虽有 `docker-compose.yml`，它只作为可选的开发/数据库辅助，不是生产必需。
+- 不单独部署 DeerFlow 服务，不开放 DeerFlow 专用端口；浏览器只访问 CrossERP。
 
-```bash
-cp deploy/.env.example deploy/.env
-```
+## 已实现现状
 
-然后把 `deploy/.env` 中的密码全部改成自己的值。文件只在本机保存，不要提交。默认 URL 是推荐的 PostgreSQL profile；应用账号只用于业务读写，迁移账号只用于迁移和授权，智能体账号只读。
+当前 `src/crosserp/web/app.py` 提供 HTML 页面和 `/health`，CLI、导入、对账、利润、审批、凭证、审计、认证和 agent 只读工具已在代码中。独立 worker、实体动作执行器和 `/api/v1` JSON 层仍是 [08](design/08-后端模块与API设计.md) 的仅设计目标。
 
-## 启动 PostgreSQL（推荐）
+## 运维纪律
 
-```bash
-docker compose --profile pg up -d --build
-curl -fsS http://127.0.0.1:8000/health
-docker compose --profile pg exec app crosserp audit verify
-```
-
-健康检查应返回包含 `"status":"ok"` 的 JSON。停止并保留数据：
-
-```bash
-docker compose --profile pg down
-docker compose --profile pg up -d
-```
-
-## 切换 MySQL 或 SQLite
-
-先停止当前 profile，再把 `deploy/.env` 中三条 `CROSSERP_*_DATABASE_URL` 改为对应连接串。
-
-MySQL：
-
-```text
-CROSSERP_DATABASE_URL=mysql+pymysql://crosserp_app:密码@mysql:3306/crosserp?charset=utf8mb4
-CROSSERP_AGENT_DATABASE_URL=mysql+pymysql://crosserp_agent:密码@mysql:3306/crosserp?charset=utf8mb4
-CROSSERP_MIGRATE_DATABASE_URL=mysql+pymysql://root:根密码@mysql:3306/crosserp?charset=utf8mb4
-```
-
-```bash
-docker compose --profile mysql up -d --build
-curl -fsS http://127.0.0.1:8000/health
-```
-
-SQLite：
-
-```text
-CROSSERP_DATABASE_URL=sqlite:////data/crosserp.db
-CROSSERP_AGENT_DATABASE_URL=sqlite:////data/crosserp.db
-CROSSERP_MIGRATE_DATABASE_URL=sqlite:////data/crosserp.db
-```
-
-```bash
-docker compose --profile sqlite up -d --build
-curl -fsS http://127.0.0.1:8000/health
-```
-
-Windows Docker Desktop 使用 PowerShell 时，把复制配置文件命令换成：
-
-```powershell
-Copy-Item deploy\.env.example deploy\.env
-docker compose --profile pg up -d --build
-curl.exe -f http://127.0.0.1:8000/health
-```
-
-本机直接用 `http://127.0.0.1` 体验时，`deploy/.env` 的 `CROSSERP_COOKIE_SECURE` 保持 `0`，否则浏览器不会在 HTTP 请求中发送登录 Cookie。接入 HTTPS 反向代理后再改为 `1`。
-
-## HTTPS 反向代理
-
-`deploy/Caddyfile` 是示例配置。把 `CROSSERP_DOMAIN` 改成真实域名后，用 Caddy 代理到 `app:8000`，并保留 `CROSSERP_COOKIE_SECURE=1`。不要直接把应用端口暴露到公网；证书和 DNS 由部署方按自己的环境配置。
-
-## 手动备份
-
-项目不自动备份。停止服务后，按实际 profile 对命名卷做备份；SQLite 可以复制 `/data/crosserp.db`，PostgreSQL/MySQL 使用各自官方 dump 工具。
+使用环境变量 `CROSSERP_DATABASE_URL`，密钥只放部署环境；迁移由 Alembic 执行；审计表只追加；关闭 AI 后人工流程必须可用。MySQL 自检和 worker 生命周期以 [ADR 0008](adr/0008-deerflow-embedded-worker.md) 与 [08 第 10、11 章](design/08-后端模块与API设计.md) 为准。

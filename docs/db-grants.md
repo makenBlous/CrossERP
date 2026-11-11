@@ -1,33 +1,11 @@
-# CrossERP 数据库账号权限
+# 数据库账号与权限
 
-生产环境建议用三个账号：`crosserp_owner` 只负责迁移，`crosserp_app` 运行应用，`crosserp_agent` 只读查询。仓库里的 SQL 是模板，密码占位符只能在本地临时文件中替换，不能提交替换后的文件。
+本文状态：**已实现部分 + 仅设计目标**。
 
-MySQL 8.4 执行：
+当前代码已有应用用户、角色、会话、API Token 和只读 agent 数据访问的边界；实际授权逻辑以 `src/crosserp/auth/` 和 `src/crosserp/agent/db.py` 为准。正式部署目标是 MySQL 8.4 内网单法人。
 
-```bash
-sed -e 's/__OWNER_PASSWORD__/临时密码1/g' \
-    -e 's/__APP_PASSWORD__/临时密码2/g' \
-    -e 's/__AGENT_PASSWORD__/临时密码3/g' \
-    scripts/sql/grant_mysql.sql > /tmp/crosserp-grant.sql
-mysql -h 127.0.0.1 -u root -p crosserp < /tmp/crosserp-grant.sql
-```
+## 目标账号
 
-PostgreSQL 18：
+建议至少拆分：应用读写账号、迁移账号、只读 agent worker 账号和运维账号。agent 账号只授予业务查询所需 `SELECT`，不授予 DDL、写业务表、写凭证或写审批的权限；写账仍只能由应用服务调用 `ledger/write_service.py`。
 
-```bash
-sed -e 's/__OWNER_PASSWORD__/临时密码1/g' \
-    -e 's/__APP_PASSWORD__/临时密码2/g' \
-    -e 's/__AGENT_PASSWORD__/临时密码3/g' \
-    scripts/sql/grant_pg.sql > /tmp/crosserp-grant.sql
-PGPASSWORD=管理员密码 psql -h 127.0.0.1 -U postgres -d crosserp -f /tmp/crosserp-grant.sql
-```
-
-配置应用和智能体：
-
-```bash
-export CROSSERP_DATABASE_URL='mysql+pymysql://crosserp_app:密码@127.0.0.1:3306/crosserp?charset=utf8mb4'
-export CROSSERP_MIGRATE_DATABASE_URL='mysql+pymysql://crosserp_owner:密码@127.0.0.1:3306/crosserp?charset=utf8mb4'
-export CROSSERP_AGENT_DATABASE_URL='mysql+pymysql://crosserp_agent:密码@127.0.0.1:3306/crosserp?charset=utf8mb4'
-```
-
-SQLite 没有账号权限。只读会话会用 `mode=ro` 打开文件，能防止应用代码误写，但不能提供 MySQL/PG 那种审计表权限隔离；生产请使用 MySQL 8.4 或 PostgreSQL 18。W5/T31 新建表后必须重跑授权脚本；MySQL 没有 PostgreSQL 的默认权限机制，新增迁移后必须重跑授权脚本。应用账号对 `app_user`、`user_role`、`user_session`、`api_token`、`app_setting` 只有 SELECT/INSERT/UPDATE，智能体账号不读取密码哈希、会话或 API token。
+账号、字符集、`STRICT_TRANS_TABLES` 和最小权限清单以 [08 第 11 章](design/08-后端模块与API设计.md) 为准。具体生产账号名、密码和内网地址不写入仓库。
