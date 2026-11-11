@@ -14,7 +14,11 @@ from sqlalchemy.orm import Session
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.schemas import PageParams
 from crosserp.db.schema import (
+    ApiToken,
     AppUser,
+    FileObject,
+    Job,
+    Store,
     UserRole,
 )
 from crosserp.platform.audit import DefaultAuditRecorder
@@ -113,6 +117,8 @@ def _jsonable(value: Any) -> Any:
         return str(value)
     if isinstance(value, datetime):
         return value.isoformat()
+    if isinstance(value, (ApiToken, FileObject, Job, Store)):
+        return {"id": str(value.id)}
     return value
 
 

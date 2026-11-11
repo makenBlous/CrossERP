@@ -151,7 +151,7 @@ def load_catalog(path: Path | str | None = None) -> OntologyCatalog:
                 if "properties" in item
                 else (),
                 relations=tuple(str(x) for x in item["relations"]) if "relations" in item else (),
-                state_machine=item["stateMachine"] if "stateMachine" in item else None,
+                state_machine=item.get("stateMachine", None),
                 actions=tuple(entity_actions),
                 raw=dict(item),
             )
@@ -188,7 +188,7 @@ def validate_catalog(payload: dict[str, Any]) -> None:
             action_ids.add(action_id)
     for entity in entities:
         entity_id = str(entity["id"])
-        state_machine = entity["stateMachine"] if "stateMachine" in entity else None
+        state_machine = entity.get("stateMachine", None)
         if state_machine is None:
             continue
         for transition in state_machine["transitions"]:
