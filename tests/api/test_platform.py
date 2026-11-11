@@ -21,6 +21,7 @@ from crosserp.platform.dispatcher import (
 )
 from crosserp.platform.permissions import DefaultPermissionService, PermissionDenied
 from crosserp.platform.principal import ActorType, Principal
+from tests.api.conftest import TestApprovalGateway
 
 
 class _UnitPermissionService:
@@ -54,6 +55,7 @@ def test_ai_risk_cap_and_dispatch_stage_order() -> None:
     dispatcher = ActionDispatcher(
         {name: (lambda name=name, **_: calls.append(name)) for name in ActionDispatcher.STAGES},
         permission_service=_UnitPermissionService(),
+        approval_gateway=TestApprovalGateway(),
     )
     dispatcher.dispatch(
         principal=Principal(user_id=None),

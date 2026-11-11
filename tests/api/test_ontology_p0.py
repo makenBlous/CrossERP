@@ -22,6 +22,7 @@ from crosserp.ontology.catalog import load_catalog, validate_catalog
 from crosserp.platform.approval import ApprovalResolution
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
 from crosserp.platform.principal import ActorType, Principal, get_principal
+from tests.api.conftest import TestApprovalGateway
 
 
 class _UnitPermissionService:
@@ -47,7 +48,9 @@ def test_expected_version_conflict_and_idempotent_replay_do_not_write_twice() ->
         entity_id = uuid4()
         principal = Principal(user_id=uuid4(), permissions=frozenset({"store:write"}))
         dispatcher = ActionDispatcher(
-            session=Session(engine), permission_service=_UnitPermissionService()
+            session=Session(engine),
+            permission_service=_UnitPermissionService(),
+            approval_gateway=TestApprovalGateway(),
         )
         with dispatcher.session.begin():
             first = dispatcher.dispatch(
@@ -115,7 +118,9 @@ def test_subagent_scope_is_nested_and_rechecks_represented_permissions() -> None
         permissions=frozenset({"store:write"}),
         on_behalf_of=represented,
     )
-    dispatcher = ActionDispatcher(permission_service=service)
+    dispatcher = ActionDispatcher(
+        permission_service=service, approval_gateway=TestApprovalGateway()
+    )
     dispatcher.dispatch(
         principal=child,
         parent_permissions=frozenset({"store:write", "store:read"}),
@@ -171,6 +176,7 @@ def test_stage_failure_stops_pipeline_without_success_artifacts() -> None:
         dispatcher = ActionDispatcher(
             session=session,
             permission_service=Deny(),
+            approval_gateway=TestApprovalGateway(),
             hooks={
                 stage: (lambda stage=stage, **_: seen.append(stage))
                 for stage in ActionDispatcher.STAGES
@@ -199,7 +205,11 @@ def test_ai_off_and_degraded_modes_are_read_only() -> None:
         user_id=uuid4(), actor_type=ActorType.AGENT, permissions=frozenset({"store:write"})
     )
     for mode in ("off", "degraded"):
-        dispatcher = ActionDispatcher(ai_mode=mode, permission_service=_UnitPermissionService())
+        dispatcher = ActionDispatcher(
+            ai_mode=mode,
+            permission_service=_UnitPermissionService(),
+            approval_gateway=TestApprovalGateway(),
+        )
         with pytest.raises(APIError) as error:
             dispatcher.dispatch(
                 principal=principal,
@@ -226,7 +236,11 @@ def test_medium_action_keeps_reversible_preimage_and_daily_summary_event() -> No
         session = Session(engine)
         entity_id = uuid4()
         with session.begin():
-            ActionDispatcher(session=session, permission_service=_UnitPermissionService()).dispatch(
+            ActionDispatcher(
+                session=session,
+                permission_service=_UnitPermissionService(),
+                approval_gateway=TestApprovalGateway(),
+            ).dispatch(
                 principal=Principal(
                     user_id=uuid4(), actor_type=ActorType.AGENT, permissions=frozenset({"x"})
                 ),
@@ -387,7 +401,9 @@ def test_dispatch_writes_entity_version_and_rolls_back_with_audit() -> None:
         principal = Principal(user_id=uuid4(), permissions=frozenset({"store:write"}))
         entity_id = uuid4()
         dispatcher = ActionDispatcher(
-            session=Session(engine), permission_service=_UnitPermissionService()
+            session=Session(engine),
+            permission_service=_UnitPermissionService(),
+            approval_gateway=TestApprovalGateway(),
         )
         with dispatcher.session.begin():
             result = dispatcher.dispatch(
@@ -416,7 +432,9 @@ def test_ai_medium_has_no_count_limit_and_critical_is_rejected() -> None:
         actor_type=ActorType.AGENT,
     )
     calls: list[int] = []
-    dispatcher = ActionDispatcher(permission_service=_UnitPermissionService())
+    dispatcher = ActionDispatcher(
+        permission_service=_UnitPermissionService(), approval_gateway=TestApprovalGateway()
+    )
     for index in range(8):
         dispatcher.dispatch(
             principal=principal,
@@ -439,7 +457,9 @@ def test_ai_medium_has_no_count_limit_and_critical_is_rejected() -> None:
 
 
 def test_business_action_rejects_nonzero_argument_contract() -> None:
-    dispatcher = ActionDispatcher(permission_service=_UnitPermissionService())
+    dispatcher = ActionDispatcher(
+        permission_service=_UnitPermissionService(), approval_gateway=TestApprovalGateway()
+    )
     principal = Principal(user_id=uuid4(), permissions=frozenset({"store:write"}))
     with pytest.raises(APIError) as error:
         dispatcher.dispatch(
@@ -453,7 +473,9 @@ def test_business_action_rejects_nonzero_argument_contract() -> None:
 
 
 def test_three_channels_have_same_result_and_denial() -> None:
-    dispatcher = ActionDispatcher(permission_service=_UnitPermissionService())
+    dispatcher = ActionDispatcher(
+        permission_service=_UnitPermissionService(), approval_gateway=TestApprovalGateway()
+    )
     results = []
     for channel in ("web", "agent", "import"):
         results.append(

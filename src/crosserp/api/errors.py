@@ -50,7 +50,7 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.SESSION_EXPIRED: 401,
     ErrorCode.PERMISSION_DENIED: 404,
     ErrorCode.FORBIDDEN: 404,
-    ErrorCode.DATA_SCOPE_DENIED: 404,
+    ErrorCode.DATA_SCOPE_DENIED: 403,
     ErrorCode.NOT_FOUND: 404,
     ErrorCode.CONFLICT_VERSION: 409,
     ErrorCode.IDEMPOTENCY_REPLAY_MISMATCH: 409,

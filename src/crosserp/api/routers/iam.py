@@ -65,7 +65,10 @@ def _principal_check(request: Request, principal: Principal, permission: str, ri
     def check_permission(**_: Any) -> None:
         permission_service.iam.require(principal, permission, risk_tier=risk)
 
-    ActionDispatcher(permission_service=permission_service).dispatch(
+    ActionDispatcher(
+        permission_service=permission_service,
+        approval_gateway=request.app.state.approval_gateway,
+    ).dispatch(
         principal=principal,
         permission=permission,
         risk_tier=risk,

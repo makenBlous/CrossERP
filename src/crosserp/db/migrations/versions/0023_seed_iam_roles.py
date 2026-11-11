@@ -68,6 +68,7 @@ _PARENTS = {
     "finance_manager": ("accountant",),
     "department_manager": ("employee",),
 }
+_SELF_SERVICE_PERMISSIONS = ("user:read", "user:write")
 
 
 def upgrade() -> None:
@@ -81,6 +82,10 @@ def upgrade() -> None:
             if isinstance(permissions, str)
             else tuple(dict.fromkeys(permissions))
         )
+    definitions = {
+        role_id: tuple(dict.fromkeys((*permissions, *_SELF_SERVICE_PERMISSIONS)))
+        for role_id, permissions in definitions.items()
+    }
 
     role_table = sa.table(
         "iam_role",

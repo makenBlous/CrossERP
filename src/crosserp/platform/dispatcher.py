@@ -78,6 +78,8 @@ class ActionDispatcher:
             raise RuntimeError("ActionDispatcher 必须绑定 PermissionService")
         self.permission_service = permission_service
         self.audit_recorder = audit_recorder
+        if approval_gateway is None:
+            raise RuntimeError("ActionDispatcher 必须绑定 ApprovalGateway")
         self.approval_gateway = approval_gateway
         if ai_mode not in {"normal", "degraded", "off"}:
             raise ValueError("ai_mode 必须是 normal、degraded 或 off")
@@ -155,8 +157,6 @@ class ActionDispatcher:
                 )
 
             if principal.is_agent and decision is AutonomyDecision.DRAFT_OR_APPROVAL:
-                if self.approval_gateway is None:
-                    raise APIError(ErrorCode.APPROVAL_REQUIRED, "高风险动作需要审批网关")
                 approval = self.approval_gateway.submit(
                     principal=principal,
                     entity=context["entity"],
@@ -229,12 +229,12 @@ class ActionDispatcher:
     ) -> None:
         if principal.user_id is None and permission not in {"public", "authenticated"}:
             raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录")
-        current = self.permission_service.current_permissions
+        current_permissions = self.permission_service.current_permissions(principal)
         effective = principal.represented_permissions
         if effective is None and principal.is_agent and principal.on_behalf_of is not None:
-            effective = frozenset(current(principal))
+            effective = current_permissions
         represented = effective if represented_permissions is None else represented_permissions
-        if represented is not None and not principal.permissions.issubset(represented):
+        if represented is not None and not current_permissions.issubset(represented):
             raise APIError(ErrorCode.DELEGATION_SCOPE_EXCEEDED, "智能体不能扩展被代表人权限")
         if (
             parent_permissions is not None
@@ -245,7 +245,7 @@ class ActionDispatcher:
         if (
             principal.is_subagent
             and parent_permissions is not None
-            and not principal.permissions.issubset(parent_permissions)
+            and not current_permissions.issubset(parent_permissions)
         ):
             raise APIError(ErrorCode.DELEGATION_SCOPE_EXCEEDED, "子智能体不能扩展主智能体权限")
         if (

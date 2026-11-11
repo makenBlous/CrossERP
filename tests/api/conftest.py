@@ -18,6 +18,11 @@ from crosserp.platform.principal import ActorType, Principal
 from crosserp.web.app import create_app
 
 
+class TestApprovalGateway:
+    def submit(self, **_kwargs):
+        return {"approvalId": "test-approval", "state": "awaiting_approval"}
+
+
 @pytest.fixture
 def api_database(tmp_path: Path) -> str:
     return os.environ.get("CROSSERP_TEST_DATABASE_URL") or sqlite_file_url(tmp_path / "api.db")

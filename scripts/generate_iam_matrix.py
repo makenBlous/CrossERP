@@ -15,8 +15,10 @@ LEGACY = {
     "viewer": {"report:read", "agent_tool:read"},
     "auditor": {"report:read", "audit_log:read", "audit_log:export"},
 }
+SELF_SERVICE = {"user:read", "user:write"}
 templates = load_role_templates()
-roles = {key: set(value) for key, value in templates.items()}
+roles = {key: set(value) | SELF_SERVICE for key, value in templates.items()}
+LEGACY = {key: permissions | SELF_SERVICE for key, permissions in LEGACY.items()}
 roles.update(LEGACY)
 assert len(roles) == 21, len(roles)
 rows = []

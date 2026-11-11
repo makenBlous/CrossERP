@@ -130,15 +130,21 @@ def _page(params: PageParams, items: list[Any], total: int) -> dict[str, Any]:
 
 
 def _user_payload(
-    session: Session, user: AppUser, principal: Principal, csrf: str | None = None
+    request: Request,
+    session: Session,
+    user: AppUser,
+    principal: Principal,
+    csrf: str | None = None,
 ) -> dict[str, Any]:
     roles = sorted(principal.roles)
     return {
         "userId": str(user.id),
         "displayName": user.display_name,
         "roles": roles,
-        "permissions": sorted(principal.permissions),
-        "dataScopes": [principal.data_scope or {}],
+        "permissions": sorted(request.app.state.permission_service.current_permissions(principal)),
+        "dataScopes": [
+            request.app.state.permission_service.data_scope_filter(principal, "UserAccount")
+        ],
         "fieldPolicies": [],
         "aiMode": "normal",
         "locale": "zh-CN",

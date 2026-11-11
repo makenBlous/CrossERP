@@ -211,11 +211,18 @@ def install_api(app: FastAPI, engine: Any) -> None:
     """把 API 中间件、异常处理器和自动路由安装到现有 FastAPI 应用。"""
     app.state.database_engine = engine
     iam_service = IAMService(engine)
+    from crosserp.approval.gateway import ApprovalGatewayImpl
     from crosserp.platform.dispatcher import ActionDispatcher
 
     app.state.iam_service = iam_service
     app.state.permission_service = DefaultPermissionService(iam_service)
-    app.state.dispatcher = ActionDispatcher(permission_service=app.state.permission_service)
+    approval_session = Session(engine)
+    app.state.approval_gateway = ApprovalGatewayImpl(approval_session)
+    app.state.dispatcher = ActionDispatcher(
+        permission_service=app.state.permission_service,
+        approval_gateway=app.state.approval_gateway,
+    )
+    app.router.add_event_handler("shutdown", approval_session.close)
     app.state.audit_exports = {}
     app.add_middleware(IdempotencyMiddleware, engine=engine)
     app.add_middleware(RequestIdMiddleware)

@@ -114,7 +114,7 @@ def login(request: Request, payload: LoginInput) -> JSONResponse:
                 Principal(user_id=user.id, roles=user_roles)
             ),
         )
-        payload_out = _user_payload(session, user, principal, token.csrf_token)
+        payload_out = _user_payload(request, session, user, principal, token.csrf_token)
 
     response = JSONResponse(payload_out)
     secure = load_settings().cookie_secure or request.url.scheme == "https"
@@ -186,7 +186,9 @@ def me(request: Request) -> dict[str, Any]:
         user = session.get(AppUser, principal.user_id)
         if user is None:
             raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录", status_code=401)
-        return _user_payload(session, user, principal, request.cookies.get("crosserp_csrf"))
+        return _user_payload(
+            request, session, user, principal, request.cookies.get("crosserp_csrf")
+        )
     finally:
         session.close()
 
