@@ -20,7 +20,6 @@ from ._platform_common import (
 )
 
 __all__ = [
-    "router",
     "_db",
     "_dispatch_write",
     "_dispatcher",
@@ -32,4 +31,5 @@ __all__ = [
     "_user_payload",
     "_write_guard",
     "get_principal",
+    "router",
 ]
