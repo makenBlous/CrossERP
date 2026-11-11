@@ -4,14 +4,12 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import secrets
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, Header, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -33,7 +31,6 @@ from crosserp.db.schema import (
     AppSetting,
     AppUser,
     DocumentLink,
-    FileObject,
     Job,
     PasswordResetToken,
     Store,
@@ -617,82 +614,6 @@ def data_scope(request: Request) -> dict[str, Any]:
     principal, session = _principal_db(request)
     try:
         return {"scopes": [principal.data_scope or {}]}
-    finally:
-        session.close()
-
-
-@router.post("/files", status_code=201)
-@api_endpoint(
-    entity="FileObject", action="FileObject.create", permission="authenticated", risk_tier="low"
-)
-async def upload_file(
-    request: Request,
-    file: UploadFile = File(...),
-    csrf: str | None = Header(None, alias="X-CSRF-Token"),
-) -> dict[str, Any]:
-    principal, session = _principal_db(request)
-    try:
-        _write_guard(request, principal, csrf)
-        content = await file.read()
-        digest = hashlib.sha256(content).hexdigest()
-        existing = session.scalar(select(FileObject).where(FileObject.sha256 == digest))
-        if existing:
-            return {"id": str(existing.id), "sha256": digest, "status": "deduplicated"}
-        root = Path(os.environ.get("CROSSERP_FILES_DIR", "var/files"))
-        root.mkdir(parents=True, exist_ok=True)
-        path = root / digest
-        path.write_bytes(content)
-        row = FileObject(
-            id=uuid4(),
-            sha256=digest,
-            filename=file.filename or "upload",
-            content_type=file.content_type,
-            size=len(content),
-            storage_path=str(path),
-            uploaded_by=principal.user_id,
-            created_at=datetime.now(UTC),
-        )
-        session.add(row)
-        _dispatch_write(
-            request,
-            principal,
-            session,
-            permission="authenticated",
-            risk=RiskTier.LOW,
-            entity="FileObject",
-            action="FileObject.create",
-            work=lambda: row,
-        )
-        session.commit()
-        return {
-            "id": str(row.id),
-            "sha256": digest,
-            "filename": row.filename,
-            "size": row.size,
-            "status": "created",
-        }
-    finally:
-        session.close()
-
-
-@router.get("/files/{id}")
-@api_endpoint(
-    entity="FileObject", action="FileObject.get", permission="authenticated", risk_tier="none"
-)
-def get_file(request: Request, id: UUID) -> dict[str, Any]:
-    principal, session = _principal_db(request)
-    try:
-        row = session.get(FileObject, id)
-        if row is None or row.uploaded_by != principal.effective_user_id:
-            raise not_found()
-        return {
-            "id": str(row.id),
-            "sha256": row.sha256,
-            "filename": row.filename,
-            "contentType": row.content_type,
-            "size": row.size,
-            "createdAt": row.created_at.isoformat(),
-        }
     finally:
         session.close()
 
