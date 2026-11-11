@@ -809,6 +809,7 @@ class Delegation(Base):
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
+
 class EntityVersion(Base):
     """实体动作产生的不可变版本快照。"""
 
