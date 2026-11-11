@@ -1,4 +1,9 @@
-# Amazon 结算报告 Flat File V2
+'## 状态与关系
+
+- **状态：已实现连接器文档**。字段和解析规则以 `src/crosserp/connectors/amazon_settlement_v2/` 代码为准；实体投射和动作语义以 [08](../design/08-后端模块与API设计.md) 及 ontology 附件为准。
+- 未经真实平台文件核验的字段仍标「待真实数据验证」。金额遵循 08 的万分位口径。
+
+'# Amazon 结算报告 Flat File V2
 
 连接器 id：`amazon.settlement_v2`。版本 `0.1.0`。只读 tab 分隔的 Flat File V2。不做 XML，不做旧版 Flat File，不调 SP-API。
 

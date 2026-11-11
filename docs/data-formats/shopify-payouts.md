@@ -1,4 +1,9 @@
-# Shopify Payments 打款 CSV
+'## 状态与关系
+
+- **状态：已实现连接器文档；平台字段部分待真实数据验证**。代码位于 `src/crosserp/connectors/shopify_payouts/`；实体和动作以 [08](../design/08-后端模块与API设计.md) 及附件为准。
+- 金额使用确定性 Decimal/万分位规则，原始列保留，未知字段不丢弃。
+
+'# Shopify Payments 打款 CSV
 
 连接器 id：`shopify.payouts`。只读本地 CSV，不调 Shopify API。
 

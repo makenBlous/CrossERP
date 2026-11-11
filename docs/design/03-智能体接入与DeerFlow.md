@@ -1,3 +1,7 @@
+## 状态与关系
+
+- **状态：仅设计，agent 接入形态已由 08 v4 补充**。本文对 DeerFlow 能力的调研仍可参考；实际集成以 [08 第 10 章](08-后端模块与API设计.md) 与 [ADR 0008](../adr/0008-deerflow-embedded-worker.md) 为准。
+- 本文仍有效：模型调用必须经过 CrossERP 权限、人工流程不可缺失、AI 不计算金额。独立 DeerFlow 服务、沙箱和端口示例属于历史调研，已被 08 v4 第 10.0、10.1、10.9 节取代。
 # 智能体接入与 DeerFlow 2.0
 
 - 文档日期：2026-11-09（Asia/Shanghai）
@@ -90,7 +94,7 @@ CrossERP 智能体中心
     │  ① 短问答：走现有 agent 运行时，结果写 llm_call
     │  ② 长任务：由 CrossERP 作为客户端调用 DeerFlow Gateway
     ▼
-DeerFlow（单独部署在本机或内网，默认 127.0.0.1:2026）
+DeerFlow（单独部署在本机或内网 **【已被 08 v4 第 10.0、10.1 节取代】**，默认 127.0.0.1:2026）
     │  只通过 MCP 访问业务
     ▼
 CrossERP MCP 服务
@@ -138,7 +142,7 @@ DeerFlow 侧配置形状（示例，实施时按所选版本的字段名核对�
     "crosserp": {
       "command": "crosserp",
       "args": ["mcp", "serve"],
-      "enabled": true,
+      "enabled": true, **【已被 08 v4 第 4、10、12 章取代】**
       "env": {
         "CROSSERP_API_TOKEN": "$CROSSERP_API_TOKEN"
       }
@@ -149,7 +153,7 @@ DeerFlow 侧配置形状（示例，实施时按所选版本的字段名核对�
 
 若改用 HTTP MCP，则使用官方文档中的 `type: "http"` 与 `user_auth` / `headers_from_context`，按 DeerFlow 用户分别注入该用户在 CrossERP 的 Token，避免所有人共用一个管理员令牌。
 
-### 4.2 DeerFlow 单独运行
+### 4.2 DeerFlow 单独运行 **【已被 08 v4 第 10.0、10.1 节取代】**
 
 - 不把 DeerFlow 源码复制进 CrossERP 仓库。
 - 按官方文档用 Docker 或 `make setup` + `make dev` 安装；Windows 上官方 README 写明本地开发脚本以 Git Bash 为准，原生 PowerShell 不受支持。这与 maken 的环境有关，实施时需单独验证（「未核实」）。
