@@ -7083,6 +7083,14 @@ entityTypes:
     riskTier: 无（只读）
     projections:
     - GET /api/v1/agent/suggestions
+  - id: AgentSuggestion.daily_summary
+    kind: 查询
+    summary: AI 每日自动执行摘要
+    permission: agent_suggestion:read
+    aiMaxAutonomy: L1
+    riskTier: 无（只读）
+    projections:
+    - GET /api/v1/agent/daily-summary
   - id: AgentSuggestion.create
     kind: 命令
     summary: 提交建议→生成 origin=agent 草稿并进审批中心（不审批、不写账）

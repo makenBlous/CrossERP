@@ -21019,6 +21019,43 @@ paths:
         entity: AgentRun
         action: AgentRun.cancel
         actionKind: command
+  /api/v1/agent/daily-summary:
+    get:
+      operationId: getAgentDailySummary
+      tags:
+      - 智能体中心
+      summary: AI 今天替你做了 N 件事的每日站内摘要
+      parameters:
+      - name: day
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-crosserp:
+        permission: agent_suggestion:read
+        auditLog: 不记
+        aiCallable: 只读可调用
+        aiMaxAutonomy: L1
+        riskTier: none
+        pages:
+        - G01
+        source: 推断新增
+        frontendFunctions: []
+        entity: AgentSuggestion
+        action: AgentSuggestion.daily_summary
+        actionKind: query
   /api/v1/agent/suggestions:
     get:
       operationId: getAgentSuggestions

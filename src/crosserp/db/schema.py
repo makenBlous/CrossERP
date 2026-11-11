@@ -968,6 +968,27 @@ class EntityEvent(Base):
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
+class AgentUndo(Base):
+    """可撤销动作的不可变登记及一次性撤销状态。"""
+
+    __tablename__ = "agent_undo"
+    __table_args__ = (
+        Index("ix_agent_undo_deadline", "deadline_at"),
+        Index("ix_agent_undo_entity", "entity_type", "entity_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    suggestion_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
+    action_audit_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
+    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    action_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    undo_payload_json: Mapped[Any] = mapped_column(JSON(), nullable=False)
+    deadline_at: Mapped[datetime] = mapped_column(UtcDateTime(), nullable=False)
+    undone_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
+    undone_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
+
+
 class IamRole(Base):
     """权限模板/自定义角色。"""
 

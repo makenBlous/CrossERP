@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
-from crosserp.db.schema import ActionExecution, EntityEvent, EntityVersion
+from crosserp.db.schema import ActionExecution, AgentUndo, EntityEvent, EntityVersion
 from crosserp.platform.approval import ApprovalGateway
 from crosserp.platform.audit import AuditRecorder, DefaultAuditRecorder
 from crosserp.platform.permissions import PermissionService
@@ -79,6 +79,8 @@ class ActionDispatcher:
         self.permission_service = permission_service
         self.audit_recorder = audit_recorder
         self.approval_gateway = approval_gateway
+        self._last_audit_id: UUID | None = None
+        self._undo_handlers: dict[str, Callable[[dict[str, Any]], Any]] = {}
         if ai_mode not in {"normal", "degraded", "off"}:
             raise ValueError("ai_mode 必须是 normal、degraded 或 off")
         self.ai_enabled = ai_enabled and ai_mode == "normal"
@@ -105,10 +107,13 @@ class ActionDispatcher:
         tool_call_id: str | None = None,
         parent_permissions: frozenset[str] | None = None,
         represented_permissions: frozenset[str] | None = None,
+        undo_action: Callable[[dict[str, Any]], Any] | None = None,
     ) -> Any:
         all_hooks = dict(self.hooks)
         if hooks is not None:
             all_hooks.update(hooks)
+        if undo_action is not None:
+            self._undo_handlers[action] = undo_action
         context: dict[str, Any] = {
             "principal": principal,
             "permission": permission,
@@ -195,23 +200,121 @@ class ActionDispatcher:
                 tool_call_id=tool_call_id,
                 payload=payload,
             )
-            self._emit_events(context, action, result, risk_tier)
+            undo = self._create_undo(
+                principal=principal,
+                action=action,
+                entity=context["entity"],
+                entity_id=context["entity_id"],
+                result=result,
+                payload=payload,
+                version=context.get("version"),
+                risk_tier=risk_tier,
+                undo_action=undo_action,
+                audit_id=self._last_audit_id,
+            )
+            context["undo"] = undo
+            self._emit_events(context, action, result, risk_tier, undo)
             self._save_execution(
                 principal=principal,
                 action=action,
                 entity=context["entity"],
                 entity_id=context["entity_id"],
                 status="succeeded",
-                result={**_as_mapping(result), "version": context.get("version")},
+                result={
+                    **_as_mapping(result),
+                    "version": context.get("version"),
+                    "undoId": str(undo.id) if undo is not None else None,
+                },
                 idempotency_key=idempotency_key,
                 request_payload=payload,
             )
             self._hook(all_hooks, "entity_version_and_audit", context)
-            return (
-                result
-                if context.get("version") is None
-                else _with_version(result, context["version"])
+            return _with_undo(result, context.get("version"), undo)
+
+    def undo(
+        self,
+        undo_id: UUID | str,
+        *,
+        principal: Principal,
+        idempotency_key: str | None = None,
+        request_id: str | None = None,
+        undo_action: Callable[[dict[str, Any]], Any] | None = None,
+    ) -> Any:
+        """通过同一 dispatcher 以关键动作风险执行一次版本回退。"""
+        if self.session is None:
+            raise RuntimeError("撤销需要数据库会话")
+        with self._transaction():
+            request_payload = {"undoId": str(undo_id)}
+            replay = self._find_replay(idempotency_key, request_payload)
+            if replay is not None:
+                return replay
+            try:
+                key = UUID(str(undo_id))
+            except ValueError as exc:
+                raise APIError(ErrorCode.NOT_FOUND, "撤销记录不存在") from exc
+            undo = self.session.get(AgentUndo, key)
+            if undo is None:
+                undo = self.session.scalar(select(AgentUndo).where(AgentUndo.suggestion_id == key))
+            if undo is None:
+                raise APIError(ErrorCode.NOT_FOUND, "撤销记录不存在")
+            if not self._can_undo(undo, principal):
+                raise APIError(ErrorCode.NOT_FOUND, "撤销记录不存在")
+            if undo.undone_at is not None:
+                raise APIError(ErrorCode.UNDO_ALREADY_APPLIED, "动作已经撤销")
+            if datetime.now(UTC) > undo.deadline_at:
+                raise APIError(ErrorCode.UNDO_EXPIRED, "撤销期限已过")
+            payload = dict(undo.undo_payload_json)
+            current_version = self._current_version(undo.entity_type, undo.entity_id)
+            if current_version != undo.action_version:
+                raise APIError(
+                    ErrorCode.CONFLICT_VERSION,
+                    "实体已被后续动作修改，无法撤销",
+                    details={
+                        "expectedVersion": undo.action_version,
+                        "actualVersion": current_version,
+                    },
+                )
+            version_row = self.session.scalar(
+                select(EntityVersion).where(
+                    EntityVersion.entity_type == undo.entity_type,
+                    EntityVersion.entity_id == undo.entity_id,
+                    EntityVersion.version == undo.action_version,
+                )
             )
+            before = version_row.after_json if version_row is not None else None
+            target = payload.get("before")
+            if target is None:
+                previous = self.session.scalar(
+                    select(EntityVersion).where(
+                        EntityVersion.entity_type == undo.entity_type,
+                        EntityVersion.entity_id == undo.entity_id,
+                        EntityVersion.version == undo.action_version - 1,
+                    )
+                )
+                target = previous.after_json if previous is not None else None
+            handler = undo_action or self._undo_handlers.get(str(payload.get("action")))
+            work = (
+                (lambda: handler(payload))
+                if handler is not None
+                else (lambda: {"before": before, "after": target})
+            )
+            result = self.dispatch(
+                principal=principal,
+                permission="agent_suggestion:create",
+                risk_tier=RiskTier.CRITICAL,
+                action="AgentSuggestion.undo",
+                entity=undo.entity_type,
+                entity_id=undo.entity_id,
+                payload={"before": before, "after": target, "undoId": str(undo.id)},
+                expected_version=undo.action_version,
+                idempotency_key=idempotency_key,
+                request_id=request_id,
+                business_action=work,
+            )
+            undo.undone_by = principal.effective_user_id or principal.user_id
+            undo.undone_at = datetime.now(UTC)
+            self.session.flush()
+            return {**_as_mapping(result), "undone": True, "undoId": str(undo.id)}
 
     def _transaction(self) -> AbstractContextManager[Any]:
         if self.session is None:
@@ -343,26 +446,86 @@ class ActionDispatcher:
         )
         self.session.add(row)
         self.session.flush()
+        self._last_audit_id = audit.id
         return row.version
 
-    def _emit_events(
-        self, context: dict[str, Any], action: str, result: Any, risk_tier: RiskTier | str
-    ) -> None:
-        if self.session is None or context.get("entity_id") is None:
-            return
-        self.session.add(
-            EntityEvent(
-                id=uuid4(),
-                event_type=f"{context['entity'].lower()}.{action.rsplit('.', 1)[-1]}.done",
-                entity_type=context["entity"],
-                entity_id=context["entity_id"],
-                action_id=action,
-                payload_json={"result": _jsonable(result), "riskTier": RiskTier(risk_tier).value},
-                created_at=datetime.now(UTC),
-            )
+    def _create_undo(
+        self,
+        *,
+        principal: Principal,
+        action: str,
+        entity: str,
+        entity_id: str | None,
+        result: Any,
+        payload: Any,
+        version: int | None,
+        risk_tier: RiskTier | str,
+        undo_action: Callable[[dict[str, Any]], Any] | None,
+        audit_id: UUID | None,
+    ) -> AgentUndo | None:
+        if (
+            self.session is None
+            or entity_id is None
+            or version is None
+            or RiskTier(risk_tier) not in {RiskTier.LOW, RiskTier.MEDIUM}
+        ):
+            return None
+        values = _as_mapping(result)
+        before = values.get("before")
+        if before is None and isinstance(payload, dict):
+            before = payload.get("before")
+        undo = AgentUndo(
+            id=uuid4(),
+            suggestion_id=(
+                _uuid_or_none(payload.get("suggestionId")) if isinstance(payload, dict) else None
+            ),
+            action_audit_id=audit_id,
+            entity_type=entity,
+            entity_id=entity_id,
+            action_version=version,
+            undo_payload_json={
+                "entity": entity,
+                "entityId": entity_id,
+                "action": action,
+                "before": _jsonable(before),
+                "custom": undo_action is not None,
+                "actorId": str(principal.user_id) if principal.user_id else None,
+                "onBehalfOf": str(principal.on_behalf_of) if principal.on_behalf_of else None,
+                "actorType": "agent" if principal.is_agent else "human",
+            },
+            deadline_at=datetime.now(UTC) + timedelta(hours=24),
         )
-        if RiskTier(risk_tier) is RiskTier.MEDIUM:
-            reversible_until = datetime.now(UTC) + timedelta(hours=24)
+        self.session.add(undo)
+        self.session.flush()
+        return undo
+
+    def _emit_events(
+        self,
+        context: dict[str, Any],
+        action: str,
+        result: Any,
+        risk_tier: RiskTier | str,
+        undo: AgentUndo | None,
+    ) -> None:
+        if self.session is None:
+            return
+        if context.get("entity_id") is not None:
+            self.session.add(
+                EntityEvent(
+                    id=uuid4(),
+                    event_type=f"{context['entity'].lower()}.{action.rsplit('.', 1)[-1]}.done",
+                    entity_type=context["entity"],
+                    entity_id=context["entity_id"],
+                    action_id=action,
+                    payload_json={
+                        "result": _jsonable(result),
+                        "riskTier": RiskTier(risk_tier).value,
+                    },
+                    created_at=datetime.now(UTC),
+                )
+            )
+        if RiskTier(risk_tier) in {RiskTier.LOW, RiskTier.MEDIUM} and context["principal"].is_agent:
+            reversible_until = undo.deadline_at if undo is not None else datetime.now(UTC)
             self.session.add(
                 EntityEvent(
                     id=uuid4(),
@@ -374,10 +537,29 @@ class ActionDispatcher:
                         "action": action,
                         "notificationKind": "daily_summary",
                         "reversibleUntil": reversible_until.isoformat(),
+                        "undoId": str(undo.id) if undo is not None else None,
+                        "actorUserId": str(context["principal"].user_id)
+                        if context["principal"].user_id
+                        else None,
+                        "onBehalfOf": str(context["principal"].on_behalf_of)
+                        if context["principal"].on_behalf_of
+                        else None,
+                        "riskTier": RiskTier(risk_tier).value,
                     },
                     created_at=datetime.now(UTC),
                 )
             )
+
+    def _can_undo(self, undo: AgentUndo, principal: Principal) -> bool:
+        payload = dict(undo.undo_payload_json)
+        actor_id = payload.get("actorId")
+        on_behalf_of = payload.get("onBehalfOf")
+        if principal.user_id is not None and str(principal.user_id) in {actor_id, on_behalf_of}:
+            return True
+        return bool(
+            principal.permissions
+            & frozenset({"agent_suggestion:write", "agent_suggestion:approve", "system:admin"})
+        )
 
     def _save_execution(
         self,
@@ -431,6 +613,19 @@ def _with_version(value: Any, version: int) -> Any:
         if isinstance(value, dict)
         else {"result": value, "version": version}
     )
+
+
+def _with_undo(value: Any, version: int | None, undo: AgentUndo | None) -> Any:
+    result = _with_version(value, version) if version is not None else value
+    if isinstance(result, dict):
+        return {**result, "undoId": str(undo.id)} if undo is not None else result
+    return {"result": result, "undoId": str(undo.id)} if undo is not None else result
+
+
+def _uuid_or_none(value: Any) -> UUID | None:
+    if value is None:
+        return None
+    return UUID(str(value))
 
 
 def _jsonable(value: Any) -> Any:
