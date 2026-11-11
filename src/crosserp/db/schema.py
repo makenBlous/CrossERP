@@ -109,6 +109,8 @@ class Store(Base):
     marketplace: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(255))
     currency: Mapped[str] = mapped_column(String(3))
+    legal_entity: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
 
 
 class Sku(Base):
