@@ -212,10 +212,10 @@ def install_api(app: FastAPI, engine: Any) -> None:
     app.state.database_engine = engine
     iam_service = IAMService(engine)
     from crosserp.platform.dispatcher import ActionDispatcher
-
     app.state.iam_service = iam_service
     app.state.permission_service = DefaultPermissionService(iam_service)
     app.state.dispatcher = ActionDispatcher(permission_service=app.state.permission_service)
+    app.state.audit_exports = {}
     app.add_middleware(IdempotencyMiddleware, engine=engine)
     app.add_middleware(RequestIdMiddleware)
 

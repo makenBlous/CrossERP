@@ -30,6 +30,7 @@ class ApprovalGateway(Protocol):
         action: str,
         payload: Any,
         risk_tier: str,
+        approval_type: str,
     ) -> Any: ...
 
     def resolve(
@@ -42,12 +43,4 @@ class ApprovalGateway(Protocol):
     ) -> Any: ...
 
 
-class DefaultApprovalGateway:
-    def submit(self, **_: Any) -> Any:
-        raise NotImplementedError("审批网关由 audit-approval 块提供")
-
-    def resolve(self, **_: Any) -> Any:
-        raise NotImplementedError("审批网关由 audit-approval 块提供")
-
-
-__all__ = ["ApprovalGateway", "ApprovalReason", "ApprovalResolution", "DefaultApprovalGateway"]
+__all__ = ["ApprovalGateway", "ApprovalReason", "ApprovalResolution"]

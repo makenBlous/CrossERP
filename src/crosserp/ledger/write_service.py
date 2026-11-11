@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.approval.payload import compute as compute_payload
@@ -15,7 +15,7 @@ from crosserp.approval.service import hash_token, mark_exported
 from crosserp.approval.state import ApprovalState
 from crosserp.audit.log import append
 from crosserp.core.errors import CrossErpError
-from crosserp.db.schema import Approval, ExportArtifact, ProfitSnapshot, Store
+from crosserp.db.schema import Approval, ExportArtifact
 from crosserp.ledger.targets.base import LedgerTarget
 
 
@@ -74,7 +74,11 @@ def export_many(
                 reason = ("TARGET_MISMATCH", "审批对象与要导出的对象不一致")
             elif approval.used_at is not None:
                 reason = ("TOKEN_USED", "审批已被使用，不能重复导出")  # noqa: RUF001
-            elif approval.state != ApprovalState.APPROVED.value:
+            elif approval.state not in {
+                ApprovalState.APPROVED.value,
+                "auto_effective",
+                "initiator_confirmed",
+            }:
                 reason = ("NOT_APPROVED", "审批当前不是已批准状态")
             else:
                 current_hash = _payload_hash(validation, approval.target_type, approval.target_id)
@@ -105,49 +109,43 @@ def export_many(
         )
         for target in targets
     ]
-    try:
-        now = datetime.now(UTC)
-        artifacts: list[ExportArtifact] = []
-        for target, path in zip(targets, paths, strict=True):
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            artifact = ExportArtifact(
-                id=uuid4(),
-                approval_id=approval.id,
-                target_id=target.id,
-                file_path=str(path),
-                ext_ref=None,
-                sha256=digest,
-                created_at=now,
-            )
-            session.add(artifact)
-            session.flush()
-            artifacts.append(artifact)
-        approval.used_at = now
-        mark_exported(session, approval, actor="system")
-        for artifact, path, target in zip(artifacts, paths, targets, strict=True):
-            append(
-                session,
-                "system",
-                "ledger.export",
-                "export_artifact",
-                str(artifact.id),
-                None,
-                {
-                    "approval_id": str(approval.id),
-                    "target_id": target.id,
-                    "file_path": str(path),
-                    "sha256": artifact.sha256,
-                },
-                approval_id=approval.id,
-                approver_id=None,
-                self_approved=False,
-            )
-        return artifacts
-    except Exception:
-        for path in paths:
-            if path.exists():
-                path.unlink()
-        raise
+    now = datetime.now(UTC)
+    artifacts: list[ExportArtifact] = []
+    for target, path in zip(targets, paths, strict=True):
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        artifact = ExportArtifact(
+            id=uuid4(),
+            approval_id=approval.id,
+            target_id=target.id,
+            file_path=str(path),
+            ext_ref=None,
+            sha256=digest,
+            created_at=now,
+        )
+        session.add(artifact)
+        session.flush()
+        artifacts.append(artifact)
+    approval.used_at = now
+    mark_exported(session, approval, actor="system")
+    for artifact, path, target in zip(artifacts, paths, targets, strict=True):
+        append(
+            session,
+            "system",
+            "ledger.export",
+            "export_artifact",
+            str(artifact.id),
+            None,
+            {
+                "approval_id": str(approval.id),
+                "target_id": target.id,
+                "file_path": str(path),
+                "sha256": artifact.sha256,
+            },
+            approval_id=approval.id,
+            approver_id=None,
+            self_approved=False,
+        )
+    return artifacts
 
 
 def _record_denial(
@@ -183,32 +181,6 @@ def _payload_hash(session: Session, target_type: str, target_id: str | None = No
         raise ApprovalRequired("MISSING_REPORT", str(exc)) from exc
     except ValueError as exc:
         raise ApprovalRequired("INVALID_TARGET", str(exc)) from exc
-
-
-def _legacy_payload_hash(session: Session, target_id: str) -> str:
-    store_name, separator, period = target_id.rpartition(":")
-    if not separator or not store_name or len(period) != 7:
-        raise ApprovalRequired("INVALID_TARGET", "利润报表对象必须是 店铺:YYYY-MM")
-    store_uuid = None
-    try:
-        from uuid import UUID
-
-        store_uuid = UUID(store_name)
-    except ValueError:
-        pass
-    statement = (
-        select(ProfitSnapshot.inputs_hash)
-        .join(Store, ProfitSnapshot.store_id == Store.id)
-        .where(
-            ProfitSnapshot.period == period,
-            or_(Store.name == store_name, Store.id == store_uuid),
-        )
-        .order_by(ProfitSnapshot.internal_sku)
-    )
-    values = [str(value) for value in session.scalars(statement)]
-    if not values:
-        raise ApprovalRequired("MISSING_REPORT", "找不到要导出的利润报表")
-    return hashlib.sha256("\n".join(values).encode("ascii")).hexdigest()
 
 
 def _target(target_id: str) -> LedgerTarget:

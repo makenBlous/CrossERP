@@ -401,6 +401,23 @@ class AuditLog(Base):
     prev_hash: Mapped[str] = mapped_column(String(64))
     hash: Mapped[str] = mapped_column(String(64))
     hash_version: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
+    agent_id: Mapped[str | None] = mapped_column(String(128))
+    on_behalf_of: Mapped[str | None] = mapped_column(String(128))
+    delegation_id: Mapped[str | None] = mapped_column(String(128))
+    run_id: Mapped[str | None] = mapped_column(String(128))
+    tool_call_id: Mapped[str | None] = mapped_column(String(128))
+    is_subagent: Mapped[Any] = mapped_column(JSON(), default=False, nullable=True)
+    subagent_name: Mapped[str | None] = mapped_column(String(128))
+    channel: Mapped[str | None] = mapped_column(String(32))
+    entity_type: Mapped[str | None] = mapped_column(String(64))
+    entity_id: Mapped[str | None] = mapped_column(String(128))
+    diff_json: Mapped[Any | None] = mapped_column(JSON())
+    evidence_json: Mapped[Any | None] = mapped_column(JSON())
+    model: Mapped[str | None] = mapped_column(String(128))
+    prompt_version: Mapped[str | None] = mapped_column(String(64))
+    llm_call: Mapped[str | None] = mapped_column(String(128))
+    confidence: Mapped[Any | None] = mapped_column(JSON())
+    autonomy_level: Mapped[str | None] = mapped_column(String(16))
 
 
 class AuditHead(Base):
@@ -424,7 +441,7 @@ class Approval(Base):
     id: Mapped[uuid.UUID] = _uuid_pk()
     target_type: Mapped[str] = mapped_column(String(32))
     target_id: Mapped[str] = mapped_column(String(128))
-    state: Mapped[str] = mapped_column(String(16))
+    state: Mapped[str] = mapped_column(String(32))
     payload_hash: Mapped[str | None] = mapped_column(String(64))
     requested_by: Mapped[str] = mapped_column(String(64))
     requested_at: Mapped[datetime] = mapped_column(UtcDateTime())
@@ -434,6 +451,74 @@ class Approval(Base):
     token_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
     used_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    approval_type: Mapped[str | None] = mapped_column(String(64))
+    risk_tier: Mapped[str | None] = mapped_column(String(16))
+    actor_type: Mapped[str] = mapped_column(String(16), default="human", server_default="human")
+    on_behalf_of: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    resolution: Mapped[Any | None] = mapped_column(JSON())
+    content_hash: Mapped[str | None] = mapped_column(String(64))
+    initiator_confirmed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    initiator_confirmed_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    initiator_confirmation_hash: Mapped[str | None] = mapped_column(String(64))
+    approver_ids: Mapped[Any | None] = mapped_column(JSON())
+    current_step: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+
+class ApprovalType(Base):
+    __tablename__ = "approval_type"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    code: Mapped[str] = mapped_column(String(64), unique=True)
+    name: Mapped[str] = mapped_column(String(128))
+    risk_tier: Mapped[str] = mapped_column(String(16))
+    enabled: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    template_json: Mapped[Any | None] = mapped_column(JSON())
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class WorkflowRule(Base):
+    __tablename__ = "workflow_rule"
+    __table_args__ = (
+        UniqueConstraint("approval_type", "version", name="uq_workflow_rule_type_version"),
+    )
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    approval_type: Mapped[str] = mapped_column(String(64))
+    version: Mapped[int] = mapped_column(Integer)
+    steps_json: Mapped[Any] = mapped_column(JSON())
+    enabled: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class AuditAlert(Base):
+    __tablename__ = "audit_alert"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    kind: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(32), default="open", server_default="open")
+    detail_json: Mapped[Any | None] = mapped_column(JSON())
+    audit_log_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    resolved_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+
+
+class RetentionPolicy(Base):
+    __tablename__ = "retention_policy"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    chain: Mapped[str] = mapped_column(String(32), unique=True)
+    retain_days: Mapped[int] = mapped_column(Integer, default=3650, server_default="3650")
+    archive_before: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class ArchiveRun(Base):
+    __tablename__ = "audit_archive_run"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    chain: Mapped[str] = mapped_column(String(32))
+    upto_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    upto_hash: Mapped[str] = mapped_column(String(64))
+    row_count: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
 class Voucher(Base):

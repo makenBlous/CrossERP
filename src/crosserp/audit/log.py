@@ -15,7 +15,7 @@ from crosserp.db.dialects import lock_for_update
 from crosserp.db.schema import AuditCheckpoint, AuditHead, AuditLog
 
 AUDIT_LOG_CHAIN = "audit_log"
-_ACTOR_TYPES = frozenset({"user", "agent", "system"})
+_ACTOR_TYPES = frozenset({"user", "human", "agent", "system"})
 _OPTIONAL = frozenset(
     {
         "actor_user_id",
@@ -29,6 +29,23 @@ _OPTIONAL = frozenset(
         "user_agent",
         "self_approved",
         "ts",
+        "agent_id",
+        "on_behalf_of",
+        "delegation_id",
+        "run_id",
+        "tool_call_id",
+        "is_subagent",
+        "subagent_name",
+        "channel",
+        "entity_type",
+        "entity_id",
+        "diff_json",
+        "evidence_json",
+        "model",
+        "prompt_version",
+        "llm_call",
+        "confidence",
+        "autonomy_level",
     }
 )
 _LIMITS = {
@@ -109,7 +126,24 @@ def append(
         self_approved=_require_bool(optional.get("self_approved", False)),
         prev_hash=previous,
         hash=GENESIS_PREV_HASH,
-        hash_version=2,
+        hash_version=3,
+        agent_id=_optional_text("agent_id", optional),
+        on_behalf_of=_optional_uuid_text("on_behalf_of", optional),
+        delegation_id=_optional_text("delegation_id", optional),
+        run_id=_optional_text("run_id", optional),
+        tool_call_id=_optional_text("tool_call_id", optional),
+        is_subagent=_require_bool(optional.get("is_subagent", False)),
+        subagent_name=_optional_text("subagent_name", optional),
+        channel=_optional_text("channel", optional),
+        entity_type=_optional_text("entity_type", optional),
+        entity_id=_optional_text("entity_id", optional),
+        diff_json=_stored_json(optional.get("diff_json")),
+        evidence_json=_stored_json(optional.get("evidence_json")),
+        model=_optional_text("model", optional),
+        prompt_version=_optional_text("prompt_version", optional),
+        llm_call=_optional_text("llm_call", optional),
+        confidence=optional.get("confidence"),
+        autonomy_level=_optional_text("autonomy_level", optional),
     )
     session.add(row)
     session.flush()
@@ -214,6 +248,28 @@ def payload_from_log(row: AuditLog) -> dict[str, object]:
     if version >= 2:
         payload["actor_name"] = row.actor_name
         payload["hash_version"] = version
+    if version >= 3:
+        payload.update(
+            {
+                "agent_id": row.agent_id,
+                "on_behalf_of": _uuid_text(row.on_behalf_of),
+                "delegation_id": row.delegation_id,
+                "run_id": row.run_id,
+                "tool_call_id": row.tool_call_id,
+                "is_subagent": row.is_subagent,
+                "subagent_name": row.subagent_name,
+                "channel": row.channel,
+                "entity_type": row.entity_type,
+                "entity_id": row.entity_id,
+                "diff_json": row.diff_json,
+                "evidence_json": row.evidence_json,
+                "model": row.model,
+                "prompt_version": row.prompt_version,
+                "llm_call": row.llm_call,
+                "confidence": str(row.confidence) if row.confidence is not None else None,
+                "autonomy_level": row.autonomy_level,
+            }
+        )
     return payload
 
 
@@ -274,6 +330,17 @@ def _optional_uuid(name: str, optional: dict[str, object]) -> uuid.UUID | None:
     value = optional[name]
     if not isinstance(value, uuid.UUID):
         raise TypeError(f"{name} 必须是 UUID")
+    return value
+
+
+def _optional_uuid_text(name: str, optional: dict[str, object]) -> str | None:
+    if name not in optional or optional[name] is None:
+        return None
+    value = optional[name]
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    if not isinstance(value, str):
+        raise TypeError(f"{name} 必须是 UUID 或字符串")
     return value
 
 

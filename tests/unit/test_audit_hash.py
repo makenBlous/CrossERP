@@ -66,7 +66,7 @@ def test_payload_covers_every_column_except_hash() -> None:
         self_approved=False,
         prev_hash=GENESIS_PREV_HASH,
         hash=GENESIS_PREV_HASH,
-        hash_version=2,
+        hash_version=3,
     )
     columns = {column.key for column in AuditLog.__table__.columns}
     assert set(payload_from_log(row)) == columns - {"hash"}

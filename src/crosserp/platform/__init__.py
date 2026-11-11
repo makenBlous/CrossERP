@@ -4,7 +4,6 @@ from crosserp.platform.approval import (
     ApprovalGateway,
     ApprovalReason,
     ApprovalResolution,
-    DefaultApprovalGateway,
 )
 from crosserp.platform.audit import AuditRecorder, DefaultAuditRecorder
 from crosserp.platform.dispatcher import (
@@ -28,7 +27,6 @@ __all__ = [
     "ApprovalResolution",
     "AuditRecorder",
     "AutonomyDecision",
-    "DefaultApprovalGateway",
     "DefaultAuditRecorder",
     "DefaultPermissionService",
     "PermissionDenied",
