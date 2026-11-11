@@ -1,5 +1,8 @@
 # T38 审批台 + 审计页（改前改后对比、链状态）+ W5 验收证据
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+> **历史要求说明：** W5 证据中的“单人模式自批”是历史验收做法，已被 08 v4 第 4.6、12.1、12.3 节取代；本卡原文保留，现行审批决定和发起人确认均以 OpenAPI `critical` 为准。
+
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
 | review | W5 | 1.5 天 | T36、T37 | `main` |
@@ -9,7 +12,7 @@
 
 ## 背景
 - 实施方案 8 W5 第 6、7 条和 W5 验收（「5 个角色权限矩阵测试全过；越权访问返回 403 并被记录；一人模式下自批也有标记」）。
-- 仓库现状：`approval/service.py` 已有 `create/submit/approve/reject/reopen/invalidate/check_fresh/mark_exported`；CLI 有 `approval request/list/approve/reject --as`；`approval.comment String(1000)`；目前审批对象只有利润报表（`target_type`，`_payload_hash` 只支持 `店铺:YYYY-MM`），W6 T39 才加凭证。
+- 仓库现状：`approval/service.py` 已有 `create/submit/approve/reject/reopen/invalidate/check_fresh/mark_exported`；CLI 有 `approval request/list/approve/reject --as`；`approval.comment String(1000)`；目前审批对象只有利润报表（`target_type`，`_payload_hash` 只支持 `店铺:YYYY-MM`），W6 T39 才加凭证。这里的历史自批验收口径已被 08 v4 第 4.6、12.1 节取代。
 - `approve()` 返回一次性导出 token（只存 `token_hash`）；网页怎么用 token 在 T41 定（⚠ T41 Q1），本任务批准后**只显示「已批准」，不显示 token**。
 - 审计：`audit/log.py`、`audit/chain.py`、`verify`；T31 有导出。
 
@@ -18,7 +21,7 @@
 - 批准/驳回：HTMX 表单，意见必填（1–1000 字）；调用 T35 改过的 `approve/reject`（带自批检查）；并发：用现有 `version` 乐观锁，冲突显示「别人刚处理过，请刷新」。
 - 提交审批（operator，`approval.submit`）：在 `/profit` 每个店铺-月份行加「提交审批」按钮，调用现有 `create`+`submit`。
 - 审计页 `/audit`（`audit.read`）：筛选（时间、操作者、动作、对象类型、对象 ID）、分页；每行可展开 before/after 的字段级对比（新增/删除/修改三色，纯后端计算差异，前端只渲染）；页头显示两条链状态（业务链 + security 链：最后 seq、最后校验时间、按钮「立即校验」调用 verify，只显示结果，不写 checkpoint，checkpoint 仍由 CLI 做）；「导出」按钮调用 T31 导出逻辑生成 zip 下载（`audit.export`）。
-- W5 验收证据 `docs/evidence/W5.md`：权限矩阵测试输出、403 + permission_denied 截图或日志、单人模式自批 `self_approved=true` 的审计行、三库测试结果。真实截图由 maken 补，代理写「待 maken 补」。
+- W5 验收证据 `docs/evidence/W5.md`：权限矩阵测试输出、403 + permission_denied 截图或日志、单人模式自批【已被取代，见文首】 `self_approved=true` 的审计行、三库测试结果【历史验收口径，现行数据库目标见 08 v4 第 11.3 节】。真实截图由 maken 补，代理写「待 maken 补」。
 - 提交：`main`，`feat(web): add approval console and audit viewer (T38)`；W5 证据单独一个提交 `docs: add W5 evidence (T38)`；测试不过不提交；不发布。
 
 ## 不做
@@ -36,7 +39,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/web tests/unit/audit -q` | passed |
-| `uv run pytest -m db -q`（三库） | passed |
+| `uv run pytest -m db -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run crosserp audit verify && uv run crosserp audit verify --chain security` | 都通过 |
 | 全量检查（覆盖率 ≥ 60） | 全过 |
 
@@ -53,5 +56,5 @@
 ## 完成记录
 - 完成内容：新增审批台列表/详情及批准、驳回表单；利润报表提交审批；审批意见和新鲜度检查；审批审计写入真实 `approver_id`；新增后端字段差异计算；新增业务审计页、分页筛选、两条哈希链状态、立即校验和审计包下载；补充 W5 验收证据文档。
 - 修改文件：`src/crosserp/web/app.py`、`src/crosserp/web/templates/{approvals,approval_detail,audit,index,profit}.html`、`src/crosserp/web/routes/__init__.py`、`src/crosserp/audit/diff.py`、`src/crosserp/approval/service.py`、`src/crosserp/db/session.py`、`tests/unit/audit/test_diff.py`、`tests/web/test_approval_console.py`、`tests/web/test_audit_page.py`、`docs/evidence/W5.md`、`CHANGELOG.md`。
-- 测试结果：`.venv/bin/ruff format --check .` 通过；`.venv/bin/ruff check .` 通过；`.venv/bin/mypy` 通过；`.venv/bin/pytest tests/web tests/unit/audit -q` 为 12 passed；全量 `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 238 passed、7 skipped，覆盖率 81.23%。Docker 可用但本次未启动 MySQL/PG 容器，三库由 CI db matrix 负责。
+- 测试结果：`.venv/bin/ruff format --check .` 通过；`.venv/bin/ruff check .` 通过；`.venv/bin/mypy` 通过；`.venv/bin/pytest tests/web tests/unit/audit -q` 为 12 passed；全量 `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 238 passed、7 skipped，覆盖率 81.23%。Docker 可用但本次未启动 MySQL/PG 容器，三库由 CI db matrix 负责。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - 偏离计划：仓库当前网页路由集中在 `web/app.py`，按现有装配方式实现，未新增独立 route 模块；审批意见通过现有 `comment` 字段保存；按推荐默认执行，无新的待 maken 确认项。

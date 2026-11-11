@@ -1,3 +1,5 @@
+历史记录（日期未核实），对应版本 v0.1 / T21；现行规则见 [docs/dev/测试与回归.md](../dev/测试与回归.md)。
+
 # Golden 结果
 
 运行 `uv run crosserp check-golden --period 2026-10 --expected tests/golden/profit_expected.csv --report-md docs/eval-results/v0.1-golden-synthetic.md`，会把逐分比对结果写入 Markdown。

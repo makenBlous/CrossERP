@@ -1,5 +1,8 @@
 # T43 AI 运行时：引用检查 + 数字核对 + `crosserp ask` + 提示词文件（⚠ 待 maken 确认）
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+> **取代标注：** 旧任务按旧环境变量描述模型接入；已被 08 v4 第 10.8、12.1 节取代：前端填写 OpenAI 兼容 baseUrl、apiKey、model，密钥加密存储、不回显、不进日志。
+
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
 | review | W7 | 2 天 | T42 | `main` |

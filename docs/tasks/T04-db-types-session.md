@@ -1,14 +1,17 @@
 # T04 数据库层：Money4 / FxRate / UtcDateTime 类型 + 连接会话 + MySQL 启动自检
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+> **取代标注：** 旧任务把三库并列支持写成目标；已被 08 v4 第 11.3 节取代：正式环境以 MySQL 8.4 LTS 为主，SQLite 保留演示，PostgreSQL 仅备选。
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W1 | 1.5 天 | T03 | `task/T04-db-types-session` |
 
 ## 目标
-同一份代码连 SQLite / MySQL 8.4 / PostgreSQL 18，金额写进去读出来逐位相等，中文和 emoji 不乱码；MySQL 配置不对时拒绝启动并告诉用户怎么改。
+同一份代码连 SQLite / MySQL 8.4 / PostgreSQL 18，金额写进去读出来逐位相等，中文和 emoji 不乱码；MySQL 配置不对时拒绝启动并告诉用户怎么改。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ## 背景
-- 实施方案 4（金额规则 + 三库通用规则）、8 W1 第 3、5 条、7.4（MySQL 连接串示例）。
+- 实施方案 4（金额规则 + 三库通用规则【历史兼容规则，不代表三库并列目标；现行数据库目标见文首】）、8 W1 第 3、5 条、7.4（MySQL 连接串示例）。
 - SQLite 的 NUMERIC 会转成整数或浮点存（https://www.sqlite.org/datatype3.html），所以 SQLite 上 Money4 存整数万分位。
 - MySQL utf8mb4：https://dev.mysql.com/doc/refman/8.4/en/charset-unicode-utf8mb4.html
 
@@ -39,18 +42,18 @@
    - `String(255)` 列写入 `"保温杯 🍵 黑色"` 读出相等。
 2. hypothesis 性质测试：任意 4 位小数 Decimal 在 SQLite 上往返相等（`tests/property/test_money4_sqlite.py`）。
 3. 写 session.py、dialects.check_server、CLI。
-4. 本地用 Docker 起 MySQL 8.4 和 PG 18（命令见 AGENTS.md 第 7 节），三库各跑一次 `pytest -m db`。
+4. 本地用 Docker 起 MySQL 8.4 和 PG 18（命令见 AGENTS.md 第 7 节），三库各跑一次 `pytest -m db`。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 5. 写一个 MySQL 自检失败的测试：对 `latin1` 字符集的库（测试里 `CREATE DATABASE ... CHARACTER SET latin1`）调用 `check_server` 应抛 `DatabaseConfigError`；没有 MySQL 时 skip。
 
 ## 涉及文件
-`src/crosserp/db/types.py` `src/crosserp/db/session.py` `src/crosserp/db/dialects.py` `src/crosserp/core/errors.py` `src/crosserp/cli.py` `tests/conftest.py` `tests/integration/test_db_types.py` `tests/integration/test_mysql_selfcheck.py` `tests/property/test_money4_sqlite.py` `docs/database.md`（新建：三库连接串、建库语句） `CHANGELOG.md`
+`src/crosserp/db/types.py` `src/crosserp/db/session.py` `src/crosserp/db/dialects.py` `src/crosserp/core/errors.py` `src/crosserp/cli.py` `tests/conftest.py` `tests/integration/test_db_types.py` `tests/integration/test_mysql_selfcheck.py` `tests/property/test_money4_sqlite.py` `docs/database.md`（新建：三库连接串、建库语句） `CHANGELOG.md`【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ## 验收标准
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest -m db -q`（SQLite 默认） | 全部 passed |
 | 设 `CROSSERP_TEST_DATABASE_URL` 为 MySQL 8.4 后 `uv run pytest -m db -q` | 全部 passed |
-| 设为 PostgreSQL 18 后 `uv run pytest -m db -q` | 全部 passed |
+| 设为 PostgreSQL 18 后 `uv run pytest -m db -q` | 全部 passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `CROSSERP_DATABASE_URL=mysql+pymysql://root:dev@127.0.0.1:3306/crosserp?charset=utf8mb4 uv run crosserp db check` | 打印 `MySQL 8.4.x`、字符集 utf8mb4、STRICT 模式 OK |
 | `uv run mypy` | 无错误 |
 
@@ -62,9 +65,9 @@
 
 ## 问题
 
-maken 于 2026-11-02 决定：当前本地验收只跑 SQLite。切换 MySQL / PostgreSQL 只改配置文件里的 `CROSSERP_DATABASE_URL`，不改业务代码。
+maken 于 2026-11-02 决定：当前本地验收只跑 SQLite。切换 MySQL / PostgreSQL 只改配置文件里的 `CROSSERP_DATABASE_URL`，不改业务代码。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
-MySQL 8.4 和 PostgreSQL 18 的 `pytest -m db` 没有跑。`crosserp db check` 也没有对 MySQL 跑过。原因：本机没有 Docker CLI。PowerShell 里 `docker` 不能识别，PATH 中没有 docker，`C:\Program Files\Docker\Docker\resources\bin\docker.exe` 不存在。没有另找本机数据库冒充三库结果。SQLite 测试已通过。这不是产品决定。
+MySQL 8.4 和 PostgreSQL 18 的 `pytest -m db` 没有跑。`crosserp db check` 也没有对 MySQL 跑过。原因：本机没有 Docker CLI。PowerShell 里 `docker` 不能识别，PATH 中没有 docker，`C:\Program Files\Docker\Docker\resources\bin\docker.exe` 不存在。没有另找本机数据库冒充三库结果。SQLite 测试已通过。这不是产品决定。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 写入路径上，SQLAlchemy 会把 `Money4` / `FxRate` / `UtcDateTime` 处理器抛出的 `PrecisionError`、`TypeError`、`ValueError` 包成 `StatementError`，原始异常在 `__cause__`。直接调用 `process_bind_param` 时异常类型不变。
 
@@ -83,5 +86,4 @@ MySQL 8.4 和 PostgreSQL 18 的 `pytest -m db` 没有跑。`crosserp db check` �
 | `ruff format --check .` | 退出码 0。`27 files already formatted` |
 | 临时 SQLite 上 `db check` | 退出码 0。输出：`数据库类型: SQLite` / `版本: 3.53.1` / `自检: OK` |
 
-MySQL 8.4 / PostgreSQL 18：未运行。见「问题」。
-
+MySQL 8.4 / PostgreSQL 18：未运行。见「问题」。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】

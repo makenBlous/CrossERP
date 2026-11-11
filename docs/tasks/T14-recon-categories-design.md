@@ -1,5 +1,7 @@
 # T14 对账异常分类设计（为 W3 做准备，只写文档和枚举草案）
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W2 | 0.5 天 | T08 | `task/T14-recon-categories` |

@@ -1,5 +1,7 @@
 # T44 AI 调用记录：OTel → 数据库（`llm_call` / `llm_tool_call` / `prompt_version`）+ 费用表（⚠ 待 maken 确认）
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
 | review | W7 | 1.5 天 | T43 | `main` |
@@ -28,7 +30,7 @@
 
 ## 步骤
 1. 先写测试：用 `FunctionModel` 跑一次 ask → 三张表各有正确行；工具调用顺序 seq 正确；拒绝回答 status=refused；价格配置 → 费用按 Decimal 计算、4 位小数与手算一致；未配价格 → NULL；exporter 抛错时 ask 仍返回。
-2. 迁移（三库升级/降级）→ exporter → 接入 runtime → grants。
+2. 迁移（三库升级/降级）→ exporter → 接入 runtime → grants。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ## 涉及文件
 `pyproject.toml` `uv.lock` `src/crosserp/observability/{__init__,exporter,prices}.py` `config/model_prices.example.yaml` `src/crosserp/db/schema.py` `src/crosserp/db/migrations/versions/0015_llm_observability.py` `src/crosserp/agent/runtime.py` `scripts/sql/grant_*.sql` `tests/unit/observability/` `tests/integration/test_llm_tables.py` `docs/observability.md`（新建） `CHANGELOG.md`
@@ -37,7 +39,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/unit/observability -q` | passed |
-| `uv run pytest -m db -k "llm or grants or migration" -q`（三库） | passed |
+| `uv run pytest -m db -k "llm or grants or migration" -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | 全量检查 | 全过 |
 
 ## maken 人工验收清单

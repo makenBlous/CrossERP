@@ -1,5 +1,7 @@
 # T37 异常处理队列页：状态流转 + 写说明 + 查看原始行
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
 | review | W5 | 1 天 | T35 | `main` |
@@ -39,7 +41,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/unit/issues tests/web -q` | passed |
-| `uv run pytest -m db -k issue -q`（三库） | passed |
+| `uv run pytest -m db -k issue -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run crosserp demo && uv run crosserp issues list` | 有异常可处理 |
 | 全量检查 | 全过 |
 

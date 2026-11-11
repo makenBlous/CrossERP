@@ -1,5 +1,7 @@
 # T49 AI 预算与告警：超额横幅 + 硬拒绝 + 演示脚本 + W8 验收证据（⚠ 待 maken 确认）
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
 | review | W8 | 1.5 天 | T48 | `main` |
@@ -25,8 +27,8 @@
 - 不发邮件/飞书（第 3 月）；不做按部门预算。
 
 ## 步骤
-1. 先写测试：用量 79% → ok；80% → warn 且只写一条 alert；100% → block 且未调用模型（`FunctionModel` 调用计数为 0）；月份切换后重置；预算未设置 → 不限制；并发两请求跨阈值只一条 alert（三库）。
-2. 迁移（三库升级/降级）→ 实现 → 文档。
+1. 先写测试：用量 79% → ok；80% → warn 且只写一条 alert；100% → block 且未调用模型（`FunctionModel` 调用计数为 0）；月份切换后重置；预算未设置 → 不限制；并发两请求跨阈值只一条 alert（三库）。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
+2. 迁移（三库升级/降级）→ 实现 → 文档。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 3. 按 `docs/demo_flow.md` 完整跑一遍（离线模型），记录结果。
 
 ## 涉及文件
@@ -36,7 +38,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/unit/observability -q` | passed |
-| `uv run pytest -m db -k "budget or migration or grants" -q`（三库） | passed |
+| `uv run pytest -m db -k "budget or migration or grants" -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | 全量检查 | 全过 |
 
 ## maken 人工验收清单

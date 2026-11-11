@@ -1,5 +1,7 @@
 # T09 连接器协议 + 注册表 + 导入批次（sha256 去重、坏行不中断）
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W2 | 1.5 天 | T05 | `task/T09-connector-base` |
@@ -27,7 +29,7 @@
 
 ## 步骤
 1. 写 models、base、registry、importer。
-2. 测试 `tests/integration/test_importer.py`（`db` marker，三库）：
+2. 测试 `tests/integration/test_importer.py`（`db` marker，三库）：【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
    - 假连接器导入 10 行 → `raw_row` 10 行、`import_batch.row_count=10`；
    - 同一文件再导入 → `DuplicateImportError`，数据库行数不变；
    - 第 4 行故意坏 → 9 行成功 + 1 条 `PARSE_ERROR`，`error_count=1`；
@@ -41,7 +43,7 @@
 ## 验收标准
 | 命令 | 期望 |
 |---|---|
-| 三库分别 `uv run pytest -m db -k importer -q` | passed |
+| 三库分别 `uv run pytest -m db -k importer -q` | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run pytest tests/unit/test_registry.py -q` | passed |
 | `uv run mypy` | 无错误 |
 
@@ -56,7 +58,7 @@
 
 ## 完成记录
 
-本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。
+本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ```text
 pytest -m db -k importer -q

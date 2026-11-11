@@ -1,11 +1,14 @@
 # T07 CI：三系统 × Python 3.12/3.14 + 三数据库矩阵
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+> **取代标注：** 旧任务把三库矩阵写成长期目标；已被 08 v4 第 11.3 节取代：MySQL 8.4 为正式目标，SQLite 为演示，PostgreSQL 仅在启用条件满足时验证。
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W1 | 1 天 | T05（T06 合并后 CI 也要绿） | `task/T07-ci-matrix` |
 
 ## 目标
-每次推送和 PR，GitHub Actions 自动在 Windows/macOS/Linux 和 SQLite/MySQL 8.4/PostgreSQL 18 上跑全部检查；全绿才能合并。
+每次推送和 PR，GitHub Actions 自动在 Windows/macOS/Linux 和 SQLite/MySQL 8.4/PostgreSQL 18 上跑全部检查；全绿才能合并。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ## 背景
 - 实施方案 7.3、8 W1 第 8 条。
@@ -48,7 +51,7 @@
 
 ## 问题
 
-- 本机没有 Docker，没有 git remote，没有推送，没有开 PR，也没有 GitHub Actions 运行记录。不能声称 Checks 全绿。MySQL 8.4 和 PostgreSQL 18 的 job 已写在 workflow 里，供以后仓库和容器可用时使用。
+- 本机没有 Docker，没有 git remote，没有推送，没有开 PR，也没有 GitHub Actions 运行记录。不能声称 Checks 全绿。MySQL 8.4 和 PostgreSQL 18 的 job 已写在 workflow 里，供以后仓库和容器可用时使用。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - README 徽章里的 `OWNER` 是占位。使用说明建议仓库名 `crosserp`，但 GitHub 用户名未核实。建仓后把两处 URL 换成实际 `用户名或组织/crosserp`。
 - `astral-sh/setup-uv` 从 v8 起不再发布浮动主版本标签。2026-10-28 最新主版本是 v10，最新发行版是 `v10.3.3`（commit `68559e99cc807c1eb7e9238fd43a15bba460eec2`）。workflow 钉在这个不可变标签，而不是不存在的 `@v10`。
 - 本地 `ruff format --check` 和 `ruff check` 在既有文件上报错，不是本次改动引入的。未改那些文件。见完成记录。
@@ -71,7 +74,7 @@ ALTER DATABASE crosserp CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
 密码 `dev` 与 `AGENTS.md` 本地 Docker 示例相同，只给 CI 测试容器用，不是真实密钥。
 
-`postgres:18` 使用 `pg_isready` 健康检查。SQLite / MySQL / PostgreSQL 都跑 `pytest -m db`，并单独执行 `upgrade head` → `downgrade base` → `upgrade head`。服务容器挂在整个 `db-matrix` job 上，三个矩阵项都会启动这两个容器。GitHub Actions 不能按矩阵项关闭 service。
+`postgres:18` 使用 `pg_isready` 健康检查。SQLite / MySQL / PostgreSQL 都跑 `pytest -m db`，并单独执行 `upgrade head` → `downgrade base` → `upgrade head`。服务容器挂在整个 `db-matrix` job 上，三个矩阵项都会启动这两个容器。GitHub Actions 不能按矩阵项关闭 service。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ### setup-uv 与 Python
 

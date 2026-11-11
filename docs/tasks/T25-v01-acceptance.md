@@ -1,4 +1,6 @@
-# T25 v0.1 验收：指标 2、3 + 基础安装 + 三库，汇总证据
+# T25 v0.1 验收：指标 2、3 + 基础安装 + 三库，汇总证据【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
+
+> **当前状态：部分；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
 
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
@@ -9,7 +11,7 @@
 
 ## 背景
 - 实施方案 8 W3 验收：100+ 订单匹配率 ≥95%；利润与 maken 手算一致；`uv tool install` + `demo` 三系统可用。
-- 「指标 × 版本 × 证据」表 v0.1 列：指标 1「基础能装」、指标 2（匹配 ≥95% + 100% 有原因，证据：golden 测试断言 + 报表）、指标 3（利润误差 0，证据：golden 测试）；新增验收项 A（三库，待 maken 确认的新增项）。
+- 「指标 × 版本 × 证据」表 v0.1 列：指标 1「基础能装」、指标 2（匹配 ≥95% + 100% 有原因，证据：golden 测试断言 + 报表）、指标 3（利润误差 0，证据：golden 测试）；新增验收项 A（三库，待 maken 确认的新增项）。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - 指标 4–7 不在 v0.1 范围。
 
 ## 范围
@@ -22,7 +24,7 @@
   | 指标 3 合成 | golden 逐分一致 | N/N | CI 链接 | |
   | 指标 3 真实 | maken 手算 20 个 SKU 逐分一致 | n/20 | 同上 | |
   | 指标 1 基础 | 三系统 `uv tool install` + `demo --check` 通过 | 各系统耗时 | CI `install-smoke` 链接 + maken 实测耗时 | |
-  | A 三库 | SQLite/MySQL 8.4/PG 18 同一套测试全绿 | 测试数 | CI `db-matrix` 链接 | |
+  | A 三库 | SQLite/MySQL 8.4/PG 18 同一套测试全绿 | 测试数 | CI `db-matrix` 链接 | |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
   | 覆盖率 | ≥60%（v0.1 门槛） | 实际 % | CI 链接 | |
   | 未决口径 | T15/T17/T19/T20 里 maken 还没答复的问题 | 列表 | 各任务「问题」节 | |
 
@@ -56,6 +58,6 @@
 
 ## 完成记录
 
-- 完成内容：新增 `docs/evidence/v0.1-acceptance.md`，汇总指标 1/2/3、三库和覆盖率证据；补充 `CHANGELOG.md` 的 `[0.1.0] - 未发布` 小节。
+- 完成内容：新增 `docs/evidence/v0.1-acceptance.md`，汇总指标 1/2/3、三库和覆盖率证据；补充 `CHANGELOG.md` 的 `[0.1.0] - 未发布` 小节。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - 测试结果：本地 `.venv` `crosserp demo --check --no-browser` 通过；SQLite 全量 `204 passed, 2 skipped`，覆盖率 `86.24%`；MySQL 8.4/PG18 定向验证通过；真实数据两项明确标注未验收，不用合成数据代替。
 - 未决事项：GitHub Actions 具体运行链接和 maken 的真实 20 SKU 手算验收仍待人工完成；本任务不替 maken 同意发布。

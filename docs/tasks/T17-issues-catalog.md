@@ -1,5 +1,7 @@
 # T17 异常目录：原因码枚举定稿 + 中文模板 + 候选码落地
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W3 | 0.5 天 | T14 | `task/T17-issues-catalog` |
@@ -41,7 +43,7 @@
 |---|---|
 | `uv run pytest tests/unit/test_issue_catalog.py -q` | passed |
 | `uv run crosserp demo-import && uv run crosserp issues list` | 每条一行中文句子，没有 `{缺:` |
-| `uv run pytest -m db -k e2e -q`（三库） | passed（T13 行为不变） |
+| `uv run pytest -m db -k e2e -q`（三库） | passed（T13 行为不变） |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ## maken 人工验收清单
 - [ ] 开工前：在 `docs/rules/recon-categories.md` 把 5 个候选码逐个勾「要/不要」。
@@ -69,7 +71,7 @@
 | `uv run pytest tests/integration/test_issue_catalog_service.py -q` | 1 passed |
 | `uv run pytest -m db -k e2e -q` | SQLite 3 passed |
 | `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://root:dev@127.0.0.1:13306/crosserp?charset=utf8mb4 uv run pytest -m db -k e2e -q` | MySQL 3 passed |
-| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp uv run pytest -m db -k e2e -q` | PostgreSQL 3 passed |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp uv run pytest -m db -k e2e -q` | PostgreSQL 3 passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run crosserp demo-import && uv run crosserp issues list` | 已实际验证 `SETTLEMENT_UNBALANCED` 显示中文名称和完整说明 |
 | `uv run pytest --cov=crosserp --cov-fail-under=60 -q` | 186 passed, 2 skipped；覆盖率 85.53% |
 | `uv run mypy` | 0 errors |

@@ -1,5 +1,7 @@
 # T36 用户管理页（admin）
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
 | review | W5 | 1 天 | T35 | `main` |
@@ -36,7 +38,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/web -q` | passed |
-| `uv run pytest -m db -k "user or security" -q`（三库） | passed |
+| `uv run pytest -m db -k "user or security" -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | 全量检查 | 全过 |
 
 ## maken 人工验收清单

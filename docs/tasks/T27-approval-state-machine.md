@@ -1,5 +1,8 @@
 # T27 审批状态机 `approval/`
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+> **历史要求说明：** 本卡保留 W4 阶段允许自批的历史实现；现行审批决定和发起人确认均按 08 v4 第 4.6 节及 OpenAPI `critical` 规则执行，不能自批。
+
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
 | review | W4 | 1 天 | T26（v0.1 已发布或 maken 同意先开 W4） | `main` |
@@ -25,7 +28,7 @@
   - rejected → draft（`reopen`，可选，推断）
   - 其他一律 `IllegalTransition`（中文消息含当前态和目标态）。
 - `approval/service.py`：`create`、`submit`、`approve`、`reject`、`reopen`、`check_fresh(approval, current_payload_hash)`（不一致 → 自动 invalidate 并写审计）。乐观锁：`version` 列，更新时 `WHERE version = :v`，0 行受影响 → `ConcurrentModification`。
-- 自批：W4 允许同一人提交和批准，但 `audit_log.self_approved = True`（T29 字段）；是否禁止自批是 W5 角色权限的事（推断）。
+- 自批：W4 允许同一人提交和批准，但 `audit_log.self_approved = True`（T29 字段）【历史实现，已被 08 v4 第 4.6、12.1 节取代】；是否禁止自批是 W5 角色权限的事（推断）。
 - 每个转移都写审计（`action` = `approval.submit/approve/reject/invalidate/reopen`），与状态更新同一事务。
 - CLI：`crosserp approval request --target profit_report:<store>:<period> --as <名字>`（创建并提交）、`approval list`、`approval approve <id> --as <名字>`（打印一次性 token）、`approval reject <id> --as <名字> --comment ...`。
 
@@ -34,7 +37,7 @@
 
 ## 步骤
 1. 先写测试 `tests/unit/approval/test_state.py`：转移表穷举（5×5 每一格都测，合法的成功、非法的抛 `IllegalTransition`）；hypothesis 随机操作序列下状态永远合法；批准后 payload 变 → 回 pending 且旧 token 不能再用。
-2. 迁移、service、CLI；三库测试 `-m db -k approval`（含乐观锁冲突）。
+2. 迁移、service、CLI；三库测试 `-m db -k approval`（含乐观锁冲突）。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ## 涉及文件
 `src/crosserp/approval/{__init__,state,service}.py` `src/crosserp/db/schema.py` `src/crosserp/db/migrations/versions/000x_approval.py` `src/crosserp/db/repo/approval.py` `src/crosserp/cli.py` `tests/unit/approval/*` `tests/integration/test_approval_db.py` `pyproject.toml`（mypy 覆盖加 approval）
@@ -43,7 +46,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/unit/approval -q` | passed |
-| `uv run pytest -m db -k approval -q`（三库） | passed |
+| `uv run pytest -m db -k approval -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run crosserp audit verify` | 审批操作后链仍完整 |
 
 ## maken 人工验收清单
@@ -62,7 +65,7 @@
 - 新增 `approval/` 状态机：`draft → pending → approved|rejected`、`approved → exported|pending`、`rejected → draft`，非法转移抛出中文 `IllegalTransition`。
 - 新增 `approval` 表和 `0008_approval` 迁移，保存内容哈希、批准人、版本号、一次性 token 哈希和使用时间；乐观锁冲突抛出 `ConcurrentModification`。
 - 新增审批服务和 CLI：`approval request/list/approve/reject`；批准只返回一次明文 token，内容哈希变化会自动回到 `pending` 并清空旧 token。
-- 每次创建和状态转移与现有业务审计哈希链在同一事务中写入；新增 SQLite、MySQL 8.4、PostgreSQL 18 审批测试。
+- 每次创建和状态转移与现有业务审计哈希链在同一事务中写入；新增 SQLite、MySQL 8.4、PostgreSQL 18 审批测试。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - 按 maken 指示更新 `AGENTS.md` 和任务说明，后续单代理直接在 `main` 开发和提交；T26 保持 `todo`，没有执行发布动作。
 
 ### 改动文件
@@ -78,7 +81,7 @@
 |---|---|
 | `.venv/bin/python -m pytest --cov=crosserp --cov-fail-under=60` | `210 passed, 2 skipped`；覆盖率 `85.82%`。跳过项为缺少 Docker 连接串的 MySQL 自检和未提供真实卖家文件。 |
 | `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://root:dev@127.0.0.1:13306/crosserp?charset=utf8mb4 .venv/bin/python -m pytest -m db -q` | `102 passed, 4 skipped`；MySQL `8.4.13`。 |
-| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp .venv/bin/python -m pytest -m db -q` | `102 passed, 4 skipped`；PostgreSQL `18.6`。 |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp .venv/bin/python -m pytest -m db -q` | `102 passed, 4 skipped`；PostgreSQL `18.6`。 |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `.venv/bin/ruff format --check . && .venv/bin/ruff check .` | `122 files already formatted`，检查通过。 |
 | `.venv/bin/mypy --strict` | `Success: no issues found in 75 source files`。 |
 | `.venv/bin/pre-commit run --all-files` | `ruff-format`、`ruff`、`mypy` 全部 `Passed`。 |
