@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -108,6 +108,23 @@ class Store(Base):
     marketplace: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(255))
     currency: Mapped[str] = mapped_column(String(3))
+
+
+class Brand(Base):
+    """商品品牌主数据。"""
+
+    __tablename__ = "brand"
+    __table_args__ = (Index("ix_brand_name", "name"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    name: Mapped[str] = mapped_column(String(255))
+    active: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    version: Mapped[int] = mapped_column(Integer(), default=1, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(
+        UtcDateTime(), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
+    provenance: Mapped[Any] = mapped_column(JSON(), default=dict)
 
 
 class Sku(Base):

@@ -27,7 +27,7 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO crosserp_app;
 GRANT SELECT ON TABLE public.alembic_version TO crosserp_app;
 -- 显式列出业务表，授权覆盖守卫可在新增迁移时提醒补充。
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.approval, public.api_token,
-  public.app_setting, public.app_user, public.audit_checkpoint, public.audit_export,
+  public.app_setting, public.app_user, public.audit_checkpoint, public.audit_export, public.brand,
   public.audit_head, public.audit_log, public.eval_run, public.export_artifact,
   public.fee, public.fee_reference, public.fx_rate, public.import_batch, public.issue,
   public.llm_alert, public.llm_budget, public.llm_call, public.llm_tool_call,
@@ -51,7 +51,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.voucher, public.voucher_lin
 REVOKE DELETE ON TABLE public.app_user, public.user_role, public.user_session, public.api_token, public.app_setting FROM crosserp_app;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.app_user, public.user_role, public.user_session, public.api_token, public.app_setting TO crosserp_app;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO crosserp_agent;
-GRANT SELECT ON TABLE public.approval, public.api_token, public.app_setting, public.app_user,
+GRANT SELECT ON TABLE public.approval, public.api_token, public.app_setting, public.app_user, public.brand,
   public.audit_checkpoint, public.audit_export, public.audit_head, public.audit_log,
   public.eval_run, public.export_artifact, public.fee, public.fee_reference, public.fx_rate,
   public.import_batch, public.idempotency_key, public.issue, public.llm_alert, public.llm_budget, public.llm_call,

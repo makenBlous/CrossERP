@@ -17,7 +17,7 @@ from crosserp.db.session import session_scope, sqlite_file_url
 
 pytestmark = pytest.mark.db
 
-_EXPECTED_COUNT = 39  # P0 ontology 新增实体版本、动作执行和事件三张表
+_EXPECTED_COUNT = 40  # P0 ontology 三张表, P1 品牌主数据一张表
 
 
 def _url(engine: Engine) -> str:
