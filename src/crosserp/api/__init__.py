@@ -21,7 +21,6 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from crosserp.api.errors import APIError, ErrorCode, error_payload
 from crosserp.api.idempotency import IdempotencyKey
 from crosserp.api.metadata import API_METADATA_KEY
-from crosserp.platform.permissions import DefaultPermissionService
 from crosserp.platform.principal import principal_from_session
 
 
@@ -187,7 +186,6 @@ def register_routers(app: FastAPI) -> None:
 def install_api(app: FastAPI, engine: Any) -> None:
     """把 API 中间件、异常处理器和自动路由安装到现有 FastAPI 应用。"""
     app.state.database_engine = engine
-    app.state.permission_service = DefaultPermissionService()
     app.add_middleware(IdempotencyMiddleware, engine=engine)
     app.add_middleware(RequestIdMiddleware)
 

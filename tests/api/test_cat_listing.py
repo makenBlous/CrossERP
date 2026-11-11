@@ -12,6 +12,7 @@ from crosserp.api import install_api
 from crosserp.db.migrate import upgrade_head
 from crosserp.db.schema import AuditLog, EntityEvent, EntityVersion, Store
 from crosserp.db.session import make_engine, sqlite_file_url
+from crosserp.platform.permissions import DefaultPermissionService
 from crosserp.platform.principal import ActorType, Principal
 
 
@@ -24,6 +25,7 @@ def _app(tmp_path: Path) -> tuple[FastAPI, object, UUID]:
     with Session(engine) as session, session.begin():
         session.add(store)
     app = FastAPI()
+    app.state.permission_service = DefaultPermissionService()
     install_api(app, engine)
     return app, engine, store_id
 
