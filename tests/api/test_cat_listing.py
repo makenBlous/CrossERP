@@ -113,13 +113,21 @@ def test_listing_crud_scope_pagination_idempotency_version_and_audit(tmp_path: P
         assert conflict.status_code == 409
         assert conflict.json()["code"] == "CONFLICT_VERSION"
 
+        listing2_update = client.patch(
+            f"/api/v1/catalog/listings/{listing2['id']}",
+            headers={"Idempotency-Key": "listing-update-2"},
+            json={"status": "inactive", "expectedVersion": 1},
+        )
+        assert listing2_update.status_code == 200
+        assert listing2_update.json()["version"] == 2
+
         batch = client.post(
             "/api/v1/catalog/listings/status",
             headers={"Idempotency-Key": "listing-status-1"},
             json={
                 "ids": [listing["id"], listing2["id"]],
                 "status": "active",
-                "expectedVersion": {listing["id"]: 2, listing2["id"]: 1},
+                "expectedVersion": 2,
             },
         )
         assert batch.status_code == 200, batch.text
@@ -130,7 +138,7 @@ def test_listing_crud_scope_pagination_idempotency_version_and_audit(tmp_path: P
             json={
                 "ids": [listing["id"], listing2["id"]],
                 "status": "active",
-                "expectedVersion": {listing["id"]: 2, listing2["id"]: 1},
+                "expectedVersion": 2,
             },
         )
         assert batch_replay.status_code == 200
@@ -244,4 +252,28 @@ def test_listing_unauthorized_is_404(tmp_path: Path) -> None:
             },
         )
         assert response.status_code == 404
+    engine.dispose()
+
+
+def test_listing_invalid_request_body_returns_validation_error(tmp_path: Path) -> None:
+    app, engine, store_id = _app(tmp_path)
+    from crosserp.platform.principal import get_principal
+
+    principal = Principal(
+        user_id=uuid4(),
+        permissions=frozenset({"listing:create"}),
+        data_scope={"store_ids": [str(store_id)]},
+    )
+    app.dependency_overrides[get_principal] = lambda: principal
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/catalog/listings",
+            json={
+                "storeId": "not-a-uuid",
+                "platformSku": "INVALID",
+                "price": {"amountMinor": 100, "currency": "USD"},
+            },
+        )
+    assert response.status_code == 422
+    assert response.json()["code"] == "VALIDATION_ERROR"
     engine.dispose()

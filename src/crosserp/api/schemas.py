@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TypeVar
+from typing import Literal, TypeVar
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 
 
 def to_camel(value: str) -> str:
@@ -37,6 +38,44 @@ class PageParams(CamelModel):
     page_size: int = Field(default=50, alias="pageSize", ge=1, le=200)
 
 
+ListingStatus = Literal["active", "inactive"]
+
+
+class ListingCreateRequest(CamelModel):
+    store_id: UUID
+    platform_sku: str = Field(min_length=1, max_length=128)
+    asin: str | None = Field(default=None, max_length=64)
+    price: Money
+    status: ListingStatus = "active"
+
+
+class ListingUpdateRequest(CamelModel):
+    status: ListingStatus | None = None
+    asin: str | None = Field(default=None, max_length=64)
+    price: Money | None = None
+    expected_version: StrictInt
+
+    @field_validator("expected_version")
+    @classmethod
+    def validate_expected_version(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("expectedVersion 必须是正整数")
+        return value
+
+
+class ListingStatusRequest(CamelModel):
+    ids: list[UUID] = Field(min_length=1)
+    status: ListingStatus
+    expected_version: StrictInt
+
+    @field_validator("expected_version")
+    @classmethod
+    def validate_expected_versions(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("expectedVersion 必须是正整数")
+        return value
+
+
 T = TypeVar("T")
 
 
@@ -47,4 +86,14 @@ class Page[T](CamelModel):
     total: int
 
 
-__all__ = ["CamelModel", "Money", "Page", "PageParams", "to_camel"]
+__all__ = [
+    "CamelModel",
+    "ListingCreateRequest",
+    "ListingStatus",
+    "ListingStatusRequest",
+    "ListingUpdateRequest",
+    "Money",
+    "Page",
+    "PageParams",
+    "to_camel",
+]

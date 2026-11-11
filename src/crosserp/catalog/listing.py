@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -12,10 +12,14 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
-from crosserp.api.schemas import Money
+from crosserp.api.schemas import (
+    ListingCreateRequest,
+    ListingStatusRequest,
+    ListingUpdateRequest,
+)
 from crosserp.db.schema import ActionExecution, Listing, Store
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier, _request_hash
-from crosserp.platform.permissions import DefaultPermissionService, PermissionService
+from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 
 
@@ -24,14 +28,14 @@ class ListingService:
         self,
         session: Session,
         principal: Principal,
-        permission_service: PermissionService | None = None,
+        permission_service: PermissionService,
         *,
         request_id: str | None = None,
         tool_call_id: str | None = None,
     ) -> None:
         self.session = session
         self.principal = principal
-        self.permission_service = permission_service or DefaultPermissionService()
+        self.permission_service = permission_service
         self.request_id = request_id
         self.tool_call_id = tool_call_id
 
@@ -51,7 +55,7 @@ class ListingService:
             "createdAt": Listing.created_at,
         }
         if sort_key not in columns:
-            raise APIError(ErrorCode.VALIDATION_FAILED, "sort 字段不支持")
+            raise APIError(ErrorCode.VALIDATION_ERROR, "sort 字段不支持")
         column = columns[sort_key]
         ordered = column.desc() if descending else column.asc()
         statement = statement.order_by(ordered, Listing.id.asc())
@@ -71,24 +75,25 @@ class ListingService:
         row = self._get_scoped(listing_id)
         return _listing_dict(row)
 
-    def create(self, payload: Mapping[str, Any], idempotency_key: str | None) -> dict[str, Any]:
+    def create(self, payload: ListingCreateRequest, idempotency_key: str | None) -> dict[str, Any]:
         self.permission_service.require(self.principal, "listing:create")
-        store_id = _uuid(payload.get("storeId"), "storeId")
+        store_id = payload.store_id
         store = self.session.get(Store, store_id)
         if store is None:
             raise not_found(message="店铺不存在")
         self._require_store_scope(store_id, write=True)
-        platform_sku = _required_text(payload, "platformSku", 128)
-        price, currency = _money(payload.get("price"))
+        platform_sku = payload.platform_sku
+        price = Decimal(payload.price.amount_minor).scaleb(-4)
+        currency = payload.price.currency
         now = datetime.now(UTC)
         listing = Listing(
             id=uuid4(),
             store_id=store_id,
             platform_sku=platform_sku,
-            asin=_optional_text(payload.get("asin"), "asin", 64),
+            asin=payload.asin,
             price=price,
             currency=currency,
-            status=_status(payload.get("status", "active")),
+            status=payload.status,
             version=1,
             created_at=now,
             updated_at=now,
@@ -121,7 +126,7 @@ class ListingService:
                 action="Listing.create",
                 entity="Listing",
                 entity_id=listing.id,
-                payload=dict(payload),
+                payload=payload.model_dump(by_alias=True, mode="json"),
                 idempotency_key=idempotency_key,
                 request_id=self.request_id,
                 tool_call_id=self.tool_call_id,
@@ -132,21 +137,22 @@ class ListingService:
     def update(
         self,
         listing_id: UUID,
-        payload: Mapping[str, Any],
-        idempotency_key: str,
+        payload: ListingUpdateRequest,
+        idempotency_key: str | None,
     ) -> dict[str, Any]:
         self.permission_service.require(self.principal, "listing:write", listing_id)
         listing = self._get_scoped(listing_id, write=True)
-        expected_version = _expected_version(payload, required=True)
+        expected_version = payload.expected_version
         before = _listing_dict(listing)
 
         def business_action() -> dict[str, Any]:
-            if "status" in payload:
-                listing.status = _status(payload["status"])
-            if "asin" in payload:
-                listing.asin = _optional_text(payload["asin"], "asin", 64)
-            if "price" in payload:
-                listing.price, listing.currency = _money(payload["price"])
+            if "status" in payload.model_fields_set and payload.status is not None:
+                listing.status = payload.status
+            if "asin" in payload.model_fields_set:
+                listing.asin = payload.asin
+            if "price" in payload.model_fields_set and payload.price is not None:
+                listing.price = Decimal(payload.price.amount_minor).scaleb(-4)
+                listing.currency = payload.price.currency
             listing.version += 1
             listing.updated_at = datetime.now(UTC)
             listing.provenance_json = _provenance(self.principal)
@@ -165,7 +171,7 @@ class ListingService:
                 action="Listing.update",
                 entity="Listing",
                 entity_id=listing.id,
-                payload=dict(payload),
+                payload=payload.model_dump(by_alias=True, mode="json"),
                 expected_version=expected_version,
                 idempotency_key=idempotency_key,
                 request_id=self.request_id,
@@ -176,18 +182,12 @@ class ListingService:
 
     def status(
         self,
-        listing_ids: Sequence[UUID],
-        status: Any,
-        expected_version: int | Mapping[str, Any],
+        payload: ListingStatusRequest,
         idempotency_key: str | None,
     ) -> dict[str, Any]:
         self.permission_service.require(self.principal, "listing:write")
-        target_status = _status(status)
-        batch_payload = {
-            "ids": [str(listing_id) for listing_id in listing_ids],
-            "status": target_status,
-            "expectedVersion": expected_version,
-        }
+        target_status = payload.status
+        batch_payload = payload.model_dump(by_alias=True, mode="json")
         if idempotency_key:
             replay = self.session.scalar(
                 select(ActionExecution).where(ActionExecution.idempotency_key == idempotency_key)
@@ -197,7 +197,7 @@ class ListingService:
                     raise APIError(ErrorCode.IDEMPOTENCY_REPLAY_MISMATCH, "幂等键对应了不同请求体")
                 return cast(dict[str, Any], replay.result_json)
         items: list[dict[str, Any]] = []
-        for index, listing_id in enumerate(listing_ids):
+        for index, listing_id in enumerate(payload.ids):
             listing = self._get_scoped(listing_id, write=True)
             before = _listing_dict(listing)
 
@@ -216,17 +216,7 @@ class ListingService:
                 return result
 
             item_key = idempotency_key if index == 0 else None
-            item_expected = (
-                expected_version
-                if isinstance(expected_version, int)
-                else expected_version.get(str(listing_id))
-            )
-            if (
-                not isinstance(item_expected, int)
-                or isinstance(item_expected, bool)
-                or item_expected < 1
-            ):
-                raise APIError(ErrorCode.VALIDATION_FAILED, "expectedVersion 必须覆盖每个 Listing")
+            item_expected = payload.expected_version
             item = cast(
                 dict[str, Any],
                 self._dispatcher().dispatch(
@@ -286,63 +276,10 @@ class ListingService:
 
 
 def _scope_store_ids(scope: Mapping[str, Any]) -> set[UUID] | None:
-    values: Any = scope.get("store_ids", scope.get("storeIds"))
+    values: Any = scope.get("store_ids")
     if values is None:
         return None
-    if isinstance(values, str):
-        return {UUID(values)}
-    return {value if isinstance(value, UUID) else UUID(str(value)) for value in values}
-
-
-def _uuid(value: Any, field: str) -> UUID:
-    if isinstance(value, UUID):
-        return value
-    if not isinstance(value, str):
-        raise APIError(ErrorCode.VALIDATION_FAILED, f"{field} 必须是 UUID")
-    try:
-        return UUID(value)
-    except ValueError as exc:
-        raise APIError(ErrorCode.VALIDATION_FAILED, f"{field} 必须是 UUID") from exc
-
-
-def _required_text(payload: Mapping[str, Any], field: str, limit: int) -> str:
-    value = payload.get(field)
-    if not isinstance(value, str) or not value or len(value) > limit:
-        raise APIError(ErrorCode.VALIDATION_FAILED, f"{field} 必须是 1-{limit} 个字符")
-    return value
-
-
-def _optional_text(value: Any, field: str, limit: int) -> str | None:
-    if value is None:
-        return None
-    if not isinstance(value, str) or len(value) > limit:
-        raise APIError(ErrorCode.VALIDATION_FAILED, f"{field} 长度超限")
-    return value
-
-
-def _money(value: Any) -> tuple[Decimal, str]:
-    try:
-        parsed = Money.model_validate(value)
-    except ValueError as exc:
-        raise APIError(ErrorCode.VALIDATION_FAILED, "price 必须是 Money") from exc
-    return Decimal(parsed.amount_minor).scaleb(-4), parsed.currency
-
-
-def _status(value: Any) -> str:
-    if value == "active" or value == "inactive":
-        return cast(str, value)
-    raise APIError(ErrorCode.ILLEGAL_TRANSITION, "Listing 状态只能是 active 或 inactive")
-
-
-def _expected_version(payload: Mapping[str, Any], *, required: bool = False) -> int | None:
-    value = payload.get("expectedVersion")
-    if value is None:
-        if required:
-            raise APIError(ErrorCode.VALIDATION_FAILED, "expectedVersion 必须提供")
-        return None
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise APIError(ErrorCode.VALIDATION_FAILED, "expectedVersion 必须是正整数")
-    return value
+    return {UUID(value) for value in values}
 
 
 def _provenance(principal: Principal) -> dict[str, Any]:
