@@ -37,7 +37,6 @@ from crosserp.db.schema import (
     Job,
     PasswordResetToken,
     Store,
-    Store,
     UserRole,
     UserSession,
 )
