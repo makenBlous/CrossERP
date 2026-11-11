@@ -29,8 +29,7 @@ from crosserp.db.schema import (
     SecurityEvent,
 )
 from crosserp.platform.audit import DefaultAuditRecorder
-from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
-from crosserp.platform.permissions import DefaultPermissionService
+from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter()
@@ -49,8 +48,8 @@ def _session(request: Request) -> Session:
     return Session(request.app.state.database_engine)
 
 
-def _auth(principal: Principal, permission: str) -> None:
-    DefaultPermissionService().require(principal, permission)
+def _auth(request: Request, principal: Principal, permission: str) -> None:
+    request.app.state.permission_service.require(principal, permission)
 
 
 def _log(row: AuditLog) -> dict[str, Any]:
@@ -128,7 +127,7 @@ def list_audit_logs(
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
 ) -> dict[str, Any]:
-    _auth(principal, "audit_log:read")
+    _auth(request, principal, "audit_log:read")
     with _session(request) as session, session.begin():
         stmt = select(AuditLog).order_by(AuditLog.seq.desc())
         if q:
@@ -150,7 +149,7 @@ def list_audit_logs(
 def get_audit_log(
     id: str, request: Request, principal: Principal = Depends(get_principal)
 ) -> dict[str, Any]:
-    _auth(principal, "audit_log:read")
+    _auth(request, principal, "audit_log:read")
     with _session(request) as session:
         try:
             row = session.get(AuditLog, UUID(id))
@@ -166,7 +165,7 @@ def get_audit_log(
     entity="AuditLog", action="AuditLog.list", permission="audit_log:read", risk_tier="none"
 )
 def audit_chain(request: Request, principal: Principal = Depends(get_principal)) -> dict[str, Any]:
-    _auth(principal, "audit_log:read")
+    _auth(request, principal, "audit_log:read")
     with _session(request) as session:
         result = verify_chain(session)
         head = session.scalar(select(AuditLog).order_by(AuditLog.seq.desc()))
@@ -184,9 +183,9 @@ def audit_chain(request: Request, principal: Principal = Depends(get_principal))
     entity="AuditLog", action="AuditLog.create", permission="audit_log:read", risk_tier="low"
 )
 def verify_audit(request: Request, principal: Principal = Depends(get_principal)) -> dict[str, Any]:
-    _auth(principal, "audit_log:read")
+    _auth(request, principal, "audit_log:read")
     with _session(request) as session, session.begin():
-        result: Any = ActionDispatcher().dispatch(
+        result: Any = request.app.state.dispatcher.dispatch(
             principal=principal,
             permission="audit_log:read",
             risk_tier=RiskTier.LOW,
@@ -220,7 +219,7 @@ def create_audit_export(
     body: AuditExportBody,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    _auth(principal, "audit_log:export")
+    _auth(request, principal, "audit_log:export")
 
     with _session(request) as session, session.begin():
         rows = list(session.scalars(select(AuditLog).order_by(AuditLog.seq)))
@@ -269,7 +268,7 @@ def create_audit_export(
 def download_audit_export(
     id: str, request: Request, principal: Principal = Depends(get_principal)
 ) -> Response:
-    _auth(principal, "audit_log:export")
+    _auth(request, principal, "audit_log:export")
     with _session(request) as session:
         try:
             export = session.get(AuditExport, UUID(id))
@@ -299,7 +298,7 @@ def security_events(
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
 ) -> dict[str, Any]:
-    _auth(principal, "audit_log:read")
+    _auth(request, principal, "audit_log:read")
     with _session(request) as session:
         rows = list(
             session.scalars(
@@ -336,7 +335,7 @@ def security_events(
 def agent_trace(
     suggestionId: str, request: Request, principal: Principal = Depends(get_principal)
 ) -> dict[str, Any]:
-    _auth(principal, "audit_log:read")
+    _auth(request, principal, "audit_log:read")
     with _session(request) as session:
         rows = list(
             session.scalars(
@@ -361,7 +360,7 @@ def alerts(
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
 ) -> dict[str, Any]:
-    _auth(principal, "audit_log:read")
+    _auth(request, principal, "audit_log:read")
     with _session(request) as session:
         rows = list(
             session.scalars(
@@ -402,7 +401,7 @@ def resolve_alert(
     request: Request,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    _auth(principal, "audit_log:write")
+    _auth(request, principal, "audit_log:write")
     with _session(request) as session, session.begin():
         try:
             row = session.get(AuditAlert, UUID(id))
@@ -410,7 +409,7 @@ def resolve_alert(
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
         if row is None:
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
-        ActionDispatcher().dispatch(
+        request.app.state.dispatcher.dispatch(
             principal=principal,
             permission="audit_log:write",
             risk_tier=RiskTier.CRITICAL,
@@ -437,7 +436,7 @@ def resolve_alert(
     risk_tier="none",
 )
 def retention(request: Request, principal: Principal = Depends(get_principal)) -> dict[str, Any]:
-    _auth(principal, "audit_log:read")
+    _auth(request, principal, "audit_log:read")
     with _session(request) as session:
         rows = list(session.scalars(select(RetentionPolicy).order_by(RetentionPolicy.chain)))
         return {
@@ -465,7 +464,7 @@ def update_retention(
     body: RetentionUpdateBody,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    _auth(principal, "audit_log:write")
+    _auth(request, principal, "audit_log:write")
 
     chain = body.chain
     with _session(request) as session, session.begin():
@@ -482,7 +481,7 @@ def update_retention(
             row.retain_days = body.retain_days
             row.updated_at = datetime.now(UTC)
         row.updated_by = principal.user_id
-        ActionDispatcher().dispatch(
+        request.app.state.dispatcher.dispatch(
             principal=principal,
             permission="audit_log:write",
             risk_tier=RiskTier.CRITICAL,
@@ -510,7 +509,7 @@ def archive_retention(
     request: Request,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    _auth(principal, "audit_log:write")
+    _auth(request, principal, "audit_log:write")
     with _session(request) as session, session.begin():
         rows = list(session.scalars(select(AuditLog).order_by(AuditLog.seq)))
         last = rows[-1] if rows else None
@@ -524,7 +523,7 @@ def archive_retention(
         )
         session.add(run)
         session.flush()
-        ActionDispatcher().dispatch(
+        request.app.state.dispatcher.dispatch(
             principal=principal,
             permission="audit_log:write",
             risk_tier=RiskTier.CRITICAL,
@@ -549,7 +548,7 @@ def archive_retention(
     risk_tier="none",
 )
 def archive_runs(request: Request, principal: Principal = Depends(get_principal)) -> dict[str, Any]:
-    _auth(principal, "audit_log:read")
+    _auth(request, principal, "audit_log:read")
     with _session(request) as session:
         rows = list(session.scalars(select(ArchiveRun).order_by(ArchiveRun.created_at.desc())))
         return {

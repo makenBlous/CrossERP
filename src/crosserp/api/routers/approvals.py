@@ -43,10 +43,8 @@ def _session(request: Request) -> Session:
     return Session(request.app.state.database_engine)
 
 
-def _auth(principal: Principal, permission: str) -> None:
-    from crosserp.platform.permissions import DefaultPermissionService
-
-    DefaultPermissionService().require(principal, permission)
+def _auth(request: Request, principal: Principal, permission: str) -> None:
+    request.app.state.permission_service.require(principal, permission)
 
 
 def _item(row: Approval) -> dict[str, Any]:
@@ -88,7 +86,7 @@ def list_approvals(
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
 ) -> dict[str, Any]:
-    _auth(principal, "approval:read")
+    _auth(request, principal, "approval:read")
     with _session(request) as session:
         stmt = select(Approval).order_by(Approval.requested_at.desc())
         all_rows = list(session.scalars(stmt))
@@ -119,7 +117,7 @@ def approval_types_early(
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
 ) -> dict[str, Any]:
-    _auth(principal, "approval:read")
+    _auth(request, principal, "approval:read")
     with _session(request) as session:
         rows = list(
             session.scalars(
@@ -152,7 +150,7 @@ def approval_types_early(
 def get_approval(
     id: str, request: Request, principal: Principal = Depends(get_principal)
 ) -> dict[str, Any]:
-    _auth(principal, "approval:read")
+    _auth(request, principal, "approval:read")
     with _session(request) as session:
         try:
             row = session.get(Approval, UUID(id))
@@ -173,7 +171,7 @@ def decide_approval(
     body: ApprovalDecisionBody,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    _auth(principal, "approval:approve")
+    _auth(request, principal, "approval:approve")
     try:
         approval_id = UUID(id)
     except ValueError:
@@ -205,7 +203,7 @@ def withdraw_approval(
     request: Request,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    _auth(principal, "approval:create")
+    _auth(request, principal, "approval:create")
     try:
         approval_id = UUID(id)
     except ValueError:
@@ -232,7 +230,7 @@ def initiator_confirm(
     body: InitiatorConfirmBody,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    _auth(principal, "approval:create")
+    _auth(request, principal, "approval:create")
     try:
         approval_id = UUID(id)
     except ValueError:
@@ -261,7 +259,7 @@ def resolve_rule(
     target_type: str | None = Query(None, alias="targetType"),
     target_id: str | None = Query(None, alias="targetId"),
 ) -> dict[str, Any]:
-    _auth(principal, "approval:read")
+    _auth(request, principal, "approval:read")
     with _session(request) as session:
         result = ApproverResolver(session).resolve(
             approval_type, principal.user_id, principal.on_behalf_of
@@ -294,7 +292,7 @@ def workflow_rules(
     page_size: int = Query(20, alias="pageSize", ge=1, le=200),
     q: str | None = None,
 ) -> dict[str, Any]:
-    _auth(principal, "approval:read")
+    _auth(request, principal, "approval:read")
     with _session(request) as session:
         rows = list(
             session.scalars(
@@ -333,7 +331,7 @@ def update_workflow_rule(
     body: WorkflowRuleUpdateBody,
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    _auth(principal, "approval:write")
+    _auth(request, principal, "approval:write")
     if principal.is_agent:
         raise APIError(ErrorCode.AI_AUTONOMY_CAPPED, "仅真人可修改审批规则")
     try:

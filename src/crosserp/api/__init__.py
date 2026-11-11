@@ -199,7 +199,7 @@ def install_api(app: FastAPI, engine: Any) -> None:
             error_payload(
                 ErrorCode.VALIDATION_FAILED,
                 "请求参数校验失败",
-                getattr(request.state, "request_id", ""),
+                request.state.request_id,
                 {"errors": exc.errors()},
             ),
             status_code=422,
@@ -211,7 +211,7 @@ def install_api(app: FastAPI, engine: Any) -> None:
             error_payload(
                 ErrorCode.INTERNAL_ERROR,
                 "服务器内部错误",
-                getattr(request.state, "request_id", ""),
+                request.state.request_id,
             ),
             status_code=500,
         )
