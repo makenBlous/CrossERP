@@ -728,4 +728,74 @@ class IdempotencyKey(Base):
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
+class EntityVersion(Base):
+    """实体动作产生的不可变版本快照。"""
+
+    __tablename__ = "entity_version"
+    __table_args__ = (
+        UniqueConstraint("entity_type", "entity_id", "version", name="uq_entity_version_number"),
+        Index("ix_entity_version_entity", "entity_type", "entity_id", "version"),
+        Index("ix_entity_version_batch", "source_batch_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    entity_type: Mapped[str] = mapped_column(String(64))
+    entity_id: Mapped[str] = mapped_column(String(64))
+    version: Mapped[int] = mapped_column(Integer)
+    changed_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    actor_type: Mapped[str] = mapped_column(String(16))
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    on_behalf_of: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    delegation_id: Mapped[str | None] = mapped_column(String(64))
+    run_id: Mapped[str | None] = mapped_column(String(64))
+    is_subagent: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    channel: Mapped[str] = mapped_column(String(32), default="web", server_default="web")
+    action_id: Mapped[str | None] = mapped_column(String(128))
+    source_batch_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    source_raw_row_id: Mapped[int | None] = mapped_column(BigInteger())
+    source_file: Mapped[str | None] = mapped_column(String(512))
+    before_json: Mapped[Any | None] = mapped_column(JSON())
+    after_json: Mapped[Any | None] = mapped_column(JSON())
+    diff_json: Mapped[Any | None] = mapped_column(JSON())
+    audit_log_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+
+
+class ActionExecution(Base):
+    """动作幂等记录; 与实体版本和审计在同一事务中写入。"""
+
+    __tablename__ = "action_execution"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_action_execution_idempotency"),
+        Index("ix_action_execution_entity", "entity_type", "entity_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    idempotency_key: Mapped[str | None] = mapped_column(String(255))
+    request_hash: Mapped[str | None] = mapped_column(String(64))
+    entity_type: Mapped[str] = mapped_column(String(64))
+    entity_id: Mapped[str | None] = mapped_column(String(64))
+    action_id: Mapped[str] = mapped_column(String(128))
+    actor_type: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(32))
+    result_json: Mapped[Any | None] = mapped_column(JSON())
+    approval_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    version: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class EntityEvent(Base):
+    """动作产生的领域事件, 供站内摘要和后续订阅使用。"""
+
+    __tablename__ = "entity_event"
+    __table_args__ = (Index("ix_entity_event_entity", "entity_type", "entity_id", "created_at"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    event_type: Mapped[str] = mapped_column(String(128))
+    entity_type: Mapped[str] = mapped_column(String(64))
+    entity_id: Mapped[str | None] = mapped_column(String(64))
+    action_id: Mapped[str | None] = mapped_column(String(128))
+    payload_json: Mapped[Any] = mapped_column(JSON())
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
 V01_TABLES: frozenset[str] = frozenset(Base.metadata.tables)
