@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, Header, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Header, Request, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -35,7 +35,6 @@ from crosserp.db.schema import (
     DocumentLink,
     FileObject,
     PasswordResetToken,
-    Store,
     UserRole,
     UserSession,
 )
@@ -605,21 +604,6 @@ def kick_session(
         session.close()
 
 
-@router.get("/me/data-scope")
-@api_endpoint(
-    entity="UserAccount",
-    action="UserAccount.read_data_scope",
-    permission="user:read",
-    risk_tier="none",
-)
-def data_scope(request: Request) -> dict[str, Any]:
-    principal, session = _principal_db(request)
-    try:
-        return {"scopes": [principal.data_scope or {}]}
-    finally:
-        session.close()
-
-
 @router.post("/files", status_code=201)
 @api_endpoint(
     entity="FileObject", action="FileObject.create", permission="authenticated", risk_tier="low"
@@ -802,6 +786,28 @@ def update_store(
     finally:
         session.close()
 
+
+@router.get("/jobs/{id}")
+
+@api_endpoint(entity="Job", action="Job.get", permission="authenticated", risk_tier="none")
+def get_job(request: Request, id: UUID) -> dict[str, Any]:
+    principal, session = _principal_db(request)
+    try:
+        row = session.get(Job, id)
+        if row is None or row.created_by != principal.effective_user_id:
+            raise not_found()
+        return {
+            "id": str(row.id),
+            "kind": row.kind,
+            "status": row.status,
+            "progress": row.progress,
+            "error": row.error,
+            "resultRef": row.result_ref,
+            "createdBy": str(row.created_by),
+            "createdAt": row.created_at.isoformat(),
+        }
+    finally:
+        session.close()
 
 @router.get("/documents/links")
 @api_endpoint(
