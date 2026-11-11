@@ -54,6 +54,7 @@ def test_every_iam_route_has_success_and_denial(json_client, api_engine) -> None
                 "values": ["all"],
                 "userId": target,
                 "permission": "report:read",
+            "effect": "allow",
                 "name": "route",
                 "fieldKey": "salary",
                 "scopeType": "store",
@@ -92,11 +93,11 @@ def test_invalid_effect_returns_validation_error(json_client: TestClient, api_en
     admin = Principal(user_id=uuid4(), roles=frozenset({"admin"}))
     json_client.app.dependency_overrides[get_principal] = lambda: admin
     try:
-        response = json_client.post(
+        response = json_client.put(
             f"/api/v1/admin/users/{target}/overrides",
             json={"overrides": [{"permission": "report:read", "effect": "unexpected"}]},
         )
-        assert response.status_code == 422
+        assert response.status_code == 400
         assert response.json()["code"] == "VALIDATION_ERROR"
     finally:
         json_client.app.dependency_overrides.pop(get_principal, None)

@@ -16,7 +16,7 @@ class PermissionDenied(APIError):
 
 
 class PermissionService(Protocol):
-    def require(self, principal: Principal, permission: str) -> None: ...
+    def require(self, principal: Principal, permission: str, resource: Any = None) -> None: ...
 
     def data_scope_filter(self, principal: Principal, entity: str) -> Mapping[str, Any]: ...
 
@@ -32,7 +32,7 @@ class DefaultPermissionService:
     def bind(self, iam: IAMService) -> None:
         self.iam = iam
 
-    def require(self, principal: Principal, permission: str) -> None:
+    def require(self, principal: Principal, permission: str, resource: Any = None) -> None:
         if permission == "public":
             return
         if permission == "authenticated" and principal.user_id is not None:

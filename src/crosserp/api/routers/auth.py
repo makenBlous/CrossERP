@@ -33,7 +33,6 @@ from crosserp.db.repo.users import get_by_username, set_password
 from crosserp.db.schema import AppUser, PasswordResetToken, UserRole, UserSession
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.principal import Principal
-from crosserp.platform.principal import Principal
 from crosserp.platform.session_events import on_session_revoked
 
 router = APIRouter()
