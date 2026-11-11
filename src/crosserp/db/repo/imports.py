@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+import hashlib
+import json
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -87,6 +89,10 @@ def insert_import_batch(
         row_count=0,
         status=ImportStatus.RUNNING.value,
         error_count=0,
+        source="file",
+        kind=connector_id,
+        counts_json={"landed": 0, "valid": 0, "duplicate": 0, "quarantined": 0, "projected": 0},
+        received_at=imported_at,
     )
     session.add(batch)
     session.flush()
@@ -110,6 +116,16 @@ def mark_import_batch(
     batch.done_sha256 = batch.file_sha256 if status == ImportStatus.DONE.value else None
     batch.failure_code = failure_code
     batch.failure_reason = failure_reason
+    batch.landed_count = row_count
+    batch.valid_count = max(0, row_count - error_count)
+    batch.quarantined_count = error_count
+    batch.counts_json = {
+        "landed": batch.landed_count,
+        "valid": batch.valid_count,
+        "duplicate": batch.duplicate_count,
+        "quarantined": batch.quarantined_count,
+        "projected": batch.projected_count,
+    }
     session.flush()
 
 
@@ -142,7 +158,14 @@ def insert_raw_row(
     payload: dict[str, str],
 ) -> RawRow:
     """原样写入 payload。不丢未知列。"""
-    row = RawRow(batch_id=batch_id, row_no=row_no, payload_json=dict(payload))
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    row = RawRow(
+        batch_id=batch_id,
+        row_no=row_no,
+        payload_json=dict(payload),
+        sha256=hashlib.sha256(encoded.encode("utf-8")).hexdigest(),
+        received_at=datetime.now(UTC),
+    )
     session.add(row)
     session.flush()
     return row

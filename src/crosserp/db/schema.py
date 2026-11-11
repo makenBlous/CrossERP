@@ -77,6 +77,21 @@ class ImportBatch(Base):
     row_count: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(_KIND)
     error_count: Mapped[int] = mapped_column(Integer)
+    # P1 ingest 统一链路字段。旧导入入口继续使用同一张表。
+    source: Mapped[str] = mapped_column(_KIND, default="file", server_default="file")
+    kind: Mapped[str] = mapped_column(_KIND, default="unknown", server_default="unknown")
+    mapping_rule_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    counts_json: Mapped[Any | None] = mapped_column(JSON(), default=dict, nullable=True)
+    landed_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    valid_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    duplicate_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    quarantined_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    projected_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
+    on_behalf_of: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    supersedes_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
+    received_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
 
 
 class RawRow(Base):
@@ -97,6 +112,54 @@ class RawRow(Base):
     batch_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("import_batch.id"))
     row_no: Mapped[int] = mapped_column(Integer)
     payload_json: Mapped[Any] = mapped_column(JSON())
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    received_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
+
+
+# 领域名称与历史表名的兼容别名：P1 不建立第二套 raw/import 表。  # noqa: RUF003
+IngestBatch = ImportBatch
+RawRecord = RawRow
+
+
+class CleansingIssue(Base):
+    """清洗隔离区中的一条问题记录。"""
+
+    __tablename__ = "cleansing_issue"
+    __table_args__ = (
+        Index("ix_cleansing_issue_batch_id", "batch_id"),
+        Index("ix_cleansing_issue_raw_record_id", "raw_record_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    batch_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("import_batch.id"))
+    raw_record_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("raw_row.id"))
+    row_no: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(_KIND)
+    field: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    message: Mapped[str] = mapped_column(String(1000))
+    suggestion_json: Mapped[Any | None] = mapped_column(JSON(), default=dict, nullable=True)
+    status: Mapped[str] = mapped_column(_KIND, default="open", server_default="open")
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class MappingRule(Base):
+    """按规则键和版本保留的映射规则。"""
+
+    __tablename__ = "mapping_rule"
+    __table_args__ = (
+        UniqueConstraint("rule_key", "rule_version", name="uq_mapping_rule_key_version"),
+        Index("ix_mapping_rule_key", "rule_key"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    rule_key: Mapped[str] = mapped_column(String(128))
+    rule_version: Mapped[str] = mapped_column(String(64))
+    kind: Mapped[str] = mapped_column(_KIND)
+    body_json: Mapped[Any] = mapped_column(JSON())
+    status: Mapped[str] = mapped_column(_KIND, default="active", server_default="active")
+    verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
 class Store(Base):
