@@ -127,6 +127,9 @@ class Sku(Base):
     internal_sku: Mapped[str] = mapped_column(String(128))
     title: Mapped[str | None] = mapped_column(String(512))
     active: Mapped[bool] = mapped_column(Boolean())
+    aliases_json: Mapped[Any | None] = mapped_column(JSON(), nullable=True)
+    source_refs_json: Mapped[Any | None] = mapped_column(JSON(), nullable=True)
+    merged_into_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class SkuCost(Base):
@@ -896,6 +899,33 @@ class Delegation(Base):
     revoke_reason: Mapped[str | None] = mapped_column(String(32))
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class DedupCandidate(Base):
+    """同一实体的别名候选; 原始候选记录只推进状态, 不删除。"""
+
+    __tablename__ = "dedup_candidate"
+    __table_args__ = (
+        CheckConstraint("status IN ('open', 'merged', 'rejected')", name="dedup_candidate_status"),
+        CheckConstraint(
+            "confidence IN ('exact', 'high', 'medium', 'low')",
+            name="dedup_candidate_confidence",
+        ),
+        Index("ix_dedup_candidate_entity_status", "entity_type", "status"),
+        Index("ix_dedup_candidate_updated_at", "updated_at"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    entity_type: Mapped[str] = mapped_column(String(64))
+    ids: Mapped[Any] = mapped_column(JSON())
+    reason: Mapped[str] = mapped_column(String(512))
+    confidence: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(16), default="open", server_default="open")
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    provenance: Mapped[Any] = mapped_column(JSON(), default=dict)
+    merged_target_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
 class EntityVersion(Base):

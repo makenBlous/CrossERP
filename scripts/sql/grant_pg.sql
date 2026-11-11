@@ -37,7 +37,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.approval, public.api_token,
   public.password_reset_token, public.file_object, public.job, public.document_link, public.delegation,
   public.user_session, public.voucher, public.voucher_line TO crosserp_app;
   public.user_session, public.voucher, public.voucher_line, public.entity_version,
-  public.action_execution, public.entity_event TO crosserp_app;
+  public.action_execution, public.entity_event, public.dedup_candidate TO crosserp_app;
   public.user_session, public.voucher, public.voucher_line, public.iam_role,
   public.iam_permission_override, public.iam_temporary_grant, public.iam_field_policy,
   public.iam_data_scope_rule, public.iam_access_review, public.iam_sod_rule,
@@ -70,7 +70,8 @@ GRANT SELECT ON TABLE public.approval, public.api_token, public.app_setting, pub
   public.password_reset_token, public.file_object, public.job, public.document_link, public.delegation,
   public.user_role, public.user_session, public.voucher, public.voucher_line TO crosserp_agent;
   public.user_role, public.user_session, public.voucher, public.voucher_line,
-  public.entity_version, public.action_execution, public.entity_event TO crosserp_agent;
+  public.entity_version, public.action_execution, public.entity_event,
+  public.dedup_candidate TO crosserp_agent;
   public.iam_role, public.iam_permission_override, public.iam_temporary_grant,
   public.iam_field_policy, public.iam_data_scope_rule, public.iam_access_review,
   public.iam_sod_rule, public.iam_module_switch, public.iam_dictionary,
