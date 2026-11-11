@@ -34,9 +34,20 @@ def test_approval_types_is_registered_once_before_id_route(json_client) -> None:
 
 def test_approval_types_request_is_not_parsed_as_approval_id(json_client) -> None:
     from crosserp.platform.principal import Principal, get_principal
+    from crosserp.auth.roles import Role
+    from crosserp.db.repo.users import create_user
+    from sqlalchemy.orm import Session
 
+    with Session(json_client.app.state.database_engine) as session, session.begin():
+        user = create_user(
+            session,
+            username="contract-admin",
+            password="Contract-test-password-123",
+            roles=(Role.ADMIN,),
+        )
+        user_id = user.id
     json_client.app.dependency_overrides[get_principal] = lambda: Principal(
-        user_id=None, roles=frozenset({"admin"})
+        user_id=user_id, roles=frozenset({"admin"})
     )
     response = json_client.get("/api/v1/approvals/types")
     assert response.status_code == 200

@@ -7,13 +7,23 @@ from sqlalchemy.orm import Session
 
 from crosserp.audit.security import verify_security_chain
 from crosserp.db.schema import AuditLog, SecurityEvent
+from crosserp.auth.roles import Role
+from crosserp.db.repo.users import create_user
 from crosserp.platform.principal import ActorType, Principal, get_principal
 
 
 def test_iam_write_audit_has_actor_context_and_ai_critical_is_rejected(
     json_client, api_engine
 ) -> None:
-    human = Principal(user_id=uuid4(), roles=frozenset({"admin"}))
+    with Session(api_engine) as session, session.begin():
+        human_user = create_user(
+            session,
+            username="iam-audit-admin",
+            password="Iam-audit-password-123",
+            roles=(Role.ADMIN,),
+        )
+        human_user_id = human_user.id
+    human = Principal(user_id=human_user_id, roles=frozenset({"admin"}))
     json_client.app.dependency_overrides[get_principal] = lambda: human
     try:
         response = json_client.post(
@@ -39,7 +49,7 @@ def test_iam_write_audit_has_actor_context_and_ai_critical_is_rejected(
             select(AuditLog).where(AuditLog.action == "Role.create").order_by(AuditLog.seq.desc())
         )
         assert row is not None
-        assert row.actor_type == "user"
+        assert row.actor_type == "human"
         assert row.after_json["agent_id"] is None
         assert row.after_json["on_behalf_of"] is None
         assert (

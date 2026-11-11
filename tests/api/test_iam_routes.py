@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from crosserp.api.routers.iam import _ROUTES
+from crosserp.auth.roles import Role
 from crosserp.db.repo.users import create_user
 from crosserp.platform.principal import Principal, get_principal
 
@@ -13,16 +14,31 @@ from crosserp.platform.principal import Principal, get_principal
 def test_every_iam_route_has_success_and_denial(json_client, api_engine) -> None:
     with Session(api_engine) as session, session.begin():
         user = create_user(
-            session, username=f"route-{uuid4().hex[:8]}", password="Api-test-password-123"
+            session,
+            username=f"route-{uuid4().hex[:8]}",
+            password="Api-test-password-123",
         )
         target = str(user.id)
+        admin_user = create_user(
+            session,
+            username=f"route-admin-{uuid4().hex[:8]}",
+            password="Api-test-password-123",
+            roles=(Role.ADMIN,),
+        )
+        viewer_user = create_user(
+            session,
+            username=f"route-viewer-{uuid4().hex[:8]}",
+            password="Api-test-password-123",
+            roles=(Role.VIEWER,),
+        )
+        admin_user_id = admin_user.id
+        viewer_user_id = viewer_user.id
     role_id = "admin"
     custom_role = None
     grant_id = None
     review_id = None
-    user_id = uuid4()
-    admin = Principal(user_id=user_id, roles=frozenset({"admin"}))
-    viewer = Principal(user_id=user_id, roles=frozenset({"viewer"}))
+    admin = Principal(user_id=admin_user_id, roles=frozenset({"admin"}))
+    viewer = Principal(user_id=viewer_user_id, roles=frozenset({"viewer"}))
     json_client.app.dependency_overrides[get_principal] = lambda: admin
     try:
         for method, template, _entity, _action, _permission, _risk, _status in _ROUTES:
@@ -90,7 +106,15 @@ def test_invalid_effect_returns_validation_error(json_client: TestClient, api_en
             session, username=f"effect-{uuid4().hex[:8]}", password="Api-test-password-123"
         )
         target = str(user.id)
-    admin = Principal(user_id=uuid4(), roles=frozenset({"admin"}))
+    with Session(api_engine) as session, session.begin():
+        admin_user = create_user(
+            session,
+            username=f"effect-admin-{uuid4().hex[:8]}",
+            password="Api-test-password-123",
+            roles=(Role.ADMIN,),
+        )
+        admin_user_id = admin_user.id
+    admin = Principal(user_id=admin_user_id, roles=frozenset({"admin"}))
     json_client.app.dependency_overrides[get_principal] = lambda: admin
     try:
         response = json_client.put(
