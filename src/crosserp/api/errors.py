@@ -58,6 +58,8 @@ _STATUS: dict[ErrorCode, int] = {
     ErrorCode.APPROVAL_REQUIRED: 409,
     ErrorCode.RISK_BLOCKED: 403,
     ErrorCode.AI_AUTONOMY_CAPPED: 403,
+    ErrorCode.DELEGATION_SCOPE_EXCEEDED: 404,
+    ErrorCode.PERMISSIONS_CHANGED: 404,
     ErrorCode.INTERNAL: 500,
     ErrorCode.INTERNAL_ERROR: 500,
 }

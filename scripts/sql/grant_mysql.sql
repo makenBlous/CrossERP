@@ -53,6 +53,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.file_object TO 'crosserp_app'@'
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.job TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.document_link TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.delegation TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.entity_version TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.action_execution TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.entity_event TO 'crosserp_app'@'%';
 # MySQL 没有“除三张表外全部 SELECT”的简写，逐表授权避免读到密码哈希、会话和 token。
 GRANT SELECT ON crosserp.* TO 'crosserp_agent'@'%';
 REVOKE ALL PRIVILEGES ON crosserp.* FROM 'crosserp_agent'@'%';
@@ -93,6 +96,9 @@ GRANT SELECT ON crosserp.file_object TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.job TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.document_link TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.delegation TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.entity_version TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.action_execution TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.entity_event TO 'crosserp_agent'@'%';
 
 -- security_event / audit_checkpoint / audit_export 在 W5/T31 创建。
 -- 建表后重跑本文件，并按同样原则给 app SELECT/INSERT、agent SELECT。

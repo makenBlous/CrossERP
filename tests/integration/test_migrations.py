@@ -17,7 +17,7 @@ from crosserp.db.session import session_scope, sqlite_file_url
 
 pytestmark = pytest.mark.db
 
-_EXPECTED_COUNT = 41  # P0-01 增加平台文件、任务、关联、重置令牌和委托表
+_EXPECTED_COUNT = 44  # P0 平台表加本体实体版本、动作执行和事件表
 
 
 def _url(engine: Engine) -> str:

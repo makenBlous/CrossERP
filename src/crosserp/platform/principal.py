@@ -35,6 +35,9 @@ class Principal:
     is_subagent: bool = False
     channel: str = "web"
     permissions: frozenset[str] = field(default_factory=frozenset)
+    # 由委托通行证签发时带入的被代表人当前有效权限快照。
+    # 真实权限服务可在每次动作前覆盖该快照; 避免复用已撤回权限
+    represented_permissions: frozenset[str] | None = None
     data_scope: Any = None
 
     @property
