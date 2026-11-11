@@ -125,6 +125,7 @@ def test_agent_medium_create_contains_undo_payload(tmp_path: Path) -> None:
         audit = session.scalar(select(AuditLog).order_by(AuditLog.seq.desc()))
         assert row is not None and row.state == "suggested"
         assert audit is not None and audit.actor_type == "agent"
+        assert audit.after_json["on_behalf_of"] == str(principal.on_behalf_of)
     engine.dispose()
 
 
@@ -156,12 +157,21 @@ def test_agent_high_confirm_submits_approval_without_mutating(tmp_path: Path) ->
     with Session(engine) as session:
         row = session.get(SkuMapping, UUID(mapping_id))
         assert row is not None and row.state == "suggested" and row.version == 0
+        assert (
+            session.scalar(select(AuditLog).where(AuditLog.action == "SkuMapping.confirm")) is None
+        )
     engine.dispose()
 
 
-def test_human_confirm_changes_suggestion_and_version(tmp_path: Path) -> None:
+def test_human_high_confirm_submits_approval_without_mutating(tmp_path: Path) -> None:
     app, engine = _app(tmp_path)
     _, mapping_id = _seed(engine)
+
+    class Gateway:
+        def submit(self, **_: object) -> object:
+            return {"approvalId": "approval-human-1", "resolution": ApprovalResolution.REQUIRED}
+
+    app.state.approval_gateway = Gateway()
     principal = Principal(user_id=uuid4(), permissions=frozenset({"item:write"}))
     app.dependency_overrides[get_principal] = lambda: principal
     with TestClient(app) as client:
@@ -170,11 +180,33 @@ def test_human_confirm_changes_suggestion_and_version(tmp_path: Path) -> None:
             json={"id": mapping_id, "expectedVersion": 0},
         )
     assert response.status_code == 200
-    assert response.json()["state"] == "confirmed"
-    assert response.json()["version"] == 1
+    assert response.json()["resolution"] == ApprovalResolution.REQUIRED
     with Session(engine) as session:
         row = session.get(SkuMapping, UUID(mapping_id))
-        assert row is not None and row.state == "confirmed" and row.version == 1
+        assert row is not None and row.state == "suggested" and row.version == 0
+        assert (
+            session.scalar(select(AuditLog).where(AuditLog.action == "SkuMapping.confirm")) is None
+        )
+    engine.dispose()
+
+
+def test_mapping_create_rejects_unknown_fields_with_validation_error(tmp_path: Path) -> None:
+    app, engine = _app(tmp_path)
+    store_id, _ = _seed(engine)
+    principal = Principal(user_id=uuid4(), permissions=frozenset({"item:write"}))
+    app.dependency_overrides[get_principal] = lambda: principal
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/catalog/mappings",
+            json={
+                "storeId": store_id,
+                "platformSku": "AMZ-invalid",
+                "internalSku": "INT-invalid",
+                "status": "confirmed",
+            },
+        )
+    assert response.status_code == 422
+    assert response.json()["code"] == "VALIDATION_ERROR"
     engine.dispose()
 
 

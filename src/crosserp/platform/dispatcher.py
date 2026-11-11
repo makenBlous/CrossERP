@@ -152,7 +152,7 @@ class ActionDispatcher:
                     details={"expectedVersion": expected_version, "actualVersion": current_version},
                 )
 
-            if principal.is_agent and decision is AutonomyDecision.DRAFT_OR_APPROVAL:
+            if decision is AutonomyDecision.DRAFT_OR_APPROVAL:
                 try:
                     approval = self.approval_gateway.submit(
                         principal=principal,
