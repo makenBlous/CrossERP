@@ -3,17 +3,58 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from pydantic import Field, StrictInt, field_validator, model_validator
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
+from crosserp.api.schemas import CamelModel
 from crosserp.db.schema import Category
 from crosserp.platform.dispatcher import ActionDispatcher
 from crosserp.platform.permissions import DefaultPermissionService
 from crosserp.platform.principal import Principal
+
+
+class CategoryCreatePayload(CamelModel):
+    name: str = Field(min_length=1, max_length=255)
+    parent_id: UUID | None = None
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("name 必须是 1-255 个字符")
+        return normalized
+
+
+class CategoryUpdatePayload(CamelModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    parent_id: UUID | None = None
+    expected_version: StrictInt | None = Field(default=None, ge=1)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("name 必须是 1-255 个字符")
+        return normalized
+
+    @model_validator(mode="after")
+    def reject_explicit_null_name(self) -> CategoryUpdatePayload:
+        if "name" in self.model_fields_set and self.name is None:
+            raise ValueError("name 必须是 1-255 个字符")
+        return self
+
+
+class CategoryStatusPayload(CamelModel):
+    id: UUID
+    status: Literal["active", "inactive"]
+    expected_version: StrictInt | None = Field(default=None, ge=1)
 
 
 def list_categories(
@@ -26,15 +67,32 @@ def list_categories(
     sort: str | None,
 ) -> dict[str, Any]:
     DefaultPermissionService().require(principal, "item_group:read")
-    rows = list(session.scalars(select(Category).order_by(Category.name, Category.id)))
+    statement = select(Category)
     if q:
-        needle = q.casefold()
-        rows = [row for row in rows if needle in row.name.casefold()]
-    rows = _sort(rows, sort)
-    total = len(rows)
-    start = (page - 1) * page_size
+        statement = statement.where(Category.name.ilike(f"%{q}%"))
+    total = cast(int, session.scalar(select(func.count()).select_from(statement.subquery())))
+    if sort is None:
+        ordering: tuple[Any, ...] = (Category.name.asc(), Category.id.asc())
+    else:
+        descending = sort.startswith("-")
+        field = sort[1:] if descending else sort
+        if field == "name":
+            column: Any = func.lower(Category.name)
+        elif field == "createdAt":
+            column = Category.created_at
+        else:
+            raise APIError(ErrorCode.VALIDATION_FAILED, "sort 只支持 name 或 createdAt")
+        ordering = (
+            column.desc() if descending else column.asc(),
+            Category.id.desc() if descending else Category.id.asc(),
+        )
+    rows = list(
+        session.scalars(
+            statement.order_by(*ordering).offset((page - 1) * page_size).limit(page_size)
+        )
+    )
     return {
-        "items": [_as_dict(row) for row in rows[start : start + page_size]],
+        "items": [_as_dict(row) for row in rows],
         "page": page,
         "pageSize": page_size,
         "total": total,
@@ -45,16 +103,18 @@ def create_category(
     session: Session,
     *,
     principal: Principal,
-    payload: dict[str, Any],
+    payload: CategoryCreatePayload,
     idempotency_key: str | None,
     request_id: str | None,
 ) -> dict[str, Any]:
-    _ensure_keys(payload, {"name", "parentId"})
-    name = _text(payload, "name")
-    parent_id = _optional_uuid(payload, "parentId")
-    if parent_id is not None and session.get(Category, parent_id) is None:
-        raise not_found(message="父类目不存在")
+    name = payload.name
+    parent_id = payload.parent_id
+    if parent_id is not None:
+        parent = session.get(Category, parent_id)
+        if parent is None:
+            raise not_found(message="父类目不存在")
     category_id = uuid4()
+    payload_data = payload.model_dump(by_alias=True, mode="json", exclude_unset=True)
 
     def business_action() -> dict[str, Any]:
         now = datetime.now(UTC)
@@ -87,7 +147,7 @@ def create_category(
             action="Category.create",
             entity="Category",
             entity_id=category_id,
-            payload=payload,
+            payload=payload_data,
             idempotency_key=idempotency_key,
             request_id=request_id,
             business_action=business_action,
@@ -100,29 +160,31 @@ def update_category(
     *,
     principal: Principal,
     category_id: UUID,
-    payload: dict[str, Any],
+    payload: CategoryUpdatePayload,
     idempotency_key: str | None,
     request_id: str | None,
 ) -> dict[str, Any]:
-    raw_expected_version = payload.get("expectedVersion")
-    expected_version = raw_expected_version if _is_version(raw_expected_version) else None
+    expected_version = payload.expected_version
+    payload_data = payload.model_dump(by_alias=True, mode="json", exclude_unset=True)
 
     def business_action() -> dict[str, Any]:
         row = session.get(Category, category_id)
         if row is None:
             raise not_found(message="类目不存在")
-        _ensure_keys(payload, {"name", "parentId", "expectedVersion"})
-        _required_version(payload)
-        name = _text(payload, "name") if "name" in payload else None
-        parent_id = _optional_uuid(payload, "parentId") if "parentId" in payload else None
+        if expected_version is None:
+            raise APIError(ErrorCode.VALIDATION_FAILED, "expectedVersion 必须是正整数")
+        name = payload.name if "name" in payload.model_fields_set else None
+        parent_id = payload.parent_id if "parent_id" in payload.model_fields_set else None
         before = _as_dict(row)
         if name is not None:
             row.name = name
-        if "parentId" in payload:
-            if parent_id is not None and session.get(Category, parent_id) is None:
-                raise not_found(message="父类目不存在")
-            if parent_id == category_id or _contains_descendant(session, category_id, parent_id):
-                raise APIError(ErrorCode.ILLEGAL_TRANSITION, "类目树不能成环", status_code=409)
+        if "parent_id" in payload.model_fields_set:
+            if parent_id is not None:
+                parent = session.get(Category, parent_id)
+                if parent is None:
+                    raise not_found(message="父类目不存在")
+                if parent_id == category_id or _contains_descendant(session, category_id, parent):
+                    raise APIError(ErrorCode.ILLEGAL_TRANSITION, "类目树不能成环", status_code=409)
             row.parent_id = parent_id
         row.version += 1
         row.updated_at = datetime.now(UTC)
@@ -148,7 +210,7 @@ def update_category(
             action="Category.update",
             entity="Category",
             entity_id=category_id,
-            payload=payload,
+            payload=payload_data,
             expected_version=expected_version,
             idempotency_key=idempotency_key,
             request_id=request_id,
@@ -162,22 +224,20 @@ def set_category_status(
     *,
     principal: Principal,
     category_id: UUID,
-    payload: dict[str, Any],
+    payload: CategoryStatusPayload,
     idempotency_key: str | None,
     request_id: str | None,
 ) -> dict[str, Any]:
-    raw_expected_version = payload.get("expectedVersion")
-    expected_version = raw_expected_version if _is_version(raw_expected_version) else None
+    expected_version = payload.expected_version
+    payload_data = payload.model_dump(by_alias=True, mode="json", exclude_unset=True)
 
     def business_action() -> dict[str, Any]:
         row = session.get(Category, category_id)
         if row is None:
             raise not_found(message="类目不存在")
-        _ensure_keys(payload, {"id", "status", "expectedVersion"})
-        _required_version(payload)
-        status = payload.get("status")
-        if status not in {"active", "inactive"}:
-            raise APIError(ErrorCode.VALIDATION_FAILED, "status 必须是 active 或 inactive")
+        if expected_version is None:
+            raise APIError(ErrorCode.VALIDATION_FAILED, "expectedVersion 必须是正整数")
+        status = payload.status
         active = status == "active"
         before = _as_dict(row)
         row.active = active
@@ -205,7 +265,7 @@ def set_category_status(
             action="Category.status",
             entity="Category",
             entity_id=category_id,
-            payload=payload,
+            payload=payload_data,
             expected_version=expected_version,
             idempotency_key=idempotency_key,
             request_id=request_id,
@@ -226,64 +286,21 @@ def _as_dict(row: Category) -> dict[str, Any]:
     }
 
 
-def _sort(rows: list[Category], sort: str | None) -> list[Category]:
-    if sort is None:
-        return rows
-    descending = sort.startswith("-")
-    field = sort[1:] if descending else sort
-    if field == "name":
-        return sorted(rows, key=lambda row: row.name.casefold(), reverse=descending)
-    if field == "createdAt":
-        return sorted(rows, key=lambda row: row.created_at, reverse=descending)
-    raise APIError(ErrorCode.VALIDATION_FAILED, "sort 只支持 name 或 createdAt")
-
-
-def _ensure_keys(payload: dict[str, Any], allowed: set[str]) -> None:
-    unknown = set(payload) - allowed
-    if unknown:
-        raise APIError(
-            ErrorCode.VALIDATION_FAILED, "请求包含未知字段", details={"fields": sorted(unknown)}
-        )
-
-
-def _text(payload: dict[str, Any], key: str) -> str:
-    value = payload.get(key)
-    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 255:
-        raise APIError(ErrorCode.VALIDATION_FAILED, f"{key} 必须是 1-255 个字符")
-    return value.strip()
-
-
-def _optional_uuid(payload: dict[str, Any], key: str) -> UUID | None:
-    value = payload.get(key)
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise APIError(ErrorCode.VALIDATION_FAILED, f"{key} 必须是 UUID")
-    try:
-        return UUID(value)
-    except ValueError as exc:
-        raise APIError(ErrorCode.VALIDATION_FAILED, f"{key} 必须是 UUID") from exc
-
-
-def _required_version(payload: dict[str, Any]) -> int:
-    value = payload.get("expectedVersion")
-    if not _is_version(value):
-        raise APIError(ErrorCode.VALIDATION_FAILED, "expectedVersion 必须是正整数")
-    return cast(int, value)
-
-
-def _is_version(value: Any) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 1
-
-
-def _contains_descendant(session: Session, category_id: UUID, parent_id: UUID | None) -> bool:
-    current = parent_id
+def _contains_descendant(session: Session, category_id: UUID, parent: Category) -> bool:
+    current: Category | None = parent
     while current is not None:
-        if current == category_id:
+        if current.id == category_id:
             return True
-        row = session.get(Category, current)
-        current = None if row is None else row.parent_id
+        current = session.get(Category, current.parent_id) if current.parent_id else None
     return False
 
 
-__all__ = ["create_category", "list_categories", "set_category_status", "update_category"]
+__all__ = [
+    "CategoryCreatePayload",
+    "CategoryStatusPayload",
+    "CategoryUpdatePayload",
+    "create_category",
+    "list_categories",
+    "set_category_status",
+    "update_category",
+]

@@ -219,3 +219,16 @@ def test_category_requires_auth(json_client: TestClient, endpoint: str) -> None:
         else json_client.post(endpoint, json={})
     )
     assert response.status_code == 401
+
+
+def test_category_rejects_invalid_payload_with_validation_error(
+    json_client: TestClient,
+) -> None:
+    _override(json_client, _principal("item_group:create"))
+    response = json_client.post(
+        "/api/v1/catalog/categories",
+        json={"name": 123},
+        headers={"Idempotency-Key": "category-invalid-payload"},
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "VALIDATION_ERROR"

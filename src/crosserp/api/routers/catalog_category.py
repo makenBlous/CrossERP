@@ -5,15 +5,18 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Header, Query, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.metadata import api_endpoint
 from crosserp.catalog.category import (
+    CategoryCreatePayload,
+    CategoryStatusPayload,
+    CategoryUpdatePayload,
     create_category,
     list_categories,
     set_category_status,
@@ -24,19 +27,24 @@ from crosserp.platform.principal import Principal, get_principal
 router = APIRouter(tags=["商品与主数据"])
 
 
+def get_database_engine(request: Request) -> Engine:
+    return cast(Engine, request.app.state.database_engine)
+
+
 @router.get("/catalog/categories")
 @api_endpoint(
     entity="Category", action="Category.list", permission="item_group:read", risk_tier="none"
 )
 def get_categories(
     request: Request,
+    database_engine: Engine = Depends(get_database_engine),
     principal: Principal = Depends(get_principal),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, alias="pageSize", ge=1, le=200),
     q: str | None = None,
     sort: str | None = None,
 ) -> dict[str, Any]:
-    with Session(request.app.state.database_engine) as session:
+    with Session(database_engine) as session:
         return list_categories(
             session,
             principal=principal,
@@ -53,11 +61,12 @@ def get_categories(
 )
 def post_category(
     request: Request,
-    body: dict[str, Any] = Body(default_factory=dict),
+    body: CategoryCreatePayload,
+    database_engine: Engine = Depends(get_database_engine),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    with Session(request.app.state.database_engine) as session:
+    with Session(database_engine) as session:
         return create_category(
             session,
             principal=principal,
@@ -73,17 +82,17 @@ def post_category(
 )
 def patch_category(
     request: Request,
-    id: str,
-    body: dict[str, Any] = Body(default_factory=dict),
+    id: UUID,
+    body: CategoryUpdatePayload,
+    database_engine: Engine = Depends(get_database_engine),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    category_id = _parse_id(id)
-    with Session(request.app.state.database_engine) as session:
+    with Session(database_engine) as session:
         return update_category(
             session,
             principal=principal,
-            category_id=category_id,
+            category_id=id,
             payload=body,
             idempotency_key=idempotency_key,
             request_id=request.state.request_id,
@@ -96,30 +105,20 @@ def patch_category(
 )
 def post_category_status(
     request: Request,
-    body: dict[str, Any] = Body(default_factory=dict),
+    body: CategoryStatusPayload,
+    database_engine: Engine = Depends(get_database_engine),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    raw_id = body.get("id")
-    if not isinstance(raw_id, str):
-        raise APIError(ErrorCode.VALIDATION_FAILED, "id 必须是 UUID")
-    category_id = _parse_id(raw_id)
-    with Session(request.app.state.database_engine) as session:
+    with Session(database_engine) as session:
         return set_category_status(
             session,
             principal=principal,
-            category_id=category_id,
+            category_id=body.id,
             payload=body,
             idempotency_key=idempotency_key,
             request_id=request.state.request_id,
         )
-
-
-def _parse_id(value: str) -> UUID:
-    try:
-        return UUID(value)
-    except ValueError as exc:
-        raise APIError(ErrorCode.NOT_FOUND, "类目不存在", status_code=404) from exc
 
 
 __all__ = ["router"]
