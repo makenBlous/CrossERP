@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Body, Depends, Query, Request
 from fastapi.responses import Response
 from pydantic import Field
 from sqlalchemy import func, select
@@ -19,12 +21,15 @@ from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.metadata import api_endpoint
 from crosserp.api.schemas import CamelModel
 from crosserp.audit.log import verify_chain
+from crosserp.audit.security import SecurityEventName
+from crosserp.audit.security import record as record_security
 from crosserp.db.schema import (
     Approval,
     ArchiveRun,
     AuditAlert,
     AuditExport,
     AuditLog,
+    FileObject,
     RetentionPolicy,
     SecurityEvent,
 )
@@ -37,6 +42,9 @@ router = APIRouter()
 
 class AuditExportBody(CamelModel):
     format: Literal["jsonl"] = "jsonl"
+    from_ts: datetime | None = Field(default=None, alias="from")
+    to_ts: datetime | None = Field(default=None, alias="to")
+    filters: dict[str, Any] = Field(default_factory=dict)
 
 
 class RetentionUpdateBody(CamelModel):
@@ -216,38 +224,84 @@ def verify_audit(request: Request, principal: Principal = Depends(get_principal)
 )
 def create_audit_export(
     request: Request,
-    body: AuditExportBody,
+    body: AuditExportBody = Body(default_factory=AuditExportBody),
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
     _auth(request, principal, "audit_log:export")
 
     with _session(request) as session, session.begin():
-        rows = list(session.scalars(select(AuditLog).order_by(AuditLog.seq)))
+        statement = select(AuditLog).order_by(AuditLog.seq)
+        if body.from_ts is not None:
+            statement = statement.where(AuditLog.ts >= body.from_ts)
+        if body.to_ts is not None:
+            statement = statement.where(AuditLog.ts <= body.to_ts)
+        if action := body.filters.get("action"):
+            statement = statement.where(AuditLog.action == str(action))
+        if actor_type := body.filters.get("actorType"):
+            statement = statement.where(AuditLog.actor_type == str(actor_type))
+        if target_type := body.filters.get("targetType"):
+            statement = statement.where(AuditLog.target_type == str(target_type))
+        rows = list(session.scalars(statement))
         content = (
             "\n".join(json.dumps(_log(row), ensure_ascii=False, sort_keys=True) for row in rows)
             + "\n"
         ).encode()
         now = datetime.now(UTC)
+        from_ts = body.from_ts or (rows[0].ts if rows else now)
+        to_ts = body.to_ts or (rows[-1].ts if rows else now)
+        digest = hashlib.sha256(content).hexdigest()
+        root = Path(os.environ.get("CROSSERP_FILES_DIR", "var/files"))
+        root.mkdir(parents=True, exist_ok=True)
+        storage_path = root / digest
+        storage_path.write_bytes(content)
+        file_object = session.scalar(select(FileObject).where(FileObject.sha256 == digest))
+        if file_object is None:
+            file_object = FileObject(
+                id=uuid4(),
+                sha256=digest,
+                filename="audit-export.jsonl",
+                content_type="application/jsonl",
+                size=len(content),
+                storage_path=str(storage_path),
+                uploaded_by=principal.effective_user_id or principal.user_id,
+                created_at=now,
+            )
+            session.add(file_object)
+            session.flush()
+        else:
+            storage_path = Path(file_object.storage_path)
+        export_id = uuid4()
         export = AuditExport(
-            id=uuid4(),
-            requested_by=str(principal.effective_user_id or principal.user_id),
-            from_ts=rows[0].ts if rows else now,
-            to_ts=rows[-1].ts if rows else now,
+            id=export_id,
+            requested_by=str(principal.user_id),
+            actor_type=principal.actor_type.value,
+            on_behalf_of=principal.on_behalf_of,
+            from_ts=from_ts,
+            to_ts=to_ts,
             format=body.format,
+            chain="audit_log",
+            filter_json=body.model_dump(mode="json", by_alias=True, exclude_none=True),
             row_count=len(rows),
             first_hash=rows[0].hash if rows else None,
             last_hash=rows[-1].hash if rows else None,
-            file_sha256=hashlib.sha256(content).hexdigest(),
+            file_sha256=digest,
+            file_id=file_object.id,
+            status="ready",
             created_at=now,
         )
         session.add(export)
         session.flush()
-        request.app.state.audit_exports[str(export.id)] = content
         DefaultAuditRecorder(session).record(
             principal=principal,
             entity="AuditExport",
             action="AuditExport.create",
-            diff={"id": str(export.id), "rowCount": export.row_count},
+            diff={
+                "id": str(export.id),
+                "rowCount": export.row_count,
+                "fileId": str(file_object.id),
+                "fileSha256": digest,
+                "filters": export.filter_json,
+            },
             request_id=request.state.request_id,
         )
         return {
@@ -255,6 +309,7 @@ def create_audit_export(
             "rowCount": export.row_count,
             "fileSha256": export.file_sha256,
             "status": "ready",
+            "fileId": str(file_object.id),
         }
 
 
@@ -276,7 +331,49 @@ def download_audit_export(
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
         if export is None:
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
-        content = request.app.state.audit_exports[id]
+        if export.file_id is None:
+            raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
+        file_object = session.get(FileObject, export.file_id)
+        if file_object is None:
+            raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
+        path = Path(file_object.storage_path)
+        content = path.read_bytes() if path.is_file() else b""
+        digest = hashlib.sha256(content).hexdigest()
+        if digest != export.file_sha256 or digest != file_object.sha256:
+            record_security(
+                session,
+                SecurityEventName.AUDIT_EXPORT_TAMPERED,
+                user_id=principal.user_id,
+                target_user_id=principal.effective_user_id,
+                request_id=request.state.request_id,
+                detail={
+                    "exportId": str(export.id),
+                    "fileId": str(file_object.id),
+                    "expectedSha256": export.file_sha256,
+                    "actualSha256": digest,
+                },
+            )
+            DefaultAuditRecorder(session).record(
+                principal=principal,
+                entity="AuditExport",
+                action="AuditExport.read_download",
+                diff={"id": str(export.id), "status": "integrity_failed"},
+                request_id=request.state.request_id,
+            )
+            session.commit()
+            raise APIError(
+                ErrorCode.AUDIT_EXPORT_INTEGRITY_ERROR,
+                "审计导出文件完整性校验失败",
+                details={"exportId": str(export.id)},
+            )
+        DefaultAuditRecorder(session).record(
+            principal=principal,
+            entity="AuditExport",
+            action="AuditExport.read_download",
+            diff={"id": str(export.id), "status": "downloaded"},
+            request_id=request.state.request_id,
+        )
+        session.commit()
         return Response(
             content=content,
             media_type="application/octet-stream",
