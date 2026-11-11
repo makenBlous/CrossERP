@@ -37,7 +37,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/web -k voucher -q` | passed |
-| `uv run pytest -m db -q`（三库） | passed |
+| `uv run pytest -m db -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run crosserp check-golden` | 通过（原黄金样例不受影响） |
 | 全量检查 | 全过 |
 
@@ -57,5 +57,5 @@
 ## 完成记录
 - 完成内容：新增通用双表 Excel 目标；唯一写出口支持一次审批生成多个目标并只消费一次 token；网页新增凭证列表/详情和两种格式下载；未批准、无文件、目标不匹配和越权下载均拒绝并记录审计；新增 W6 验收证据。
 - 修改文件：`src/crosserp/ledger/targets/generic_xlsx.py`、`src/crosserp/ledger/write_service.py`、`src/crosserp/web/app.py`、`src/crosserp/web/routes/__init__.py`、`src/crosserp/web/templates/{vouchers,voucher_detail,index}.html`、`tests/web/test_voucher_download.py`、`docs/evidence/W6.md`、`docs/vouchers.md`、`CHANGELOG.md`。
-- 测试结果：网页/凭证导出/守卫 15 passed；写出筛选 18 passed；全量 SQLite `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 246 passed、7 skipped，覆盖率 79.72%；MySQL 8.4 和 PostgreSQL 18 凭证导出各 1 passed；`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过。
+- 测试结果：网页/凭证导出/守卫 15 passed；写出筛选 18 passed；全量 SQLite `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 246 passed、7 skipped，覆盖率 79.72%；MySQL 8.4 和 PostgreSQL 18 凭证导出各 1 passed；`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - 偏离计划：当前网页仍集中装配在 `web/app.py`，按现有项目结构实现；通用格式固定中文两表，金蝶格式继续使用 T40 的可配置模板。

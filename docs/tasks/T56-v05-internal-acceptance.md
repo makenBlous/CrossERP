@@ -17,10 +17,10 @@
 ## 范围
 - `docs/evidence/v0.5.md`：
   - 指标 1–6（实施方案 1.2 节原文，阈值不得改写）：1 安装 ≤15 分钟、≤3 条命令（T53）；2 自动匹配 ≥95%、未匹配 100% 有原因（golden 测试）；3 利润误差 0（golden 测试）；4 不审批不写账 + 审计完整（tests/guard、audit verify、权限矩阵 T35）；5 问答 20 题 ≥18 且都带出处（`docs/eval-results`，真实模型，T50）；6 覆盖率 ≥80%、CI 通过、README 有 GIF 和架构图（T54、T55）。
-  - 新增验收项 A–F（实施方案 8 节原文）：A 三库全绿；B 权限矩阵每格有测试、越权 403 + permission_denied（T35）；C 6.6 表每种动作有审计测试、导出篡改可检出（T34、T31）；D 评测中 100% 调用有 llm_call 记录且外发无买家信息（T44、T45）；E 极小预算出告警、hard 拒绝（T49）；F 改坏提示词评测判失败（T51）。
+  - 新增验收项 A–F（实施方案 8 节原文）：A 三库全绿；B 权限矩阵每格有测试、越权 403 + permission_denied（T35）；C 6.6 表每种动作有审计测试、导出篡改可检出（T34、T31）；D 评测中 100% 调用有 llm_call 记录且外发无买家信息（T44、T45）；E 极小预算出告警、hard 拒绝（T49）；F 改坏提示词评测判失败（T51）。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
   - 指标 6「CI 通过」与 T51 Q1（仓库可见性/是否 push）相关：不能跑远程 CI 时写「本地按 CI 命令全过，远程 CI 未核实」。
   - 遗留与风险表（含上面列出的遗留项），每项给负责人（maken/代理）与建议任务。
-- 全量回归：三库 `pytest -m db`、全量 `pytest --cov`、`check-golden`、`audit verify`（两条链）、`eval run --model test` + `compare`、`install_check.py`、`docker compose` 三 profile 健康检查；输出保存到 `docs/evidence/v0.5-logs/`（去掉任何密码/token）。
+- 全量回归：三库 `pytest -m db`、全量 `pytest --cov`、`check-golden`、`audit verify`（两条链）、`eval run --model test` + `compare`、`install_check.py`、`docker compose` 三 profile 健康检查；输出保存到 `docs/evidence/v0.5-logs/`（去掉任何密码/token）。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - `CHANGELOG.md` 增加「0.5.0（内部验收，未发布）」段落。
 - 提交：`main`，`docs: add v0.5 internal acceptance report (T56)`；**不打 tag、不发布**。
 
@@ -45,6 +45,6 @@
 ## 完成记录
 - 完成内容：新增 `docs/evidence/v0.5.md` 和 `docs/evidence/v0.5-logs/`，逐条记录指标 1–6、A–F、证据链接、边界和遗留风险；新增 0.5.0 内部验收 changelog 段落。
 - 按推荐默认：A–F 全部计入；真实数据未核对时有条件通过，列为 v0.6 首个任务。
-- 实际验证：离线评测 20/20、基线通过、业务/security 审计链通过、文档链接检查通过；T54 全量 286 passed、7 skipped、覆盖率 80.10%；三个 Compose profile 和三库迁移证据见 T52。
+- 实际验证：离线评测 20/20、基线通过、业务/security 审计链通过、文档链接检查通过；T54 全量 286 passed、7 skipped、覆盖率 80.10%；三个 Compose profile 和三库迁移证据见 T52。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - 未核实项如实记录：真实 100+ 订单、20 个真实 SKU、真实模型 ≥18/20、D 项实际调用记录、远程 CI、Windows 实机安装和 GIF。
 - `git tag --list` 与开始前一致（当前无 tag）；未发布任何包、镜像或 Release。

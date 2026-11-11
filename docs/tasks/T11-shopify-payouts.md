@@ -42,7 +42,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/golden/test_shopify.py -q` | passed |
-| 三库分别 `uv run pytest -m db -k shopify -q` | passed |
+| 三库分别 `uv run pytest -m db -k shopify -q` | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ## maken 人工验收清单
 - [ ] 从 Shopify 后台导出一份真实打款 CSV（会发到邮箱），只看表头，把表头一行复制给代理（不要发金额和订单数据）。
@@ -54,11 +54,11 @@
 - 没有 `Payout ID` 时，`external_id` 用 `payout-date:<原文>`。空日期用 `payout-date:missing`。同一平台外部单号全局唯一。两份文件打款日相同会整批失败。要不要把店铺或文件名放进外部单号，需要 maken 决定。
 - 文件没有店铺列。未传入时店铺名是 `Shopify`，站点是 `shopify`。推断。T13 用 `mapping.defaults` 的 `currency`、`marketplace`、`store_name` 传入。连接器不查库。
 - `Type`、`Payout Status`、日期格式、金额是否永远是 US 格式，都待真实数据验证。见 `docs/data-formats/shopify-payouts.md`。
-- 本地只跑了 SQLite。MySQL / PostgreSQL 没有本机服务，未跑。
+- 本地只跑了 SQLite。MySQL / PostgreSQL 没有本机服务，未跑。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ## 完成记录
 
-本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。
+本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ```text
 pytest tests/golden/test_shopify.py -q

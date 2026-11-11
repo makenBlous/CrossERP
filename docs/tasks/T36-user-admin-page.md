@@ -38,7 +38,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/web -q` | passed |
-| `uv run pytest -m db -k "user or security" -q`（三库） | passed |
+| `uv run pytest -m db -k "user or security" -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | 全量检查 | 全过 |
 
 ## maken 人工验收清单

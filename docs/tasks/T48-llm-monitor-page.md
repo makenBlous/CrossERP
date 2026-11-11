@@ -14,7 +14,7 @@
 - 数据来自 T44 的 `llm_call` / `llm_tool_call`；权限 `llm_monitor.read`（T35）。
 
 ## 范围
-- `/llm`：时间范围（今天 / 7 天 / 30 天 / 自定义，Asia/Shanghai）；卡片：调用次数、成功/拒答/错误/超预算次数、输入/输出 token、估算费用（未配价格显示「未配置价格」）、P50/P95 耗时（后端 SQL/Python 计算，三库一致的写法）；按天折线（纯服务端生成 SVG，不引入图表库）；按用户、按模型、按渠道（cli/web/mcp/eval）表格；最慢 20 次。
+- `/llm`：时间范围（今天 / 7 天 / 30 天 / 自定义，Asia/Shanghai）；卡片：调用次数、成功/拒答/错误/超预算次数、输入/输出 token、估算费用（未配价格显示「未配置价格」）、P50/P95 耗时（后端 SQL/Python 计算，三库一致的写法）；按天折线（纯服务端生成 SVG，不引入图表库）；按用户、按模型、按渠道（cli/web/mcp/eval）表格；最慢 20 次。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - `/llm/calls/{id}`：元数据、工具调用序列、提示词版本（可展开内容）、正文（若未清理；auditor 可看，admin 可看，⚠ Q1）。
 - 导出 CSV（UTF-8 BOM）。
 - 提交：`main`，`feat(web): add llm monitoring page (T48)`；测试不过不提交；不发布。
@@ -23,7 +23,7 @@
 - 不做实时推送；不做告警（T49）。
 
 ## 步骤
-1. 先写测试：构造固定 `llm_call` 数据 → 汇总数字精确（费用 Decimal）；P95 算法与手算一致；viewer 访问 403；三库都跑汇总查询。
+1. 先写测试：构造固定 `llm_call` 数据 → 汇总数字精确（费用 Decimal）；P95 算法与手算一致；viewer 访问 403；三库都跑汇总查询。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 2. 实现。
 
 ## 涉及文件
@@ -33,7 +33,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/unit/observability tests/web -k llm -q` | passed |
-| `uv run pytest -m db -k stats -q`（三库） | passed |
+| `uv run pytest -m db -k stats -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | 全量检查 | 全过 |
 
 ## maken 人工验收清单

@@ -43,7 +43,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests -k "ledger or export or guard" -q` | passed，用例数 ≥ 重构前 |
-| `uv run pytest -m db -k "export or voucher" -q`（三库） | passed |
+| `uv run pytest -m db -k "export or voucher" -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | 按 `docs/vouchers.md` 跑一遍「生成→提交→批准→导出」 | 得到 xlsx；再用同一 token 导出被拒 |
 | 全量检查 | 全过 |
 
@@ -61,5 +61,5 @@
 ## 完成记录
 - 完成内容：写出入口按审批对象类型分发 payload 和目标；保留 `xlsx` 利润报表行为；新增 `kingdee_xlsx` 目标和可配置 `kingdee_voucher.yaml`；凭证行、借贷合计、币别和金额格式写入 Excel；未批准、目标类型不匹配、内容变化和重复 token 都拒绝并写审计。
 - 修改文件：`src/crosserp/ledger/write_service.py`、`src/crosserp/ledger/targets/{base,xlsx,kingdee_xlsx}.py`、`src/crosserp/ledger/templates/kingdee_voucher.yaml`、`src/crosserp/approval/payload.py`、`tests/integration/test_voucher_export.py`、`docs/vouchers.md`、`CHANGELOG.md`。
-- 测试结果：`.venv/bin/pytest tests -k "ledger or export or guard" -q` 为 18 passed；SQLite 凭证导出集成测试通过；MySQL 8.4、PostgreSQL 18 凭证/迁移抽查已通过；`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过。
+- 测试结果：`.venv/bin/pytest tests -k "ledger or export or guard" -q` 为 18 passed；SQLite 凭证导出集成测试通过；MySQL 8.4、PostgreSQL 18 凭证/迁移抽查已通过；`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - 按推荐默认：Q1 选择常见列模板，模板顶部明确「待真实模板验证」；没有真实金蝶模板，因此没有虚报具体产品线兼容性。

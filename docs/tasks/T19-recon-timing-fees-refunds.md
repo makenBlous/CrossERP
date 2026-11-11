@@ -41,7 +41,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/unit/recon -q` | passed |
-| `uv run pytest -m db -k recon -q`（三库） | passed；anomalies.json 每个场景命中 |
+| `uv run pytest -m db -k recon -q`（三库） | passed；anomalies.json 每个场景命中 |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run python scripts/gen_samples.py --check` | 生成结果与仓库里的一致（可复现） |
 | `uv run crosserp reconcile --period 2026-10 --as-of 2026-10-31` 与 `--as-of 2026-11-30` | 后者「待下期」变少、`NOT_IN_SETTLEMENT` 变多 |
 
@@ -56,5 +56,5 @@
 
 - 完成内容：新增 `R10` 待下期/超宽限期订单侧异常、`R11` 配送费参考和多收费提示、`R12` 拒付提示、`R13` 部分退款提示、`R14` 重复结算异常；Shopify pending 不进入匹配率分母；CLI 增加待下期、多收费和拒付统计；合成样本新增 1 个正常组以保持 120 组 / 114 匹配 / 95%。多收费采用绝对金额容差 0.00，拒付单列提示。
 - 修改文件：`src/crosserp/recon/engine.py`、`src/crosserp/db/schema.py`、`src/crosserp/db/migrations/versions/0006_fee_reference.py`、`src/crosserp/db/repo/imports.py`、通用映射连接器/导入器、`src/crosserp/cli.py`、原因码目录、`scripts/gen_samples.py`、合成样本、golden/集成/守卫测试及相关文档。
-- 测试结果：`uv run python scripts/gen_samples.py --check` 通过；T19 单测/性质/合成集成定向测试通过；Amazon/Shopify golden `37 passed`；SQLite 全量 `192 passed, 2 skipped`，覆盖率 `85.92%`；MySQL 8.4 完整 db 标记测试 `94 passed, 3 skipped`；PostgreSQL 18 完整 db 标记测试 `93 passed, 4 skipped`；ruff、mypy、pre-commit 全部通过。
+- 测试结果：`uv run python scripts/gen_samples.py --check` 通过；T19 单测/性质/合成集成定向测试通过；Amazon/Shopify golden `37 passed`；SQLite 全量 `192 passed, 2 skipped`，覆盖率 `85.92%`；MySQL 8.4 完整 db 标记测试 `94 passed, 3 skipped`；PostgreSQL 18 完整 db 标记测试 `93 passed, 4 skipped`；ruff、mypy、pre-commit 全部通过。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - 偏离计划：合成订单从 T08 的 120 行调整为 121 行，新增订单只用于保持 pending 排除分母后的 95% 指标；没有删除在途场景。`gh` 未安装，PR 通过 GitHub 网页创建。

@@ -1,4 +1,4 @@
-# T52 Docker Compose 部署：SQLite / PostgreSQL / MySQL 三种 profile（不推镜像）（⚠ 待 maken 确认）
+# T52 Docker Compose 部署：SQLite / PostgreSQL / MySQL 三种 profile（不推镜像）（⚠ 待 maken 确认）【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 > **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
 > **取代标注：** 旧任务把 SQLite、PostgreSQL、MySQL 三种 profile 写成并列部署目标；已被 08 v4 第 11.3 节取代：正式环境 MySQL 8.4，SQLite 演示，PostgreSQL 仅备选。
@@ -8,11 +8,11 @@
 | review | W9 | 1.5 天 | T51 | `main` |
 
 ## 目标
-团队部署时，一条 `docker compose --profile pg up -d` 就能起来：应用 + 数据库 + 只读账号 + 迁移；镜像只在本地构建，**不推到任何镜像仓库**。
+团队部署时，一条 `docker compose --profile pg up -d` 就能起来【历史 PostgreSQL profile 验收口径；现行正式主库为 MySQL 8.4，PostgreSQL 仅备选】：应用 + 数据库 + 只读账号 + 迁移；镜像只在本地构建，**不推到任何镜像仓库**。
 
 ## 背景
 - 实施方案 8 W9 第 3 条；决定「v1.0 前不发布：不推 PyPI/GHCR」。
-- 仓库现状：已有三库测试与 `scripts/sql/grant_*.sql`（逐表授权，新增表后必须重跑——W4 遗留风险）；`serve` 在 T33 后支持 `--host`（容器内需 0.0.0.0，且需 HTTPS 反向代理）。
+- 仓库现状：已有三库测试与 `scripts/sql/grant_*.sql`（逐表授权，新增表后必须重跑——W4 遗留风险）；`serve` 在 T33 后支持 `--host`（容器内需 0.0.0.0，且需 HTTPS 反向代理）。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ## 范围
 - `Dockerfile`（多阶段：uv 构建 wheel → slim 运行；非 root 用户；`HEALTHCHECK` 调 `/health`）。
@@ -48,7 +48,7 @@
 - [ ] `docker compose --profile pg down` 再 `up -d`：数据还在。
 
 ## 问题
-- Q1 按推荐默认使用 PostgreSQL；Q2 按推荐默认使用 Caddy。
+- Q1 按推荐默认使用 PostgreSQL；Q2 按推荐默认使用 Caddy。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - Q3 已按 maken 选择 A：新增 0018，将 `prompt_version.content` 改为 `Text().with_variant(mysql.MEDIUMTEXT(), "mysql")`，只修改这一列；迁移前后正文和 sha256 保持不变。
 - **Q4 已按 maken 决定 A：** `llm_call.question_text`、`llm_call.answer_text` 也改成长文本，严格守卫不留例外。
 
@@ -56,8 +56,8 @@
 - 完成内容：Dockerfile、Compose 三 profile、非 root 运行、迁移/授权脚本、授权覆盖守卫、Caddy 示例和部署文档；0018 将 `prompt_version.content`、0019 将 `llm_call.question_text/answer_text` 改为 `Text().with_variant(mysql.MEDIUMTEXT(), "mysql")`；新增严格 `String(n) <= 16383` 守卫；授权模板补充 `alembic_version` 最小读权限。
 - 修改文件：`Dockerfile`、`.dockerignore`、`docker-compose.yml`、`deploy/Caddyfile`、`deploy/.env.example`、`docs/deploy.md`、`scripts/docker-init.sh`、`scripts/render_grant_sql.py`、`scripts/check_grants_cover_all_tables.py`、`scripts/sql/grant_mysql.sql`、`scripts/sql/grant_pg.sql`、`src/crosserp/db/schema.py`、`src/crosserp/db/migrations/versions/0015_llm_observability.py`、`src/crosserp/db/migrations/versions/0018_prompt_content_text.py`、`src/crosserp/db/migrations/versions/0019_llm_text_columns.py`、相关测试和 `CHANGELOG.md`。
 - 数据与哈希：SQLite、PostgreSQL 18、MySQL 8.4 均实际执行升级/回退/再升级；提示词正文、`sha256`、问答正文均原样保留。MySQL 回退保留 `MEDIUMTEXT`，因为历史 `VARCHAR(100000/1000000)` 在 MySQL 8.4 本身不可创建；版本可以回退且数据库保持可用。
-- 三库迁移测试：SQLite 7 passed；PostgreSQL 18 为 6 passed、1 skipped；MySQL 8.4 为 6 passed、1 skipped。
-- Compose 验证：三个 profile 的镜像均本地构建；PostgreSQL、MySQL、SQLite 的 `/health` 返回 `status: ok`，容器内 `crosserp audit verify` 均输出“审计链完整：1 条”。MySQL profile 使用 8.4.6，迁移账号、应用账号和只读账号均可用。
+- 三库迁移测试：SQLite 7 passed；PostgreSQL 18 为 6 passed、1 skipped；MySQL 8.4 为 6 passed、1 skipped。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
+- Compose 验证：三个 profile 的镜像均本地构建；PostgreSQL、MySQL、SQLite 的 `/health` 返回 `status: ok`，容器内 `crosserp audit verify` 均输出“审计链完整：1 条”。MySQL profile 使用 8.4.6，迁移账号、应用账号和只读账号均可用。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - 守卫与静态检查：授权覆盖测试 2 passed；`tests/guard` 19 passed；ruff、mypy、pre-commit 全部通过。
 - MySQL CI 原因与修复：T16 的 MySQL 通过记录早于 T44 的 `0015_llm_observability` 迁移；之后没有可核实的 T44+ MySQL 绿色记录，且本地此前只验证了 SQLite/旧迁移状态，所以 `String(100000)` 和 `String(1000000)` 未被发现。修复方式是把新建表迁移和后续增量迁移都改为 `Text + MEDIUMTEXT`，加入无例外长度守卫，并真实运行 MySQL 8.4 全量迁移和 Compose profile；同时修正 0015 回退的外键索引删除顺序。
 - 后续约定：以后同类超长 VARCHAR 改长文本的问题，直接按本次 Text + MySQL MEDIUMTEXT 方案处理，不再重复询问。

@@ -28,7 +28,7 @@
 - 不做定时评测；不做评测网页（监控页可加一栏，可选）。
 
 ## 步骤
-1. 测试：入库字段正确；compare 三种情况（持平、提升、下降）；三库迁移。
+1. 测试：入库字段正确；compare 三种情况（持平、提升、下降）；三库迁移。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 2. 本地用 `act` 或直接按 job 命令跑一遍 eval-offline（无 PowerShell/Windows 环境的部分标「未在本机验证」）。
 
 ## 涉及文件
@@ -39,7 +39,7 @@
 |---|---|
 | `uv run crosserp eval run --model test --save && uv run crosserp eval compare --baseline tests/eval/baseline.json` | 退出码 0 |
 | 人为改坏一个回放答案后 compare | 退出码 1，指出哪题（测试里做，不提交坏数据） |
-| `uv run pytest -m db -k "eval or migration" -q`（三库） | passed |
+| `uv run pytest -m db -k "eval or migration" -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | 全量检查 | 全过 |
 
 ## maken 人工验收清单
@@ -54,5 +54,5 @@
 ## 完成记录
 - 完成内容：按推荐默认实现评测结果入库、离线基线比较、缺失题目回归检测、`eval run --save`，以及 push CI 离线评测和仅手动触发的真实模型工作流。
 - 修改文件：`src/crosserp/db/schema.py`、`src/crosserp/db/migrations/versions/0017_eval_run.py`、`src/crosserp/evals/run.py`、`src/crosserp/cli.py`、`tests/eval/baseline.json`、`.github/workflows/ci.yml`、`.github/workflows/eval-model.yml`、`tests/unit/evals/test_compare.py`、`tests/integration/test_eval_run_db.py`、`tests/integration/test_migrations.py`、`tests/guard/test_schema_portable.py`、`CHANGELOG.md`。
-- 测试结果：`eval run --model test --save` 后 `eval compare` 通过（20/20）；ruff format/check、mypy 全部通过；T51 相关测试 17 passed；全量 `pytest -q --cov=crosserp --cov-fail-under=60` 为 273 passed、7 skipped，覆盖率 78.69%；MySQL/ PostgreSQL 本地未运行（当前环境未提供数据库服务）。
+- 测试结果：`eval run --model test --save` 后 `eval compare` 通过（20/20）；ruff format/check、mypy 全部通过；T51 相关测试 17 passed；全量 `pytest -q --cov=crosserp --cov-fail-under=60` 为 273 passed、7 skipped，覆盖率 78.69%；MySQL/ PostgreSQL 本地未运行（当前环境未提供数据库服务）。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - 偏离计划：原验收命令中的 `--save` 尚未落地，已补齐并增加 SQLite 入库集成测试；评测计数列 `total`/`passed` 按任务定义保持 Integer，并补充守卫例外。

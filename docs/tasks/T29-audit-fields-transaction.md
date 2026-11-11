@@ -15,7 +15,7 @@
 - 哈希链（T06）：`hash = sha256(prev_hash + 规范化 JSON)`，`audit_head` 行锁（MySQL/PG `SELECT … FOR UPDATE`；SQLite 单写者）。
 
 ## 范围
-- 迁移 `0010_audit_context`：只新增缺失的 `actor_name String(64) NULL` 和哈希版本标记；已合并的 `actor_user_id UUID`、`approver_id UUID`、`reason String(512)`、`ip String(64)` 均保持不变。`reason` 超过 512 个字符在写入前报错，不截断、不改表。**新字段全部进入哈希计算**；旧记录用旧版本规则验证，三库测试证明迁移前写的链在迁移后 `audit verify` 仍通过。
+- 迁移 `0010_audit_context`：只新增缺失的 `actor_name String(64) NULL` 和哈希版本标记；已合并的 `actor_user_id UUID`、`approver_id UUID`、`reason String(512)`、`ip String(64)` 均保持不变。`reason` 超过 512 个字符在写入前报错，不截断、不改表。**新字段全部进入哈希计算**；旧记录用旧版本规则验证，三库测试证明迁移前写的链在迁移后 `audit verify` 仍通过。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - `audit/context.py`：`AuditContext(actor_type, actor_user_id, actor_name, actor_role, request_id, ip)`；CLI 没有真实用户时 `actor_user_id` 留空，`actor_name` 记录 `--as` 或系统用户名，W5 接入登录后再填用户 UUID。
 - `audit/log.py` 的 `append(...)` 接收 `AuditContext`；新增 `audited(session, ctx, action, target, before, after, **kw)` 上下文管理器：在业务事务内 flush 业务修改后写审计；审计写失败 → 抛出 → 整个事务回滚。
 - 接入点（每个都要有测试证明「有审计 + 字段对」）：`import` / `import_failed`（T15）、`recon.run`（T18，after = 汇总数字，不放全部明细）、`profit.snapshot`、`approval.*`（T27）、`ledger.export` / `ledger.export_denied`（T28）、`config.change`（若已有配置写入命令）。
@@ -36,7 +36,7 @@
 ## 验收标准（代理自测，全部要实际跑）
 | 命令 | 期望 |
 |---|---|
-| `uv run pytest -m db -k audit -q`（三库） | passed，含并发用例（MySQL/PG） |
+| `uv run pytest -m db -k audit -q`（三库） | passed，含并发用例（MySQL/PG） |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | 在迁移前的库上写审计 → 升级 → `uv run crosserp audit verify` | 通过 |
 | `uv run pytest tests/guard -q` | passed |
 
@@ -72,7 +72,7 @@ maken 已确认 T29 的字段口径：
 - 新增 `0010_audit_context` 迁移和 `AuditContext` / `audited(...)` 事务辅助器。
 - 审计哈希链支持新旧版本；新增 actor_name 字段，`audit tail` 优先显示操作者名称。
 - 对账运行写入 `recon.run` 摘要审计，利润快照写入 `profit.snapshot` 摘要审计；审批和导出沿用 T27/T28 审计并带操作者名称。
-- 新增旧哈希兼容、超长 reason、actor_name、审计失败回滚和三库迁移/审计测试。
+- 新增旧哈希兼容、超长 reason、actor_name、审计失败回滚和三库迁移/审计测试。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ### 改动文件
 
@@ -89,9 +89,9 @@ maken 已确认 T29 的字段口径：
 | `.venv/bin/python -m pytest --cov=crosserp --cov-fail-under=60` | `218 passed, 2 skipped, 1 xfailed`；覆盖率 `85.77%`。 |
 | `.venv/bin/python -m pytest -m db -k audit -q` | SQLite `15 passed`。 |
 | `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://root:dev@127.0.0.1:13306/crosserp?charset=utf8mb4 .venv/bin/python -m pytest -m db -k audit -q` | MySQL 8.4 `15 passed`。 |
-| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp .venv/bin/python -m pytest -m db -k audit -q` | PostgreSQL 18 `15 passed`。 |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp .venv/bin/python -m pytest -m db -k audit -q` | PostgreSQL 18 `15 passed`。 |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://root:dev@127.0.0.1:13306/crosserp?charset=utf8mb4 .venv/bin/python -m pytest -m db -q` | MySQL 8.4 `108 passed, 4 skipped`。 |
-| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp .venv/bin/python -m pytest -m db -q` | PostgreSQL 18 `108 passed, 4 skipped`。 |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp .venv/bin/python -m pytest -m db -q` | PostgreSQL 18 `108 passed, 4 skipped`。 |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `.venv/bin/ruff format --check . && .venv/bin/ruff check .` | 通过。 |
 | `.venv/bin/mypy --strict` | 通过。 |
 

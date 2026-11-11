@@ -28,7 +28,7 @@
 | T13 | [导入命令 `crosserp import` + 全样本端到端测试 + 真实文件试导入](T13-import-cli-golden.md) | 已完成 | ingest/cli |
 | T14 | [对账异常分类设计（为 W3 做准备，只写文档和枚举草案）](T14-recon-categories-design.md) | 已完成 | issues/reconciliation |
 | T15 | [导入批次规则：失败批次可重导 + 打不开的文件也留失败记录（⚠ 待 maken 确认）](T15-import-batch-rules.md) | 已完成 | ingest |
-| T16 | [三库实测：CI db-matrix 在 MySQL 8.4 / PostgreSQL 18 跑通](T16-three-db-verify.md) | 部分 | db/ci |
+| T16 | [三库实测：CI db-matrix 在 MySQL 8.4 / PostgreSQL 18 跑通（历史验收口径）](T16-three-db-verify.md) | 部分 | db/ci |
 | T17 | [异常目录：原因码枚举定稿 + 中文模板 + 候选码落地](T17-issues-catalog.md) | 已完成 | issues |
 | T18 | [对账引擎核心：规则注册表 + 订单号/SKU 确定性匹配](T18-recon-engine-core.md) | 已完成 | reconciliation |
 | T19 | [对账补充规则：在途/待下期、多收费、拒付、部分退款、重复结算](T19-recon-timing-fees-refunds.md) | 已完成 | reconciliation |
@@ -37,7 +37,7 @@
 | T22 | [报表输出：`reconcile` / `profit --out report.xlsx`](T22-cli-report-xlsx.md) | 已完成 | web/reports |
 | T23 | [只读网页：导入记录 / SKU 利润 / 异常清单](T23-web-readonly.md) | 已完成 | web |
 | T24 | [`crosserp demo` + 基础安装（`uv tool install` 三系统可用）](T24-demo-basic-install.md) | 已完成 | cli/demo |
-| T25 | [v0.1 验收：指标 2、3 + 基础安装 + 三库，汇总证据](T25-v01-acceptance.md) | 部分 | evals/evidence |
+| T25 | [v0.1 验收：指标 2、3 + 基础安装 + 三库（历史验收口径），汇总证据](T25-v01-acceptance.md) | 部分 | evals/evidence |
 | T26 | [发布 v0.1.0：release.yml + PyPI Trusted Publishing（发布动作由 maken 操作）](T26-release-v01.md) | 已被 08 v4 第 8 节取代 | release（已取代） |
 | T27 | [审批状态机 `approval/`](T27-approval-state-machine.md) | 已完成 | approval |
 | T28 | [唯一写出口 `ledger/write_service.py` + 守卫测试（指标 4）](T28-write-service-guard.md) | 已完成 | ledger |
@@ -47,7 +47,7 @@
 | T32 | [用户 / 角色 / 会话表 + argon2 + `init` 建第一个管理员（⚠ 待 maken 确认）](T32-auth-tables-init-admin.md) | 已完成 | auth |
 | T33 | [网页登录 / 登出 / 会话 / CSRF / 登录锁定 + `config.py`（⚠ 待 maken 确认）](T33-login-session-csrf-lockout.md) | 已完成 | auth/web |
 | T34 | [登录/权限审计 security_event：独立哈希链 + 登录日志页 + 导出（⚠ 待 maken 确认）](T34-security-event-chain.md) | 已完成 | audit/security |
-| T35 | [权限 `require(permission)` + 权限矩阵参数化测试 + 职责分离 / 单人模式（⚠ 待 maken 确认）](T35-permissions-matrix.md) | 已完成 | iam |
+| T35 | [权限 `require(permission)` + 权限矩阵参数化测试 + 职责分离 / 单人模式（已被 08 v4 取代；⚠ 待 maken 确认）](T35-permissions-matrix.md) | 已完成 | iam |
 | T36 | [用户管理页（admin）](T36-user-admin-page.md) | 已完成 | auth/web |
 | T37 | [异常处理队列页：状态流转 + 写说明 + 查看原始行](T37-issue-queue-page.md) | 已完成 | issues/web |
 | T38 | [审批台 + 审计页（改前改后对比、链状态）+ W5 验收证据](T38-approval-console-audit-page.md) | 已完成 | approval/audit |
@@ -64,7 +64,7 @@
 | T49 | [AI 预算与告警：超额横幅 + 硬拒绝 + 演示脚本 + W8 验收证据（⚠ 待 maken 确认）](T49-llm-budget-alert-w8.md) | 已完成 | observability |
 | T50 | [AI 评测集：20 个问题 + pydantic-evals 评分（⚠ 待 maken 确认）](T50-eval-question-set.md) | 已完成 | evals |
 | T51 | [评测记录入库 + 基线对比 + CI 离线评测（⚠ 待 maken 确认）](T51-eval-run-ci.md) | 已完成 | evals/ci |
-| T52 | [Docker Compose 部署：SQLite / PostgreSQL / MySQL 三种 profile（不推镜像）（⚠ 待 maken 确认）](T52-docker-compose.md) | 已完成 | deploy |
+| T52 | [Docker Compose 部署：SQLite / PostgreSQL / MySQL 三种 profile（历史并列目标，现行主库见 08 v4 第 11.3 节；不推镜像）（⚠ 待 maken 确认）](T52-docker-compose.md) | 已完成 | deploy |
 | T53 | [安装矩阵计时：三系统从零到看到首页（不经 PyPI）（⚠ 待 maken 确认）](T53-install-matrix-timing.md) | 部分 | deploy/ci |
 | T54 | [质量门槛提高：覆盖率 80%、mypy 覆盖新模块（⚠ 待 maken 确认）](T54-coverage-mypy-hardening.md) | 已完成 | ci |
 | T55 | [文档：中英文 README、架构图、安全/可观测/数据库文档、ADR、贡献与安全说明（⚠ 待 maken 确认）](T55-docs-adr-zh.md) | 已完成 | docs |

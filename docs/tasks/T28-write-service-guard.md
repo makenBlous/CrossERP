@@ -36,7 +36,7 @@
 
 ## 步骤
 1. 先写 `tests/guard/` 全部测试（此时应失败），再实现。
-2. 三库跑 `-m db -k "guard or export"`。
+2. 三库跑 `-m db -k "guard or export"`。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ## 涉及文件
 `src/crosserp/ledger/{__init__,write_service}.py` `src/crosserp/ledger/targets/{__init__,base,xlsx}.py` `src/crosserp/db/schema.py` `src/crosserp/db/migrations/versions/000x_export_artifact.py` `src/crosserp/cli.py` `tests/guard/*` `.github/workflows/ci.yml` `pyproject.toml`（mypy 加 ledger）
@@ -83,7 +83,7 @@
 | `.venv/bin/python -m pytest --cov=crosserp --cov-fail-under=60` | `214 passed, 2 skipped, 1 xfailed`；覆盖率 `85.66%`。 |
 | `.venv/bin/python -m pytest -m db -q` | SQLite `105 passed, 4 skipped`。 |
 | `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://root:dev@127.0.0.1:13306/crosserp?charset=utf8mb4 .venv/bin/python -m pytest -m db -q` | MySQL 8.4 `106 passed, 3 skipped`。 |
-| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp .venv/bin/python -m pytest -m db -q` | PostgreSQL 18 `105 passed, 4 skipped`。 |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://postgres:dev@127.0.0.1:15432/crosserp .venv/bin/python -m pytest -m db -q` | PostgreSQL 18 `105 passed, 4 skipped`。 |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `.venv/bin/ruff format --check . && .venv/bin/ruff check .` | `131 files already formatted`，检查通过。 |
 | `.venv/bin/mypy --strict` | `Success: no issues found in 81 source files`。 |
 | `.venv/bin/pre-commit run --all-files` | `ruff-format`、`ruff`、`mypy` 全部 `Passed`。 |

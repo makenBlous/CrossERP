@@ -8,7 +8,7 @@
 | review | W7 | 1.5 天 | T41 | `main` |
 
 ## 目标
-给 AI 准备一组「只能查、不能改」的工具：查订单、查利润、查异常、查对账结果、查审批状态、搜规则文档。工具只通过只读数据库账号连接；每个工具返回的数字都带「来源行」引用，后面的回答必须引用它们。
+给 AI 准备一组「只能查、不能改」的工具【历史任务表述，已被 08 v4 第 4.4、10.4 节取代；现行按动作风险分级】：查订单、查利润、查异常、查对账结果、查审批状态、搜规则文档。工具只通过只读数据库账号连接；每个工具返回的数字都带「来源行」引用，后面的回答必须引用它们。
 
 ## 背景
 - 实施方案 8 W7 第 1 条；0 节红线「AI 不算钱」：AI 只能**读取**系统已算好的金额，任何加减乘除都由工具（确定性代码）完成。
@@ -21,14 +21,14 @@
   - 输出统一结构：`{"data": ..., "citations": [{"table": "profit_snapshot", "id": "...", "field": "net_profit", "value": "123.45"}]}`；金额一律字符串化 Decimal。
 - `search_rules_doc`：只索引仓库内 `docs/rules/*.md`（仓库已有 `docs/rules/recon-categories.md`；平台费用规则等新文档由 maken 提供），用简单 BM25/关键词（纯 Python，无向量库，⚠ Q2），返回段落 + 文件名 + 行号作为引用。
 - `agent/db.py`：工具只能拿到 `readonly_session`；构造时若 `CROSSERP_AGENT_DATABASE_URL` 未设置：SQLite 下用只读 URI（`mode=ro`），PG/MySQL 下拒绝启动 AI 并提示（不回退到主账号）。
-- 守卫测试 `tests/guard/test_agent_readonly.py`：`agent/` 不得 import `ledger`、`approval.service` 的写函数、`db.repo.*` 的写函数（AST 检查）；三库下用 agent 账号执行 INSERT 失败。
+- 守卫测试 `tests/guard/test_agent_readonly.py`：`agent/` 不得 import `ledger`、`approval.service` 的写函数、`db.repo.*` 的写函数（AST 检查）；三库下用 agent 账号执行 INSERT 失败。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - 提交：`main`，`feat(agent): add read-only tools with citations (T42)`；测试不过不提交；不发布。
 
 ## 不做
 - 不接模型、不做问答（T43）；不做向量检索。
 
 ## 步骤
-1. 先写测试：每个工具 demo 数据下返回值与直接查表一致（金额逐分相等）；citations 指向真实存在的行；超上限参数报错；`compare_profit` 差额与 `profit` 模块结果一致；agent 账号写入被拒（三库）。
+1. 先写测试：每个工具 demo 数据下返回值与直接查表一致（金额逐分相等）；citations 指向真实存在的行；超上限参数报错；`compare_profit` 差额与 `profit` 模块结果一致；agent 账号写入被拒（三库）。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 2. 实现工具 → 文档检索 → 守卫。
 
 ## 涉及文件
@@ -38,7 +38,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/unit/agent tests/guard -q` | passed |
-| `uv run pytest -m db -k agent -q`（三库） | passed |
+| `uv run pytest -m db -k agent -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | 全量检查 | 全过 |
 
 ## maken 人工验收清单

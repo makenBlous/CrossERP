@@ -19,7 +19,7 @@
   - 输出表格：文件名、连接器、数据行数、成功行数、异常数（按原因码）、批次 id；重复文件显示「已导入过（时间），跳过」，退出码仍为 0 但打印警告；其他失败退出码 1。
 - `crosserp issues list [--kind X] [--batch <id>]`：只读列出异常（W3 网页之前的最小查看方式）。
 - `crosserp demo-import`：导入 `samples/synthetic/` 全部文件（按 sku_map → costs → fx → orders → 结算/打款 的顺序），供测试和 maken 使用。
-- 端到端测试 `tests/integration/test_import_e2e.py`（三库）：对空库运行 demo-import → 每个文件 raw_row 数 = 文件数据行数（来自 `expected/summary.json`）；异常集合 ⊇ `anomalies.json` 中属于「导入阶段」的条目（`SETTLEMENT_UNBALANCED`、`UNKNOWN_FEE_TYPE`、`DUPLICATE_ROW`、Shopify `AMOUNT_MISMATCH`、`PARSE_ERROR`），且没有意外的额外异常；再跑一次 → 全部被判重复。
+- 端到端测试 `tests/integration/test_import_e2e.py`（三库）：对空库运行 demo-import → 每个文件 raw_row 数 = 文件数据行数（来自 `expected/summary.json`）；异常集合 ⊇ `anomalies.json` 中属于「导入阶段」的条目（`SETTLEMENT_UNBALANCED`、`UNKNOWN_FEE_TYPE`、`DUPLICATE_ROW`、Shopify `AMOUNT_MISMATCH`、`PARSE_ERROR`），且没有意外的额外异常；再跑一次 → 全部被判重复。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - `tests/integration/test_real_files.py`：若 `samples/real_anonymized/` 存在文件则逐个导入，断言「无未捕获异常」；目录不存在则 skip。**此目录不提交**，CI 中自动 skip。
 
 ## 不做
@@ -28,7 +28,7 @@
 ## 步骤
 1. 写 CLI 命令（Typer），输出用纯文本表格（不新增依赖；若想用 rich，先问）。
 2. 写 e2e 测试和真实文件测试。
-3. 本地跑三库。
+3. 本地跑三库。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 4. 更新 README「快速开始」一节：`crosserp init` → `crosserp demo-import` → `crosserp issues list`。
 
 ## 涉及文件
@@ -40,7 +40,7 @@
 | `uv run crosserp init && uv run crosserp demo-import` | 每个文件一行汇总，无报错退出 |
 | 再执行 `uv run crosserp demo-import` | 每个文件显示「已导入过，跳过」 |
 | `uv run crosserp issues list --kind SETTLEMENT_UNBALANCED` | 恰好 1 条 |
-| 三库分别 `uv run pytest -m db -k e2e -q` | passed |
+| 三库分别 `uv run pytest -m db -k e2e -q` | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run pytest --cov=crosserp --cov-fail-under=60` | passed |
 
 ## maken 人工验收清单
@@ -57,11 +57,11 @@
 - 合成 Shopify 打款文件没有 `Currency` 列。`demo-import` 传入 `USD`，店铺名用 `shopify-main`，与订单表一致。这是推断。
 - 本 worktree 里 Amazon 连接器仍是未跟踪文件。本次提交不包含它们，也不改 `docs/tasks/README.md`。干净检出后如果没有这些文件，Amazon 导入会失败。
 - 指定解释器的 `crosserp.connectors` 入口点是空的。命令行在注册表为空时直接加载内置连接器。
-- 本地只跑了 SQLite。没有跑 MySQL / PostgreSQL。没有删除用户目录里的 `data.db`。验收用的是临时 SQLite 文件。
+- 本地只跑了 SQLite。没有跑 MySQL / PostgreSQL。没有删除用户目录里的 `data.db`。验收用的是临时 SQLite 文件。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ## 完成记录
 
-本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。任务验收命令里的 `uv run` 按上面的解释器替换。
+本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。任务验收命令里的 `uv run` 按上面的解释器替换。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ```text
 pytest -m db -k e2e -q

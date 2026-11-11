@@ -51,7 +51,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/golden/test_amazon_v2.py tests/property/test_amazon_balance.py -q` | passed |
-| 三库分别 `uv run pytest -m db -k amazon -q` | passed |
+| 三库分别 `uv run pytest -m db -k amazon -q` | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run python -c "from crosserp.connectors.registry import detect; print(detect(__import__('pathlib').Path('samples/synthetic/amazon_de_2026-10-01_2026-10-14.tsv')).id)"` | `amazon.settlement_v2` |
 
 ## maken 人工验收清单
@@ -67,7 +67,7 @@
 
 ## 完成记录
 
-本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。没有改 `docs/tasks/README.md`。没有推送。状态是 `review`，不是 `done`。
+本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。没有改 `docs/tasks/README.md`。没有推送。状态是 `review`，不是 `done`。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 `detect()` 读的是已安装的 entry point。共享虚拟环境仍指向主仓库 `D:\make\write\work\CrossERP`。验收时临时把本连接器写进该环境的 `entry_points.txt`，跑完已恢复。提交里的注册在 `pyproject.toml`。
 

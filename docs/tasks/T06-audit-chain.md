@@ -25,7 +25,7 @@
 
 ## 步骤
 1. 写 chain.py + 单元测试（固定输入 → 固定 hash，写死在测试里作为回归基准）。
-2. 写 log.py；如需 `seq` 列，新增 Alembic 迁移并确保三库往返。
+2. 写 log.py；如需 `seq` 列，新增 Alembic 迁移并确保三库往返。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 3. 测试 `tests/integration/test_audit_chain.py`（`db` marker）：
    - 追加 5 条 → verify ok，checked=5；
    - 直接用 SQL 改第 3 条的 `after_json` → verify 返回 ok=False 且 first_bad_id=第 3 条；
@@ -39,7 +39,7 @@
 ## 验收标准
 | 命令 | 期望 |
 |---|---|
-| 三库分别 `uv run pytest -m db -k audit -q` | 全部 passed |
+| 三库分别 `uv run pytest -m db -k audit -q` | 全部 passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run crosserp audit verify`（空库） | `审计链完整：0 条`，退出码 0 |
 | `uv run pytest tests/property -k tamper -q` | passed |
 
@@ -49,13 +49,13 @@
 
 ## 问题
 
-当前本地验收只跑 SQLite。MySQL 8.4 和 PostgreSQL 18 的 `pytest -m db -k audit` 没有实跑。本机没有可用的 MySQL / PostgreSQL。没有编造三库输出。代码仍按三库兼容写。`lock_for_update()` 在 MySQL / PostgreSQL 上加 `FOR UPDATE`。SQLite 直接读。
+当前本地验收只跑 SQLite。MySQL 8.4 和 PostgreSQL 18 的 `pytest -m db -k audit` 没有实跑。本机没有可用的 MySQL / PostgreSQL。没有编造三库输出。代码仍按三库兼容写。`lock_for_update()` 在 MySQL / PostgreSQL 上加 `FOR UPDATE`。SQLite 直接读。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 以下是推断。没有停下来问。若不同意请改：
 
 - 业务链名是 `audit_log`。以后的 `security_event` 另开一条链。
 - 创世 `prev_hash` 是 64 个 `0`。`hash = sha256(prev_hash 的 UTF-8 字节 + canonical_json 字节)` 的 hex。`Decimal` 用 `format(d, "f")`。时间用带微秒的 ISO-8601 UTC，后缀 `+00:00`。
-- 哈希覆盖除 `hash` 以外的全部列。先写入再读回后计算。避免时间精度在三库上不一致。
+- 哈希覆盖除 `hash` 以外的全部列。先写入再读回后计算。避免时间精度在三库上不一致。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - `seq` 由应用从 1 递增分配。类型是 `Integer`。唯一约束 `uq_audit_log_seq`。不用数据库自增。
 - `crosserp audit verify` 会先把库迁移到 head。空库和只跑过 `0001` 的库可以直接校验。
 - 不在追加时开 SAVEPOINT。当前 SQLite 驱动可能把 SAVEPOINT 提前提交。两条连接同时第一次建链头时，唯一约束失败，整个事务回滚。

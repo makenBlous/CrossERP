@@ -20,7 +20,7 @@
 - `src/crosserp/vouchers/`：`model.py`（`VoucherDraft`、`VoucherLineDraft` 数据类，金额用 `crosserp.core.money.Money`/`Decimal`；分录金额在生成凭证时按 `ROUND_HALF_UP` 定到 2 位（凭证是最终展示/输出口径，符合 AGENTS「只在最终展示时舍入」），尾差进入单独一行「舍入差」分录或并入最大一行（⚠ Q4））、`accounts.py`（读取并校验 `accounts.yaml`）、`builder.py`（结算/利润 → 凭证）、`service.py`（保存、列出、提交审批）。
 - `accounts.yaml` 默认位置与示例（⚠ Q1）：每项 `key`（如 `sales_revenue`、`platform_fee`、`ad_cost`、`fx_diff`、`platform_receivable`）→ `code`、`name`、`direction`；示例文件里 code 写成 `"待填-1122"` 这类占位并在注释里写「请按贵司科目表填写」。缺 key 或 code 以「待填」开头时，生成凭证报中文错误并列出缺哪些。
 - 迁移 `0014_voucher`：
-  - `voucher`：`id Uuid PK`、`store_id`、`period String(7)`、`source_type String(32)`（`settlement`/`month`）、`source_id String(128)`、`state String(16)`（draft/submitted/approved/rejected/exported/void）、`currency String(3)`、`total_debit Money4`、`total_credit Money4`（AGENTS §4：金额列一律 `Money4`）、`inputs_hash String(64)`、`accounts_hash String(64)`（accounts.yaml 内容哈希，科目改了旧审批失效）、`created_by String(64)`、`created_at`；唯一约束 `(store_id, period, source_type, source_id)` 中「非 void」的那张（用应用层保证 + 测试，不依赖部分索引，三库一致）。
+  - `voucher`：`id Uuid PK`、`store_id`、`period String(7)`、`source_type String(32)`（`settlement`/`month`）、`source_id String(128)`、`state String(16)`（draft/submitted/approved/rejected/exported/void）、`currency String(3)`、`total_debit Money4`、`total_credit Money4`（AGENTS §4：金额列一律 `Money4`）、`inputs_hash String(64)`、`accounts_hash String(64)`（accounts.yaml 内容哈希，科目改了旧审批失效）、`created_by String(64)`、`created_at`；唯一约束 `(store_id, period, source_type, source_id)` 中「非 void」的那张（用应用层保证 + 测试，不依赖部分索引，三库一致）。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
   - `voucher_line`：`id`、`voucher_id FK`、`line_no`、`account_key String(64)`、`account_code String(32)`、`account_name String(128)`、`debit Money4`、`credit Money4`、`summary String(200)`、`source_ref String(128)`（指向 settlement_line / profit_snapshot，便于追溯）。
 - 数据库层 CHECK：`debit >= 0 AND credit >= 0 AND NOT (debit > 0 AND credit > 0)`；整张凭证平衡在 service 层校验，保存时若 `total_debit != total_credit` 直接拒绝（不允许存不平的草稿）。
 - 生成粒度（⚠ Q2）：先实现一种，另一种留接口。
@@ -41,7 +41,7 @@
    - accounts.yaml 缺项 → 中文报错；改 accounts.yaml → 已提交凭证审批 `check_fresh` 失败。
    - 同一来源重复生成 → 拒绝（除非先作废）。
    - 原有 `profit_report` 审批测试原样通过。
-2. 迁移（三库升级/降级测试）→ 模型 → builder → service → CLI。
+2. 迁移（三库升级/降级测试）→ 模型 → builder → service → CLI。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 3. 更新 `scripts/sql/grant_*.sql` 并跑 grants 测试。
 
 ## 涉及文件
@@ -51,7 +51,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/unit/vouchers tests/property -q` | passed |
-| `uv run pytest -m db -k "voucher or approval or grants or migration" -q`（三库） | passed |
+| `uv run pytest -m db -k "voucher or approval or grants or migration" -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run crosserp demo && uv run crosserp voucher draft --store <demo 店铺> --period <demo 月份> --as maken` | 生成成功，`voucher show` 借贷合计相等 |
 | 全量检查 | 全过 |
 
@@ -71,6 +71,6 @@
 - maken 决定：Q3 选择 A，并明确销售、平台费用、广告费、退款、打款、汇兑差方向；按决定实现，科目编码与方向均由 `accounts.yaml` 提供。
 - 完成内容：新增 `vouchers` 领域模型、YAML 科目映射校验与内容哈希、按店铺月份利润快照确定性生成凭证、Decimal 最终两位舍入、借贷平衡和单行单边校验、来源去重；新增 `voucher`/`voucher_line` 表及 0014 迁移；新增凭证审批 payload 哈希；新增 `voucher draft/list/show/submit` CLI；补充文档和示例科目配置。
 - 修改文件：`src/crosserp/vouchers/`、`src/crosserp/approval/payload.py`、`src/crosserp/db/schema.py`、`src/crosserp/db/migrations/versions/0014_voucher.py`、`src/crosserp/db/repo/vouchers.py`、`src/crosserp/cli.py`、`config/accounts.example.yaml`、`docs/vouchers.md`、`tests/unit/vouchers/`、`tests/integration/test_voucher_db.py`、`CHANGELOG.md`。
-- 测试结果：`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过；凭证单元/数据库/审批测试 10 passed；全量 SQLite `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 244 passed、7 skipped，覆盖率 80.51%；MySQL 8.4 迁移/凭证抽查 6 passed、1 skipped，PostgreSQL 18 迁移/凭证抽查 6 passed、1 skipped；CLI demo + voucher draft 实测借贷均为 485.58。
+- 测试结果：`.venv/bin/ruff check .`、`.venv/bin/mypy`、`.venv/bin/pre-commit run --all-files` 通过；凭证单元/数据库/审批测试 10 passed；全量 SQLite `.venv/bin/pytest -q --cov=crosserp --cov-fail-under=60` 为 244 passed、7 skipped，覆盖率 80.51%；MySQL 8.4 迁移/凭证抽查 6 passed、1 skipped，PostgreSQL 18 迁移/凭证抽查 6 passed、1 skipped；CLI demo + voucher draft 实测借贷均为 485.58。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - 手算抽查：示例收入 10.00、平台费 1.25、退款 2.00；借方平台应收 10.00 + 平台费用 1.25 + 收入冲减 2.00 = 13.25，贷方销售收入 10.00 + 平台应收 1.25 + 平台应收 2.00 = 13.25，逐分相等。
 - 偏离计划：按 maken 决定先实现按月粒度；按结算单生成、平台打款到账和汇兑差的具体数据接入保留接口，待后续已有结算/汇率数据路径接入；没有修改已合并表结构或新增依赖。

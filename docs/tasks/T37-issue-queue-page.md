@@ -41,7 +41,7 @@
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/unit/issues tests/web -q` | passed |
-| `uv run pytest -m db -k issue -q`（三库） | passed |
+| `uv run pytest -m db -k issue -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run crosserp demo && uv run crosserp issues list` | 有异常可处理 |
 | 全量检查 | 全过 |
 

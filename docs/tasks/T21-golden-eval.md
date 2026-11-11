@@ -24,7 +24,7 @@
   - 输出：总行数、完全一致行数、差异表（列名、期望、实际、差额、该 SKU 涉及的结算行号），缺行/多行单列。全部一致退出码 0，否则 1。
   - `--issues`：比对异常（key = store+order_id+sku+kind），输出漏报（期望有、系统没有）和多报。
   - 加 `--report-md <path>`：把结果写成 markdown，给 `docs/eval-results/` 用。
-- 测试 `tests/golden/test_golden.py`（三库）：
+- 测试 `tests/golden/test_golden.py`（三库）：【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
   - 利润：系统输出 vs `tests/golden/profit_expected.csv` **全部一致**。
   - 指标 2：每个店铺 `match_rate ≥ 0.95`；所有未匹配组 100% 有 `counts_as_unmatched` 的 open issue；`issues_expected.csv` 无漏报。
   - 若 `samples/real_anonymized/expected/profit_expected.csv` 存在 → 同样比对（本地跑）；不存在 → skip，CI 里自动 skip。
@@ -45,7 +45,7 @@
 ## 验收标准（代理自测，全部要实际跑）
 | 命令 | 期望 |
 |---|---|
-| `uv run pytest tests/golden -q`（三库） | passed |
+| `uv run pytest tests/golden -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run crosserp check-golden --period 2026-10 --expected tests/golden/profit_expected.csv` | 「N/N 行完全一致」，退出码 0 |
 | 手工把期望文件里一个 profit 改大 0.01 再跑 | 退出码 1，差异表指出那一格 |
 
@@ -61,5 +61,5 @@
 
 - 完成内容：新增独立 `profit_expected.csv`（8 个运行 SKU + 12 个 reference-only 合成手算行，共 20 行）、异常标准答案、`crosserp check-golden` 逐格比较和 Markdown 报告；golden 测试覆盖利润逐分一致、异常漏报/多报、故意改大 0.01 必须失败；生成器提供独立参考答案输出，不导入 `crosserp.profit`。
 - 修改文件：`src/crosserp/profit/golden.py`、`src/crosserp/cli.py`、`scripts/gen_samples.py`、`scripts/sample_vocab.py`、`samples/synthetic/expected/profit_expected.csv`、`tests/golden/profit_expected.csv`、`tests/golden/issues_expected.csv`、`tests/golden/test_golden.py`、`docs/eval-results/README.md`、相关任务文档和 `CHANGELOG.md`。
-- 测试结果：SQLite 全量 `201 passed, 2 skipped`，覆盖率 `86.26%`；`tests/golden` SQLite `55 passed`；MySQL 8.4 和 PostgreSQL 18 golden 定向测试各 `30 passed`；`check-golden` 输出 `8/8 行完全一致、reference-only 12 行、异常 6/6 条一致`；故意把 profit 改大 0.01 的单测通过；样本生成器 `--check`、ruff、mypy、pre-commit 通过。
+- 测试结果：SQLite 全量 `201 passed, 2 skipped`，覆盖率 `86.26%`；`tests/golden` SQLite `55 passed`；MySQL 8.4 和 PostgreSQL 18 golden 定向测试各 `30 passed`；`check-golden` 输出 `8/8 行完全一致、reference-only 12 行、异常 6/6 条一致`；故意把 profit 改大 0.01 的单测通过；样本生成器 `--check`、ruff、mypy、pre-commit 通过。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 - 偏离计划：当前合成数据只有 8 个可运行利润 SKU，因此 12 行明确标记 `reference-only`，没有伪装成运行结果；maken 的 20 个真实 SKU 仍按人工验收清单放在忽略目录中。

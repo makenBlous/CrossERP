@@ -39,7 +39,7 @@
 |---|---|
 | `uv run crosserp audit export --from 2026-10-01 --to 2026-12-31 --format jsonl --out a.zip && uv run crosserp audit verify-export a.zip` | 退出码 0 |
 | 改 a.zip 里 jsonl 一个字节后 `verify-export` | 退出码 1，指出文件/行 |
-| `uv run pytest -m db -k "audit or guard" -q`（三库） | passed |
+| `uv run pytest -m db -k "audit or guard" -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run pytest --cov=crosserp --cov-fail-under=60` | passed |
 
 ## maken 人工验收清单（W4 验收）
@@ -78,8 +78,8 @@
 | `.venv/bin/python -m pytest tests/unit/test_offline_verify.py tests/integration/test_audit_export.py -q` | `2 passed`。 |
 | `.venv/bin/python -m pytest -m db -k 'audit or guard' -q` | SQLite `18 passed, 1 skipped`。 |
 | `CROSSERP_TEST_DATABASE_URL=mysql+pymysql://... .venv/bin/python -m pytest -m db -k 'audit or guard' -q` | MySQL 8.4 `18 passed, 1 skipped`。 |
-| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://... .venv/bin/python -m pytest -m db -k 'audit or guard' -q` | PostgreSQL 18 通过。 |
-| 三库 `tests/integration/test_migrations.py` + `test_audit_export.py` | SQLite `6 passed`；MySQL/PG 各 `5 passed, 1 skipped`。 |
+| `CROSSERP_TEST_DATABASE_URL=postgresql+psycopg://... .venv/bin/python -m pytest -m db -k 'audit or guard' -q` | PostgreSQL 18 通过。 |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
+| 三库 `tests/integration/test_migrations.py` + `test_audit_export.py` | SQLite `6 passed`；MySQL/PG 各 `5 passed, 1 skipped`。 |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `.venv/bin/ruff format --check . && .venv/bin/ruff check .` | 通过。 |
 | `.venv/bin/mypy --strict` | 通过。 |
 | `.venv/bin/pre-commit run --all-files` | 全部 `Passed`。 |

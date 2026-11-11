@@ -55,7 +55,7 @@ defaults:
 | 命令 | 期望 |
 |---|---|
 | `uv run pytest tests/golden/test_generic_mapped.py -q` | passed |
-| 三库分别 `uv run pytest -m db -k mapped -q` | passed |
+| 三库分别 `uv run pytest -m db -k mapped -q` | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ## maken 人工验收清单
 - [ ] 打开 `src/crosserp/connectors/mappings/lingxing_orders.yaml`，把 `TODO_` 后面的字换成你领星导出文件里**真实的表头名**（只改右边），保存。赛狐同理。
@@ -71,7 +71,7 @@ defaults:
 
 ## 完成记录
 
-本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。
+本地只用 SQLite。解释器是 `D:\make\write\work\CrossERP\.venv\Scripts\python.exe`。`PYTHONPATH` 指向本 worktree 的 `src`。没有用 `uv run`。没有跑 MySQL / PostgreSQL。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 任务验收命令里的 `uv run` 按上面的解释器替换。
 

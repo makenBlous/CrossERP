@@ -31,9 +31,9 @@
 - 不做自动清理；不做告警推送（第 3 月飞书）。
 
 ## 步骤
-1. 先写测试：每种事件至少一条测试断言写入且字段齐全（实施方案新增验收项 C 的一部分）；密码和 session token 明文不出现在任何列（扫描整行）；改一行 `security_event` → `verify --chain security` 报错且业务链 verify 仍通过；并发两线程写入不分叉（三库）。
+1. 先写测试：每种事件至少一条测试断言写入且字段齐全（实施方案新增验收项 C 的一部分）；密码和 session token 明文不出现在任何列（扫描整行）；改一行 `security_event` → `verify --chain security` 报错且业务链 verify 仍通过；并发两线程写入不分叉（三库）。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 2. 迁移 + 模型 + `audit/security.py` + 接线 + 页面 + 导出。
-3. 三库跑 grants 测试：app 账号 UPDATE `security_event` 被拒。
+3. 三库跑 grants 测试：app 账号 UPDATE `security_event` 被拒。【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 
 ## 涉及文件
 `src/crosserp/db/schema.py` `src/crosserp/db/migrations/versions/0013_security_event.py` `src/crosserp/audit/{security,chain,export}.py` `src/crosserp/auth/` `src/crosserp/web/routes/security_log.py` `src/crosserp/web/templates/security_log.html` `src/crosserp/cli.py` `scripts/sql/grant_*.sql` `docs/audit.md` `CHANGELOG.md` `tests/integration/test_security_event.py` `tests/property/test_security_tamper.py` `tests/integration/test_grants.py` `tests/web/test_security_log.py`
@@ -41,7 +41,7 @@
 ## 验收标准（代理自测，全部要实际跑）
 | 命令 | 期望 |
 |---|---|
-| `uv run pytest -m db -k "security or audit or grants" -q`（三库） | passed |
+| `uv run pytest -m db -k "security or audit or grants" -q`（三库） | passed |【历史验收口径；现行正式目标为 MySQL 8.4，SQLite 仅演示，PostgreSQL 仅备选】
 | `uv run crosserp audit verify --chain security` | 通过 |
 | `uv run crosserp audit verify` | 通过（业务链行为不变） |
 | `uv run crosserp audit export --chain security --from 2026-01-01 --to 2026-12-31 --format csv --out s.zip && uv run crosserp audit verify-export s.zip` | 退出码 0 |
