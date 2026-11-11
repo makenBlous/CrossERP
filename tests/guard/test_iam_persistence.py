@@ -4,10 +4,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from crosserp.db.migrate import downgrade_base, upgrade_head
-from crosserp.db.schema import AppUser
+from crosserp.db.schema import AppUser, IamRole
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.iam.service import IAMService
 
@@ -46,6 +47,22 @@ def test_iam_state_survives_service_restart_and_version_bumps(tmp_path: Path) ->
         assert second.effective_permission(user_id, "issue:write").allowed
         second.update_role("viewer", active=False)
         assert second.permission_version(user_id) == 4
+    finally:
+        engine.dispose()
+        downgrade_base(url)
+
+
+def test_iam_roles_are_seeded_by_migration_once(tmp_path: Path) -> None:
+    url = sqlite_file_url(tmp_path / "iam-seed.db")
+    upgrade_head(url)
+    engine = make_engine(url)
+    try:
+        with Session(engine) as session:
+            before = session.scalar(select(func.count()).select_from(IamRole))
+        IAMService(engine)
+        with Session(engine) as session:
+            after = session.scalar(select(func.count()).select_from(IamRole))
+        assert before == after == 21
     finally:
         engine.dispose()
         downgrade_base(url)

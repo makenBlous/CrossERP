@@ -56,9 +56,15 @@ def test_every_iam_route_has_success_and_denial(json_client, api_engine) -> None
                 "name": "route",
                 "fieldKey": "salary",
                 "scopeType": "store",
+                "username": f"route-created-{uuid4().hex[:8]}",
+                "password": "Api-test-password-456",
             }
             if _action == "Role.set_permissions":
                 payload["permissions"] = {"report:read": "allow", "permission:write": "allow"}
+            if _action == "PermissionPoint.update":
+                payload["cells"] = [
+                    {"roleId": role_id, "permissionKey": "report:read", "effect": "allow"}
+                ]
             response = json_client.request(method, "/api/v1" + path, json=payload)
             assert response.status_code in {200, 201}, (
                 method,

@@ -56,19 +56,14 @@ def _principal_check(request: Request, principal: Principal, permission: str, ri
     def check_permission(**_: Any) -> None:
         permission_service.iam.require(principal, permission, risk_tier=risk)
 
-    try:
-        ActionDispatcher().dispatch(
-            principal=principal,
-            permission=permission,
-            risk_tier=risk,
-            action=permission,
-            business_action=lambda: None,
-            hooks={"permission": check_permission},
-        )
-    except PermissionError as exc:
-        raise APIError(ErrorCode.AI_AUTONOMY_CAPPED, "智能体不能执行危风险动作") from exc
-    except APIError:
-        raise
+    ActionDispatcher().dispatch(
+        principal=principal,
+        permission=permission,
+        risk_tier=risk,
+        action=permission,
+        business_action=lambda: None,
+        hooks={"permission": check_permission},
+    )
 
 
 def _result(data: Any, *, created: bool = False) -> dict[str, Any]:
@@ -82,7 +77,7 @@ def _audit(request: Request, principal: Principal, entity: str, action: str, dif
             entity=entity,
             action=action,
             diff=diff,
-            request_id=getattr(request.state, "request_id", None),
+            request_id=request.state.request_id,
         )
         if entity in {
             "Role",
@@ -101,23 +96,19 @@ def _audit(request: Request, principal: Principal, entity: str, action: str, dif
                 SecurityEventName.PERMISSION_CHANGED,
                 user_id=principal.user_id,
                 target_user_id=principal.effective_user_id,
-                request_id=getattr(request.state, "request_id", None),
+                request_id=request.state.request_id,
                 detail={"entity": entity, "action": action, "diff": diff},
             )
 
 
-def _record(obj: Any) -> dict[str, Any]:
-    if isinstance(obj, AppUser):
-        return {
-            "id": str(obj.id),
-            "username": obj.username,
-            "displayName": obj.display_name,
-            "isActive": obj.is_active,
-            "permissionVersion": obj.permission_version,
-        }
-    if isinstance(obj, dict):
-        return obj
-    return {"id": str(obj)}
+def _record(obj: AppUser) -> dict[str, Any]:
+    return {
+        "id": str(obj.id),
+        "username": obj.username,
+        "displayName": obj.display_name,
+        "isActive": obj.is_active,
+        "permissionVersion": obj.permission_version,
+    }
 
 
 def _generic(
@@ -154,12 +145,12 @@ def _generic(
                     "pageSize": len(rows),
                     "total": len(rows),
                 }
-            user = _get_user(session, path_id) if path_id else None
+            user = _get_user(session, path_id) if path_id is not None else None
             if method == "GET":
                 return _record(user)
             if method == "POST" and path_id is None:
-                username = str(payload.get("username", "user-" + uuid4().hex[:8]))
-                password = str(payload.get("password", "CrossERP-demo-password"))
+                username = _required_string(payload, "username")
+                password = _required_string(payload, "password")
                 user = AppUser(
                     id=uuid4(),
                     username=username,
@@ -198,8 +189,6 @@ def _generic(
                 user.permission_version += 1
                 session.commit()
                 _audit(request, principal, entity, action, payload)
-                iam.user_roles[user.id] = roles
-                iam._bump(user.id)
                 return _result({"id": str(user.id), "roles": sorted(roles)})
             if action == "User.set_overrides":
                 session.query(IamPermissionOverride).filter(
@@ -281,7 +270,7 @@ def _generic(
             result = _result({"id": role.id, "name": role.name}, created=True)
             _audit(request, principal, entity, action, result)
             return result
-        role = iam.roles.get(path_id or "")
+        role = iam.roles.get(path_id)
         if role is None:
             raise not_found()
         if method == "GET":
@@ -307,7 +296,7 @@ def _generic(
             return result
         if action == "Role.update":
             role = iam.update_role(
-                path_id or "",
+                path_id,
                 parent_ids=set(payload["parentIds"]) if "parentIds" in payload else None,
                 permissions=(
                     {str(k): str(v) for k, v in payload["permissions"].items()}
@@ -318,7 +307,7 @@ def _generic(
             )
         if action == "Role.set_permissions":
             role = iam.update_role(
-                path_id or "",
+                path_id,
                 permissions={str(k): str(v) for k, v in payload.get("permissions", {}).items()},
             )
         result = _result(
@@ -338,15 +327,17 @@ def _generic(
                 rows = list(session.scalars(select(IamTemporaryGrant)))
             return {"items": [_model_record(row) for row in rows], "total": len(rows)}
         if method == "POST" and path_id is None:
+            if "userId" not in payload:
+                raise APIError(ErrorCode.VALIDATION_FAILED, "userId 必填")
             try:
                 user_id = UUID(str(payload["userId"]))
-            except (KeyError, ValueError) as exc:
+            except ValueError as exc:
                 raise APIError(ErrorCode.VALIDATION_FAILED, "userId 无效") from exc
             raw_expires = payload.get("expiresAt")
             try:
                 expires_at = (
                     datetime.fromisoformat(str(raw_expires))
-                    if raw_expires
+                    if "expiresAt" in payload
                     else datetime.now(UTC) + timedelta(hours=1)
                 )
             except ValueError as exc:
@@ -367,9 +358,11 @@ def _generic(
                     )
                     .order_by(IamTemporaryGrant.created_at.desc())
                 )
+            if stored is None:
+                raise APIError(ErrorCode.INTERNAL_ERROR, "临时授权写入失败")
             result = _result(
                 {
-                    "id": str(stored.id if stored is not None else uuid4()),
+                    "id": str(stored.id),
                     "userId": str(user_id),
                     "permission": grant.permission,
                 },
@@ -377,6 +370,27 @@ def _generic(
             )
             _audit(request, principal, entity, action, result)
             return result
+    if entity == "PermissionPoint" and action == "PermissionPoint.update":
+        cells = payload.get("cells")
+        if not isinstance(cells, list):
+            raise APIError(ErrorCode.VALIDATION_FAILED, "cells 必须是数组")
+        for cell in cells:
+            if not isinstance(cell, dict):
+                raise APIError(ErrorCode.VALIDATION_FAILED, "权限格格式无效")
+            role_id = _required_string(cell, "roleId")
+            permission_key = _required_string(cell, "permissionKey")
+            effect = cell.get("effect")
+            if effect not in {"allow", "deny"}:
+                raise APIError(ErrorCode.VALIDATION_FAILED, "权限格 effect 无效")
+            role = iam.roles.get(role_id)
+            if role is None:
+                raise not_found()
+            permissions = dict(role.permissions)
+            permissions[permission_key] = effect
+            iam.update_role(role_id, permissions=permissions)
+        result = _result({"cells": cells})
+        _audit(request, principal, entity, action, result)
+        return result
     model_map = {
         "FieldPolicy": IamFieldPolicy,
         "DataScopeRule": IamDataScopeRule,
@@ -386,8 +400,8 @@ def _generic(
         "Dictionary": IamDictionary,
         "SystemSetting": IamSystemSetting,
     }
-    model = model_map.get(entity)
-    if model is not None:
+    if entity in model_map:
+        model = model_map[entity]
         with _session(request) as session:
             if method == "GET":
                 rows = list(session.scalars(select(model)))
@@ -398,16 +412,18 @@ def _generic(
                     "total": len(rows),
                 }
             if entity == "Dictionary":
-                row = session.get(model, path_key or "")
+                row = session.get(model, path_key)
             elif entity == "ModuleSwitch":
-                row = session.get(model, path_id or "")
+                row = session.get(model, path_id)
             elif entity == "SystemSetting":
                 row = session.get(model, "system")
             else:
-                try:
-                    row = session.get(model, UUID(path_id or ""))
-                except ValueError:
-                    row = None
+                row = None
+                if path_id is not None:
+                    try:
+                        row = session.get(model, UUID(path_id))
+                    except ValueError:
+                        row = None
             if row is None:
                 if entity == "AccessReview" and method == "POST":
                     row = model(
@@ -419,7 +435,7 @@ def _generic(
                     session.add(row)
                 elif entity == "FieldPolicy" and method in {"PUT", "PATCH"}:
                     row = model(
-                        id=UUID(path_id or str(uuid4())),
+                        id=UUID(path_id),
                         field_key=str(payload.get("fieldKey", path_id)),
                         permission=str(payload.get("permission", "permission:read")),
                         masked=bool(payload.get("masked", False)),
@@ -428,7 +444,7 @@ def _generic(
                     session.add(row)
                 elif entity == "DataScopeRule" and method in {"PUT", "PATCH"}:
                     row = model(
-                        id=UUID(path_id or str(uuid4())),
+                        id=UUID(path_id),
                         name=str(payload.get("name", path_id)),
                         entity=str(payload.get("entity", "*")),
                         scope_type=str(payload.get("scopeType", "store")),
@@ -438,7 +454,7 @@ def _generic(
                     session.add(row)
                 elif entity == "SodRule" and method in {"PUT", "PATCH"}:
                     row = model(
-                        id=UUID(path_id or str(uuid4())),
+                        id=UUID(path_id),
                         name=str(payload.get("name", path_id)),
                         permissions=payload.get("permissions", []),
                         enabled=bool(payload.get("enabled", True)),
@@ -452,13 +468,13 @@ def _generic(
                 }:
                     if entity == "Dictionary":
                         row = model(
-                            key=path_key or "",
+                            key=path_key,
                             values=payload.get("values", []),
                             updated_at=datetime.now(UTC),
                         )
                     elif entity == "ModuleSwitch":
                         row = model(
-                            module=path_id or "",
+                            module=path_id,
                             enabled=bool(payload.get("enabled", True)),
                             config=payload.get("config", {}),
                             updated_at=datetime.now(UTC),
@@ -472,36 +488,43 @@ def _generic(
                 row.state = "confirmed"
                 row.reviewed_by = principal.effective_user_id
                 row.reviewed_at = datetime.now(UTC)
-            for key, value in payload.items():
-                attr = {
+            field_aliases = {
+                "FieldPolicy": {
                     "fieldKey": "field_key",
-                    "scopeType": "scope_type",
+                    "permission": "permission",
+                    "masked": "masked",
                     "updatedBy": "updated_by",
-                    "isActive": "enabled",
-                }.get(key, key)
-                if hasattr(row, attr):
+                },
+                "DataScopeRule": {
+                    "name": "name",
+                    "entity": "entity",
+                    "scopeType": "scope_type",
+                    "values": "values",
+                    "updatedBy": "updated_by",
+                },
+                "SodRule": {
+                    "name": "name",
+                    "permissions": "permissions",
+                    "enabled": "enabled",
+                    "updatedBy": "updated_by",
+                },
+                "ModuleSwitch": {
+                    "enabled": "enabled",
+                    "config": "config",
+                    "updatedBy": "updated_by",
+                },
+                "Dictionary": {"values": "values", "updatedBy": "updated_by"},
+                "SystemSetting": {"value": "value", "updatedBy": "updated_by"},
+                "AccessReview": {"snapshot": "snapshot"},
+            }[entity]
+            for key, value in payload.items():
+                attr = field_aliases.get(key)
+                if attr is not None:
                     setattr(row, attr, value)
             session.commit()
             result = _result(_model_record(row))
         _audit(request, principal, entity, action, result)
         return result
-        if method == "POST" and path_id:
-            try:
-                grant_id = UUID(path_id)
-            except ValueError as exc:
-                raise not_found() from exc
-            with _session(request) as session:
-                grant = session.get(IamTemporaryGrant, grant_id)
-                if grant is None:
-                    raise not_found()
-                grant.revoked_at = datetime.now(UTC)
-                user = session.get(AppUser, grant.user_id)
-                if user is not None:
-                    user.permission_version += 1
-                session.commit()
-            result = _result({"id": path_id, "revoked": True})
-            _audit(request, principal, entity, action, result)
-            return result
     if entity == "TempGrant" and method == "POST" and path_id:
         try:
             grant_id = UUID(path_id)
@@ -513,30 +536,31 @@ def _generic(
                 raise not_found()
             grant.revoked_at = datetime.now(UTC)
             user = session.get(AppUser, grant.user_id)
-            if user is not None:
-                user.permission_version += 1
+            if user is None:
+                raise APIError(ErrorCode.INTERNAL_ERROR, "临时授权所属用户不存在")
+            user.permission_version += 1
             session.commit()
         result = _result({"id": path_id, "revoked": True})
         _audit(request, principal, entity, action, result)
         return result
-    if method == "GET":
-        return {"items": [], "page": 1, "pageSize": 0, "total": 0}
-    result = _result(
-        {"id": path_id or path_key or str(uuid4()), **payload}, created=method == "POST"
-    )
-    if method != "GET":
-        _audit(request, principal, entity, action, result)
-    return result
+    raise APIError(ErrorCode.INTERNAL_ERROR, f"未处理的 IAM 动作: {entity}.{action}")
 
 
-def _get_user(session: Session, value: str | None) -> AppUser:
+def _get_user(session: Session, value: str) -> AppUser:
     try:
-        user = session.get(AppUser, UUID(value or ""))
+        user = session.get(AppUser, UUID(value))
     except ValueError:
         user = None
     if user is None:
         raise not_found()
     return user
+
+
+def _required_string(payload: dict[str, Any], key: str) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise APIError(ErrorCode.VALIDATION_FAILED, f"{key} 必填")
+    return value.strip()
 
 
 def _model_record(row: Any) -> dict[str, Any]:
