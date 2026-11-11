@@ -110,6 +110,29 @@ class Store(Base):
     currency: Mapped[str] = mapped_column(String(3))
 
 
+class Listing(Base):
+    """平台 Listing。"""
+
+    __tablename__ = "listing"
+    __table_args__ = (
+        UniqueConstraint("store_id", "platform_sku", name="uq_listing_store_platform_sku"),
+        Index("ix_listing_store_id", "store_id"),
+        Index("ix_listing_status", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    store_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("store.id"))
+    platform_sku: Mapped[str] = mapped_column(String(128))
+    asin: Mapped[str | None] = mapped_column(String(64))
+    price: Mapped[Decimal] = mapped_column(Money4())
+    currency: Mapped[str] = mapped_column(String(3))
+    status: Mapped[str] = mapped_column(_KIND, default="active", server_default="active")
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    provenance_json: Mapped[Any | None] = mapped_column(JSON())
+
+
 class Sku(Base):
     """平台 SKU 与内部 SKU 的映射。"""
 

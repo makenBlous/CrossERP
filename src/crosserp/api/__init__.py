@@ -49,7 +49,13 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         self.engine = engine
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.method != "POST" or request.url.path.rstrip("/").endswith("/dry-run"):
+        if request.method not in {"POST", "PATCH"} or request.url.path.rstrip("/").endswith(
+            "/dry-run"
+        ):
+            return await call_next(request)
+        # Listing 动作由 ActionDispatcher 在权限检查之后处理幂等重放。
+        # 中间件不能在路由依赖执行前判断店铺数据范围, 因此不能提前返回缓存响应。
+        if request.url.path.startswith("/api/v1/catalog/listings"):
             return await call_next(request)
         key = request.headers.get("Idempotency-Key")
         if not key:
@@ -65,7 +71,18 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 status_code=422,
             )
         body = await request.body()
-        request_hash = sha256(body).hexdigest()
+        identity = request.headers.get("Authorization", "") + request.cookies.get(
+            "crosserp_session", ""
+        )
+        request_hash = sha256(
+            request.method.encode()
+            + b"\0"
+            + request.url.path.encode()
+            + b"\0"
+            + identity.encode()
+            + b"\0"
+            + body
+        ).hexdigest()
         now = datetime.now(UTC)
         request_id = getattr(request.state, "request_id", "")
         with Session(self.engine) as session:

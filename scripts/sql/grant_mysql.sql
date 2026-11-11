@@ -29,6 +29,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.settlement_line TO 'crosserp_ap
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.sku TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.sku_cost TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.store TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.listing TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT ON crosserp.audit_log TO 'crosserp_app'@'%';
 GRANT SELECT, UPDATE ON crosserp.audit_head TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT ON crosserp.audit_checkpoint TO 'crosserp_app'@'%';
@@ -77,6 +78,7 @@ GRANT SELECT ON crosserp.settlement_line TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.sku TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.sku_cost TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.store TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.listing TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.security_event TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.voucher TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.voucher_line TO 'crosserp_agent'@'%';
