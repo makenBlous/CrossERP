@@ -632,6 +632,7 @@ class AppUser(Base):
     password_changed_at: Mapped[datetime] = mapped_column(UtcDateTime())
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    permission_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 class UserRole(Base):
@@ -639,7 +640,7 @@ class UserRole(Base):
 
     __tablename__ = "user_role"
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"), primary_key=True)
-    role: Mapped[str] = mapped_column(String(16), primary_key=True)
+    role: Mapped[str] = mapped_column(String(64), primary_key=True)
     granted_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
     granted_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
@@ -726,6 +727,118 @@ class IdempotencyKey(Base):
     response_headers: Mapped[Any] = mapped_column(JSON(), default=dict)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class IamRole(Base):
+    """权限模板/自定义角色。"""
+
+    __tablename__ = "iam_role"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    slug: Mapped[str] = mapped_column(String(64), unique=True)
+    name: Mapped[str] = mapped_column(String(128))
+    parent_ids: Mapped[Any] = mapped_column(JSON(), default=list)
+    permissions: Mapped[Any] = mapped_column(JSON(), default=dict)
+    data_scopes: Mapped[Any] = mapped_column(JSON(), default=list)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    is_template: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class IamPermissionOverride(Base):
+    __tablename__ = "iam_permission_override"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"))
+    permission: Mapped[str] = mapped_column(String(128))
+    effect: Mapped[str] = mapped_column(String(8))
+    reason: Mapped[str] = mapped_column(String(512))
+    data_scopes: Mapped[Any] = mapped_column(JSON(), default=list)
+    starts_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    expires_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class IamTemporaryGrant(Base):
+    __tablename__ = "iam_temporary_grant"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"))
+    permission: Mapped[str] = mapped_column(String(128))
+    effect: Mapped[str] = mapped_column(String(8))
+    reason: Mapped[str] = mapped_column(String(512))
+    starts_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    revoked_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class IamFieldPolicy(Base):
+    __tablename__ = "iam_field_policy"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    field_key: Mapped[str] = mapped_column(String(128), unique=True)
+    permission: Mapped[str] = mapped_column(String(128))
+    masked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class IamDataScopeRule(Base):
+    __tablename__ = "iam_data_scope_rule"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    name: Mapped[str] = mapped_column(String(128))
+    entity: Mapped[str] = mapped_column(String(128))
+    scope_type: Mapped[str] = mapped_column(String(32))
+    values: Mapped[Any] = mapped_column(JSON(), default=list)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class IamAccessReview(Base):
+    __tablename__ = "iam_access_review"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"))
+    state: Mapped[str] = mapped_column(String(16), default="open")
+    snapshot: Mapped[Any] = mapped_column(JSON(), default=dict)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    reviewed_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class IamSodRule(Base):
+    __tablename__ = "iam_sod_rule"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    name: Mapped[str] = mapped_column(String(128))
+    permissions: Mapped[Any] = mapped_column(JSON(), default=list)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class IamModuleSwitch(Base):
+    __tablename__ = "iam_module_switch"
+
+    module: Mapped[str] = mapped_column(String(64), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    config: Mapped[Any] = mapped_column(JSON(), default=dict)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class IamDictionary(Base):
+    __tablename__ = "iam_dictionary"
+
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    values: Mapped[Any] = mapped_column(JSON(), default=list)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
 V01_TABLES: frozenset[str] = frozenset(Base.metadata.tables)

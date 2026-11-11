@@ -29,6 +29,7 @@ class SecurityEventName(StrEnum):
     SESSION_EXPIRED = "session_expired"
     TOKEN_CREATED = "token_created"
     TOKEN_REVOKED = "token_revoked"
+    PERMISSION_CHANGED = "permission_changed"
 
 
 def record(

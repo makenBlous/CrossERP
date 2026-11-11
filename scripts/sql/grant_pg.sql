@@ -34,7 +34,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.approval, public.api_token,
   public.idempotency_key, public.match, public.order_line, public.profit_snapshot, public.prompt_version,
   public.raw_row, public.recon_run, public.security_event, public.settlement,
   public.settlement_line, public.sku, public.sku_cost, public.store, public.user_role,
-  public.user_session, public.voucher, public.voucher_line TO crosserp_app;
+  public.user_session, public.voucher, public.voucher_line, public.iam_role,
+  public.iam_permission_override, public.iam_temporary_grant, public.iam_field_policy,
+  public.iam_data_scope_rule, public.iam_access_review, public.iam_sod_rule,
+  public.iam_module_switch, public.iam_dictionary TO crosserp_app;
 REVOKE UPDATE, DELETE ON TABLE public.audit_log FROM crosserp_app;
 GRANT SELECT, INSERT ON TABLE public.audit_log TO crosserp_app;
 REVOKE UPDATE, DELETE ON TABLE public.audit_head FROM crosserp_app;
@@ -57,7 +60,10 @@ GRANT SELECT ON TABLE public.approval, public.api_token, public.app_setting, pub
   public.llm_tool_call, public.match, public.order_line, public.profit_snapshot,
   public.prompt_version, public.raw_row, public.recon_run, public.security_event,
   public.settlement, public.settlement_line, public.sku, public.sku_cost, public.store,
-  public.user_role, public.user_session, public.voucher, public.voucher_line TO crosserp_agent;
+  public.user_role, public.user_session, public.voucher, public.voucher_line,
+  public.iam_role, public.iam_permission_override, public.iam_temporary_grant,
+  public.iam_field_policy, public.iam_data_scope_rule, public.iam_access_review,
+  public.iam_sod_rule, public.iam_module_switch, public.iam_dictionary TO crosserp_agent;
 REVOKE SELECT ON TABLE public.app_user, public.user_session, public.api_token FROM crosserp_agent;
 GRANT SELECT ON TABLE public.eval_run, public.voucher, public.voucher_line,
   public.prompt_version, public.llm_call, public.llm_tool_call, public.llm_budget,

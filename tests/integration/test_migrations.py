@@ -17,7 +17,7 @@ from crosserp.db.session import session_scope, sqlite_file_url
 
 pytestmark = pytest.mark.db
 
-_EXPECTED_COUNT = 36  # 加入 P0 API 幂等键表; 其余仍为 T39/T44/T49/T51 表
+_EXPECTED_COUNT = 45  # P0-02 新增九张 IAM 表; 并保留原有 36 张表
 
 
 def _url(engine: Engine) -> str:
