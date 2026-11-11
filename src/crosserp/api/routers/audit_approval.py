@@ -26,6 +26,7 @@ from crosserp.db.schema import (
     RetentionPolicy,
     SecurityEvent,
 )
+from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
 from crosserp.platform.permissions import DefaultPermissionService
 from crosserp.platform.principal import Principal, get_principal
@@ -86,6 +87,13 @@ def _approval(row: Approval) -> dict[str, Any]:
         "payloadHash": row.payload_hash,
         "step": row.current_step,
         "resolution": row.resolution or {},
+        "initiatorConfirmedBy": (
+            str(row.initiator_confirmed_by) if row.initiator_confirmed_by else None
+        ),
+        "initiatorConfirmedAt": (
+            row.initiator_confirmed_at.isoformat() if row.initiator_confirmed_at else None
+        ),
+        "initiatorConfirmationHash": row.initiator_confirmation_hash,
     }
 
 
@@ -111,7 +119,7 @@ def list_audit_logs(
     sort: str | None = None,
 ) -> dict[str, Any]:
     _auth(principal, "audit_log:read")
-    with _session(request) as session:
+    with _session(request) as session, session.begin():
         stmt = select(AuditLog).order_by(AuditLog.seq.desc())
         if q:
             stmt = stmt.where(
@@ -166,13 +174,20 @@ def audit_chain(request: Request, principal: Principal = Depends(get_principal))
 )
 def verify_audit(request: Request, principal: Principal = Depends(get_principal)) -> dict[str, Any]:
     _auth(principal, "audit_log:read")
-    with _session(request) as session:
+    with _session(request) as session, session.begin():
         result: Any = ActionDispatcher().dispatch(
             principal=principal,
             permission="audit_log:read",
             risk_tier=RiskTier.LOW,
             action="AuditLog.create",
             business_action=lambda: verify_chain(session),
+        )
+        DefaultAuditRecorder(session).record(
+            principal=principal,
+            entity="AuditLog",
+            action="AuditLog.create",
+            diff={"ok": result.ok, "checked": result.checked},
+            request_id=getattr(request.state, "request_id", None),
         )
         return {
             "ok": result.ok,
@@ -219,6 +234,13 @@ def create_audit_export(
         session.flush()
         request.app.state.audit_exports = getattr(request.app.state, "audit_exports", {})
         request.app.state.audit_exports[str(export.id)] = content
+        DefaultAuditRecorder(session).record(
+            principal=principal,
+            entity="AuditExport",
+            action="AuditExport.create",
+            diff={"id": str(export.id), "rowCount": export.row_count},
+            request_id=getattr(request.state, "request_id", None),
+        )
         return {
             "id": str(export.id),
             "rowCount": export.row_count,
@@ -382,6 +404,13 @@ def resolve_alert(
         )
         row.resolved_at = datetime.now(UTC)
         row.resolved_by = principal.user_id
+        DefaultAuditRecorder(session).record(
+            principal=principal,
+            entity="AuditAlert",
+            action="AuditAlert.resolve",
+            diff={"id": id, "status": row.status},
+            request_id=getattr(request.state, "request_id", None),
+        )
         return {"id": id, "status": row.status}
 
 
@@ -445,6 +474,13 @@ def update_retention(
             action="RetentionPolicy.update",
             business_action=lambda: row,
         )
+        DefaultAuditRecorder(session).record(
+            principal=principal,
+            entity="RetentionPolicy",
+            action="RetentionPolicy.update",
+            diff={"id": str(row.id), "chain": row.chain, "retainDays": row.retain_days},
+            request_id=getattr(request.state, "request_id", None),
+        )
         return {"id": str(row.id), "chain": row.chain, "retainDays": row.retain_days}
 
 
@@ -480,6 +516,13 @@ def archive_retention(
             risk_tier=RiskTier.CRITICAL,
             action="RetentionPolicy.archive",
             business_action=lambda: run,
+        )
+        DefaultAuditRecorder(session).record(
+            principal=principal,
+            entity="RetentionPolicy",
+            action="RetentionPolicy.archive",
+            diff={"id": str(run.id), "rowCount": run.row_count},
+            request_id=getattr(request.state, "request_id", None),
         )
         return {"id": str(run.id), "rowCount": run.row_count, "uptoHash": run.upto_hash}
 

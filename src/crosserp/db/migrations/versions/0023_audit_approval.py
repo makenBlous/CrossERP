@@ -21,7 +21,9 @@ def upgrade() -> None:
         sa.Column("delegation_id", sa.String(128)),
         sa.Column("run_id", sa.String(128)),
         sa.Column("tool_call_id", sa.String(128)),
-        sa.Column("is_subagent", sa.JSON(), nullable=False, server_default="0"),
+        # JSON keeps the append-only tamper surface portable; new rows write a boolean value.
+        # It remains nullable so MySQL can add it to an existing audit chain without a JSON default.
+        sa.Column("is_subagent", sa.JSON()),
         sa.Column("subagent_name", sa.String(128)),
         sa.Column("channel", sa.String(32)),
         sa.Column("entity_type", sa.String(64)),
@@ -51,6 +53,14 @@ def upgrade() -> None:
         sa.Column("current_step", sa.Integer(), nullable=False, server_default="0"),
     ]
     with op.batch_alter_table("approval") as batch:
+        # New lifecycle states such as awaiting_initiator exceed the legacy 16-char width.
+        batch.alter_column(
+            "state",
+            existing_type=sa.String(length=16),
+            type_=sa.String(length=32),
+            existing_nullable=False,
+            nullable=False,
+        )
         for column in approval_columns:
             batch.add_column(column)
     op.create_table(

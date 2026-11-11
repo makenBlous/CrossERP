@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.approval.state import ApprovalState, ConcurrentModification
 from crosserp.audit.log import append
+from crosserp.auth.roles import Role
 from crosserp.db.schema import Approval, AppUser, UserRole, WorkflowRule
 from crosserp.platform.principal import Principal
 
@@ -46,10 +47,24 @@ class ApproverResolver:
             step = step if isinstance(step, dict) else {"kind": str(step)}
             candidates = self._candidates(step)
             excluded = {str(x) for x in (submitter, on_behalf_of) if x is not None}
-            candidates = [u for u in candidates if str(u.id) not in excluded]
-            ids = [str(u.id) for u in candidates]
+            candidate_ids = [str(u.id) for u in candidates]
+            ids = [user_id for user_id in candidate_ids if user_id not in excluded]
+            step_reason = None
+            if not ids:
+                step_reason = (
+                    "only_self"
+                    if candidate_ids and set(candidate_ids) <= excluded
+                    else "no_account"
+                )
             resolved_steps.append(
-                {"index": index, "rule": step, "approvers": ids, "skipped": not bool(ids)}
+                {
+                    "index": index,
+                    "rule": step,
+                    "candidates": candidate_ids,
+                    "approvers": ids,
+                    "skipped": not bool(ids),
+                    "reason": step_reason,
+                }
             )
             all_ids.extend(ids)
         reason = (
@@ -57,11 +72,7 @@ class ApproverResolver:
             if all_ids
             else (
                 "only_self"
-                if resolved_steps
-                and any(
-                    s["rule"].get("kind") in {"user", "specific_user"} and not s["approvers"]
-                    for s in resolved_steps
-                )
+                if resolved_steps and any(s["reason"] == "only_self" for s in resolved_steps)
                 else "no_account"
             )
         )
@@ -75,7 +86,11 @@ class ApproverResolver:
 
     def _candidates(self, step: dict[str, Any]) -> list[AppUser]:
         kind = step.get("kind") or step.get("type")
-        query = select(AppUser).where(AppUser.is_active.is_(True))
+        approver_roles = (Role.ADMIN.value, Role.FINANCE.value)
+        query = select(AppUser).where(
+            AppUser.is_active.is_(True),
+            AppUser.id.in_(select(UserRole.user_id).where(UserRole.role.in_(approver_roles))),
+        )
         if kind in {"user", "specific_user"}:
             value = step.get("userId") or step.get("user_id")
             if value:
@@ -83,7 +98,14 @@ class ApproverResolver:
                     user = self.session.get(AppUser, UUID(str(value)))
                 except ValueError:
                     user = None
-                return [user] if user is not None else []
+                if user is None or not user.is_active:
+                    return []
+                role_exists = self.session.scalar(
+                    select(UserRole.user_id).where(
+                        UserRole.user_id == user.id, UserRole.role.in_(approver_roles)
+                    )
+                )
+                return [user] if role_exists is not None else []
         if kind in {"role", "department_manager", "manager", "default"}:
             role = step.get("role") or step.get("value")
             if role:
@@ -114,13 +136,16 @@ class ApprovalGatewayImpl:
         payload: Any,
         risk_tier: str,
         approval_type: str | None = None,
+        request_id: str | None = None,
     ) -> Approval:
         approval_type = approval_type or entity
         payload_hash = hashlib.sha256(_canonical(payload).encode()).hexdigest()
         requested_by = principal.effective_user_id
         if requested_by is None:
             raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录")
-        resolution = self.resolver.resolve(approval_type, principal.user_id, principal.on_behalf_of)
+        resolution = self.resolver.resolve(
+            approval_type, principal.effective_user_id, principal.on_behalf_of
+        )
         no_approver = not resolution["approvers"]
         high_or_money = risk_tier in {"high", "critical"} or entity.lower() in {
             "voucher",
@@ -128,6 +153,7 @@ class ApprovalGatewayImpl:
             "ledger",
             "adjustment",
         }
+        active_step = next((step for step in resolution["steps"] if not step["skipped"]), None)
         if no_approver and principal.is_agent and high_or_money:
             mode, state = "initiator_confirm", "awaiting_initiator"
         elif no_approver:
@@ -156,8 +182,8 @@ class ApprovalGatewayImpl:
                 "note": _note(mode, resolution["reason"]),
             },
             content_hash=payload_hash,
-            approver_ids=resolution["approvers"],
-            current_step=0,
+            approver_ids=active_step["approvers"] if active_step else [],
+            current_step=active_step["index"] if active_step else 0,
         )
         self.session.add(row)
         self.session.flush()
@@ -179,7 +205,32 @@ class ApprovalGatewayImpl:
             entity_type=entity,
             entity_id=str(row.id),
             diff_json={"state": state},
+            request_id=request_id,
+            is_subagent=principal.is_subagent,
         )
+        for step in resolution["steps"]:
+            if step["skipped"]:
+                append(
+                    self.session,
+                    "agent" if principal.is_agent else "human",
+                    "approval.step_skipped",
+                    entity,
+                    str(row.id),
+                    None,
+                    {"step": step["index"], "reason": step["reason"]},
+                    approval_id=row.id,
+                    actor_user_id=principal.user_id,
+                    agent_id=principal.agent_id,
+                    on_behalf_of=principal.on_behalf_of,
+                    delegation_id=principal.delegation_id,
+                    run_id=principal.run_id,
+                    is_subagent=principal.is_subagent,
+                    channel=principal.channel,
+                    entity_type=entity,
+                    entity_id=str(row.id),
+                    diff_json={"step": step["index"], "reason": step["reason"]},
+                    request_id=request_id,
+                )
         return row
 
     def decide(
@@ -190,9 +241,10 @@ class ApprovalGatewayImpl:
         decision: str,
         comment: str,
         content_hash: str | None = None,
+        request_id: str | None = None,
     ) -> Approval:
         if principal.is_agent:
-            raise APIError(ErrorCode.FORBIDDEN, "智能体不能审批")
+            raise APIError(ErrorCode.AI_AUTONOMY_CAPPED, "智能体不能审批")
         row = self.session.get(Approval, approval_id)
         if row is None:
             raise APIError(ErrorCode.NOT_FOUND, "审批单不存在")
@@ -208,7 +260,22 @@ class ApprovalGatewayImpl:
         allowed = {str(x) for x in (row.approver_ids or [])}
         if allowed and str(principal.user_id) not in allowed:
             raise APIError(ErrorCode.FORBIDDEN, "不是当前步骤审批人")
+        if decision not in {"approve", "reject"}:
+            raise APIError(ErrorCode.VALIDATION_ERROR, "decision 必须是 approve 或 reject")
         new_state = "approved" if decision == "approve" else "rejected"
+        next_step: dict[str, Any] | None = None
+        if new_state == "approved":
+            snapshot = (row.resolution or {}).get("snapshot", [])
+            next_step = next(
+                (
+                    step
+                    for step in snapshot
+                    if step.get("index", -1) > row.current_step and not step.get("skipped")
+                ),
+                None,
+            )
+            if next_step is not None:
+                new_state = "pending"
         result = self.session.execute(
             update(Approval)
             .where(
@@ -219,6 +286,8 @@ class ApprovalGatewayImpl:
                 approver=str(principal.user_id),
                 decided_at=datetime.now(UTC),
                 comment=comment,
+                approver_ids=next_step["approvers"] if next_step is not None else row.approver_ids,
+                current_step=next_step["index"] if next_step is not None else row.current_step,
                 version=Approval.version + 1,
             )
         )
@@ -232,20 +301,37 @@ class ApprovalGatewayImpl:
             row.target_type,
             str(row.id),
             {"state": "pending"},
-            {"state": new_state, "comment": comment},
+            {
+                "state": new_state,
+                "comment": comment,
+                "step": row.current_step,
+                "nextStep": next_step["index"] if next_step is not None else None,
+            },
             approval_id=row.id,
             actor_user_id=principal.user_id,
             approver_id=principal.user_id,
             entity_type="Approval",
             entity_id=str(row.id),
+            request_id=request_id,
+            on_behalf_of=principal.on_behalf_of,
+            delegation_id=principal.delegation_id,
+            run_id=principal.run_id,
+            is_subagent=principal.is_subagent,
+            channel=principal.channel,
+            diff_json={"state": new_state, "comment": comment},
         )
         return row
 
     def initiator_confirm(
-        self, approval_id: UUID, *, principal: Principal, content: Any = None
+        self,
+        approval_id: UUID,
+        *,
+        principal: Principal,
+        content: Any = None,
+        request_id: str | None = None,
     ) -> Approval:
         if principal.is_agent:
-            raise APIError(ErrorCode.FORBIDDEN, "仅真人可确认")
+            raise APIError(ErrorCode.AI_AUTONOMY_CAPPED, "仅真人可确认")
         row = self.session.get(Approval, approval_id)
         if row is None:
             raise APIError(ErrorCode.NOT_FOUND, "审批单不存在")
@@ -276,10 +362,21 @@ class ApprovalGatewayImpl:
             {"state": "initiator_confirmed", "contentHash": digest},
             approval_id=row.id,
             actor_user_id=principal.user_id,
+            entity_type="Approval",
+            entity_id=str(row.id),
+            diff_json={"contentHash": digest},
+            request_id=request_id,
+            on_behalf_of=principal.on_behalf_of,
+            delegation_id=principal.delegation_id,
+            run_id=principal.run_id,
+            is_subagent=principal.is_subagent,
+            channel=principal.channel,
         )
         return row
 
-    def withdraw(self, approval_id: UUID, *, principal: Principal) -> Approval:
+    def withdraw(
+        self, approval_id: UUID, *, principal: Principal, request_id: str | None = None
+    ) -> Approval:
         row = self.session.get(Approval, approval_id)
         if row is None:
             raise APIError(ErrorCode.NOT_FOUND, "审批单不存在")
@@ -299,6 +396,15 @@ class ApprovalGatewayImpl:
             {"state": "withdrawn"},
             approval_id=row.id,
             actor_user_id=principal.user_id,
+            request_id=request_id,
+            on_behalf_of=principal.on_behalf_of,
+            delegation_id=principal.delegation_id,
+            run_id=principal.run_id,
+            is_subagent=principal.is_subagent,
+            channel=principal.channel,
+            entity_type="Approval",
+            entity_id=str(row.id),
+            diff_json={"state": "withdrawn"},
         )
         return row
 

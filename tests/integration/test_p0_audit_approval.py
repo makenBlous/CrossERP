@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
+from crosserp.api.errors import APIError, ErrorCode
 from crosserp.approval.gateway import ApprovalGatewayImpl
 from crosserp.audit.log import append, verify_chain
 from crosserp.auth.roles import Role
@@ -122,5 +123,173 @@ def test_new_audit_context_is_in_hash_chain(engine) -> None:
             assert verify_chain(session).ok
             row.channel = "web"
             assert verify_chain(session).ok is False
+    finally:
+        downgrade_base(url)
+
+
+def test_resolution_no_account_and_only_self_are_distinct(engine) -> None:
+    url = engine.url.render_as_string(hide_password=False)
+    upgrade_head(url)
+    try:
+        with session_scope(engine) as session:
+            submitter = create_user(
+                session, username="resolution-submitter", password="long-password-4"
+            )
+            grant_role(session, submitter.id, Role.FINANCE)
+            session.add(
+                WorkflowRule(
+                    id=uuid4(),
+                    approval_type="no-account",
+                    version=1,
+                    steps_json=[{"kind": "role", "role": "operator"}],
+                    enabled=True,
+                    updated_at=datetime.now(UTC),
+                )
+            )
+            session.add(
+                WorkflowRule(
+                    id=uuid4(),
+                    approval_type="only-self",
+                    version=1,
+                    steps_json=[{"kind": "specific_user", "userId": str(submitter.id)}],
+                    enabled=True,
+                    updated_at=datetime.now(UTC),
+                )
+            )
+            principal = Principal(user_id=submitter.id)
+            no_account = ApprovalGatewayImpl(session).submit(
+                principal=principal,
+                entity="no-account",
+                action="create",
+                payload={"x": 1},
+                risk_tier="low",
+            )
+            only_self = ApprovalGatewayImpl(session).submit(
+                principal=principal,
+                entity="only-self",
+                action="create",
+                payload={"x": 2},
+                risk_tier="low",
+            )
+            assert no_account.state == only_self.state == "auto_effective"
+            assert no_account.resolution["reason"] == "no_account"
+            assert only_self.resolution["reason"] == "only_self"
+    finally:
+        downgrade_base(url)
+
+
+def test_multilevel_rule_skips_unresolvable_step_and_requires_each_live_step(engine) -> None:
+    url = engine.url.render_as_string(hide_password=False)
+    upgrade_head(url)
+    try:
+        with session_scope(engine) as session:
+            submitter = create_user(session, username="multi-submit", password="long-password-5")
+            approver = create_user(session, username="multi-approver", password="long-password-6")
+            grant_role(session, approver.id, Role.FINANCE)
+            session.add(
+                WorkflowRule(
+                    id=uuid4(),
+                    approval_type="multi",
+                    version=1,
+                    steps_json=[
+                        {"kind": "role", "role": "operator"},
+                        {"kind": "role", "role": "finance"},
+                    ],
+                    enabled=True,
+                    updated_at=datetime.now(UTC),
+                )
+            )
+            row = ApprovalGatewayImpl(session).submit(
+                principal=Principal(user_id=submitter.id),
+                entity="multi",
+                action="post",
+                payload={"x": 1},
+                risk_tier="high",
+            )
+            assert row.state == "pending"
+            assert row.current_step == 1
+            assert row.resolution["snapshot"][0]["skipped"] is True
+            assert row.resolution["snapshot"][0]["reason"] == "no_account"
+            approved = ApprovalGatewayImpl(session).decide(
+                row.id,
+                principal=Principal(user_id=approver.id),
+                decision="approve",
+                comment="ok",
+                content_hash=row.content_hash,
+            )
+            assert approved.state == "approved"
+            assert any(
+                a.action == "approval.step_skipped" for a in session.scalars(select(AuditLog))
+            )
+    finally:
+        downgrade_base(url)
+
+
+def test_approval_rejects_payload_mismatch_and_represented_human(engine) -> None:
+    url = engine.url.render_as_string(hide_password=False)
+    upgrade_head(url)
+    try:
+        with session_scope(engine) as session:
+            represented = create_user(session, username="represented", password="long-password-7")
+            approver = create_user(
+                session, username="represented-approver", password="long-password-8"
+            )
+            grant_role(session, approver.id, Role.FINANCE)
+            session.add(
+                WorkflowRule(
+                    id=uuid4(),
+                    approval_type="represented",
+                    version=1,
+                    steps_json=[{"kind": "role", "role": "finance"}],
+                    enabled=True,
+                    updated_at=datetime.now(UTC),
+                )
+            )
+            agent = Principal(
+                user_id=approver.id,
+                actor_type=ActorType.AGENT,
+                agent_id="agent-represented",
+                on_behalf_of=represented.id,
+                delegation_id="delegation-1",
+                run_id="run-1",
+                is_subagent=True,
+                channel="mcp",
+            )
+            row = ApprovalGatewayImpl(session).submit(
+                principal=agent,
+                entity="represented",
+                action="post",
+                payload={"x": 1},
+                risk_tier="high",
+            )
+            assert row.requested_by == str(represented.id)
+            assert row.state == "pending"
+            with pytest.raises(APIError) as self_error:
+                ApprovalGatewayImpl(session).decide(
+                    row.id,
+                    principal=Principal(user_id=represented.id),
+                    decision="approve",
+                    comment="self",
+                    content_hash=row.content_hash,
+                )
+            assert self_error.value.code == ErrorCode.FORBIDDEN
+            with pytest.raises(APIError) as hash_error:
+                ApprovalGatewayImpl(session).decide(
+                    row.id,
+                    principal=Principal(user_id=approver.id),
+                    decision="approve",
+                    comment="bad hash",
+                    content_hash="0" * 64,
+                )
+            assert hash_error.value.code == ErrorCode.PAYLOAD_HASH_MISMATCH
+            audit = list(session.scalars(select(AuditLog).where(AuditLog.approval_id == row.id)))
+            submit_audit = audit[0]
+            assert submit_audit.actor_type == "agent"
+            assert submit_audit.agent_id == "agent-represented"
+            assert submit_audit.on_behalf_of == str(represented.id)
+            assert submit_audit.delegation_id == "delegation-1"
+            assert submit_audit.run_id == "run-1"
+            assert submit_audit.is_subagent is True
+            assert submit_audit.channel == "mcp"
     finally:
         downgrade_base(url)

@@ -8,11 +8,12 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.metadata import api_endpoint
 from crosserp.approval.gateway import ApprovalGatewayImpl, ApproverResolver
+from crosserp.approval.state import ConcurrentModification
 from crosserp.db.schema import Approval, ApprovalType, WorkflowRule
 from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.principal import Principal, get_principal
@@ -46,6 +47,13 @@ def _item(row: Approval) -> dict[str, Any]:
         "payloadHash": row.payload_hash,
         "step": row.current_step,
         "resolution": row.resolution or {},
+        "initiatorConfirmedBy": (
+            str(row.initiator_confirmed_by) if row.initiator_confirmed_by else None
+        ),
+        "initiatorConfirmedAt": (
+            row.initiator_confirmed_at.isoformat() if row.initiator_confirmed_at else None
+        ),
+        "initiatorConfirmationHash": row.initiator_confirmation_hash,
     }
 
 
@@ -68,10 +76,17 @@ def list_approvals(
     _auth(principal, "approval:read")
     with _session(request) as session:
         stmt = select(Approval).order_by(Approval.requested_at.desc())
+        all_rows = list(session.scalars(stmt))
         if q:
-            stmt = stmt.where(Approval.state == q)
-        total = session.scalar(select(func.count()).select_from(Approval)) or 0
-        rows = list(session.scalars(stmt.offset((page - 1) * page_size).limit(page_size)))
+            all_rows = [
+                row
+                for row in all_rows
+                if row.state == q
+                or (row.resolution or {}).get("mode") == q
+                or (row.resolution or {}).get("reason") == q
+            ]
+        total = len(all_rows)
+        rows = all_rows[(page - 1) * page_size : page * page_size]
         return _page([_item(row) for row in rows], page, page_size, int(total))
 
 
@@ -144,13 +159,17 @@ def decide_approval(
     except ValueError:
         raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
     with _session(request) as session, session.begin():
-        row = ApprovalGatewayImpl(session).decide(
-            approval_id,
-            principal=principal,
-            decision=str(body.get("decision", "")),
-            comment=str(body.get("comment", "")),
-            content_hash=body.get("payloadHash"),
-        )
+        try:
+            row = ApprovalGatewayImpl(session).decide(
+                approval_id,
+                principal=principal,
+                decision=str(body.get("decision", "")),
+                comment=str(body.get("comment", "")),
+                content_hash=body.get("payloadHash"),
+                request_id=getattr(request.state, "request_id", None),
+            )
+        except ConcurrentModification as exc:
+            raise APIError(ErrorCode.CONFLICT_VERSION, str(exc)) from exc
         return {"approval": _item(row), "status": row.state}
 
 
@@ -173,7 +192,11 @@ def withdraw_approval(
     except ValueError:
         raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
     with _session(request) as session, session.begin():
-        row = ApprovalGatewayImpl(session).withdraw(approval_id, principal=principal)
+        row = ApprovalGatewayImpl(session).withdraw(
+            approval_id,
+            principal=principal,
+            request_id=getattr(request.state, "request_id", None),
+        )
         return {"approval": _item(row), "status": row.state}
 
 
@@ -197,7 +220,10 @@ def initiator_confirm(
         raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
     with _session(request) as session, session.begin():
         row = ApprovalGatewayImpl(session).initiator_confirm(
-            approval_id, principal=principal, content=body or {}
+            approval_id,
+            principal=principal,
+            content=body or {},
+            request_id=getattr(request.state, "request_id", None),
         )
         return {"approval": _item(row), "status": row.state}
 
@@ -236,44 +262,6 @@ def resolve_rule(
             "ruleVersion": result["ruleVersion"],
             "snapshot": result["snapshot"],
         }
-
-
-@router.get("/approvals/types")
-@api_endpoint(
-    entity="ApprovalType", action="ApprovalType.list", permission="approval:read", risk_tier="none"
-)
-def approval_types(
-    request: Request,
-    principal: Principal = Depends(get_principal),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, alias="pageSize", ge=1, le=200),
-    q: str | None = None,
-    sort: str | None = None,
-) -> dict[str, Any]:
-    _auth(principal, "approval:read")
-    with _session(request) as session:
-        rows = list(
-            session.scalars(
-                select(ApprovalType)
-                .where(ApprovalType.enabled.is_(True))
-                .order_by(ApprovalType.code)
-            )
-        )
-        return _page(
-            [
-                {
-                    "id": str(row.id),
-                    "code": row.code,
-                    "name": row.name,
-                    "riskTier": row.risk_tier,
-                    "template": row.template_json,
-                }
-                for row in rows
-            ],
-            page,
-            page_size,
-            len(rows),
-        )
 
 
 @router.get("/workflow/rules")
@@ -329,7 +317,7 @@ def update_workflow_rule(
 ) -> dict[str, Any]:
     _auth(principal, "approval:write")
     if principal.is_agent:
-        raise APIError(ErrorCode.FORBIDDEN, "仅真人可修改审批规则")
+        raise APIError(ErrorCode.AI_AUTONOMY_CAPPED, "仅真人可修改审批规则")
     try:
         rule_id = UUID(id)
     except ValueError:
