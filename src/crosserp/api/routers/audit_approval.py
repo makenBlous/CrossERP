@@ -345,6 +345,8 @@ def agent_trace(
                 .order_by(AuditLog.seq)
             )
         )
+        if not rows:
+            raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
         return {"suggestionId": suggestionId, "items": [_log(row) for row in rows]}
 
 

@@ -330,7 +330,8 @@ def mark_exported(
     """把已批准审批单标成已导出，供 T28 的唯一写出口调用。"""  # noqa: RUF002
     row = _load(session, approval)
     old = _audit_after(row)
-    transition(row.state, ApprovalState.EXPORTED)
+    if row.state not in {"auto_effective", "initiator_confirmed"}:
+        transition(row.state, ApprovalState.EXPORTED)
     _update(
         session,
         row,
