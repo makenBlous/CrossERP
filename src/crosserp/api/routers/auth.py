@@ -18,7 +18,7 @@ from crosserp.api.metadata import api_endpoint
 from crosserp.api.routers.platform import (
     _db,
     _dispatch_write,
-    _effective_permissions,
+    _permission_service,
     _principal_db,
     _user_payload,
     _write_guard,
@@ -32,6 +32,7 @@ from crosserp.config import load_settings
 from crosserp.db.repo.users import get_by_username, set_password
 from crosserp.db.schema import AppUser, PasswordResetToken, UserRole, UserSession
 from crosserp.platform.dispatcher import RiskTier
+from crosserp.platform.principal import Principal
 from crosserp.platform.principal import Principal
 from crosserp.platform.session_events import on_session_revoked
 
@@ -109,7 +110,11 @@ def login(request: Request, payload: LoginInput) -> JSONResponse:
             session.scalars(select(UserRole.role).where(UserRole.user_id == user.id))
         )
         principal = Principal(
-            user_id=user.id, roles=user_roles, permissions=_effective_permissions(user_roles)
+            user_id=user.id,
+            roles=user_roles,
+            permissions=_permission_service.current_permissions(
+                Principal(user_id=user.id, roles=user_roles)
+            ),
         )
         payload_out = _user_payload(session, user, principal, token.csrf_token)
 

@@ -1,4 +1,4 @@
-"""跨入口权限服务协议与旧权限矩阵桥接实现。"""
+"""统一权限服务协议与数据库 IAM 适配器。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any, Protocol
 
 from crosserp.api.errors import APIError, ErrorCode
-from crosserp.auth.permissions import has_permission
+from crosserp.iam.service import IAMService
 from crosserp.platform.principal import Principal
 
 
@@ -16,7 +16,7 @@ class PermissionDenied(APIError):
 
 
 class PermissionService(Protocol):
-    def require(self, principal: Principal, permission: str, resource: Any = None) -> None: ...
+    def require(self, principal: Principal, permission: str) -> None: ...
 
     def data_scope_filter(self, principal: Principal, entity: str) -> Mapping[str, Any]: ...
 
@@ -24,40 +24,33 @@ class PermissionService(Protocol):
 
 
 class DefaultPermissionService:
-    """临时桥接旧 15 点权限; iam 块可替换此实现而不改业务调用方。"""
+    """所有入口共用的数据库 IAM 适配器。"""
 
-    def require(self, principal: Principal, permission: str, resource: Any = None) -> None:
-        if permission in {"public", "authenticated"}:
-            if permission == "authenticated" and principal.user_id is None:
-                raise PermissionDenied(permission)
+    def __init__(self, iam: IAMService | None = None) -> None:
+        self.iam = iam
+
+    def bind(self, iam: IAMService) -> None:
+        self.iam = iam
+
+    def require(self, principal: Principal, permission: str) -> None:
+        if permission == "public":
             return
-        if permission in principal.permissions:
+        if permission == "authenticated" and principal.user_id is not None:
             return
-        aliases = {
-            "user:read": {"admin", "operator", "finance", "viewer", "auditor"},
-            "user:write": {"admin", "operator", "finance"},
-            "system:write": {"admin"},
-            "report:read": {"admin", "operator", "finance", "viewer", "auditor"},
-            "document:read": {"admin", "operator", "finance", "viewer", "auditor"},
-        }
-        if permission in aliases and set(principal.roles) & aliases[permission]:
-            return
-        if permission == "system:read":
-            allowed = "admin" in principal.roles
-        else:
-            try:
-                allowed = has_permission(set(principal.roles), permission)
-            except ValueError as exc:
+        if self.iam is None:
+            raise RuntimeError("权限服务尚未绑定 IAM 数据库")
+        try:
+            self.iam.require(principal, permission)
+        except APIError as exc:
+            if exc.code is ErrorCode.FORBIDDEN:
                 raise PermissionDenied(permission) from exc
-        if not allowed:
-            raise PermissionDenied(permission)
+            raise
+
 
     def data_scope_filter(self, principal: Principal, entity: str) -> Mapping[str, Any]:
-        if principal.data_scope is None:
-            return {}
-        if isinstance(principal.data_scope, Mapping):
-            return dict(principal.data_scope)
-        return {"scope": principal.data_scope}
+        if self.iam is None:
+            raise RuntimeError("权限服务尚未绑定 IAM 数据库")
+        return self.iam.data_scope_filter(principal, entity)
 
     def current_permissions(self, principal: Principal) -> frozenset[str]:
         """返回本次动作应使用的被代表人权限快照。"""

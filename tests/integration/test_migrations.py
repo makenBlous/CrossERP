@@ -17,7 +17,7 @@ from crosserp.db.session import session_scope, sqlite_file_url
 
 pytestmark = pytest.mark.db
 
-_EXPECTED_COUNT = 44  # P0 平台表加本体实体版本、动作执行和事件表
+_EXPECTED_COUNT = 56  # P0 平台、本体与 IAM 表
 
 
 def _url(engine: Engine) -> str:

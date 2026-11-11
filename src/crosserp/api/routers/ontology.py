@@ -21,6 +21,7 @@ from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter(tags=["本体与实体目录"])
 _CATALOG = load_catalog()
+_permission_service = DefaultPermissionService()
 
 
 def _page(items: list[Any], page: int, page_size: int, total: int) -> dict[str, Any]:
@@ -28,7 +29,7 @@ def _page(items: list[Any], page: int, page_size: int, total: int) -> dict[str, 
 
 
 def _require(principal: Principal, permission: str) -> None:
-    DefaultPermissionService().require(principal, permission)
+    _permission_service.require(principal, permission)
 
 
 def _entity_or_404(entity_type: str) -> EntityTypeDef:

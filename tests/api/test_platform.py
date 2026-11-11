@@ -1,14 +1,16 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
+from uuid import uuid4
 
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
 from crosserp.api import install_api
 from crosserp.api.schemas import Money, PageParams
-from crosserp.db.migrate import upgrade_head
+from crosserp.db.migrate import downgrade_base, upgrade_head
 from crosserp.db.session import make_engine, sqlite_file_url
+from crosserp.iam.service import IAMService
 from crosserp.platform.dispatcher import (
     ActionDispatcher,
     AutonomyDecision,
@@ -45,14 +47,18 @@ def test_ai_risk_cap_and_dispatch_stage_order() -> None:
     assert calls == [*ActionDispatcher.STAGES[:5], "business", ActionDispatcher.STAGES[6]]
 
 
-def test_permission_denial_uses_not_found_status() -> None:
-    service = DefaultPermissionService()
+def test_permission_denial_uses_not_found_status(engine) -> None:
+    url = engine.url.render_as_string(hide_password=False)
+    upgrade_head(url)
     try:
-        service.require(Principal(roles=frozenset({"viewer"})), "user:write")
+        service = DefaultPermissionService(IAMService(engine))
+        service.require(Principal(user_id=uuid4(), roles=frozenset({"viewer"})), "user:write")
     except PermissionDenied as exc:
         assert exc.status_code == 404
     else:
         raise AssertionError("permission check unexpectedly passed")
+    finally:
+        downgrade_base(url)
 
 
 def test_idempotency_replays_and_rejects_different_body() -> None:

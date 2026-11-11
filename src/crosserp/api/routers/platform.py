@@ -13,10 +13,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.schemas import PageParams
-from crosserp.auth.permissions import ROLE_PERMISSIONS
-from crosserp.auth.roles import Role
 from crosserp.db.schema import (
-    AppSetting,
     AppUser,
     UserRole,
 )
@@ -48,8 +45,7 @@ def _principal_db(request: Request) -> tuple[Principal, Session]:
     roles = frozenset(
         r.role for r in session.scalars(select(UserRole).where(UserRole.user_id == user.id))
     )
-    scope = _scope(session, user.id, roles)
-    return Principal(
+    resolved = Principal(
         user_id=user.id,
         roles=roles,
         session_id=principal.session_id,
@@ -60,29 +56,10 @@ def _principal_db(request: Request) -> tuple[Principal, Session]:
         run_id=principal.run_id,
         is_subagent=principal.is_subagent,
         channel=principal.channel,
-        permissions=_effective_permissions(roles),
-        data_scope=scope,
-    ), session
-
-
-def _effective_permissions(roles: frozenset[str]) -> frozenset[str]:
-    result = {p.value for role in roles for p in ROLE_PERMISSIONS.get(Role(role), frozenset())}
-    if "admin" in roles:
-        result.update({"user:read", "user:write", "system:write", "report:read", "document:read"})
-    if roles & {"finance", "operator", "viewer", "auditor"}:
-        result.update({"user:read", "report:read", "document:read"})
-    if "operator" in roles or "finance" in roles:
-        result.add("user:write")
-    return frozenset(result)
-
-
-def _scope(session: Session, user_id: UUID, roles: frozenset[str]) -> dict[str, Any]:
-    if "admin" in roles:
-        return {"all": True}
-    setting = session.get(AppSetting, f"data_scope:{user_id}")
-    if setting is None or not isinstance(setting.value_json, dict):
-        return {}
-    return dict(setting.value_json)
+        permissions=_permission_service.current_permissions(principal),
+        data_scope=_permission_service.data_scope_filter(principal, "UserAccount"),
+    )
+    return resolved, session
 
 
 def _require(principal: Principal, permission: str, *, entity: str) -> None:

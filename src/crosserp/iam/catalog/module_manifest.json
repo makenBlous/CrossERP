@@ -1,0 +1,9 @@
+{
+  "module": "iam",
+  "name": "系统与权限",
+  "enabled": true,
+  "default": true,
+  "note": "演示默认值；真实使用前需核实模块开关与角色模板。",
+  "permissionCatalog": "permission_points.json",
+  "roleTemplates": "role_templates.json"
+}

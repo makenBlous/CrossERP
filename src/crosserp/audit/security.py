@@ -31,6 +31,7 @@ class SecurityEventName(StrEnum):
     TOKEN_CREATED = "token_created"
     TOKEN_REVOKED = "token_revoked"
     PROFILE_UPDATED = "profile_updated"
+    PERMISSION_CHANGED = "permission_changed"
 
 
 def record(
