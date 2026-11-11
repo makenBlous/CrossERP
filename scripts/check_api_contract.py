@@ -50,6 +50,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="crosserp-contract-") as directory:
         app = create_app(sqlite_file_url(Path(directory) / "contract.db"))
         errors = check_contract(app, spec)
+        app.state.database_engine.dispose()
     if errors:
         for error in errors:
             print(error)
