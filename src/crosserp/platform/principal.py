@@ -73,11 +73,7 @@ def principal_from_session(session: Session, request: Request) -> Principal | No
 
 def get_principal(request: Request) -> Principal:
     """FastAPI 依赖: 先接现有 cookie 会话和 Bearer API Token。"""
-    engine = getattr(request.app.state, "database_engine", None)
-    if engine is None:
-        from crosserp.api.errors import APIError, ErrorCode
-
-        raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录")
+    engine = request.app.state.database_engine
     with Session(engine) as session:
         principal = principal_from_session(session, request)
     if principal is None:

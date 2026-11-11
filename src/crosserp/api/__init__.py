@@ -21,6 +21,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from crosserp.api.errors import APIError, ErrorCode, error_payload
 from crosserp.api.idempotency import IdempotencyKey
 from crosserp.api.metadata import API_METADATA_KEY
+from crosserp.platform.permissions import DefaultPermissionService
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
@@ -55,10 +56,10 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         if not key:
             return await call_next(request)
         if len(key) > 255:
-            request_id = getattr(request.state, "request_id", "")
+            request_id = request.state.request_id
             return JSONResponse(
                 error_payload(
-                    ErrorCode.VALIDATION_FAILED,
+                    ErrorCode.VALIDATION_ERROR,
                     "Idempotency-Key 过长",
                     request_id,
                 ),
@@ -67,7 +68,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         body = await request.body()
         request_hash = sha256(body).hexdigest()
         now = datetime.now(UTC)
-        request_id = getattr(request.state, "request_id", "")
+        request_id = request.state.request_id
         with Session(self.engine) as session:
             row = session.scalar(
                 select(IdempotencyKey).where(
@@ -168,6 +169,7 @@ def register_routers(app: FastAPI) -> None:
 def install_api(app: FastAPI, engine: Any) -> None:
     """把 API 中间件、异常处理器和自动路由安装到现有 FastAPI 应用。"""
     app.state.database_engine = engine
+    app.state.permission_service = DefaultPermissionService()
     app.add_middleware(IdempotencyMiddleware, engine=engine)
     app.add_middleware(RequestIdMiddleware)
 
@@ -182,7 +184,7 @@ def install_api(app: FastAPI, engine: Any) -> None:
     async def handle_validation_error(request: Request, exc: ValidationError) -> JSONResponse:
         return JSONResponse(
             error_payload(
-                ErrorCode.VALIDATION_FAILED,
+                ErrorCode.VALIDATION_ERROR,
                 "请求参数校验失败",
                 request.state.request_id,
                 {"errors": exc.errors()},
@@ -196,9 +198,9 @@ def install_api(app: FastAPI, engine: Any) -> None:
     ) -> JSONResponse:
         return JSONResponse(
             error_payload(
-                ErrorCode.VALIDATION_FAILED,
+                ErrorCode.VALIDATION_ERROR,
                 "请求参数校验失败",
-                getattr(request.state, "request_id", ""),
+                request.state.request_id,
                 {"errors": exc.errors()},
             ),
             status_code=422,
@@ -210,7 +212,7 @@ def install_api(app: FastAPI, engine: Any) -> None:
             error_payload(
                 ErrorCode.INTERNAL_ERROR,
                 "服务器内部错误",
-                getattr(request.state, "request_id", ""),
+                request.state.request_id,
             ),
             status_code=500,
         )

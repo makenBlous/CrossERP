@@ -57,6 +57,14 @@ def upgrade() -> None:
         batch_op.create_index("ix_sku_brand_id", ["brand_id"])
         batch_op.create_index("ix_sku_category_id", ["category_id"])
 
+    op.execute(
+        sa.text("UPDATE sku SET aliases_json = :empty WHERE aliases_json IS NULL").bindparams(
+            empty="[]"
+        )
+    )
+    with op.batch_alter_table("sku") as batch_op:
+        batch_op.alter_column("aliases_json", existing_type=sa.JSON(), nullable=False)
+
 
 def downgrade() -> None:
     with op.batch_alter_table("sku") as batch_op:

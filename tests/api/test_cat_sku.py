@@ -53,6 +53,7 @@ def test_sku_crud_and_lookup(json_client: TestClient, api_engine, monkeypatch) -
             "/api/v1/catalog/skus",
             json={
                 "internalSku": "INT-001",
+                "platformSku": "AMZ-001",
                 "title": "测试商品",
                 "storeId": str(store_id),
                 "categoryId": str(category_id),
@@ -70,6 +71,7 @@ def test_sku_crud_and_lookup(json_client: TestClient, api_engine, monkeypatch) -
             "/api/v1/catalog/skus",
             json={
                 "internalSku": "INT-001",
+                "platformSku": "AMZ-001",
                 "title": "测试商品",
                 "storeId": str(store_id),
                 "categoryId": str(category_id),
@@ -162,7 +164,12 @@ def test_agent_medium_action_has_undo_and_audit_context(
     try:
         response = json_client.post(
             "/api/v1/catalog/skus",
-            json={"internalSku": "AGENT-001", "title": "代理商品", "storeId": str(store_id)},
+            json={
+                "internalSku": "AGENT-001",
+                "platformSku": "AGENT-PLATFORM-001",
+                "title": "代理商品",
+                "storeId": str(store_id),
+            },
         )
         assert response.status_code == 201
         body = response.json()
@@ -177,5 +184,31 @@ def test_agent_medium_action_has_undo_and_audit_context(
             assert version.actor_type == "agent"
             assert version.on_behalf_of == principal.on_behalf_of
             assert session.scalar(select(AuditLog).where(AuditLog.id == version.audit_log_id))
+    finally:
+        app.dependency_overrides.pop(get_principal, None)
+
+
+def test_sku_invalid_input_returns_validation_error(json_client: TestClient) -> None:
+    app = json_client.app
+    app.dependency_overrides[get_principal] = lambda: _principal("item:create")
+    try:
+        response = json_client.post(
+            "/api/v1/catalog/skus",
+            json={
+                "id": str(uuid4()),
+                "internalSku": "INVALID-001",
+                "platformSku": "INVALID-PLATFORM-001",
+                "title": "非法商品",
+            },
+        )
+        assert response.status_code == 422
+        assert response.json()["code"] == "VALIDATION_ERROR"
+
+        missing_platform = json_client.post(
+            "/api/v1/catalog/skus",
+            json={"internalSku": "INVALID-002", "title": "缺平台 SKU"},
+        )
+        assert missing_platform.status_code == 422
+        assert missing_platform.json()["code"] == "VALIDATION_ERROR"
     finally:
         app.dependency_overrides.pop(get_principal, None)

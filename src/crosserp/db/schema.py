@@ -156,7 +156,7 @@ class Sku(Base):
     uom: Mapped[str | None] = mapped_column(String(32))
     weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
     hs_code: Mapped[str | None] = mapped_column(String(32))
-    aliases_json: Mapped[Any | None] = mapped_column(JSON())
+    aliases_json: Mapped[list[str]] = mapped_column(JSON(), nullable=False, default=list)
     active: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
     created_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     updated_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
