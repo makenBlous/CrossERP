@@ -18,6 +18,7 @@ from crosserp.auth.roles import Role
 from crosserp.db.migrate import downgrade_base, upgrade_head
 from crosserp.db.repo.users import create_user, grant_role
 from crosserp.db.schema import (
+    AppUser,
     Approval,
     AuditAlert,
     AuditLog,
@@ -113,6 +114,28 @@ def _awaiting_initiator(api_engine) -> tuple[UUID, UUID, Principal]:
 @pytest.fixture
 def use_principal(json_client: TestClient):
     def set_principal(principal: Principal) -> None:
+        if principal.user_id is not None:
+            with Session(json_client.app.state.database_engine) as session, session.begin():
+                user = session.get(AppUser, principal.user_id)
+                if user is None:
+                    user = AppUser(
+                        id=principal.user_id,
+                        username=f"principal-{principal.user_id.hex[:12]}",
+                        display_name="测试身份",
+                        password_hash="x",
+                        is_active=True,
+                        failed_logins=0,
+                        locked_until=None,
+                        password_changed_at=datetime.now(UTC),
+                        must_change_password=False,
+                        created_at=datetime.now(UTC),
+                        permission_version=0,
+                    )
+                    session.add(user)
+                    session.flush()
+                for role in principal.roles:
+                    if role in Role._value2member_map_:
+                        grant_role(session, principal.user_id, role)
         json_client.app.dependency_overrides[get_principal] = lambda: principal
 
     yield set_principal

@@ -42,6 +42,7 @@ _LEGACY_ROLE_PERMISSIONS = {
         "user:write",
         "report:read",
         "document:read",
+        "approval:create",
         "integration:import",
         "agent_tool:read",
     ),

@@ -89,13 +89,21 @@ def _dispatch_write(
     action: str,
     work: Any,
 ) -> Any:
+    from crosserp.approval.gateway import ApprovalGatewayImpl
+    from crosserp.platform.dispatcher import ActionDispatcher
+
     _require(request, principal, permission, entity=entity)
-    result = request.app.state.dispatcher.dispatch(
+    result = ActionDispatcher(
+        session=session,
+        permission_service=request.app.state.permission_service,
+        approval_gateway=ApprovalGatewayImpl(session),
+    ).dispatch(
         principal=principal,
         permission=permission,
         risk_tier=risk,
         action=action,
         business_action=work,
+        request_id=request.state.request_id,
     )
     DefaultAuditRecorder(session).record(
         principal=principal,

@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.db.schema import ActionExecution, EntityEvent, EntityVersion
-from crosserp.platform.approval import ApprovalGateway, DefaultApprovalGateway
+from crosserp.platform.approval import ApprovalGateway
 from crosserp.platform.audit import AuditRecorder, DefaultAuditRecorder
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
@@ -78,7 +78,7 @@ class ActionDispatcher:
             raise RuntimeError("ActionDispatcher 必须绑定 PermissionService")
         self.permission_service = permission_service
         self.audit_recorder = audit_recorder
-        self.approval_gateway = approval_gateway or DefaultApprovalGateway()
+        self.approval_gateway = approval_gateway
         if ai_mode not in {"normal", "degraded", "off"}:
             raise ValueError("ai_mode 必须是 normal、degraded 或 off")
         self.ai_enabled = ai_enabled and ai_mode == "normal"
@@ -155,16 +155,17 @@ class ActionDispatcher:
                 )
 
             if principal.is_agent and decision is AutonomyDecision.DRAFT_OR_APPROVAL:
-                try:
-                    approval = self.approval_gateway.submit(
-                        principal=principal,
-                        entity=context["entity"],
-                        action=action,
-                        payload=payload,
-                        risk_tier=RiskTier(risk_tier).value,
-                    )
-                except NotImplementedError as exc:
-                    raise APIError(ErrorCode.APPROVAL_REQUIRED, "高风险动作需要审批网关") from exc
+                if self.approval_gateway is None:
+                    raise APIError(ErrorCode.APPROVAL_REQUIRED, "高风险动作需要审批网关")
+                approval = self.approval_gateway.submit(
+                    principal=principal,
+                    entity=context["entity"],
+                    action=action,
+                    payload=payload,
+                    risk_tier=RiskTier(risk_tier).value,
+                    approval_type=context["entity"].lower(),
+                    request_id=request_id,
+                )
                 result = _approval_result(approval)
                 self._save_execution(
                     principal=principal,
