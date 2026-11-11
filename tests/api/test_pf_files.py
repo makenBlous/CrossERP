@@ -89,7 +89,9 @@ def test_upload_idempotency_replays_without_second_write(
     replay = _upload(json_client, csrf, b"once", key="file-once")
 
     assert first.status_code == 201
-    assert replay.status_code == 409
+    # TestClient 为每次 multipart 请求生成不同 boundary, 但规范化后应视为同一请求。
+    assert replay.status_code == 201
+    assert replay.json() == first.json()
     with Session(api_engine) as session:
         assert session.scalar(select(func.count()).select_from(FileObject)) == 1
     with Session(api_engine) as session:

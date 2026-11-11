@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import importlib
+import json
 import pkgutil
 from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
+from email import policy
+from email.parser import BytesParser
 from hashlib import sha256
 from types import ModuleType
 from typing import Any, cast
@@ -65,7 +68,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 status_code=422,
             )
         body = await request.body()
-        request_hash = sha256(body).hexdigest()
+        request_hash = _request_hash(request, body)
         now = datetime.now(UTC)
         request_id = getattr(request.state, "request_id", "")
         with Session(self.engine) as session:
@@ -134,6 +137,35 @@ def _replay_response(row: IdempotencyKey, request_id: str) -> Response:
         media_type="application/json",
         headers=headers,
     )
+
+
+def _request_hash(request: Request, body: bytes) -> str:
+    """Multipart 请求按字段和文件摘要规范化, 消除 boundary 随机性。"""
+    content_type = request.headers.get("content-type", "")
+    if not content_type.casefold().startswith("multipart/form-data"):
+        return sha256(body).hexdigest()
+    message = BytesParser(policy=policy.default).parsebytes(
+        f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode() + body
+    )
+    parts: list[dict[str, str]] = []
+    for part in message.iter_parts():
+        disposition = part.get_content_disposition()
+        if disposition != "form-data":
+            continue
+        name = part.get_param("name", header="content-disposition")
+        if name is None:
+            raise ValueError("multipart 字段缺少 name")
+        filename = part.get_filename()
+        payload = part.get_payload(decode=True) or b""
+        item = {"name": str(name), "filename": filename or ""}
+        if filename is None:
+            item["value"] = payload.decode(part.get_content_charset() or "utf-8")
+        else:
+            item["sha256"] = sha256(payload).hexdigest()
+            item["contentType"] = part.get_content_type()
+        parts.append(item)
+    parts.sort(key=lambda item: (item["name"], item["filename"], item.get("value", ""), item.get("sha256", "")))
+    return sha256(json.dumps(parts, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 
 def _router_modules() -> Iterable[ModuleType]:
