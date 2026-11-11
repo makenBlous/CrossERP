@@ -20,6 +20,30 @@ def _sqlite_file_url(path: Path) -> str:
     )
 
 
+@pytest.fixture(scope="session", autouse=True)
+def isolate_default_database(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
+    """测试进程默认使用本次测试专用 SQLite, 不触碰用户 home 数据库。"""
+    if os.environ.get("CROSSERP_TEST_DATABASE_URL", "").startswith(("mysql", "postgres")):
+        yield
+        return
+    database = _sqlite_file_url(tmp_path_factory.mktemp("crosserp-session") / "data.db")
+    previous_database = os.environ.get("CROSSERP_DATABASE_URL")
+    previous_migrate = os.environ.get("CROSSERP_MIGRATE_DATABASE_URL")
+    os.environ["CROSSERP_DATABASE_URL"] = database
+    os.environ["CROSSERP_MIGRATE_DATABASE_URL"] = database
+    try:
+        yield
+    finally:
+        if previous_database is None:
+            os.environ.pop("CROSSERP_DATABASE_URL", None)
+        else:
+            os.environ["CROSSERP_DATABASE_URL"] = previous_database
+        if previous_migrate is None:
+            os.environ.pop("CROSSERP_MIGRATE_DATABASE_URL", None)
+        else:
+            os.environ["CROSSERP_MIGRATE_DATABASE_URL"] = previous_migrate
+
+
 def _drop_probe_tables(engine: Engine) -> None:
     metadata = MetaData()
     metadata.reflect(engine, only=lambda name, _meta: name.startswith("t04_"))
