@@ -110,7 +110,7 @@ def test_brand_status_and_missing_resources(brand_client) -> None:
     brand_id = created.json()["id"]
     changed = client.post(
         "/api/v1/catalog/brands/status",
-        json={"id": brand_id, "status": "inactive", "expectedVersion": 1},
+        json={"ids": [brand_id], "active": False, "expectedVersion": 1},
         headers={"Idempotency-Key": "brand-status-1"},
     )
     assert changed.status_code == 200
@@ -121,11 +121,23 @@ def test_brand_status_and_missing_resources(brand_client) -> None:
     assert (
         client.post(
             "/api/v1/catalog/brands/status",
-            json={"id": "does-not-exist", "status": "active"},
+            json={"ids": ["does-not-exist"], "active": True},
             headers={"Idempotency-Key": "brand-status-404"},
         ).status_code
         == 404
     )
+
+
+def test_brand_rejects_invalid_request_with_validation_error(brand_client) -> None:
+    client, _, _ = brand_client
+    response = client.post(
+        "/api/v1/catalog/brands/status",
+        json={"id": "not-the-ids-field", "status": "inactive"},
+        headers={"Idempotency-Key": "brand-invalid-status"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "VALIDATION_ERROR"
 
 
 def test_brand_permission_and_agent_medium_behavior(brand_client) -> None:

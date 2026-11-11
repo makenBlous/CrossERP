@@ -124,7 +124,7 @@ class Brand(Base):
     updated_at: Mapped[datetime] = mapped_column(
         UtcDateTime(), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
-    provenance: Mapped[Any] = mapped_column(JSON(), default=dict)
+    provenance: Mapped[Any] = mapped_column(JSON(), nullable=False, default=dict)
 
 
 class Sku(Base):

@@ -182,7 +182,7 @@ def install_api(app: FastAPI, engine: Any) -> None:
     async def handle_validation_error(request: Request, exc: ValidationError) -> JSONResponse:
         return JSONResponse(
             error_payload(
-                ErrorCode.VALIDATION_FAILED,
+                ErrorCode.VALIDATION_ERROR,
                 "请求参数校验失败",
                 request.state.request_id,
                 {"errors": exc.errors()},
@@ -196,7 +196,7 @@ def install_api(app: FastAPI, engine: Any) -> None:
     ) -> JSONResponse:
         return JSONResponse(
             error_payload(
-                ErrorCode.VALIDATION_FAILED,
+                ErrorCode.VALIDATION_ERROR,
                 "请求参数校验失败",
                 getattr(request.state, "request_id", ""),
                 {"errors": exc.errors()},
