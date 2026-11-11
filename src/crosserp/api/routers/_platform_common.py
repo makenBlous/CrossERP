@@ -36,7 +36,9 @@ def _db(request: Request) -> Session:
 
 
 def _principal_db(request: Request) -> tuple[Principal, Session]:
-    principal = get_principal(request)
+    from crosserp.api.routers import platform as platform_compat
+
+    principal = platform_compat.get_principal(request)
     session = _db(request)
     user = session.get(AppUser, principal.user_id) if principal.user_id else None
     if user is None or not user.is_active:

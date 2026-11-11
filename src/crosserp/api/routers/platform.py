@@ -15,6 +15,7 @@ from ._platform_common import (
     _user,
     _user_payload,
     _write_guard,
+    get_principal,
     router,
 )
 
@@ -30,4 +31,5 @@ __all__ = [
     "_user",
     "_user_payload",
     "_write_guard",
+    "get_principal",
 ]
