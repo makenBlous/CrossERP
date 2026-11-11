@@ -33,7 +33,7 @@ def test_every_iam_route_has_success_and_denial(json_client, api_engine) -> None
                 if grant_id is None:
                     create = json_client.post(
                         "/api/v1/admin/temp-grants",
-                        json={"userId": target, "permission": "report:read"},
+                        json={"userId": target, "permission": "report:read", "effect": "allow"},
                     )
                     assert create.status_code == 201, create.text
                     grant_id = create.json()["data"]["id"]
@@ -54,7 +54,7 @@ def test_every_iam_route_has_success_and_denial(json_client, api_engine) -> None
                 "values": ["all"],
                 "userId": target,
                 "permission": "report:read",
-            "effect": "allow",
+                "effect": "allow",
                 "name": "route",
                 "fieldKey": "salary",
                 "scopeType": "store",
@@ -98,6 +98,6 @@ def test_invalid_effect_returns_validation_error(json_client: TestClient, api_en
             json={"overrides": [{"permission": "report:read", "effect": "unexpected"}]},
         )
         assert response.status_code == 400
-        assert response.json()["code"] == "VALIDATION_ERROR"
+        assert response.json()["code"] == "VALIDATION_FAILED"
     finally:
         json_client.app.dependency_overrides.pop(get_principal, None)
