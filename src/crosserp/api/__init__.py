@@ -60,7 +60,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         if not key:
             return await call_next(request)
         if len(key) > 255:
-            request_id = getattr(request.state, "request_id", "")
+            request_id = request.state.request_id
             return JSONResponse(
                 error_payload(
                     ErrorCode.VALIDATION_FAILED,
@@ -72,7 +72,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         body = await request.body()
         request_hash = _request_hash(request, body)
         now = datetime.now(UTC)
-        request_id = getattr(request.state, "request_id", "")
+        request_id = request.state.request_id
         with Session(self.engine) as session:
             row = session.scalar(
                 select(IdempotencyKey).where(
@@ -248,7 +248,7 @@ def install_api(app: FastAPI, engine: Any) -> None:
             error_payload(
                 ErrorCode.VALIDATION_FAILED,
                 "请求参数校验失败",
-                getattr(request.state, "request_id", ""),
+                request.state.request_id,
                 {"errors": exc.errors()},
             ),
             status_code=422,
@@ -260,7 +260,7 @@ def install_api(app: FastAPI, engine: Any) -> None:
             error_payload(
                 ErrorCode.INTERNAL_ERROR,
                 "服务器内部错误",
-                getattr(request.state, "request_id", ""),
+                request.state.request_id,
             ),
             status_code=500,
         )

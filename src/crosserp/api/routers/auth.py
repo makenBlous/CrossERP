@@ -81,7 +81,7 @@ def login(request: Request, payload: LoginInput) -> JSONResponse:
                 username=payload.username,
                 ip=request.client.host if request.client else None,
                 user_agent=request.headers.get("user-agent"),
-                request_id=getattr(request.state, "request_id", None),
+                request_id=request.state.request_id,
             )
             session.commit()
             raise APIError(ErrorCode.AUTH_REQUIRED, "账号或密码错误", status_code=401)
@@ -102,7 +102,7 @@ def login(request: Request, payload: LoginInput) -> JSONResponse:
             username=user.username,
             ip=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
-            request_id=getattr(request.state, "request_id", None),
+            request_id=request.state.request_id,
         )
         session.commit()
         user_roles = frozenset(
@@ -153,7 +153,7 @@ def logout(
                 session,
                 SecurityEventName.LOGOUT,
                 user_id=principal.user_id,
-                request_id=getattr(request.state, "request_id", None),
+                request_id=request.state.request_id,
             )
             return {"id": str(principal.user_id), "status": "logged_out"}
 
@@ -248,7 +248,7 @@ def reset_password(request: Request, payload: ResetPasswordInput) -> dict[str, A
             session,
             SecurityEventName.PASSWORD_RESET,
             user_id=row.user_id,
-            request_id=getattr(request.state, "request_id", None),
+            request_id=request.state.request_id,
         )
         session.commit()
         return {"id": str(row.user_id), "status": "password_reset"}

@@ -103,7 +103,7 @@ def _dispatch_write(
         entity=entity,
         action=action,
         diff={"result": _jsonable(result)},
-        request_id=getattr(request.state, "request_id", None),
+        request_id=request.state.request_id,
     )
     return result
 
@@ -113,8 +113,6 @@ def _jsonable(value: Any) -> Any:
         return str(value)
     if isinstance(value, datetime):
         return value.isoformat()
-    if hasattr(value, "id"):
-        return str(value.id)
     return value
 
 

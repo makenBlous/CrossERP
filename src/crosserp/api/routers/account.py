@@ -308,9 +308,7 @@ def sessions(request: Request, params: PageParams = Depends()) -> dict[str, Any]
                 .order_by(UserSession.created_at.desc())
             )
         )
-        current_digest = hashlib.sha256(
-            request.cookies.get("crosserp_session", "").encode()
-        ).hexdigest()
+        current_digest = hashlib.sha256(request.cookies["crosserp_session"].encode()).hexdigest()
         items = [
             {
                 "id": row.id[:16],
@@ -339,9 +337,7 @@ def kick_session(
     principal, session = _principal_db(request)
     try:
         _write_guard(request, principal, csrf)
-        current_digest = hashlib.sha256(
-            request.cookies.get("crosserp_session", "").encode()
-        ).hexdigest()
+        current_digest = hashlib.sha256(request.cookies["crosserp_session"].encode()).hexdigest()
         target = session.scalar(
             select(UserSession).where(
                 UserSession.user_id == principal.user_id, UserSession.id.like(f"{id}%")

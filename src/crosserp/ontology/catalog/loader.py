@@ -113,26 +113,26 @@ def load_catalog(path: Path | str | None = None) -> OntologyCatalog:
     event_map: dict[str, EventTypeDef] = {}
     for item in payload["entityTypes"]:
         entity_actions: list[ActionTypeDef] = []
-        for raw_action in item.get("actions", []):
+        for raw_action in item["actions"]:
             action_id = str(raw_action["id"])
-            risk = _RISK_MAP.get(str(raw_action.get("riskTier", "")))
+            risk = _RISK_MAP.get(str(raw_action["riskTier"]))
             if risk is None:
                 risk = _risk_from_autonomy(
-                    str(raw_action.get("aiMaxAutonomy", "L0")),
-                    str(raw_action.get("riskTier", "")),
+                    str(raw_action["aiMaxAutonomy"]),
+                    str(raw_action["riskTier"]),
                 )
-            autonomy = str(raw_action.get("aiMaxAutonomy", "L0"))
+            autonomy = str(raw_action["aiMaxAutonomy"])
             action = ActionTypeDef(
                 id=action_id,
                 entity=str(item["id"]),
-                kind=str(raw_action.get("kind", "")),
-                summary=str(raw_action.get("summary", "")),
+                kind=str(raw_action["kind"]),
+                summary=str(raw_action["summary"]),
                 permission=str(raw_action["permission"]),
                 risk_tier=risk,
                 ai_callable=autonomy != "L0",
                 ai_max_autonomy=autonomy,
-                emits=tuple(str(x) for x in raw_action.get("emits", [])),
-                projections=tuple(str(x) for x in raw_action.get("projections", [])),
+                emits=tuple(str(x) for x in raw_action["emits"]),
+                projections=tuple(str(x) for x in raw_action["projections"]),
                 raw=dict(raw_action),
             )
             entity_actions.append(action)
@@ -142,18 +142,18 @@ def load_catalog(path: Path | str | None = None) -> OntologyCatalog:
         entities.append(
             EntityTypeDef(
                 id=str(item["id"]),
-                name_zh=str(item.get("nameZh", "")),
-                module=str(item.get("module", "")),
-                kind=str(item.get("kind", "entity")),
-                properties=tuple(str(x) for x in item.get("properties", [])),
-                relations=tuple(str(x) for x in item.get("relations", [])),
-                state_machine=item.get("stateMachine"),
+                name_zh=str(item["nameZh"]),
+                module=str(item["module"]),
+                kind=str(item["kind"]),
+                properties=tuple(str(x) for x in item["properties"]),
+                relations=tuple(str(x) for x in item["relations"]),
+                state_machine=item["stateMachine"] if "stateMachine" in item else None,
                 actions=tuple(entity_actions),
                 raw=dict(item),
             )
         )
     return OntologyCatalog(
-        version=str(payload.get("version", "")),
+        version=str(payload["version"]),
         entity_types=tuple(entities),
         actions=tuple(actions),
         events=tuple(event_map.values()),
@@ -162,32 +162,32 @@ def load_catalog(path: Path | str | None = None) -> OntologyCatalog:
 
 def validate_catalog(payload: dict[str, Any]) -> None:
     """校验目录结构、动作元数据和状态迁移引用。"""
-    entities = payload.get("entityTypes")
+    entities = payload["entityTypes"]
     if not isinstance(entities, list) or not entities:
         raise ValueError("ontology catalog entityTypes 不能为空")
-    entity_ids = {str(item.get("id")) for item in entities}
+    entity_ids = {str(item["id"]) for item in entities}
     action_ids: set[str] = set()
     for entity in entities:
-        entity_id = str(entity.get("id"))
+        entity_id = str(entity["id"])
         if not entity_id or entity_id == "None":
             raise ValueError("entity type 缺少 id")
-        for action in entity.get("actions", []):
-            action_id = str(action.get("id"))
+        for action in entity["actions"]:
+            action_id = str(action["id"])
             if action_id in action_ids:
                 raise ValueError(f"重复 action: {action_id}")
             if not action_id.startswith(entity_id + "."):
                 raise ValueError(f"action 不属于实体: {action_id}")
-            if not action.get("permission"):
+            if not action["permission"]:
                 raise ValueError(f"action 缺少 permission: {action_id}")
-            if not action.get("riskTier") and not action.get("aiMaxAutonomy"):
+            if not action["riskTier"] and not action["aiMaxAutonomy"]:
                 raise ValueError(f"action 缺少风险档: {action_id}")
             action_ids.add(action_id)
     for entity in entities:
-        entity_id = str(entity.get("id"))
-        state_machine = entity.get("stateMachine")
+        entity_id = str(entity["id"])
+        state_machine = entity["stateMachine"] if "stateMachine" in entity else None
         if state_machine is None:
             continue
-        for transition in state_machine.get("transitions", []):
+        for transition in state_machine["transitions"]:
             references = [".".join(match) for match in _ACTION_RE.findall(str(transition))]
             explicit = [ref for ref in references if ref in action_ids]
             if explicit:
