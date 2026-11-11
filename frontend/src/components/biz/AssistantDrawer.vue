@@ -3,7 +3,7 @@ import type { AgentCard, AgentPart } from '@/agent/adapter'
 import { createAgentAdapter } from '@/agent/index'
 import { submitAgentSuggestion } from '@/api/agent-module'
 import ChatThread from '@/components/chat/ChatThread.vue'
-import type { ChatState } from '@/components/chat/types'
+import type { ChatState, ChatSuggestion } from '@/components/chat/types'
 import { useChatHistory } from '@/components/chat/useChatHistory'
 import { useChatInflight } from '@/components/chat/useChatInflight'
 import PermissionGate from '@/components/biz/PermissionGate.vue'
@@ -50,6 +50,7 @@ const hydratedUserId = ref<string | null>(null)
 const hydrating = ref(false)
 
 const canSuggest = computed(() => can(session.role, 'suggest'))
+const showFloatingEntry = computed(() => route.path !== '/agent/chat')
 
 watch(bubbles, value => {
   if (!hydrating.value && inflight.canPersist(hydratedUserId.value))
@@ -93,6 +94,39 @@ function matchPage(path: string) {
 
 const page = computed(() => matchPage(route.path))
 const pageName = computed(() => page.value?.name[String(locale.value).startsWith('en') ? 'en' : 'zh-CN'] ?? route.path)
+
+const suggestions = computed<ChatSuggestion[]>(() => {
+  if (!can(session.role, 'view'))
+    return []
+
+  const pageLabel = pageName.value || '当前页面'
+
+  const items: ChatSuggestion[] = [
+    {
+      id: 'page-summary',
+      label: `概览${pageLabel}`,
+      prompt: `请概览${pageLabel}当前已存储的数据，并标出需要人工关注的地方。`,
+      icon: 'tabler-sparkles',
+    },
+    {
+      id: 'page-exceptions',
+      label: '找出异常与原因',
+      prompt: `请从${pageLabel}相关的已存储记录中找出异常，并说明原因码或来源。`,
+      icon: 'tabler-alert-circle',
+    },
+  ]
+
+  if (canSuggest.value) {
+    items.push({
+      id: 'draft-suggestion',
+      label: '起草待审批建议',
+      prompt: `请基于${pageLabel}的已存储数据起草一条待审批建议，不要直接修改业务数据。`,
+      icon: 'tabler-bulb',
+    })
+  }
+
+  return items
+})
 
 const selectedId = computed(() => {
   if (pageContext.selectedRecordId.value)
@@ -194,8 +228,12 @@ async function submit(message: { id: string }) {
 </script>
 
 <template>
-  <div @keydown.esc="open = false">
+  <div
+    v-if="showFloatingEntry"
+    @keydown.esc="open = false"
+  >
     <VBtn
+      v-if="!open"
       class="assistant-fab"
       color="primary"
       icon
@@ -247,7 +285,12 @@ async function submit(message: { id: string }) {
         :status-text="statusText"
         :ai-enabled="aiMode.isEnabled"
         :disabled-reason="t('assistant.aiClosed')"
+        :empty-title="`欢迎使用${t('assistant.title')}`"
+        empty-text="我会结合当前页面和权限读取已存储数据；写操作只会形成待审批建议。"
+        :suggestions="suggestions"
+        source-label="只读数据 · CrossERP 已存储记录"
         @send="send"
+        @suggestion="sendMessage"
         @retry="retry"
         @cancel="cancel"
       >
@@ -296,17 +339,33 @@ async function submit(message: { id: string }) {
 <style scoped>
 .assistant-fab {
   z-index: 1006;
-  bottom: 92px;
+  bottom: 24px;
   inset-inline-end: 24px;
 }
 
 .assistant-drawer :deep(.v-navigation-drawer__content) {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .assistant-drawer :deep(.chat-thread) {
   min-block-size: 0;
   flex: 1 1 auto;
+}
+
+.assistant-drawer {
+  max-inline-size: calc(100vw - 1rem);
+}
+
+.assistant-drawer :deep(.chat-thread__log) {
+  padding-inline: 1rem;
+}
+
+@media (max-width: 600px) {
+  .assistant-fab {
+    inset-inline-end: 16px;
+    bottom: 16px;
+  }
 }
 </style>

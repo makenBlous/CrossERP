@@ -7,6 +7,13 @@ export interface ChatCard {
   draft?: unknown
 }
 
+export interface ChatSuggestion {
+  id: string
+  label: string
+  prompt: string
+  icon?: string
+}
+
 export interface ChatDisplayMessage {
   id: string
   role: ChatRole

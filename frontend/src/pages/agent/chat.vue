@@ -5,7 +5,7 @@ import type { AgentCard, AgentPart } from '@/agent/adapter'
 import { fetchChat } from '@/api/agent'
 import { recordAgentQuestion, recordSuggestionStep, submitAgentSuggestion } from '@/api/agent-module'
 import ChatThread from '@/components/chat/ChatThread.vue'
-import type { ChatState } from '@/components/chat/types'
+import type { ChatState, ChatSuggestion } from '@/components/chat/types'
 import { useChatHistory } from '@/components/chat/useChatHistory'
 import { useChatInflight } from '@/components/chat/useChatInflight'
 import { useAiModeStore } from '@/stores/ai-mode'
@@ -50,6 +50,35 @@ const history = useChatHistory<Bubble>('agent-center', computed(() => session.us
 const hydratedUserId = ref<string | null>(null)
 const hydrating = ref(false)
 const canSuggest = computed(() => can(session.role, 'suggest'))
+
+const chatSuggestions = computed<ChatSuggestion[]>(() => {
+  const items: ChatSuggestion[] = [
+    {
+      id: 'reconciliation-overview',
+      label: '概览最近对账异常',
+      prompt: '请概览最近已存储的对账异常，按原因码分组并引用来源。',
+      icon: 'tabler-chart-dots-3',
+    },
+    {
+      id: 'profit-overview',
+      label: '查看利润快照',
+      prompt: '请读取当前已存储的 SKU 利润快照，说明主要变化，不要重新计算金额。',
+      icon: 'tabler-chart-line',
+    },
+  ]
+
+  if (canSuggest.value) {
+    items.push({
+      id: 'approval-draft',
+      label: '起草待审批建议',
+      prompt: '请起草一条待审批建议，并列出依据；不要直接修改库存、订单或账务。',
+      icon: 'tabler-bulb',
+    })
+  }
+
+  return items
+})
+
 const activeThread = computed(() => threads.value.find(item => item.id === activeId.value))
 const visibleThreads = computed(() => threads.value.filter(item => item.title.toLowerCase().includes(query.value.trim().toLowerCase())))
 
@@ -285,7 +314,12 @@ async function submitSuggestion(message: { id: string }) {
           :status-text="statusText"
           :ai-enabled="aiMode.isEnabled"
           :disabled-reason="t('assistant.aiClosed')"
+          empty-title="欢迎来到智能体对话"
+          empty-text="从一个问题开始。助手只读取 CrossERP 已存储的快照，写操作会进入人工审批。"
+          :suggestions="chatSuggestions"
+          source-label="只读数据 · CrossERP 已存储记录"
           @send="send"
+          @suggestion="sendMessage"
           @retry="retry"
           @cancel="cancel"
         >
@@ -343,6 +377,7 @@ async function submitSuggestion(message: { id: string }) {
 }
 
 .chat-contact {
+  min-block-size: 4.5rem;
   border-radius: .375rem;
   padding-block: .75rem;
   padding-inline: .75rem;
@@ -350,10 +385,39 @@ async function submitSuggestion(message: { id: string }) {
   &.chat-contact-active {
     background: rgba(var(--v-theme-primary), .12);
   }
+
+  &:hover {
+    background: rgba(var(--v-theme-primary), .06);
+  }
 }
 
 .chat-thread {
   min-block-size: 0;
   flex: 1 1 auto;
+  block-size: auto;
+}
+
+.chat-content-container {
+  min-inline-size: 0;
+}
+
+.chat-content-container > .d-flex > .v-alert {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 600px) {
+  .chat-app-layout {
+    border-radius: 0;
+  }
+
+  .chat-list-header,
+  .active-chat-header {
+    min-block-size: 64px;
+    padding-inline: 1rem;
+  }
+
+  .active-chat-header .v-chip {
+    display: none;
+  }
 }
 </style>

@@ -42,80 +42,86 @@ function onFiles(event: Event) {
 
 <template>
   <VForm
-    class="chat-log-message-form mb-5 mx-5"
+    class="chat-log-message-form"
     @submit.prevent="emit('send')"
   >
-    <div
-      v-if="attachmentNames.length"
-      class="chat-message-attachments"
-    >
-      <span
-        v-for="name in attachmentNames"
-        :key="name"
-        class="chat-message-attachment"
+    <div class="chat-composer-shell">
+      <div
+        v-if="attachmentNames.length"
+        class="chat-message-attachments"
       >
-        <VIcon
-          icon="tabler-paperclip"
-          size="14"
-        />
-        {{ name }}
-      </span>
-    </div>
-    <VTextarea
-      v-model="model"
-      variant="solo"
-      density="default"
-      class="chat-message-input"
-      :placeholder="disabled ? disabledHint : placeholder"
-      :disabled="disabled"
-      rows="1"
-      max-rows="7"
-      auto-grow
-      @keydown="onKeydown"
-    />
-    <div class="chat-message-actions d-flex gap-1 align-center">
-      <label
-        class="chat-message-icon"
-        :class="{ 'chat-message-icon--disabled': disabled }"
-        title="添加附件"
-      >
-        <VIcon
-          icon="tabler-paperclip"
-          size="20"
-        />
-        <input
-          type="file"
-          hidden
-          :disabled="disabled"
-          @change="onFiles"
+        <span
+          v-for="name in attachmentNames"
+          :key="name"
+          class="chat-message-attachment"
         >
-      </label>
-      <span class="text-caption text-disabled me-auto">Enter 发送 · Shift+Enter 换行</span>
-      <IconBtn
+          <VIcon
+            icon="tabler-paperclip"
+            size="14"
+          />
+          {{ name }}
+        </span>
+      </div>
+      <VTextarea
+        v-model="model"
+        variant="plain"
+        hide-details
+        density="comfortable"
+        class="chat-message-input"
+        :placeholder="disabled ? disabledHint : placeholder"
         :disabled="disabled"
-        aria-label="语音输入"
-      >
-        <VIcon
-          icon="tabler-microphone"
-          size="22"
-        />
-      </IconBtn>
-      <VBtn
-        append-icon="tabler-send"
-        :loading="loading"
-        :disabled="disabled || !model.trim()"
-        type="submit"
-      >
-        {{ sendLabel }}
-      </VBtn>
-      <VBtn
-        v-if="loading"
-        variant="text"
-        size="small"
-        @click="emit('cancel')"
-      >
-        取消
-      </VBtn>
+        rows="1"
+        max-rows="7"
+        auto-grow
+        @keydown="onKeydown"
+      />
+      <div class="chat-message-actions">
+        <label
+          class="chat-message-icon"
+          :class="{ 'chat-message-icon--disabled': disabled }"
+          title="添加附件"
+        >
+          <VIcon
+            icon="tabler-plus"
+            size="21"
+          />
+          <input
+            type="file"
+            hidden
+            :disabled="disabled"
+            @change="onFiles"
+          >
+        </label>
+        <span class="chat-message-hint">Enter 发送 · Shift+Enter 换行</span>
+        <IconBtn
+          :disabled="disabled"
+          aria-label="语音输入"
+          class="chat-message-mic"
+        >
+          <VIcon
+            icon="tabler-microphone"
+            size="20"
+          />
+        </IconBtn>
+        <VBtn
+          class="chat-send-button"
+          color="primary"
+          :loading="loading"
+          :disabled="disabled || !model.trim()"
+          type="submit"
+        >
+          <VIcon icon="tabler-arrow-up" />
+          <span class="chat-send-label">{{ sendLabel }}</span>
+        </VBtn>
+        <VBtn
+          v-if="loading"
+          variant="text"
+          size="small"
+          @click="emit('cancel')"
+        >
+          取消
+        </VBtn>
+      </div>
     </div>
   </VForm>
 </template>
@@ -123,13 +129,23 @@ function onFiles(event: Event) {
 <style lang="scss">
 .chat-log-message-form {
   flex: 0 0 auto;
+  margin: .75rem 1.25rem 1.25rem;
+}
+
+.chat-composer-shell {
+  border: 1px solid rgba(var(--v-theme-on-surface), .12);
+  border-radius: 1.25rem;
+  background: rgb(var(--v-theme-surface));
+  box-shadow: 0 8px 24px rgba(43, 46, 60, .08);
+  padding: .35rem .55rem .45rem;
 }
 
 .chat-message-input {
   .v-field__input {
+    min-block-size: 2.5rem;
+    padding: .45rem .55rem .3rem;
     font-size: 0.9375rem !important;
-    line-height: 1.375rem !important;
-    padding-block: 0.6rem 0.5rem;
+    line-height: 1.45rem !important;
   }
 
   .v-field__append-inner {
@@ -137,13 +153,14 @@ function onFiles(event: Event) {
     padding-block-start: 0;
   }
 
-  .v-field--appended {
-    padding-inline-end: 8px;
-  }
+  .v-field__outline { display: none; }
 }
 
 .chat-message-actions {
-  margin-block-start: 0.35rem;
+  display: flex;
+  align-items: center;
+  min-block-size: 2.25rem;
+  gap: .2rem;
 }
 
 .chat-message-icon {
@@ -172,6 +189,28 @@ function onFiles(event: Event) {
   margin-block-end: 0.5rem;
 }
 
+.chat-message-hint {
+  margin-inline-start: .25rem;
+  color: rgba(var(--v-theme-on-surface), .48);
+  font-size: .72rem;
+}
+
+.chat-message-mic {
+  margin-inline-start: auto;
+}
+
+.chat-send-button {
+  min-inline-size: 2.35rem;
+  block-size: 2.35rem;
+  border-radius: 999px;
+  padding-inline: .7rem;
+}
+
+.chat-send-label {
+  margin-inline-start: .25rem;
+  font-size: .78rem;
+}
+
 .chat-message-attachment {
   display: inline-flex;
   align-items: center;
@@ -187,8 +226,18 @@ function onFiles(event: Event) {
 }
 
 @media (max-width: 600px) {
-  .chat-message-actions .text-caption {
+  .chat-log-message-form {
+    margin: .55rem .65rem .75rem;
+  }
+
+  .chat-message-hint,
+  .chat-send-label {
     display: none;
+  }
+
+  .chat-send-button {
+    inline-size: 2.35rem;
+    padding: 0;
   }
 }
 </style>
