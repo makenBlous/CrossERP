@@ -1,4 +1,3 @@
-# ruff: noqa: B008, RUF059
 """P0 平台底座 JSON API。所有写入复用底座的动作执行器和审计协议。"""
 
 from __future__ import annotations
@@ -8,19 +7,17 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
-from crosserp.api.metadata import api_endpoint
 from crosserp.api.schemas import PageParams
 from crosserp.auth.permissions import ROLE_PERMISSIONS
 from crosserp.auth.roles import Role
 from crosserp.db.schema import (
     AppSetting,
     AppUser,
-    DocumentLink,
     UserRole,
 )
 from crosserp.platform.audit import DefaultAuditRecorder
