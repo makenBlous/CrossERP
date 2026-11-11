@@ -1,5 +1,8 @@
 # T52 Docker Compose 部署：SQLite / PostgreSQL / MySQL 三种 profile（不推镜像）（⚠ 待 maken 确认）
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+> **取代标注：** 旧任务把 SQLite、PostgreSQL、MySQL 三种 profile 写成并列部署目标；已被 08 v4 第 11.3 节取代：正式环境 MySQL 8.4，SQLite 演示，PostgreSQL 仅备选。
+
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
 | review | W9 | 1.5 天 | T51 | `main` |

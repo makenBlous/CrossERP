@@ -1,5 +1,7 @@
 # T15 导入批次规则：失败批次可重导 + 打不开的文件也留失败记录（⚠ 待 maken 确认）
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W3 | 1 天 | T09, T13 | `task/T15-import-batch-rules` |

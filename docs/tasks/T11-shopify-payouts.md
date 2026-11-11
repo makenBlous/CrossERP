@@ -1,5 +1,7 @@
 # T11 Shopify Payments 打款 CSV 导入器
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W2 | 1 天 | T08, T09 | `task/T11-shopify-payouts` |

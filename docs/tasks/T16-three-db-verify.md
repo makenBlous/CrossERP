@@ -1,5 +1,8 @@
 # T16 三库实测：CI db-matrix 在 MySQL 8.4 / PostgreSQL 18 跑通
 
+> **当前状态：部分；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+> **取代标注：** 旧任务把 MySQL、PostgreSQL、SQLite 写成三库一等支持；已被 08 v4 第 11.3 节取代，历史实测结论保留。
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W3 | 1 天 | T07, T13 | `task/T16-three-db-verify` |

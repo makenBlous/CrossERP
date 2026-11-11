@@ -1,5 +1,8 @@
 # T04 数据库层：Money4 / FxRate / UtcDateTime 类型 + 连接会话 + MySQL 启动自检
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+> **取代标注：** 旧任务把三库并列支持写成目标；已被 08 v4 第 11.3 节取代：正式环境以 MySQL 8.4 LTS 为主，SQLite 保留演示，PostgreSQL 仅备选。
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W1 | 1.5 天 | T03 | `task/T04-db-types-session` |
@@ -84,4 +87,3 @@ MySQL 8.4 和 PostgreSQL 18 的 `pytest -m db` 没有跑。`crosserp db check` �
 | 临时 SQLite 上 `db check` | 退出码 0。输出：`数据库类型: SQLite` / `版本: 3.53.1` / `自检: OK` |
 
 MySQL 8.4 / PostgreSQL 18：未运行。见「问题」。
-

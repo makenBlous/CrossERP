@@ -1,5 +1,8 @@
 # T56 v0.5 内部验收：指标 1–6 + 新增验收项 A–F 证据汇总（⚠ 待 maken 确认）
 
+> **当前状态：部分；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+> **取代标注：** 旧任务是 v0.5 历史验收卡；现行后端分期、页面累计数和验收门槛以 [backend-phases.md](backend-phases.md) 与 08 v4 第 8 节为准。
+
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
 | review | W10 | 1 天 | T55 | `main` |

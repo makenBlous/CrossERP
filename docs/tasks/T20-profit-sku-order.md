@@ -1,5 +1,7 @@
 # T20 利润计算：订单行 / SKU 利润（成本按生效期、月汇率折人民币）
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W3 | 2 天 | T18 | `task/T20-profit` |

@@ -1,5 +1,7 @@
 # T27 审批状态机 `approval/`
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
 | review | W4 | 1 天 | T26（v0.1 已发布或 maken 同意先开 W4） | `main` |

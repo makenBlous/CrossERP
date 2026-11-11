@@ -1,5 +1,7 @@
 # T05 数据模型：v0.1 业务表 + Alembic 初始迁移 + upsert
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W1 | 2 天 | T04 | `task/T05-schema-migrations` |
@@ -98,4 +100,3 @@
 第二次输出相同。
 
 另外改了 `docs/database.md` 一行。原文写「本文件不建业务表」。现在改为指向 `docs/architecture.md` 的表清单。
-

@@ -1,5 +1,7 @@
 # T25 v0.1 验收：指标 2、3 + 基础安装 + 三库，汇总证据
 
+> **当前状态：部分；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W3 | 0.5 天 | T16, T21, T24 | `task/T25-v01-acceptance` |

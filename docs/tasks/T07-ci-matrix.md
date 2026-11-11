@@ -1,5 +1,8 @@
 # T07 CI：三系统 × Python 3.12/3.14 + 三数据库矩阵
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+> **取代标注：** 旧任务把三库矩阵写成长期目标；已被 08 v4 第 11.3 节取代：MySQL 8.4 为正式目标，SQLite 为演示，PostgreSQL 仅在启用条件满足时验证。
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W1 | 1 天 | T05（T06 合并后 CI 也要绿） | `task/T07-ci-matrix` |

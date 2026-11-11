@@ -1,5 +1,7 @@
 # T26 发布 v0.1.0：release.yml + PyPI Trusted Publishing（发布动作由 maken 操作）
 
+> **当前状态：已被 08 v4 第 8 节取代；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | todo | W3 | 0.5 天 | T25（且 maken 已写「同意发布」） | `task/T26-release` |

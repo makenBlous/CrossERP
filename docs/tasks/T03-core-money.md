@@ -1,5 +1,7 @@
 # T03 金额核心：Money + parse_amount
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W1 | 1 天 | T01 | `task/T03-core-money` |

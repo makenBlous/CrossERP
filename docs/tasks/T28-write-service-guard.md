@@ -1,5 +1,7 @@
 # T28 唯一写出口 `ledger/write_service.py` + 守卫测试（指标 4）
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 提交位置 |
 |---|---|---|---|---|
 | review | W4 | 1.5 天 | T27 | `main` |

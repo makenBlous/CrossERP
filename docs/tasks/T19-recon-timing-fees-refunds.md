@@ -1,5 +1,7 @@
 # T19 对账补充规则：在途/待下期、多收费、拒付、部分退款、重复结算
 
+> **当前状态：已完成；现行依据见 [backend-phases.md](backend-phases.md) 与 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md)。**
+
 | 状态 | 周 | 估时 | 依赖 | 分支 |
 |---|---|---|---|---|
 | review | W3 | 1.5 天 | T18 | `task/T19-recon-extra-rules` |
