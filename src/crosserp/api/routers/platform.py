@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any, cast
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy import select
@@ -21,10 +21,8 @@ from crosserp.audit.security import record as record_security
 from crosserp.auth.passwords import verify_password
 from crosserp.auth.permissions import ROLE_PERMISSIONS
 from crosserp.auth.roles import Role
-from crosserp.auth.sessions import create_session, revoke_session
 from crosserp.auth.tokens import create_token, revoke_token
-from crosserp.config import load_settings
-from crosserp.db.repo.users import get_by_username, set_password
+from crosserp.db.repo.users import set_password
 from crosserp.db.schema import (
     ApiToken,
     AppSetting,
@@ -37,7 +35,6 @@ from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
 from crosserp.platform.permissions import DefaultPermissionService
 from crosserp.platform.principal import Principal, get_principal
-from crosserp.platform.session_events import on_session_revoked
 
 router = APIRouter()
 _permission_service = DefaultPermissionService()
