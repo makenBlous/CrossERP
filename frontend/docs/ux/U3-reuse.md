@@ -1,5 +1,8 @@
 # U3 聊天组件复用核对
 
+> **历史记录：** 2026-11-11。本文保留当时结论；现行规范见 [前端开发规范](../前端开发规范.md) 和 [对接真实接口](../对接真实接口.md)。
+
+
 ## 复用的 Vuexy / 项目能力
 
 - `VNavigationDrawer`、`VLayout`、`VMain`、`VAvatar`、`VBtn`、`VAlert`、`VCard`：继续使用 Vuexy/Vuetify 的布局、状态和审批卡片能力。
