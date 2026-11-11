@@ -17,7 +17,7 @@ from crosserp.db.session import session_scope, sqlite_file_url
 
 pytestmark = pytest.mark.db
 
-_EXPECTED_COUNT = 45  # P0-02 新增九张 IAM 表; 并保留原有 36 张表
+_EXPECTED_COUNT = 48  # P0-02 增加角色权限、继承和系统参数表
 
 
 def _url(engine: Engine) -> str:

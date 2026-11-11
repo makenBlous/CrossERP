@@ -57,6 +57,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_access_review TO 'crosserp_
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_sod_rule TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_module_switch TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_dictionary TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_role_permission TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_role_inheritance TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_system_setting TO 'crosserp_app'@'%';
 # MySQL 没有“除三张表外全部 SELECT”的简写，逐表授权避免读到密码哈希、会话和 token。
 GRANT SELECT ON crosserp.* TO 'crosserp_agent'@'%';
 REVOKE ALL PRIVILEGES ON crosserp.* FROM 'crosserp_agent'@'%';
@@ -101,6 +104,9 @@ GRANT SELECT ON crosserp.iam_access_review TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.iam_sod_rule TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.iam_module_switch TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.iam_dictionary TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.iam_role_permission TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.iam_role_inheritance TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.iam_system_setting TO 'crosserp_agent'@'%';
 
 -- security_event / audit_checkpoint / audit_export 在 W5/T31 创建。
 -- 建表后重跑本文件，并按同样原则给 app SELECT/INSERT、agent SELECT。

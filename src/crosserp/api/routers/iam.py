@@ -18,7 +18,20 @@ from crosserp.api.metadata import api_endpoint
 from crosserp.audit.security import SecurityEventName
 from crosserp.audit.security import record as record_security
 from crosserp.auth.passwords import hash_password
-from crosserp.db.schema import AppUser, UserRole
+from crosserp.db.schema import (
+    AppUser,
+    IamAccessReview,
+    IamDataScopeRule,
+    IamDictionary,
+    IamFieldPolicy,
+    IamModuleSwitch,
+    IamPermissionOverride,
+    IamRole,
+    IamSodRule,
+    IamSystemSetting,
+    IamTemporaryGrant,
+    UserRole,
+)
 from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.iam.catalog import load_catalog
 from crosserp.iam.service import IAMService
@@ -189,14 +202,22 @@ def _generic(
                 iam._bump(user.id)
                 return _result({"id": str(user.id), "roles": sorted(roles)})
             if action == "User.set_overrides":
-                iam.overrides[user.id] = []
+                session.query(IamPermissionOverride).filter(
+                    IamPermissionOverride.user_id == user.id
+                ).delete(synchronize_session=False)
                 for item in payload.get("overrides", []):
                     if isinstance(item, dict) and item.get("permission"):
-                        iam.set_override(
-                            user.id,
-                            str(item["permission"]),
-                            effect="deny" if item.get("effect") == "deny" else "allow",
-                            reason=str(item.get("reason", "user override")),
+                        session.add(
+                            IamPermissionOverride(
+                                user_id=user.id,
+                                permission=str(item["permission"]),
+                                effect="deny" if item.get("effect") == "deny" else "allow",
+                                reason=str(item.get("reason", "user override")),
+                                data_scopes=item.get("dataScopes", []),
+                                starts_at=None,
+                                expires_at=None,
+                                created_at=datetime.now(UTC),
+                            )
                         )
                 user.permission_version += 1
                 session.commit()
@@ -260,7 +281,62 @@ def _generic(
             result = _result({"id": role.id, "name": role.name}, created=True)
             _audit(request, principal, entity, action, result)
             return result
+        role = iam.roles.get(path_id or "")
+        if role is None:
+            raise not_found()
+        if method == "GET":
+            return {
+                "id": role.id,
+                "name": role.name or role.id,
+                "parentIds": sorted(role.parent_ids),
+                "permissions": role.permissions,
+                "dataScopes": sorted(role.data_scopes),
+                "active": role.active,
+            }
+        if action == "Role.copy":
+            slug = str(payload.get("slug", role.id + "-copy"))
+            copy = iam.create_role(
+                slug,
+                name=str(payload.get("name", slug)),
+                permissions=set(role.permissions),
+                parent_ids=set(role.parent_ids),
+                data_scopes=set(role.data_scopes),
+            )
+            result = _result({"id": copy.id, "name": copy.name}, created=True)
+            _audit(request, principal, entity, action, result)
+            return result
+        if action == "Role.update":
+            role = iam.update_role(
+                path_id or "",
+                parent_ids=set(payload["parentIds"]) if "parentIds" in payload else None,
+                permissions=(
+                    {str(k): str(v) for k, v in payload["permissions"].items()}
+                    if "permissions" in payload
+                    else None
+                ),
+                active=bool(payload["active"]) if "active" in payload else None,
+            )
+        if action == "Role.set_permissions":
+            role = iam.update_role(
+                path_id or "",
+                permissions={str(k): str(v) for k, v in payload.get("permissions", {}).items()},
+            )
+        result = _result(
+            {
+                "id": role.id,
+                "name": role.name or role.id,
+                "permissions": role.permissions,
+                "parentIds": sorted(role.parent_ids),
+                "active": role.active,
+            }
+        )
+        _audit(request, principal, entity, action, result)
+        return result
     if entity == "TempGrant":
+        if method == "GET":
+            with _session(request) as session:
+                rows = list(session.scalars(select(IamTemporaryGrant)))
+            return {"items": [_model_record(row) for row in rows], "total": len(rows)}
         if method == "POST" and path_id is None:
             try:
                 user_id = UUID(str(payload["userId"]))
@@ -282,60 +358,167 @@ def _generic(
                 reason=str(payload.get("reason", "temporary grant")),
                 expires_at=expires_at,
             )
+            with _session(request) as session:
+                stored = session.scalar(
+                    select(IamTemporaryGrant)
+                    .where(
+                        IamTemporaryGrant.user_id == user_id,
+                        IamTemporaryGrant.permission == grant.permission,
+                    )
+                    .order_by(IamTemporaryGrant.created_at.desc())
+                )
             result = _result(
-                {"id": str(uuid4()), "userId": str(user_id), "permission": grant.permission},
+                {
+                    "id": str(stored.id if stored is not None else uuid4()),
+                    "userId": str(user_id),
+                    "permission": grant.permission,
+                },
                 created=True,
             )
             _audit(request, principal, entity, action, result)
             return result
+    model_map = {
+        "FieldPolicy": IamFieldPolicy,
+        "DataScopeRule": IamDataScopeRule,
+        "AccessReview": IamAccessReview,
+        "SodRule": IamSodRule,
+        "ModuleSwitch": IamModuleSwitch,
+        "Dictionary": IamDictionary,
+        "SystemSetting": IamSystemSetting,
+    }
+    model = model_map.get(entity)
+    if model is not None:
+        with _session(request) as session:
+            if method == "GET":
+                rows = list(session.scalars(select(model)))
+                return {
+                    "items": [_model_record(row) for row in rows],
+                    "page": 1,
+                    "pageSize": len(rows),
+                    "total": len(rows),
+                }
+            if entity == "Dictionary":
+                row = session.get(model, path_key or "")
+            elif entity == "ModuleSwitch":
+                row = session.get(model, path_id or "")
+            elif entity == "SystemSetting":
+                row = session.get(model, "system")
+            else:
+                try:
+                    row = session.get(model, UUID(path_id or ""))
+                except ValueError:
+                    row = None
+            if row is None:
+                if entity == "AccessReview" and method == "POST":
+                    row = model(
+                        user_id=UUID(str(payload.get("userId", principal.effective_user_id))),
+                        state="open",
+                        snapshot=payload.get("snapshot", {}),
+                        created_at=datetime.now(UTC),
+                    )
+                    session.add(row)
+                elif entity == "FieldPolicy" and method in {"PUT", "PATCH"}:
+                    row = model(
+                        id=UUID(path_id or str(uuid4())),
+                        field_key=str(payload.get("fieldKey", path_id)),
+                        permission=str(payload.get("permission", "permission:read")),
+                        masked=bool(payload.get("masked", False)),
+                        updated_at=datetime.now(UTC),
+                    )
+                    session.add(row)
+                elif entity == "DataScopeRule" and method in {"PUT", "PATCH"}:
+                    row = model(
+                        id=UUID(path_id or str(uuid4())),
+                        name=str(payload.get("name", path_id)),
+                        entity=str(payload.get("entity", "*")),
+                        scope_type=str(payload.get("scopeType", "store")),
+                        values=payload.get("values", []),
+                        updated_at=datetime.now(UTC),
+                    )
+                    session.add(row)
+                elif entity == "SodRule" and method in {"PUT", "PATCH"}:
+                    row = model(
+                        id=UUID(path_id or str(uuid4())),
+                        name=str(payload.get("name", path_id)),
+                        permissions=payload.get("permissions", []),
+                        enabled=bool(payload.get("enabled", True)),
+                        updated_at=datetime.now(UTC),
+                    )
+                    session.add(row)
+                elif method in {"PUT", "PATCH"} and entity in {
+                    "Dictionary",
+                    "ModuleSwitch",
+                    "SystemSetting",
+                }:
+                    if entity == "Dictionary":
+                        row = model(
+                            key=path_key or "",
+                            values=payload.get("values", []),
+                            updated_at=datetime.now(UTC),
+                        )
+                    elif entity == "ModuleSwitch":
+                        row = model(
+                            module=path_id or "",
+                            enabled=bool(payload.get("enabled", True)),
+                            config=payload.get("config", {}),
+                            updated_at=datetime.now(UTC),
+                        )
+                    else:
+                        row = model(key="system", value=payload, updated_at=datetime.now(UTC))
+                    session.add(row)
+                else:
+                    raise not_found()
+            if entity == "AccessReview" and action == "AccessReview.confirm":
+                row.state = "confirmed"
+                row.reviewed_by = principal.effective_user_id
+                row.reviewed_at = datetime.now(UTC)
+            for key, value in payload.items():
+                attr = {
+                    "fieldKey": "field_key",
+                    "scopeType": "scope_type",
+                    "updatedBy": "updated_by",
+                    "isActive": "enabled",
+                }.get(key, key)
+                if hasattr(row, attr):
+                    setattr(row, attr, value)
+            session.commit()
+            result = _result(_model_record(row))
+        _audit(request, principal, entity, action, result)
+        return result
         if method == "POST" and path_id:
-            for grants in iam.temporary_grants.values():
-                for grant in grants:
-                    if (
-                        str(grant.user_id) == str(payload.get("userId", ""))
-                        or path_id == grant.permission
-                    ):
-                        grant.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            try:
+                grant_id = UUID(path_id)
+            except ValueError as exc:
+                raise not_found() from exc
+            with _session(request) as session:
+                grant = session.get(IamTemporaryGrant, grant_id)
+                if grant is None:
+                    raise not_found()
+                grant.revoked_at = datetime.now(UTC)
+                user = session.get(AppUser, grant.user_id)
+                if user is not None:
+                    user.permission_version += 1
+                session.commit()
             result = _result({"id": path_id, "revoked": True})
             _audit(request, principal, entity, action, result)
             return result
-        role = iam.roles.get(path_id or "")
-        if role is None:
-            raise not_found()
-        if action == "Role.copy":
-            slug = str(payload.get("slug", role.id + "-copy"))
-            copy = iam.create_role(
-                slug,
-                name=str(payload.get("name", slug)),
-                permissions=set(role.permissions),
-                parent_ids=set(role.parent_ids),
-                data_scopes=set(role.data_scopes),
-            )
-            result = _result({"id": copy.id, "name": copy.name}, created=True)
-            _audit(request, principal, entity, action, result)
-            return result
-        if action == "Role.update":
-            iam.update_role(
-                path_id or "",
-                parent_ids=set(payload["parentIds"]) if "parentIds" in payload else None,
-                active=bool(payload["active"]) if "active" in payload else None,
-            )
-        if action == "Role.set_permissions":
-            iam.update_role(
-                path_id or "",
-                permissions={str(k): str(v) for k, v in payload.get("permissions", {}).items()},
-            )
-            result = _result(
-                {
-                    "id": role.id,
-                    "name": role.name or role.id,
-                    "permissions": role.permissions,
-                    "parentIds": sorted(role.parent_ids),
-                    "active": role.active,
-                }
-            )
-            _audit(request, principal, entity, action, result)
-            return result
+    if entity == "TempGrant" and method == "POST" and path_id:
+        try:
+            grant_id = UUID(path_id)
+        except ValueError as exc:
+            raise not_found() from exc
+        with _session(request) as session:
+            grant = session.get(IamTemporaryGrant, grant_id)
+            if grant is None:
+                raise not_found()
+            grant.revoked_at = datetime.now(UTC)
+            user = session.get(AppUser, grant.user_id)
+            if user is not None:
+                user.permission_version += 1
+            session.commit()
+        result = _result({"id": path_id, "revoked": True})
+        _audit(request, principal, entity, action, result)
+        return result
     if method == "GET":
         return {"items": [], "page": 1, "pageSize": 0, "total": 0}
     result = _result(
@@ -354,6 +537,14 @@ def _get_user(session: Session, value: str | None) -> AppUser:
     if user is None:
         raise not_found()
     return user
+
+
+def _model_record(row: Any) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    for column in row.__table__.columns:
+        value = getattr(row, column.name)
+        values[column.name] = str(value) if isinstance(value, UUID) else value
+    return values
 
 
 _ROUTES = [

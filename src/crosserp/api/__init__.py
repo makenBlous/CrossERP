@@ -170,7 +170,7 @@ def register_routers(app: FastAPI) -> None:
 def install_api(app: FastAPI, engine: Any) -> None:
     """把 API 中间件、异常处理器和自动路由安装到现有 FastAPI 应用。"""
     app.state.database_engine = engine
-    iam_service = IAMService()
+    iam_service = IAMService(engine)
     app.state.iam_service = iam_service
     app.state.permission_service = DefaultPermissionService(iam_service)
     app.add_middleware(IdempotencyMiddleware, engine=engine)

@@ -61,6 +61,23 @@ def upgrade() -> None:
         ],
     )
     _common(
+        "iam_role_permission",
+        [
+            sa.Column("role_id", sa.Uuid(), sa.ForeignKey("iam_role.id"), nullable=False),
+            sa.Column("permission", sa.String(128), nullable=False),
+            sa.Column("effect", sa.String(8), nullable=False),
+            sa.UniqueConstraint("role_id", "permission"),
+        ],
+    )
+    _common(
+        "iam_role_inheritance",
+        [
+            sa.Column("role_id", sa.Uuid(), sa.ForeignKey("iam_role.id"), nullable=False),
+            sa.Column("parent_role_id", sa.Uuid(), sa.ForeignKey("iam_role.id"), nullable=False),
+            sa.UniqueConstraint("role_id", "parent_role_id"),
+        ],
+    )
+    _common(
         "iam_temporary_grant",
         [
             sa.Column("user_id", sa.Uuid(), sa.ForeignKey("app_user.id"), nullable=False),
@@ -131,11 +148,21 @@ def upgrade() -> None:
         sa.Column("updated_by", sa.Uuid()),
         sa.Column("updated_at", UtcDateTime(), nullable=False),
     )
+    op.create_table(
+        "iam_system_setting",
+        sa.Column("key", sa.String(128), primary_key=True),
+        sa.Column("value", sa.JSON(), nullable=False),
+        sa.Column("updated_by", sa.Uuid()),
+        sa.Column("updated_at", UtcDateTime(), nullable=False),
+    )
 
 
 def downgrade() -> None:
     for table in (
         "iam_dictionary",
+        "iam_system_setting",
+        "iam_role_inheritance",
+        "iam_role_permission",
         "iam_module_switch",
         "iam_sod_rule",
         "iam_access_review",

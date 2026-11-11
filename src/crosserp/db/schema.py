@@ -746,6 +746,29 @@ class IamRole(Base):
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
+class IamRolePermission(Base):
+    """角色权限点明细, 与 JSON 快照保持一致并便于查询审计。"""
+
+    __tablename__ = "iam_role_permission"
+    __table_args__ = (UniqueConstraint("role_id", "permission"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    role_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("iam_role.id"))
+    permission: Mapped[str] = mapped_column(String(128))
+    effect: Mapped[str] = mapped_column(String(8))
+
+
+class IamRoleInheritance(Base):
+    """角色继承关系。"""
+
+    __tablename__ = "iam_role_inheritance"
+    __table_args__ = (UniqueConstraint("role_id", "parent_role_id"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    role_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("iam_role.id"))
+    parent_role_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("iam_role.id"))
+
+
 class IamPermissionOverride(Base):
     __tablename__ = "iam_permission_override"
 
@@ -837,6 +860,17 @@ class IamDictionary(Base):
 
     key: Mapped[str] = mapped_column(String(128), primary_key=True)
     values: Mapped[Any] = mapped_column(JSON(), default=list)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class IamSystemSetting(Base):
+    """权限治理相关系统参数。"""
+
+    __tablename__ = "iam_system_setting"
+
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    value: Mapped[Any] = mapped_column(JSON(), default=dict)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
