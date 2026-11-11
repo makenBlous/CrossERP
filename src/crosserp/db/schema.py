@@ -21,6 +21,7 @@ from sqlalchemy import (
     Index,
     Integer,
     MetaData,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -726,6 +727,87 @@ class IdempotencyKey(Base):
     response_headers: Mapped[Any] = mapped_column(JSON(), default=dict)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class PasswordResetToken(Base):
+    """一次性密码重置令牌只保存摘要。"""
+
+    __tablename__ = "password_reset_token"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    used_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+
+
+class FileObject(Base):
+    """上传文件元数据；内容保存在配置目录，sha256 唯一去重。"""  # noqa: RUF002
+
+    __tablename__ = "file_object"
+    __table_args__ = (UniqueConstraint("sha256", name="uq_file_object_sha256"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    sha256: Mapped[str] = mapped_column(String(64))
+    filename: Mapped[str] = mapped_column(String(512))
+    content_type: Mapped[str | None] = mapped_column(String(255))
+    size: Mapped[int] = mapped_column(BigInteger())
+    storage_path: Mapped[str] = mapped_column(String(1000))
+    uploaded_by: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class Job(Base):
+    """CrossERP 自调度任务记录。"""
+
+    __tablename__ = "job"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    kind: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16))
+    progress: Mapped[Decimal] = mapped_column(Numeric(6, 5), default=Decimal("0"))
+    payload_json: Mapped[Any] = mapped_column(JSON(), default=dict)
+    error: Mapped[str | None] = mapped_column(String(2000))
+    result_ref: Mapped[str | None] = mapped_column(String(255))
+    created_by: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    started_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+
+
+class DocumentLink(Base):
+    """单据关联通用边，后续业务域填充。"""  # noqa: RUF002
+
+    __tablename__ = "document_link"
+    __table_args__ = (
+        Index("ix_document_link_from", "from_type", "from_id"),
+        Index("ix_document_link_to", "to_type", "to_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    from_type: Mapped[str] = mapped_column(String(64))
+    from_id: Mapped[str] = mapped_column(String(128))
+    to_type: Mapped[str] = mapped_column(String(64))
+    to_id: Mapped[str] = mapped_column(String(128))
+    relation: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class Delegation(Base):
+    """会话委托通行证和登出作废钩子所需的最小记录。"""
+
+    __tablename__ = "delegation"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"))
+    session_id: Mapped[str] = mapped_column(String(64))
+    run_id: Mapped[str | None] = mapped_column(String(128))
+    scopes: Mapped[Any] = mapped_column(JSON(), default=list)
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    revoke_reason: Mapped[str | None] = mapped_column(String(32))
+    expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
 V01_TABLES: frozenset[str] = frozenset(Base.metadata.tables)

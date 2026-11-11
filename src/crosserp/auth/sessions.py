@@ -49,13 +49,24 @@ def create_session(
 
 
 def find_user(
-    session: Session, token: str | None, *, now: datetime | None = None
+    session: Session, token: str | None, *, now: datetime | None = None, idle_hours: int = 2
 ) -> AppUser | None:
     if not token:
         return None
     row = session.scalar(select(UserSession).where(UserSession.id == _digest(token)))
     moment = now or datetime.now(UTC)
-    if row is None or row.revoked_at is not None or row.expires_at <= moment:
+    if (
+        row is None
+        or row.revoked_at is not None
+        or row.expires_at <= moment
+        or row.last_seen_at + timedelta(hours=idle_hours) <= moment
+    ):
+        if (
+            row is not None
+            and row.revoked_at is None
+            and row.last_seen_at + timedelta(hours=idle_hours) <= moment
+        ):
+            row.revoked_at = moment
         return None
     user = session.get(AppUser, row.user_id)
     if user is None or not user.is_active:

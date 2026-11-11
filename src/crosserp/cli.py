@@ -98,6 +98,7 @@ from crosserp.db.session import get_database_url, make_engine, session_scope
 from crosserp.issues.catalog import definition, render
 from crosserp.ledger.write_service import ApprovalRequired
 from crosserp.ledger.write_service import export as export_ledger
+from crosserp.platform.worker import run_worker
 from crosserp.profit.golden import compare_issues_csv, compare_profit_csv
 from crosserp.profit.report_csv import write_report_csv
 from crosserp.profit.report_xlsx import write_report_xlsx
@@ -163,6 +164,25 @@ def main(
     ),
 ) -> None:
     """跨境电商对账工具。"""
+
+
+@app.command()
+def worker(
+    job_id: UUID | None = typer.Option(None, "--job-id", help="只执行指定任务."),  # noqa: B008
+) -> None:
+    """领取并同步执行一个 CrossERP 任务。"""
+    url_text, engine = _open_ready_engine()
+    try:
+        row = run_worker(engine, job_id=job_id)
+        if row is None:
+            typer.echo("没有待执行任务")
+            return
+        typer.echo(f"任务 {row.id} {row.status}")
+    except Exception as exc:
+        typer.echo(f"worker 执行失败: {_hide_password(str(exc), url_text)}", err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        engine.dispose()
 
 
 @app.command()

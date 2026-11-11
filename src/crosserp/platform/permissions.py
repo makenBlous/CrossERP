@@ -31,6 +31,15 @@ class DefaultPermissionService:
             return
         if permission in principal.permissions:
             return
+        aliases = {
+            "user:read": {"admin", "operator", "finance", "viewer", "auditor"},
+            "user:write": {"admin", "operator", "finance"},
+            "system:write": {"admin"},
+            "report:read": {"admin", "operator", "finance", "viewer", "auditor"},
+            "document:read": {"admin", "operator", "finance", "viewer", "auditor"},
+        }
+        if permission in aliases and set(principal.roles) & aliases[permission]:
+            return
         try:
             allowed = has_permission(set(principal.roles), permission)
         except ValueError:

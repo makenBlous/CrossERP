@@ -95,6 +95,11 @@ def create_app(database_url: str | None = None) -> FastAPI:
     upgrade_head(resolved)
     engine = make_engine(resolved)
     install_api(app, engine)
+
+    @app.on_event("shutdown")
+    async def dispose_database_engine() -> None:
+        engine.dispose()
+
     ask_times: dict[str, list[float]] = {}
 
     @contextmanager

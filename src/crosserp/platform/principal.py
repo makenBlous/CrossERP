@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.auth.sessions import find_user
 from crosserp.auth.tokens import authenticate
+from crosserp.config import load_settings
 from crosserp.db.schema import UserRole
 
 
@@ -51,7 +52,7 @@ def principal_from_session(session: Session, request: Request) -> Principal | No
     user = None
     session_id = None
     if token:
-        user = find_user(session, token)
+        user = find_user(session, token, idle_hours=load_settings().auth.idle_hours)
         session_id = token[:16] if user is not None else None
     elif api_token.casefold().startswith("bearer "):
         auth = authenticate(session, api_token[7:].strip())
