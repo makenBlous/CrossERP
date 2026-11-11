@@ -20,7 +20,7 @@ from crosserp.db.schema import (
 from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
 from crosserp.platform.permissions import DefaultPermissionService
-from crosserp.platform.principal import Principal, get_principal  # noqa: F401
+from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter()
 _permission_service = DefaultPermissionService()
@@ -148,4 +148,4 @@ def _user(session: Session, user_id: UUID | None) -> AppUser:
     return row
 
 
-__all__ = ["router", "get_principal"]
+__all__ = ["get_principal", "router"]
