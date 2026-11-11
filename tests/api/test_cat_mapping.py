@@ -1,0 +1,196 @@
+from __future__ import annotations
+
+from pathlib import Path
+from uuid import UUID, uuid4
+
+from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from crosserp.db.schema import AuditLog, SkuMapping, Store
+from crosserp.db.session import make_engine, sqlite_file_url
+from crosserp.platform.approval import ApprovalResolution
+from crosserp.platform.principal import ActorType, Principal, get_principal
+from crosserp.web.app import create_app
+
+
+def _app(tmp_path: Path):
+    url = sqlite_file_url(tmp_path / "mapping.db")
+    app = create_app(url)
+    return app, make_engine(url)
+
+
+def _seed(engine, *, platform_sku: str = "AMZ-1") -> tuple[str, str]:
+    store_id = uuid4()
+    mapping_id = uuid4()
+    with Session(engine) as session, session.begin():
+        session.add(
+            Store(
+                id=store_id,
+                platform="amazon",
+                marketplace="US",
+                name="demo",
+                currency="USD",
+            )
+        )
+        session.flush()
+        session.add(
+            SkuMapping(
+                id=mapping_id,
+                store_id=store_id,
+                platform_sku=platform_sku,
+                internal_sku="INT-1",
+                confidence="high",
+                source="ai",
+                state="suggested",
+                version=0,
+            )
+        )
+    return str(store_id), str(mapping_id)
+
+
+def test_mapping_list_filters_and_paginates(tmp_path: Path) -> None:
+    app, engine = _app(tmp_path)
+    _seed(engine)
+    app.dependency_overrides[get_principal] = lambda: Principal(
+        user_id=uuid4(), permissions=frozenset({"listing:read"})
+    )
+    with TestClient(app) as client:
+        response = client.get("/api/v1/catalog/mappings?page=1&pageSize=1&q=AMZ")
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["platformSku"] == "AMZ-1"
+    engine.dispose()
+
+
+def test_mapping_list_denies_without_permission_as_404(tmp_path: Path) -> None:
+    app, engine = _app(tmp_path)
+    app.dependency_overrides[get_principal] = lambda: Principal(user_id=uuid4())
+    with TestClient(app) as client:
+        response = client.get("/api/v1/catalog/mappings")
+    assert response.status_code == 404
+    engine.dispose()
+
+
+def test_human_create_is_idempotent_and_audited(tmp_path: Path) -> None:
+    app, engine = _app(tmp_path)
+    store_id, _ = _seed(engine)
+    principal = Principal(user_id=uuid4(), permissions=frozenset({"item:write"}))
+    app.dependency_overrides[get_principal] = lambda: principal
+    body = {
+        "storeId": store_id,
+        "platformSku": "AMZ-2",
+        "internalSku": "INT-2",
+        "confidence": "high",
+    }
+    with TestClient(app) as client:
+        first = client.post(
+            "/api/v1/catalog/mappings", json=body, headers={"Idempotency-Key": "map-create-1"}
+        )
+        replay = client.post(
+            "/api/v1/catalog/mappings", json=body, headers={"Idempotency-Key": "map-create-1"}
+        )
+    assert first.status_code == 201
+    assert replay.status_code == 201
+    assert replay.json() == first.json()
+    with Session(engine) as session:
+        row = session.scalar(select(SkuMapping).where(SkuMapping.platform_sku == "AMZ-2"))
+        audit = session.scalar(select(AuditLog).order_by(AuditLog.seq.desc()))
+        assert row is not None and row.state == "confirmed" and row.version == 1
+        assert audit is not None and audit.actor_type == "user"
+    engine.dispose()
+
+
+def test_agent_medium_create_contains_undo_payload(tmp_path: Path) -> None:
+    app, engine = _app(tmp_path)
+    store_id, _ = _seed(engine)
+    principal = Principal(
+        user_id=uuid4(),
+        permissions=frozenset({"item:write"}),
+        actor_type=ActorType.AGENT,
+        agent_id="agent-1",
+        on_behalf_of=uuid4(),
+        channel="mcp",
+    )
+    app.dependency_overrides[get_principal] = lambda: principal
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/catalog/mappings",
+            json={"storeId": store_id, "platformSku": "AMZ-3", "internalSku": "INT-3"},
+        )
+    assert response.status_code == 201
+    assert response.json()["undoPayload"]["action"] == "SkuMapping.delete"
+    with Session(engine) as session:
+        row = session.scalar(select(SkuMapping).where(SkuMapping.platform_sku == "AMZ-3"))
+        audit = session.scalar(select(AuditLog).order_by(AuditLog.seq.desc()))
+        assert row is not None and row.state == "suggested"
+        assert audit is not None and audit.actor_type == "agent"
+    engine.dispose()
+
+
+def test_agent_high_confirm_submits_approval_without_mutating(tmp_path: Path) -> None:
+    app, engine = _app(tmp_path)
+    _, mapping_id = _seed(engine)
+
+    class Gateway:
+        def submit(self, **_: object) -> object:
+            return {"approvalId": "approval-1", "resolution": ApprovalResolution.AWAITING_INITIATOR}
+
+    app.state.approval_gateway = Gateway()
+    principal = Principal(
+        user_id=uuid4(),
+        permissions=frozenset({"item:write"}),
+        actor_type=ActorType.AGENT,
+        agent_id="agent-1",
+        on_behalf_of=uuid4(),
+    )
+    app.dependency_overrides[get_principal] = lambda: principal
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/catalog/mappings/confirm",
+            json={"id": mapping_id, "expectedVersion": 0},
+            headers={"Idempotency-Key": "map-confirm-1"},
+        )
+    assert response.status_code == 200
+    assert response.json()["resolution"] == ApprovalResolution.AWAITING_INITIATOR
+    with Session(engine) as session:
+        row = session.get(SkuMapping, UUID(mapping_id))
+        assert row is not None and row.state == "suggested" and row.version == 0
+    engine.dispose()
+
+
+def test_human_confirm_changes_suggestion_and_version(tmp_path: Path) -> None:
+    app, engine = _app(tmp_path)
+    _, mapping_id = _seed(engine)
+    principal = Principal(user_id=uuid4(), permissions=frozenset({"item:write"}))
+    app.dependency_overrides[get_principal] = lambda: principal
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/catalog/mappings/confirm",
+            json={"id": mapping_id, "expectedVersion": 0},
+        )
+    assert response.status_code == 200
+    assert response.json()["state"] == "confirmed"
+    assert response.json()["version"] == 1
+    with Session(engine) as session:
+        row = session.get(SkuMapping, UUID(mapping_id))
+        assert row is not None and row.state == "confirmed" and row.version == 1
+    engine.dispose()
+
+
+def test_confirm_expected_version_conflict_and_missing_are_404_or_409(tmp_path: Path) -> None:
+    app, engine = _app(tmp_path)
+    _, mapping_id = _seed(engine)
+    principal = Principal(user_id=uuid4(), permissions=frozenset({"item:write"}))
+    app.dependency_overrides[get_principal] = lambda: principal
+    with TestClient(app) as client:
+        missing = client.post(
+            "/api/v1/catalog/mappings/confirm", json={"id": str(uuid4()), "expectedVersion": 0}
+        )
+        conflict = client.post(
+            "/api/v1/catalog/mappings/confirm",
+            json={"id": mapping_id, "expectedVersion": 9},
+        )
+    assert missing.status_code == 404
+    assert conflict.status_code == 409
+    engine.dispose()

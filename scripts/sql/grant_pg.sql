@@ -33,7 +33,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.approval, public.api_token,
   public.llm_alert, public.llm_budget, public.llm_call, public.llm_tool_call,
   public.idempotency_key, public.match, public.order_line, public.profit_snapshot, public.prompt_version,
   public.raw_row, public.recon_run, public.security_event, public.settlement,
-  public.settlement_line, public.sku, public.sku_cost, public.store, public.user_role,
+  public.settlement_line, public.sku, public.sku_mapping, public.sku_cost, public.store, public.user_role,
   public.user_session, public.voucher, public.voucher_line, public.entity_version,
   public.action_execution, public.entity_event TO crosserp_app;
 REVOKE UPDATE, DELETE ON TABLE public.audit_log FROM crosserp_app;
@@ -57,7 +57,7 @@ GRANT SELECT ON TABLE public.approval, public.api_token, public.app_setting, pub
   public.import_batch, public.idempotency_key, public.issue, public.llm_alert, public.llm_budget, public.llm_call,
   public.llm_tool_call, public.match, public.order_line, public.profit_snapshot,
   public.prompt_version, public.raw_row, public.recon_run, public.security_event,
-  public.settlement, public.settlement_line, public.sku, public.sku_cost, public.store,
+  public.settlement, public.settlement_line, public.sku, public.sku_mapping, public.sku_cost, public.store,
   public.user_role, public.user_session, public.voucher, public.voucher_line,
   public.entity_version, public.action_execution, public.entity_event TO crosserp_agent;
 REVOKE SELECT ON TABLE public.app_user, public.user_session, public.api_token FROM crosserp_agent;

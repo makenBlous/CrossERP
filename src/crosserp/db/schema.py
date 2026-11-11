@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -124,6 +124,28 @@ class Sku(Base):
     internal_sku: Mapped[str] = mapped_column(String(128))
     title: Mapped[str | None] = mapped_column(String(512))
     active: Mapped[bool] = mapped_column(Boolean())
+
+
+class SkuMapping(Base):
+    """平台 SKU 到内部 SKU 的建议或已确认映射。"""
+
+    __tablename__ = "sku_mapping"
+    __table_args__ = (
+        Index("ix_sku_mapping_store_platform", "store_id", "platform_sku"),
+        Index("ix_sku_mapping_internal_sku", "internal_sku"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    platform_sku: Mapped[str] = mapped_column(String(128))
+    store_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("store.id"))
+    internal_sku: Mapped[str] = mapped_column(String(128))
+    confidence: Mapped[str] = mapped_column(_KIND)
+    source: Mapped[str] = mapped_column(String(16))
+    state: Mapped[str] = mapped_column(String(16))
+    version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=lambda: datetime.now(UTC))
+    provenance_json: Mapped[Any] = mapped_column(JSON(), default=dict)
 
 
 class SkuCost(Base):
