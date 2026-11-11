@@ -46,7 +46,6 @@ class DefaultPermissionService:
                 raise PermissionDenied(permission) from exc
             raise
 
-
     def data_scope_filter(self, principal: Principal, entity: str) -> Mapping[str, Any]:
         if self.iam is None:
             raise RuntimeError("权限服务尚未绑定 IAM 数据库")

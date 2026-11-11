@@ -146,6 +146,4 @@ def _user(session: Session, user_id: UUID | None) -> AppUser:
     return row
 
 
-
-
 __all__ = ["router"]

@@ -882,6 +882,7 @@ class EntityEvent(Base):
     payload_json: Mapped[Any] = mapped_column(JSON())
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
+
 class IamRole(Base):
     """权限模板/自定义角色。"""
 
