@@ -11,7 +11,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import Any, cast
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
@@ -51,8 +51,6 @@ def can_ai_execute(risk_tier: RiskTier | str) -> AutonomyDecision:
 class ActionDispatcher:
     """按固定顺序执行动作，并将版本、审计和事件写进同一事务。"""
 
-    _REQUIRED = object()
-
     STAGES = (
         "identity_and_scope",
         "permission",
@@ -67,26 +65,18 @@ class ActionDispatcher:
         self,
         hooks: dict[str, Callable[..., Any]] | None = None,
         *,
-        session: Session | object = _REQUIRED,
-        permission_service: PermissionService | object = _REQUIRED,
-        audit_recorder: AuditRecorder | object = _REQUIRED,
-        approval_gateway: ApprovalGateway | object = _REQUIRED,
+        session: Session,
+        permission_service: PermissionService,
+        audit_recorder: AuditRecorder,
+        approval_gateway: ApprovalGateway,
         ai_enabled: bool = True,
         ai_mode: str = "normal",
     ) -> None:
         self.hooks = {} if hooks is None else hooks
-        if session is self._REQUIRED or session is None:
-            raise RuntimeError("ActionDispatcher 必须绑定 Session")
-        if permission_service is self._REQUIRED or permission_service is None:
-            raise RuntimeError("ActionDispatcher 必须绑定 PermissionService")
-        if audit_recorder is self._REQUIRED or audit_recorder is None:
-            raise RuntimeError("ActionDispatcher 必须绑定 AuditRecorder")
-        if approval_gateway is self._REQUIRED or approval_gateway is None:
-            raise RuntimeError("ActionDispatcher 必须绑定 ApprovalGateway")
-        self.session = cast(Session, session)
-        self.permission_service = cast(PermissionService, permission_service)
-        self.audit_recorder = cast(AuditRecorder, audit_recorder)
-        self.approval_gateway = cast(ApprovalGateway, approval_gateway)
+        self.session = session
+        self.permission_service = permission_service
+        self.audit_recorder = audit_recorder
+        self.approval_gateway = approval_gateway
         if ai_mode not in {"normal", "degraded", "off"}:
             raise ValueError("ai_mode 必须是 normal、degraded 或 off")
         self.ai_enabled = ai_enabled and ai_mode == "normal"
