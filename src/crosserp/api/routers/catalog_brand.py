@@ -24,7 +24,13 @@ def get_permission_service(request: Request) -> PermissionService:
 
 
 @router.get("/catalog/brands")
-@api_endpoint(entity="Brand", action="Brand.list", permission="brand:read", risk_tier="none")
+@api_endpoint(
+    entity="Brand",
+    action="Brand.list",
+    permission="brand:read",
+    risk_tier="none",
+    idempotency="none",
+)
 def list_brands(
     request: Request,
     principal: Principal = Depends(get_principal),
@@ -41,7 +47,13 @@ def list_brands(
 
 
 @router.post("/catalog/brands", status_code=201)
-@api_endpoint(entity="Brand", action="Brand.create", permission="brand:create", risk_tier="medium")
+@api_endpoint(
+    entity="Brand",
+    action="Brand.create",
+    permission="brand:create",
+    risk_tier="medium",
+    idempotency="dispatcher",
+)
 def create_brand(
     request: Request,
     body: BrandCreateRequest,
@@ -59,7 +71,13 @@ def create_brand(
 
 
 @router.patch("/catalog/brands/{id}")
-@api_endpoint(entity="Brand", action="Brand.update", permission="brand:write", risk_tier="medium")
+@api_endpoint(
+    entity="Brand",
+    action="Brand.update",
+    permission="brand:write",
+    risk_tier="medium",
+    idempotency="dispatcher",
+)
 def update_brand(
     request: Request,
     id: str,
@@ -79,7 +97,13 @@ def update_brand(
 
 
 @router.post("/catalog/brands/status")
-@api_endpoint(entity="Brand", action="Brand.status", permission="brand:write", risk_tier="medium")
+@api_endpoint(
+    entity="Brand",
+    action="Brand.status",
+    permission="brand:write",
+    risk_tier="medium",
+    idempotency="dispatcher",
+)
 def change_brand_status(
     request: Request,
     body: BrandStatusRequest,

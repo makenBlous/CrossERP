@@ -66,7 +66,13 @@ def _store_item(row: Store) -> dict[str, object]:
 
 
 @router.get("/stores")
-@api_endpoint(entity="Store", action="Store.list", permission="report:read", risk_tier="none")
+@api_endpoint(
+    entity="Store",
+    action="Store.list",
+    permission="report:read",
+    risk_tier="none",
+    idempotency="none",
+)
 def list_stores(
     request: Request, params: Annotated[PageParams, Depends()], q: str | None = Query(None)
 ) -> dict[str, object]:
@@ -88,7 +94,11 @@ def list_stores(
 
 @router.post("/admin/stores", status_code=201)
 @api_endpoint(
-    entity="Store", action="Store.create", permission="system:write", risk_tier="critical"
+    entity="Store",
+    action="Store.create",
+    permission="system:write",
+    risk_tier="critical",
+    idempotency="dispatcher",
 )
 def create_store(
     request: Request,
@@ -133,7 +143,11 @@ def create_store(
 
 @router.patch("/admin/stores/{id}")
 @api_endpoint(
-    entity="Store", action="Store.update", permission="system:write", risk_tier="critical"
+    entity="Store",
+    action="Store.update",
+    permission="system:write",
+    risk_tier="critical",
+    idempotency="dispatcher",
 )
 def update_store(
     request: Request,
@@ -183,6 +197,7 @@ def update_store(
     action="UserAccount.read_data_scope",
     permission="user:read",
     risk_tier="none",
+    idempotency="none",
 )
 def data_scope(request: Request) -> dict[str, list[object]]:
     principal, session = _principal_db(request)

@@ -43,7 +43,13 @@ def _require(principal: Principal, permission: str, service: PermissionService) 
 
 
 @router.get("/catalog/costs")
-@api_endpoint(entity="SkuCost", action="SkuCost.list", permission="item:read", risk_tier="none")
+@api_endpoint(
+    entity="SkuCost",
+    action="SkuCost.list",
+    permission="item:read",
+    risk_tier="none",
+    idempotency="none",
+)
 def get_costs(
     request: Request,
     principal: Principal = Depends(get_principal),
@@ -73,7 +79,13 @@ def get_costs(
 
 
 @router.post("/catalog/costs", status_code=201)
-@api_endpoint(entity="SkuCost", action="SkuCost.create", permission="item:write", risk_tier="high")
+@api_endpoint(
+    entity="SkuCost",
+    action="SkuCost.create",
+    permission="item:write",
+    risk_tier="high",
+    idempotency="dispatcher",
+)
 def post_cost(
     request: Request,
     body: CostCreate,

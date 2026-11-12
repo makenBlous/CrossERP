@@ -42,7 +42,11 @@ def get_session(request: Request) -> Iterator[Session]:
 
 @router.get("/catalog/mappings")
 @api_endpoint(
-    entity="SkuMapping", action="SkuMapping.list", permission="listing:read", risk_tier="none"
+    entity="SkuMapping",
+    action="SkuMapping.list",
+    permission="listing:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def list_mappings(
     session: Session = Depends(get_session),
@@ -90,7 +94,11 @@ def list_mappings(
 
 @router.post("/catalog/mappings", status_code=201)
 @api_endpoint(
-    entity="SkuMapping", action="SkuMapping.create", permission="item:write", risk_tier="medium"
+    entity="SkuMapping",
+    action="SkuMapping.create",
+    permission="item:write",
+    risk_tier="medium",
+    idempotency="dispatcher",
 )
 def post_mapping(
     request: Request,
@@ -128,7 +136,11 @@ def post_mapping(
 
 @router.post("/catalog/mappings/confirm")
 @api_endpoint(
-    entity="SkuMapping", action="SkuMapping.confirm", permission="item:write", risk_tier="high"
+    entity="SkuMapping",
+    action="SkuMapping.confirm",
+    permission="item:write",
+    risk_tier="high",
+    idempotency="dispatcher",
 )
 def post_mapping_confirm(
     request: Request,

@@ -77,7 +77,11 @@ def _page(items: list[Any], page: int, page_size: int, total: int) -> dict[str, 
 
 @router.get("/approvals")
 @api_endpoint(
-    entity="Approval", action="Approval.list", permission="approval:read", risk_tier="none"
+    entity="Approval",
+    action="Approval.list",
+    permission="approval:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def list_approvals(
     request: Request,
@@ -108,7 +112,11 @@ def list_approvals(
 
 @router.get("/approvals/types")
 @api_endpoint(
-    entity="ApprovalType", action="ApprovalType.list", permission="approval:read", risk_tier="none"
+    entity="ApprovalType",
+    action="ApprovalType.list",
+    permission="approval:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def approval_types_early(
     request: Request,
@@ -145,7 +153,11 @@ def approval_types_early(
 
 @router.get("/approvals/{id}")
 @api_endpoint(
-    entity="Approval", action="Approval.get", permission="approval:read", risk_tier="none"
+    entity="Approval",
+    action="Approval.get",
+    permission="approval:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def get_approval(
     id: str, request: Request, principal: Principal = Depends(get_principal)
@@ -163,7 +175,11 @@ def get_approval(
 
 @router.post("/approvals/{id}/decide")
 @api_endpoint(
-    entity="Approval", action="Approval.decide", permission="approval:approve", risk_tier="critical"
+    entity="Approval",
+    action="Approval.decide",
+    permission="approval:approve",
+    risk_tier="critical",
+    idempotency="http",
 )
 def decide_approval(
     id: str,
@@ -197,6 +213,7 @@ def decide_approval(
     action="Approval.withdraw",
     permission="approval:create",
     risk_tier="critical",
+    idempotency="http",
 )
 def withdraw_approval(
     id: str,
@@ -223,6 +240,7 @@ def withdraw_approval(
     action="Approval.initiator_confirm",
     permission="approval:create",
     risk_tier="critical",
+    idempotency="http",
 )
 def initiator_confirm(
     id: str,
@@ -251,6 +269,7 @@ def initiator_confirm(
     action="WorkflowRule.read_resolve",
     permission="approval:read",
     risk_tier="none",
+    idempotency="none",
 )
 def resolve_rule(
     request: Request,
@@ -283,7 +302,11 @@ def resolve_rule(
 
 @router.get("/workflow/rules")
 @api_endpoint(
-    entity="WorkflowRule", action="WorkflowRule.list", permission="approval:read", risk_tier="none"
+    entity="WorkflowRule",
+    action="WorkflowRule.list",
+    permission="approval:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def workflow_rules(
     request: Request,
@@ -324,6 +347,7 @@ def workflow_rules(
     action="WorkflowRule.update",
     permission="approval:write",
     risk_tier="critical",
+    idempotency="http",
 )
 def update_workflow_rule(
     id: str,

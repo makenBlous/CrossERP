@@ -82,6 +82,7 @@ def _visible_rows(rows: list[DocumentLink], scope: StoreScope) -> list[DocumentL
     action="DocumentLink.read_links",
     permission="document:read",
     risk_tier="none",
+    idempotency="none",
 )
 def links(
     request: Request,
@@ -125,6 +126,7 @@ def links(
     action="DocumentLink.read_chain",
     permission="report:read",
     risk_tier="none",
+    idempotency="none",
 )
 def chain(request: Request, docType: str, id: str) -> dict[str, Any]:
     principal, session = _principal_db(request)

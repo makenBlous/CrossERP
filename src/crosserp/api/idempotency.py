@@ -35,7 +35,7 @@ from crosserp.platform.idempotency import (
     reset_http_scope,
     scope_hash,
 )
-from crosserp.platform.principal import Principal, get_principal, principal_from_session
+from crosserp.platform.principal import Principal, get_principal
 
 Owner = Literal["dispatcher", "http", "none"]
 WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
@@ -64,19 +64,13 @@ def classify_route(
     *,
     methods: set[str],
     template: str,
-    http_owned: set[Callable[..., Any]],
-    skipped: set[Callable[..., Any]],
 ) -> None:
     metadata = ENDPOINT_METADATA.get(endpoint)
     if metadata is None or not methods & WRITE_METHODS:
         return
-    if endpoint in skipped:
-        owner: Owner = "none"
-    elif endpoint in http_owned:
-        owner = "http"
-    else:
-        owner = "dispatcher"
-    ROUTE_INDEX[endpoint] = RegisteredIdempotency(owner, metadata.permission, template)
+    ROUTE_INDEX[endpoint] = RegisteredIdempotency(
+        metadata.idempotency, metadata.permission, template
+    )
 
 
 async def bind_dispatcher_scope(request: Request) -> AsyncIterator[None]:
@@ -89,35 +83,12 @@ async def bind_dispatcher_scope(request: Request) -> AsyncIterator[None]:
         reset_http_scope(token)
 
 
-async def replay_public_write(request: Request) -> None:
-    """公开写接口没有登录身份时不回放。带键的未登录请求返回 401。"""
-    key = request.headers.get("Idempotency-Key")
-    if not key:
-        return
-    engine = request.app.state.database_engine
-    with Session(engine) as session:
-        principal = principal_from_session(session, request)
-    if principal is None:
-        raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录")
-    await _replay_or_capture(request, principal, _registered(request))
-
-
 async def replay_authorized_write(
     request: Request, principal: Principal = Depends(get_principal)
 ) -> None:
     """非执行器写接口: 先身份, 再权限, 然后才回放."""
     registered = _registered(request)
     request.app.state.permission_service.require(principal, registered.permission)
-    await _replay_or_capture(request, principal, registered)
-
-
-async def replay_ad_hoc_write(
-    request: Request, principal: Principal = Depends(get_principal)
-) -> None:
-    """测试或后挂的写接口。没有元数据时只接受已登录身份。"""
-    request.app.state.permission_service.require(principal, "authenticated")
-    route = request.scope["route"]
-    registered = RegisteredIdempotency("http", "authenticated", route.path)
     await _replay_or_capture(request, principal, registered)
 
 
@@ -137,11 +108,11 @@ class IdempotencyRecorder:
 
         async def send_wrapper(message: Message) -> None:
             nonlocal start
-            state = scope.get("state")
-            capture = state.get("idempotency_capture") if isinstance(state, dict) else None
-            if capture is None:
+            state = scope["state"]
+            if "idempotency_capture" not in state:
                 await send(message)
                 return
+            capture = state["idempotency_capture"]
             if message["type"] == "http.response.start":
                 start = message
                 return
@@ -303,7 +274,5 @@ __all__ = [
     "IdempotencyReplay",
     "bind_dispatcher_scope",
     "classify_route",
-    "replay_ad_hoc_write",
     "replay_authorized_write",
-    "replay_public_write",
 ]

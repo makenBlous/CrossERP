@@ -51,7 +51,11 @@ def _action_or_404(action_id: str) -> ActionTypeDef:
 
 @router.get("/ontology/entity-types")
 @api_endpoint(
-    entity="EntityType", action="EntityType.list", permission="authenticated", risk_tier="none"
+    entity="EntityType",
+    action="EntityType.list",
+    permission="authenticated",
+    risk_tier="none",
+    idempotency="none",
 )
 def list_entity_types(
     principal: Principal = Depends(get_principal),
@@ -74,7 +78,11 @@ def list_entity_types(
 
 @router.get("/ontology/entity-types/{type}")
 @api_endpoint(
-    entity="EntityType", action="EntityType.get", permission="authenticated", risk_tier="none"
+    entity="EntityType",
+    action="EntityType.get",
+    permission="authenticated",
+    risk_tier="none",
+    idempotency="none",
 )
 def get_entity_type(
     type: str,
@@ -87,7 +95,11 @@ def get_entity_type(
 
 @router.get("/ontology/actions")
 @api_endpoint(
-    entity="ActionType", action="ActionType.list", permission="authenticated", risk_tier="none"
+    entity="ActionType",
+    action="ActionType.list",
+    permission="authenticated",
+    risk_tier="none",
+    idempotency="none",
 )
 def list_actions(
     principal: Principal = Depends(get_principal),
@@ -110,7 +122,11 @@ def list_actions(
 
 @router.post("/ontology/actions/{actionId}/dry-run")
 @api_endpoint(
-    entity="ActionType", action="ActionType.dry_run", permission="authenticated", risk_tier="none"
+    entity="ActionType",
+    action="ActionType.dry_run",
+    permission="authenticated",
+    risk_tier="none",
+    idempotency="none",
 )
 def dry_run(
     actionId: str,
@@ -141,7 +157,11 @@ def dry_run(
 
 @router.get("/ontology/event-types")
 @api_endpoint(
-    entity="EventType", action="EventType.list", permission="system:read", risk_tier="none"
+    entity="EventType",
+    action="EventType.list",
+    permission="system:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def list_event_types(
     principal: Principal = Depends(get_principal),
@@ -166,6 +186,7 @@ def list_event_types(
     action="EntityVersion.list",
     permission="authenticated",
     risk_tier="none",
+    idempotency="none",
 )
 def list_versions(
     request: Request,
@@ -204,7 +225,11 @@ def list_versions(
 
 @router.get("/entities/{type}/{id}/versions/{version}")
 @api_endpoint(
-    entity="EntityVersion", action="EntityVersion.get", permission="authenticated", risk_tier="none"
+    entity="EntityVersion",
+    action="EntityVersion.get",
+    permission="authenticated",
+    risk_tier="none",
+    idempotency="none",
 )
 def get_version(
     request: Request,
@@ -239,6 +264,7 @@ def get_version(
     action="EntityVersion.read_lineage",
     permission="authenticated",
     risk_tier="none",
+    idempotency="none",
 )
 def lineage(
     request: Request,

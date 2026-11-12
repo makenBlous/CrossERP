@@ -119,7 +119,11 @@ def _page(items: list[Any], page: int, page_size: int, total: int) -> dict[str, 
 
 @router.get("/audit/logs")
 @api_endpoint(
-    entity="AuditLog", action="AuditLog.list", permission="audit_log:read", risk_tier="none"
+    entity="AuditLog",
+    action="AuditLog.list",
+    permission="audit_log:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def list_audit_logs(
     request: Request,
@@ -145,7 +149,11 @@ def list_audit_logs(
 
 @router.get("/audit/logs/{id}")
 @api_endpoint(
-    entity="AuditLog", action="AuditLog.get", permission="audit_log:read", risk_tier="none"
+    entity="AuditLog",
+    action="AuditLog.get",
+    permission="audit_log:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def get_audit_log(
     id: str, request: Request, principal: Principal = Depends(get_principal)
@@ -163,7 +171,11 @@ def get_audit_log(
 
 @router.get("/audit/chain")
 @api_endpoint(
-    entity="AuditLog", action="AuditLog.list", permission="audit_log:read", risk_tier="none"
+    entity="AuditLog",
+    action="AuditLog.list",
+    permission="audit_log:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def audit_chain(request: Request, principal: Principal = Depends(get_principal)) -> dict[str, Any]:
     _auth(request, principal, "audit_log:read")
@@ -181,7 +193,11 @@ def audit_chain(request: Request, principal: Principal = Depends(get_principal))
 
 @router.post("/audit/verify")
 @api_endpoint(
-    entity="AuditLog", action="AuditLog.create", permission="audit_log:read", risk_tier="low"
+    entity="AuditLog",
+    action="AuditLog.create",
+    permission="audit_log:read",
+    risk_tier="low",
+    idempotency="dispatcher",
 )
 def verify_audit(request: Request, principal: Principal = Depends(get_principal)) -> dict[str, Any]:
     _auth(request, principal, "audit_log:read")
@@ -217,6 +233,7 @@ def verify_audit(request: Request, principal: Principal = Depends(get_principal)
     action="AuditExport.create",
     permission="audit_log:export",
     risk_tier="low",
+    idempotency="http",
 )
 def create_audit_export(
     request: Request,
@@ -268,6 +285,7 @@ def create_audit_export(
     action="AuditExport.read_download",
     permission="audit_log:export",
     risk_tier="none",
+    idempotency="none",
 )
 def download_audit_export(
     id: str, request: Request, principal: Principal = Depends(get_principal)
@@ -294,6 +312,7 @@ def download_audit_export(
     action="SecurityEvent.list",
     permission="audit_log:read",
     risk_tier="none",
+    idempotency="none",
 )
 def security_events(
     request: Request,
@@ -334,7 +353,11 @@ def security_events(
 
 @router.get("/audit/agent-trace/{suggestionId}")
 @api_endpoint(
-    entity="AuditLog", action="AuditLog.get", permission="audit_log:read", risk_tier="none"
+    entity="AuditLog",
+    action="AuditLog.get",
+    permission="audit_log:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def agent_trace(
     suggestionId: str, request: Request, principal: Principal = Depends(get_principal)
@@ -355,7 +378,11 @@ def agent_trace(
 
 @router.get("/audit/alerts")
 @api_endpoint(
-    entity="AuditAlert", action="AuditAlert.list", permission="audit_log:read", risk_tier="none"
+    entity="AuditAlert",
+    action="AuditAlert.list",
+    permission="audit_log:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def alerts(
     request: Request,
@@ -399,6 +426,7 @@ def alerts(
     action="AuditAlert.resolve",
     permission="audit_log:write",
     risk_tier="critical",
+    idempotency="dispatcher",
 )
 def resolve_alert(
     id: str,
@@ -439,6 +467,7 @@ def resolve_alert(
     action="RetentionPolicy.list",
     permission="audit_log:read",
     risk_tier="none",
+    idempotency="none",
 )
 def retention(request: Request, principal: Principal = Depends(get_principal)) -> dict[str, Any]:
     _auth(request, principal, "audit_log:read")
@@ -463,6 +492,7 @@ def retention(request: Request, principal: Principal = Depends(get_principal)) -
     action="RetentionPolicy.update",
     permission="audit_log:write",
     risk_tier="critical",
+    idempotency="dispatcher",
 )
 def update_retention(
     request: Request,
@@ -510,6 +540,7 @@ def update_retention(
     action="RetentionPolicy.archive",
     permission="audit_log:write",
     risk_tier="critical",
+    idempotency="dispatcher",
 )
 def archive_retention(
     request: Request,
@@ -553,6 +584,7 @@ def archive_retention(
     action="RetentionPolicy.read_archive_runs",
     permission="audit_log:read",
     risk_tier="none",
+    idempotency="none",
 )
 def archive_runs(request: Request, principal: Principal = Depends(get_principal)) -> dict[str, Any]:
     _auth(request, principal, "audit_log:read")

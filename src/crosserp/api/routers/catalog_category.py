@@ -38,7 +38,11 @@ def get_permission_service(request: Request) -> PermissionService:
 
 @router.get("/catalog/categories")
 @api_endpoint(
-    entity="Category", action="Category.list", permission="item_group:read", risk_tier="none"
+    entity="Category",
+    action="Category.list",
+    permission="item_group:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def get_categories(
     request: Request,
@@ -64,7 +68,11 @@ def get_categories(
 
 @router.post("/catalog/categories", status_code=201)
 @api_endpoint(
-    entity="Category", action="Category.create", permission="item_group:create", risk_tier="medium"
+    entity="Category",
+    action="Category.create",
+    permission="item_group:create",
+    risk_tier="medium",
+    idempotency="dispatcher",
 )
 def post_category(
     request: Request,
@@ -87,7 +95,11 @@ def post_category(
 
 @router.patch("/catalog/categories/{id}")
 @api_endpoint(
-    entity="Category", action="Category.update", permission="item_group:write", risk_tier="medium"
+    entity="Category",
+    action="Category.update",
+    permission="item_group:write",
+    risk_tier="medium",
+    idempotency="dispatcher",
 )
 def patch_category(
     request: Request,
@@ -112,7 +124,11 @@ def patch_category(
 
 @router.post("/catalog/categories/status")
 @api_endpoint(
-    entity="Category", action="Category.status", permission="item_group:write", risk_tier="medium"
+    entity="Category",
+    action="Category.status",
+    permission="item_group:write",
+    risk_tier="medium",
+    idempotency="dispatcher",
 )
 def post_category_status(
     request: Request,

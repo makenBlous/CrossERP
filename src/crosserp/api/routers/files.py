@@ -59,7 +59,11 @@ def _file_ref_payload(row: FileObject) -> dict[str, object]:
 
 @router.post("/files", status_code=201, response_model=FileRef)
 @api_endpoint(
-    entity="FileObject", action="FileObject.create", permission="authenticated", risk_tier="low"
+    entity="FileObject",
+    action="FileObject.create",
+    permission="authenticated",
+    risk_tier="low",
+    idempotency="dispatcher",
 )
 async def upload_file(
     request: Request,
@@ -129,7 +133,11 @@ async def upload_file(
 
 @router.get("/files/{id}", response_model=FileRef)
 @api_endpoint(
-    entity="FileObject", action="FileObject.get", permission="authenticated", risk_tier="none"
+    entity="FileObject",
+    action="FileObject.get",
+    permission="authenticated",
+    risk_tier="none",
+    idempotency="none",
 )
 def get_file(request: Request, id: UUID) -> FileRef:
     principal, session = _principal_db(request)

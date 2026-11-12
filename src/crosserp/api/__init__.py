@@ -24,7 +24,6 @@ from crosserp.api.idempotency import (
     bind_dispatcher_scope,
     classify_route,
     replay_authorized_write,
-    replay_public_write,
 )
 from crosserp.api.metadata import ENDPOINT_METADATA
 from crosserp.iam.service import IAMService
@@ -58,25 +57,8 @@ def _router_modules() -> Iterable[ModuleType]:
             yield module
 
 
-def _ownership() -> tuple[set[Any], set[Any]]:
-    from crosserp.api.routers import approvals, audit_approval, auth, ontology
-
-    http_owned = {
-        auth.login,
-        auth.forgot_password,
-        auth.reset_password,
-        approvals.decide_approval,
-        approvals.withdraw_approval,
-        approvals.initiator_confirm,
-        approvals.update_workflow_rule,
-        audit_approval.create_audit_export,
-    }
-    return http_owned, {ontology.dry_run}
-
-
 def register_routers(app: FastAPI) -> None:
     """自动发现 routers 子包中的 router; 新增模块无需修改公共注册表。"""
-    http_owned, skipped = _ownership()
     for module in _router_modules():
         for route in module.router.routes:
             if not isinstance(route, APIRoute):
@@ -91,18 +73,16 @@ def register_routers(app: FastAPI) -> None:
                 route.endpoint,
                 methods=methods,
                 template="/api/v1" + route.path,
-                http_owned=http_owned,
-                skipped=skipped,
             )
             registered = ROUTE_INDEX.get(route.endpoint)
             if registered is None or registered.owner == "none":
                 continue
             if registered.owner == "dispatcher":
                 route.dependencies.append(Depends(bind_dispatcher_scope))
-            elif registered.permission == "public":
-                route.dependencies.append(Depends(replay_public_write))
-            else:
+            elif registered.owner == "http":
                 route.dependencies.append(Depends(replay_authorized_write))
+            else:
+                raise RuntimeError(f"写接口幂等归属无效: {route.path}")
         app.include_router(module.router, prefix="/api/v1")
     for route in app.routes:
         # FastAPI 0.162 stores included routers lazily.  Give the placeholder a

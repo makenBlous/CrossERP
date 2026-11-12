@@ -61,7 +61,11 @@ def _profile_preferences(session: Session, user_id: UUID) -> dict[str, str]:
 
 @router.get("/account/profile")
 @api_endpoint(
-    entity="UserAccount", action="UserAccount.list", permission="user:read", risk_tier="none"
+    entity="UserAccount",
+    action="UserAccount.list",
+    permission="user:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def profile(request: Request, params: PageParams = Depends()) -> dict[str, Any]:
     principal, session = _principal_db(request)
@@ -82,7 +86,11 @@ def profile(request: Request, params: PageParams = Depends()) -> dict[str, Any]:
 
 @router.patch("/account/profile")
 @api_endpoint(
-    entity="UserAccount", action="UserAccount.update", permission="user:write", risk_tier="critical"
+    entity="UserAccount",
+    action="UserAccount.update",
+    permission="user:write",
+    risk_tier="critical",
+    idempotency="dispatcher",
 )
 def update_profile(
     request: Request,
@@ -143,7 +151,11 @@ def update_profile(
 
 @router.post("/account/password")
 @api_endpoint(
-    entity="UserAccount", action="UserAccount.create", permission="user:write", risk_tier="critical"
+    entity="UserAccount",
+    action="UserAccount.create",
+    permission="user:write",
+    risk_tier="critical",
+    idempotency="dispatcher",
 )
 def change_password(
     request: Request,
@@ -191,7 +203,13 @@ def change_password(
 
 
 @router.get("/account/tokens")
-@api_endpoint(entity="ApiToken", action="ApiToken.list", permission="user:read", risk_tier="none")
+@api_endpoint(
+    entity="ApiToken",
+    action="ApiToken.list",
+    permission="user:read",
+    risk_tier="none",
+    idempotency="none",
+)
 def tokens(request: Request, params: PageParams = Depends()) -> dict[str, Any]:
     principal, session = _principal_db(request)
     try:
@@ -220,7 +238,11 @@ def tokens(request: Request, params: PageParams = Depends()) -> dict[str, Any]:
 
 @router.post("/account/tokens")
 @api_endpoint(
-    entity="ApiToken", action="ApiToken.create", permission="user:write", risk_tier="critical"
+    entity="ApiToken",
+    action="ApiToken.create",
+    permission="user:write",
+    risk_tier="critical",
+    idempotency="dispatcher",
 )
 def create_api_token(
     request: Request,
@@ -263,7 +285,11 @@ def create_api_token(
 
 @router.post("/account/tokens/{id}/revoke")
 @api_endpoint(
-    entity="ApiToken", action="ApiToken.revoke", permission="user:write", risk_tier="critical"
+    entity="ApiToken",
+    action="ApiToken.revoke",
+    permission="user:write",
+    risk_tier="critical",
+    idempotency="dispatcher",
 )
 def revoke_api_token(
     request: Request,
@@ -296,7 +322,11 @@ def revoke_api_token(
 
 @router.get("/account/sessions")
 @api_endpoint(
-    entity="UserAccount", action="UserAccount.list", permission="user:read", risk_tier="none"
+    entity="UserAccount",
+    action="UserAccount.list",
+    permission="user:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def sessions(request: Request, params: PageParams = Depends()) -> dict[str, Any]:
     principal, session = _principal_db(request)
@@ -327,7 +357,11 @@ def sessions(request: Request, params: PageParams = Depends()) -> dict[str, Any]
 
 @router.delete("/account/sessions/{id}")
 @api_endpoint(
-    entity="UserAccount", action="UserAccount.delete", permission="user:write", risk_tier="critical"
+    entity="UserAccount",
+    action="UserAccount.delete",
+    permission="user:write",
+    risk_tier="critical",
+    idempotency="dispatcher",
 )
 def kick_session(
     request: Request,

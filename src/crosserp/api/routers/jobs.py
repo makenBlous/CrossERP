@@ -31,7 +31,9 @@ class JobResponse(CamelModel):
 
 
 @router.get("/jobs/{id}", response_model=JobResponse)
-@api_endpoint(entity="Job", action="Job.get", permission="authenticated", risk_tier="none")
+@api_endpoint(
+    entity="Job", action="Job.get", permission="authenticated", risk_tier="none", idempotency="none"
+)
 def get_job(request: Request, id: UUID) -> JobResponse:
     principal, session = _principal_db(request)
     try:

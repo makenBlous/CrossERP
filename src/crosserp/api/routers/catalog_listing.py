@@ -40,7 +40,13 @@ def _service(
 
 
 @router.get("/catalog/listings")
-@api_endpoint(entity="Listing", action="Listing.list", permission="listing:read", risk_tier="none")
+@api_endpoint(
+    entity="Listing",
+    action="Listing.list",
+    permission="listing:read",
+    risk_tier="none",
+    idempotency="none",
+)
 def list_listings(
     request: Request,
     principal: Principal = Depends(get_principal),
@@ -59,7 +65,13 @@ def list_listings(
 
 
 @router.get("/catalog/listings/{id}")
-@api_endpoint(entity="Listing", action="Listing.get", permission="listing:read", risk_tier="none")
+@api_endpoint(
+    entity="Listing",
+    action="Listing.get",
+    permission="listing:read",
+    risk_tier="none",
+    idempotency="none",
+)
 def get_listing(
     request: Request,
     id: UUID = Path(...),
@@ -76,7 +88,11 @@ def get_listing(
 
 @router.post("/catalog/listings", status_code=201)
 @api_endpoint(
-    entity="Listing", action="Listing.create", permission="listing:create", risk_tier="medium"
+    entity="Listing",
+    action="Listing.create",
+    permission="listing:create",
+    risk_tier="medium",
+    idempotency="dispatcher",
 )
 def create_listing(
     request: Request,
@@ -95,7 +111,11 @@ def create_listing(
 
 @router.patch("/catalog/listings/{id}")
 @api_endpoint(
-    entity="Listing", action="Listing.update", permission="listing:write", risk_tier="medium"
+    entity="Listing",
+    action="Listing.update",
+    permission="listing:write",
+    risk_tier="medium",
+    idempotency="dispatcher",
 )
 def update_listing(
     request: Request,
@@ -115,7 +135,11 @@ def update_listing(
 
 @router.post("/catalog/listings/status")
 @api_endpoint(
-    entity="Listing", action="Listing.status", permission="listing:write", risk_tier="medium"
+    entity="Listing",
+    action="Listing.status",
+    permission="listing:write",
+    risk_tier="medium",
+    idempotency="dispatcher",
 )
 def change_listing_status(
     request: Request,

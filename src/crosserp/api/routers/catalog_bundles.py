@@ -101,7 +101,13 @@ def _sort_column(sort: str | None) -> tuple[Any, bool]:
 
 
 @router.get("/catalog/bundles")
-@api_endpoint(entity="Bundle", action="Bundle.list", permission="item:read", risk_tier="none")
+@api_endpoint(
+    entity="Bundle",
+    action="Bundle.list",
+    permission="item:read",
+    risk_tier="none",
+    idempotency="none",
+)
 def list_bundles(
     request: Request,
     params: Annotated[PageParams, Depends()],
@@ -141,7 +147,13 @@ def list_bundles(
 
 
 @router.post("/catalog/bundles", status_code=201)
-@api_endpoint(entity="Bundle", action="Bundle.create", permission="item:write", risk_tier="medium")
+@api_endpoint(
+    entity="Bundle",
+    action="Bundle.create",
+    permission="item:write",
+    risk_tier="medium",
+    idempotency="dispatcher",
+)
 def create_bundle_endpoint(
     request: Request,
     payload: BundleCreateRequest,
@@ -190,7 +202,13 @@ def create_bundle_endpoint(
 
 
 @router.patch("/catalog/bundles/{id}")
-@api_endpoint(entity="Bundle", action="Bundle.update", permission="item:write", risk_tier="medium")
+@api_endpoint(
+    entity="Bundle",
+    action="Bundle.update",
+    permission="item:write",
+    risk_tier="medium",
+    idempotency="dispatcher",
+)
 def update_bundle_endpoint(
     request: Request,
     id: UUID,
@@ -249,7 +267,11 @@ def update_bundle_endpoint(
 
 @router.post("/catalog/bundles/deactivate")
 @api_endpoint(
-    entity="Bundle", action="Bundle.deactivate", permission="item:delete", risk_tier="critical"
+    entity="Bundle",
+    action="Bundle.deactivate",
+    permission="item:delete",
+    risk_tier="critical",
+    idempotency="dispatcher",
 )
 def deactivate_bundles(
     request: Request,

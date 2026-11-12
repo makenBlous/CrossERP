@@ -57,7 +57,11 @@ class ResetPasswordInput(CamelModel):
 
 @router.post("/auth/login")
 @api_endpoint(
-    entity="UserAccount", action="UserAccount.login", permission="public", risk_tier="critical"
+    entity="UserAccount",
+    action="UserAccount.login",
+    permission="public",
+    risk_tier="critical",
+    idempotency="none",
 )
 def login(request: Request, payload: LoginInput) -> JSONResponse:
     now = datetime.now(UTC)
@@ -133,6 +137,7 @@ def login(request: Request, payload: LoginInput) -> JSONResponse:
     action="UserAccount.logout",
     permission="authenticated",
     risk_tier="critical",
+    idempotency="dispatcher",
 )
 def logout(
     request: Request,
@@ -178,7 +183,11 @@ def logout(
 
 @router.get("/auth/me")
 @api_endpoint(
-    entity="UserAccount", action="UserAccount.read_me", permission="authenticated", risk_tier="none"
+    entity="UserAccount",
+    action="UserAccount.read_me",
+    permission="authenticated",
+    risk_tier="none",
+    idempotency="none",
 )
 def me(request: Request) -> dict[str, Any]:
     principal, session = _principal_db(request)
@@ -199,6 +208,7 @@ def me(request: Request) -> dict[str, Any]:
     action="UserAccount.forgot_password",
     permission="public",
     risk_tier="critical",
+    idempotency="none",
 )
 def forgot_password(request: Request, payload: ForgotPasswordInput) -> dict[str, Any]:
     with _db(request) as session:
@@ -226,6 +236,7 @@ def forgot_password(request: Request, payload: ForgotPasswordInput) -> dict[str,
     action="UserAccount.reset_password",
     permission="public",
     risk_tier="critical",
+    idempotency="none",
 )
 def reset_password(request: Request, payload: ResetPasswordInput) -> dict[str, Any]:
     digest = hashlib.sha256(payload.token.encode()).hexdigest()

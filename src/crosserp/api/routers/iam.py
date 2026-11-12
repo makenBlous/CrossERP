@@ -819,9 +819,14 @@ def _make_endpoint(entity: str, action: str, permission: str, risk: str, method:
         )
 
     endpoint.__name__ = f"{method.lower()}_{entity}_{action.replace('.', '_')}"
-    return api_endpoint(entity=entity, action=action, permission=permission, risk_tier=risk)(
-        endpoint
-    )
+    idempotency = "none" if method == "GET" else "dispatcher"
+    return api_endpoint(
+        entity=entity,
+        action=action,
+        permission=permission,
+        risk_tier=risk,
+        idempotency=idempotency,
+    )(endpoint)
 
 
 for _method, _path, _entity, _action, _permission, _risk, _status in _ROUTES:

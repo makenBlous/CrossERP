@@ -85,7 +85,9 @@ def _require(principal: Principal, permission: str, service: PermissionService) 
 
 
 @router.get("/catalog/skus")
-@api_endpoint(entity="Sku", action="Sku.list", permission="item:read", risk_tier="none")
+@api_endpoint(
+    entity="Sku", action="Sku.list", permission="item:read", risk_tier="none", idempotency="none"
+)
 def list_catalog_skus(
     request: Request,
     principal: Principal = Depends(get_principal),
@@ -110,7 +112,9 @@ def list_catalog_skus(
 
 
 @router.get("/catalog/skus/{id}")
-@api_endpoint(entity="Sku", action="Sku.get", permission="item:read", risk_tier="none")
+@api_endpoint(
+    entity="Sku", action="Sku.get", permission="item:read", risk_tier="none", idempotency="none"
+)
 def get_catalog_sku(
     id: str,
     request: Request,
@@ -127,7 +131,13 @@ def get_catalog_sku(
 
 
 @router.post("/catalog/skus", status_code=201)
-@api_endpoint(entity="Sku", action="Sku.create", permission="item:create", risk_tier="medium")
+@api_endpoint(
+    entity="Sku",
+    action="Sku.create",
+    permission="item:create",
+    risk_tier="medium",
+    idempotency="dispatcher",
+)
 def create_catalog_sku(
     body: SkuPayload,
     request: Request,
@@ -159,7 +169,13 @@ def create_catalog_sku(
 
 
 @router.patch("/catalog/skus/{id}")
-@api_endpoint(entity="Sku", action="Sku.update", permission="item:write", risk_tier="medium")
+@api_endpoint(
+    entity="Sku",
+    action="Sku.update",
+    permission="item:write",
+    risk_tier="medium",
+    idempotency="dispatcher",
+)
 def update_catalog_sku(
     id: str,
     body: SkuPatch,
@@ -200,7 +216,13 @@ def update_catalog_sku(
 
 
 @router.post("/catalog/skus/status")
-@api_endpoint(entity="Sku", action="Sku.status", permission="item:write", risk_tier="medium")
+@api_endpoint(
+    entity="Sku",
+    action="Sku.status",
+    permission="item:write",
+    risk_tier="medium",
+    idempotency="dispatcher",
+)
 def status_catalog_skus(
     body: StatusPayload,
     request: Request,
@@ -240,7 +262,11 @@ def status_catalog_skus(
 
 @router.get("/catalog/lookups")
 @api_endpoint(
-    entity="CatalogLookup", action="CatalogLookup.list", permission="item:read", risk_tier="none"
+    entity="CatalogLookup",
+    action="CatalogLookup.list",
+    permission="item:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def get_catalog_lookups(
     request: Request,

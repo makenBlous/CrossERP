@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, ParamSpec, TypeVar, cast
+from typing import Any, Literal, ParamSpec, TypeVar, cast
+
+IdempotencyOwner = Literal["dispatcher", "http", "none"]
 
 API_METADATA_KEY = "__crosserp_api_metadata__"
 P = ParamSpec("P")
@@ -18,6 +20,7 @@ class EndpointMetadata:
     action: str
     permission: str
     risk_tier: str
+    idempotency: IdempotencyOwner
 
     def as_openapi(self) -> dict[str, str]:
         return {
@@ -29,9 +32,14 @@ class EndpointMetadata:
 
 
 def api_endpoint(
-    *, entity: str, action: str, permission: str, risk_tier: str
+    *,
+    entity: str,
+    action: str,
+    permission: str,
+    risk_tier: str,
+    idempotency: IdempotencyOwner,
 ) -> Callable[[Callable[P, R]], Callable[P, R]]:
-    metadata = EndpointMetadata(entity, action, permission, risk_tier)
+    metadata = EndpointMetadata(entity, action, permission, risk_tier, idempotency)
 
     def decorate(function: Callable[P, R]) -> Callable[P, R]:
         ENDPOINT_METADATA[function] = metadata

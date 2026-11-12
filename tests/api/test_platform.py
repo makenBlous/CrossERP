@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from crosserp.api import install_api
 from crosserp.api.errors import APIError, ErrorCode
-from crosserp.api.idempotency import replay_ad_hoc_write
 from crosserp.api.schemas import Money, PageParams
 from crosserp.db.migrate import downgrade_base, upgrade_head
 from crosserp.db.session import make_engine, sqlite_file_url
@@ -25,6 +24,7 @@ from crosserp.platform.dispatcher import (
 from crosserp.platform.permissions import DefaultPermissionService, PermissionDenied
 from crosserp.platform.principal import ActorType, Principal, get_principal
 from tests.api.conftest import TestApprovalGateway
+from tests.api.idempotency_support import replay_ad_hoc_write
 
 
 class _UnitPermissionService:
