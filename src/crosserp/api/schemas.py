@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, field_validator
 
 
 def to_camel(value: str) -> str:
@@ -37,6 +37,32 @@ class PageParams(CamelModel):
     page_size: int = Field(default=50, alias="pageSize", ge=1, le=200)
 
 
+class BrandRequest(CamelModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=False, extra="forbid")
+
+
+class BrandCreateRequest(BrandRequest):
+    name: StrictStr = Field(min_length=1)
+
+    @field_validator("name")
+    @classmethod
+    def name_is_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("品牌名称不能为空")
+        return value
+
+
+class BrandUpdateRequest(BrandCreateRequest):
+    expected_version: StrictInt | None = Field(default=None, ge=0, alias="expectedVersion")
+
+
+class BrandStatusRequest(BrandRequest):
+    ids: list[StrictStr] = Field(min_length=1)
+    active: StrictBool
+    expected_version: StrictInt | None = Field(default=None, ge=0, alias="expectedVersion")
+
+
 T = TypeVar("T")
 
 
@@ -47,4 +73,13 @@ class Page[T](CamelModel):
     total: int
 
 
-__all__ = ["CamelModel", "Money", "Page", "PageParams", "to_camel"]
+__all__ = [
+    "BrandCreateRequest",
+    "BrandStatusRequest",
+    "BrandUpdateRequest",
+    "CamelModel",
+    "Money",
+    "Page",
+    "PageParams",
+    "to_camel",
+]
