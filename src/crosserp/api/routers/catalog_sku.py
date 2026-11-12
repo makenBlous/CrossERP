@@ -24,6 +24,7 @@ from crosserp.catalog.sku import (
     list_skus,
     update_sku,
 )
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import (
@@ -153,7 +154,9 @@ def create_catalog_sku(
             ensure_store_allowed(principal, body.store_id, permission_service)
             return create_sku(session, payload, sku_id=sku_id)[1]
 
-        result = make_action_dispatcher(session, permission_service).dispatch(
+        result = make_action_dispatcher(
+            session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        ).dispatch(
             principal=principal,
             permission="item:create",
             risk_tier=RiskTier.MEDIUM,
@@ -193,7 +196,9 @@ def update_catalog_sku(
     with Session(request.app.state.database_engine) as session, session.begin():
         return cast(
             dict[str, Any],
-            make_action_dispatcher(session, permission_service).dispatch(
+            make_action_dispatcher(
+                session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+            ).dispatch(
                 principal=principal,
                 permission="item:write",
                 risk_tier=RiskTier.MEDIUM,
@@ -234,7 +239,9 @@ def status_catalog_skus(
     for sku_id in body.ids:
         key = f"{idempotency_key}:{sku_id}" if idempotency_key else None
         with Session(request.app.state.database_engine) as session, session.begin():
-            result = make_action_dispatcher(session, permission_service).dispatch(
+            result = make_action_dispatcher(
+                session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+            ).dispatch(
                 principal=principal,
                 permission="item:write",
                 risk_tier=RiskTier.MEDIUM,

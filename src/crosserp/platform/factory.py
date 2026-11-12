@@ -8,17 +8,22 @@ from crosserp.approval.gateway import ApprovalGatewayImpl
 from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import ActionDispatcher
 from crosserp.platform.permissions import PermissionService
+from crosserp.platform.undo import UndoRestoreRegistry
 
 
 def make_action_dispatcher(
-    session: Session, permission_service: PermissionService
+    session: Session,
+    permission_service: PermissionService,
+    *,
+    undo_restore: UndoRestoreRegistry,
 ) -> ActionDispatcher:
-    """把动作执行器、审批网关和审计记录器绑定到请求会话。"""
+    """把动作执行器、审批网关、审计记录器和撤销恢复注册表绑定到请求会话。"""
     return ActionDispatcher(
         session=session,
         permission_service=permission_service,
         approval_gateway=ApprovalGatewayImpl(session),
         audit_recorder=DefaultAuditRecorder(session),
+        undo_restore=undo_restore,
     )
 
 

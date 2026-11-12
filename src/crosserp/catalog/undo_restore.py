@@ -1,4 +1,4 @@
-"""按实体版本前快照回退目录实体。"""
+"""按实体版本前快照回退目录实体。新建动作的反向停用也在这里执行。"""
 
 from __future__ import annotations
 
@@ -9,30 +9,69 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from crosserp.api.errors import APIError, ErrorCode
+from crosserp.api.errors import APIError, ErrorCode, not_found
+from crosserp.catalog.bundles import bundle_in_store_scope, deactivate_bundle
+from crosserp.catalog.sku import ensure_store_allowed
 from crosserp.db.schema import Brand, Bundle, Category, Listing, Sku, SkuMapping, Store
+from crosserp.platform.permissions import PermissionService
+from crosserp.platform.principal import Principal
 
 UNDO_UNSUPPORTED = "该实体不支持撤销"
+EMPTY_BEFORE = "撤销前快照没有可回退字段"
+
+
+class CatalogUndoRestore:
+    """目录实体的字段回退与新建反向动作。"""
+
+    def supports(self, entity_type: str) -> bool:
+        return entity_type in _MODEL
+
+    def restorable_fields(self, entity_type: str) -> frozenset[str]:
+        if entity_type not in _RESTORABLE:
+            raise APIError(ErrorCode.VALIDATION_FAILED, UNDO_UNSUPPORTED)
+        return _RESTORABLE[entity_type]
+
+    def restore(
+        self, session: Session, entity_type: str, entity_id: str, before: dict[str, Any]
+    ) -> None:
+        if not self.supports(entity_type):
+            raise APIError(ErrorCode.VALIDATION_FAILED, UNDO_UNSUPPORTED)
+        present = [name for name in self.restorable_fields(entity_type) if name in before]
+        if not present:
+            raise APIError(ErrorCode.VALIDATION_FAILED, EMPTY_BEFORE)
+        model = _MODEL[entity_type]
+        row: Any = session.get(model, UUID(entity_id))
+        if row is None:
+            raise APIError(ErrorCode.NOT_FOUND, "撤销目标不存在")
+        _FIELDS[entity_type](row, before)
+        row.updated_at = datetime.now(UTC)
+        if entity_type != "Sku":
+            row.version = int(row.version) + 1
+        session.flush()
+
+    def apply_reverse(
+        self,
+        session: Session,
+        *,
+        action: str,
+        entity_id: str,
+        payload: dict[str, Any],
+        principal: Principal,
+        permission_service: PermissionService,
+    ) -> dict[str, Any]:
+        if action not in _REVERSE:
+            raise APIError(ErrorCode.VALIDATION_FAILED, "撤销反向动作未注册")
+        return _REVERSE[action](session, entity_id, payload, principal, permission_service)
 
 
 def supports_undo(entity_type: str) -> bool:
-    return entity_type in _MODEL
+    return CATALOG_UNDO_RESTORE.supports(entity_type)
 
 
 def restore_entity(
     session: Session, entity_type: str, entity_id: str, before: dict[str, Any]
 ) -> None:
-    if not supports_undo(entity_type):
-        raise APIError(ErrorCode.VALIDATION_FAILED, UNDO_UNSUPPORTED)
-    model = _MODEL[entity_type]
-    row: Any = session.get(model, UUID(entity_id))
-    if row is None:
-        raise APIError(ErrorCode.NOT_FOUND, "撤销目标不存在")
-    _FIELDS[entity_type](row, before)
-    row.updated_at = datetime.now(UTC)
-    if entity_type != "Sku":
-        row.version = int(row.version) + 1
-    session.flush()
+    CATALOG_UNDO_RESTORE.restore(session, entity_type, entity_id, before)
 
 
 def _text(row: Any, before: dict[str, Any], *names: str) -> None:
@@ -75,11 +114,131 @@ def _bundle(row: Bundle, before: dict[str, Any]) -> None:
 
 
 def _snake(name: str) -> str:
-    return {
+    names = {
         "internalSku": "internal_sku",
         "bundleSku": "bundle_sku",
         "legalEntity": "legal_entity",
-    }.get(name, name)
+    }
+    if name in names:
+        return names[name]
+    return name
+
+
+def _touch(row: Any, *, bump_version: bool) -> None:
+    row.updated_at = datetime.now(UTC)
+    if bump_version:
+        row.version = int(row.version) + 1
+
+
+def _load(session: Session, model: type[Any], entity_id: str) -> Any:
+    row = session.get(model, UUID(entity_id))
+    if row is None:
+        raise APIError(ErrorCode.NOT_FOUND, "撤销目标不存在")
+    return row
+
+
+def _require_key(payload: dict[str, Any], key: str, action: str) -> Any:
+    if key not in payload:
+        raise APIError(ErrorCode.VALIDATION_FAILED, f"{action} 撤销缺少 {key}")
+    return payload[key]
+
+
+def _reverse_brand_status(
+    session: Session,
+    entity_id: str,
+    payload: dict[str, Any],
+    _principal: Principal,
+    _permission_service: PermissionService,
+) -> dict[str, Any]:
+    row = _load(session, Brand, entity_id)
+    active = bool(_require_key(payload, "active", "Brand.status"))
+    previous = bool(row.active)
+    row.active = active
+    _touch(row, bump_version=True)
+    session.flush()
+    return {"before": {"active": previous}, "after": {"active": row.active}}
+
+
+def _reverse_sku_update(
+    session: Session,
+    entity_id: str,
+    payload: dict[str, Any],
+    principal: Principal,
+    permission_service: PermissionService,
+) -> dict[str, Any]:
+    row = _load(session, Sku, entity_id)
+    ensure_store_allowed(principal, row.store_id, permission_service)
+    active = bool(_require_key(payload, "active", "Sku.update"))
+    previous = bool(row.active)
+    row.active = active
+    _touch(row, bump_version=False)
+    session.flush()
+    return {"before": {"active": previous}, "after": {"active": row.active}}
+
+
+def _reverse_bundle_deactivate(
+    session: Session,
+    entity_id: str,
+    _payload: dict[str, Any],
+    principal: Principal,
+    permission_service: PermissionService,
+) -> dict[str, Any]:
+    row = _load(session, Bundle, entity_id)
+    if not bundle_in_store_scope(session, row, principal, permission_service):
+        raise not_found(message="组合装不存在")
+    if not row.active:
+        raise APIError(ErrorCode.ILLEGAL_TRANSITION, "组合装已作废")
+    before, after = deactivate_bundle(session, row)
+    return {"before": before, "after": after}
+
+
+def _reverse_listing_status(
+    session: Session,
+    entity_id: str,
+    payload: dict[str, Any],
+    _principal: Principal,
+    _permission_service: PermissionService,
+) -> dict[str, Any]:
+    row = _load(session, Listing, entity_id)
+    status = str(_require_key(payload, "status", "Listing.status"))
+    previous = row.status
+    row.status = status
+    _touch(row, bump_version=True)
+    session.flush()
+    return {"before": {"status": previous}, "after": {"status": row.status}}
+
+
+def _reverse_category_status(
+    session: Session,
+    entity_id: str,
+    payload: dict[str, Any],
+    _principal: Principal,
+    _permission_service: PermissionService,
+) -> dict[str, Any]:
+    row = _load(session, Category, entity_id)
+    status = str(_require_key(payload, "status", "Category.status"))
+    previous = bool(row.active)
+    row.active = status == "active"
+    _touch(row, bump_version=True)
+    session.flush()
+    return {"before": {"active": previous}, "after": {"active": row.active}}
+
+
+def _reverse_mapping_delete(
+    session: Session,
+    entity_id: str,
+    _payload: dict[str, Any],
+    _principal: Principal,
+    _permission_service: PermissionService,
+) -> dict[str, Any]:
+    row = _load(session, SkuMapping, entity_id)
+    previous = row.state
+    if previous == "rejected":
+        raise APIError(ErrorCode.ILLEGAL_TRANSITION, "映射已停用")
+    row.state = "rejected"
+    _touch(row, bump_version=True)
+    session.flush()
+    return {"before": {"state": previous}, "after": {"state": row.state}}
 
 
 _MODEL = {
@@ -100,3 +259,21 @@ _FIELDS: dict[str, Callable[[Any, dict[str, Any]], None]] = {
     "SkuMapping": _mapping,
     "Bundle": _bundle,
 }
+_RESTORABLE = {
+    "Store": frozenset({"name", "platform", "marketplace", "currency", "legalEntity"}),
+    "Brand": frozenset({"name", "active"}),
+    "Category": frozenset({"name", "active"}),
+    "Listing": frozenset({"status", "asin"}),
+    "Sku": frozenset({"title", "active"}),
+    "SkuMapping": frozenset({"state", "internalSku"}),
+    "Bundle": frozenset({"bundleSku", "components", "active"}),
+}
+_REVERSE = {
+    "Brand.status": _reverse_brand_status,
+    "Sku.update": _reverse_sku_update,
+    "Bundle.deactivate": _reverse_bundle_deactivate,
+    "Listing.status": _reverse_listing_status,
+    "Category.status": _reverse_category_status,
+    "SkuMapping.delete": _reverse_mapping_delete,
+}
+CATALOG_UNDO_RESTORE = CatalogUndoRestore()
