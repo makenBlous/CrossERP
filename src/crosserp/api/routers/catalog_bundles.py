@@ -26,12 +26,12 @@ from crosserp.catalog.bundles import (
     update_bundle,
 )
 from crosserp.db.schema import Bundle
-from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
-from crosserp.platform.permissions import DefaultPermissionService
+from crosserp.platform.dispatcher import RiskTier
+from crosserp.platform.factory import make_action_dispatcher
+from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter(tags=["商品与主数据"])
-_permission_service = DefaultPermissionService()
 
 
 class BundleComponent(CamelModel):
@@ -51,8 +51,7 @@ class BundleUpdateRequest(CamelModel):
 
 
 class BundleDeactivateRequest(CamelModel):
-    id: UUID | None = None
-    ids: list[UUID] | None = None
+    ids: list[UUID] = Field(min_length=1)
     expected_version: int = Field(alias="expectedVersion", ge=1)
 
 
@@ -60,8 +59,12 @@ def _db(request: Request) -> Session:
     return Session(request.app.state.database_engine, expire_on_commit=False)
 
 
-def _require(principal: Principal, permission: str) -> None:
-    _permission_service.require(principal, permission)
+def get_permission_service(request: Request) -> PermissionService:
+    return cast(PermissionService, request.app.state.permission_service)
+
+
+def _require(principal: Principal, permission: str, service: PermissionService) -> None:
+    service.require(principal, permission)
 
 
 def _write_guard(request: Request, csrf: str | None) -> None:
@@ -103,8 +106,9 @@ def list_bundles(
     q: str | None = Query(default=None),
     sort: str | None = Query(default=None),
     principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(get_permission_service),
 ) -> dict[str, Any]:
-    _require(principal, "item:read")
+    _require(principal, "item:read", permission_service)
     session = _db(request)
     try:
         statement = select(Bundle)
@@ -131,13 +135,14 @@ def create_bundle_endpoint(
     csrf: str | None = Header(default=None, alias="X-CSRF-Token"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(get_permission_service),
 ) -> dict[str, Any]:
     _write_guard(request, csrf)
-    _require(principal, "item:write")
+    _require(principal, "item:write", permission_service)
     session = _db(request)
     try:
         with session.begin():
-            dispatcher = ActionDispatcher(session=session)
+            dispatcher = make_action_dispatcher(session, permission_service)
             bundle_id = uuid4()
             values = payload.model_dump(by_alias=True)
 
@@ -163,7 +168,7 @@ def create_bundle_endpoint(
                 entity_id=bundle_id,
                 payload=values,
                 idempotency_key=idempotency_key,
-                request_id=getattr(request.state, "request_id", None),
+                request_id=request.state.request_id,
                 business_action=work,
             )
             return cast(dict[str, Any], result)
@@ -180,16 +185,17 @@ def update_bundle_endpoint(
     csrf: str | None = Header(default=None, alias="X-CSRF-Token"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(get_permission_service),
 ) -> dict[str, Any]:
     _write_guard(request, csrf)
-    _require(principal, "item:write")
+    _require(principal, "item:write", permission_service)
     session = _db(request)
     try:
         with session.begin():
             if payload.bundle_sku is None and payload.components is None:
                 raise APIError(ErrorCode.VALIDATION_FAILED, "至少提供一个修改字段")
             row = get_bundle(session, id)
-            dispatcher = ActionDispatcher(session=session)
+            dispatcher = make_action_dispatcher(session, permission_service)
 
             def work() -> dict[str, Any]:
                 before, after = update_bundle(
@@ -218,7 +224,7 @@ def update_bundle_endpoint(
                 expected_version=payload.expected_version,
                 payload=payload.model_dump(by_alias=True),
                 idempotency_key=idempotency_key,
-                request_id=getattr(request.state, "request_id", None),
+                request_id=request.state.request_id,
                 business_action=work,
             )
             return cast(dict[str, Any], result)
@@ -236,17 +242,14 @@ def deactivate_bundles(
     csrf: str | None = Header(default=None, alias="X-CSRF-Token"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(get_permission_service),
 ) -> dict[str, Any]:
     _write_guard(request, csrf)
-    _require(principal, "item:delete")
-    target_ids = payload.ids if payload.ids is not None else [cast(UUID, payload.id)]
+    _require(principal, "item:delete", permission_service)
+    target_ids = payload.ids
     session = _db(request)
     try:
         with session.begin():
-            if (payload.id is None) == (payload.ids is None):
-                raise APIError(ErrorCode.VALIDATION_FAILED, "必须提供 id 或 ids 之一")
-            if payload.ids is not None and not payload.ids:
-                raise APIError(ErrorCode.VALIDATION_FAILED, "ids 不能为空")
             results: list[dict[str, Any]] = []
             for target_id in target_ids:
                 row = get_bundle(session, target_id)
@@ -261,7 +264,7 @@ def deactivate_bundles(
                             "actualVersion": row.version,
                         },
                     )
-                dispatcher = ActionDispatcher(session=session)
+                dispatcher = make_action_dispatcher(session, permission_service)
 
                 def work(row: Bundle = row) -> dict[str, Any]:
                     before, after = deactivate_bundle(session, row)
@@ -277,7 +280,7 @@ def deactivate_bundles(
                     expected_version=payload.expected_version,
                     payload={"id": str(target_id), "expectedVersion": payload.expected_version},
                     idempotency_key=idempotency_key if len(target_ids) == 1 else None,
-                    request_id=getattr(request.state, "request_id", None),
+                    request_id=request.state.request_id,
                     business_action=work,
                 )
                 results.append(cast(dict[str, Any], result))
