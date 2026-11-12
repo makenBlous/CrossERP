@@ -413,7 +413,9 @@ class ActionDispatcher:
                 EntityVersion.entity_type == entity, EntityVersion.entity_id == entity_id
             )
         )
-        return 0 if value is None else int(value)
+        if value is not None:
+            return int(value)
+        return 0
 
     def _write_version_and_audit(
         self,

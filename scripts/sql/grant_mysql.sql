@@ -63,6 +63,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.entity_version TO 'crosserp_app
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.action_execution TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.entity_event TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.agent_undo TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.dedup_candidate TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_role TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_permission_override TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_temporary_grant TO 'crosserp_app'@'%';
@@ -134,6 +135,7 @@ GRANT SELECT ON crosserp.entity_version TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.action_execution TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.entity_event TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.agent_undo TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.dedup_candidate TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.iam_role TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.iam_permission_override TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.iam_temporary_grant TO 'crosserp_agent'@'%';
