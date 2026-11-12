@@ -162,6 +162,37 @@ class MappingRule(Base):
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
+class IngestProjection(Base):
+    """一条原始记录在某个规则版本下的投射结果，记录补偿信息。"""  # noqa: RUF002
+
+    __tablename__ = "ingest_projection"
+    __table_args__ = (
+        UniqueConstraint(
+            "batch_id",
+            "raw_record_id",
+            "rule_version",
+            "action_id",
+            name="uq_ingest_projection_source_rule_action",
+        ),
+        Index("ix_ingest_projection_batch", "batch_id"),
+        Index("ix_ingest_projection_entity", "entity_type", "entity_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    batch_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("import_batch.id"))
+    raw_record_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("raw_row.id"))
+    rule_version: Mapped[str] = mapped_column(String(64))
+    entity_type: Mapped[str] = mapped_column(String(64))
+    entity_id: Mapped[str] = mapped_column(String(64))
+    action_id: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(_KIND)
+    result_json: Mapped[Any] = mapped_column(JSON())
+    undo_payload_json: Mapped[Any | None] = mapped_column(JSON(), nullable=True)
+    compensated: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    compensated_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
+
+
 class Store(Base):
     """店铺。"""
 
@@ -987,6 +1018,7 @@ class EntityVersion(Base):
     source_batch_id: Mapped[uuid.UUID | None] = mapped_column(Uuid())
     source_raw_row_id: Mapped[int | None] = mapped_column(BigInteger())
     source_file: Mapped[str | None] = mapped_column(String(512))
+    source_rule_version: Mapped[str | None] = mapped_column(String(64))
     before_json: Mapped[Any | None] = mapped_column(JSON())
     after_json: Mapped[Any | None] = mapped_column(JSON())
     diff_json: Mapped[Any | None] = mapped_column(JSON())

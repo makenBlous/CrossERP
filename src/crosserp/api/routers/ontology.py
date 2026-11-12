@@ -291,6 +291,7 @@ def _version_dict(row: EntityVersion) -> dict[str, Any]:
         "delegationId": row.delegation_id,
         "actionId": row.action_id,
         "batchId": str(row.source_batch_id) if row.source_batch_id else None,
+        "ruleVersion": row.source_rule_version,
         "diff": row.diff_json,
         "before": row.before_json,
         "after": row.after_json,
