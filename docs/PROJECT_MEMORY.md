@@ -2,7 +2,7 @@
 
 > 切换 agent 或开工前先读本文和 [后端开发任务总览](tasks/README.md)。完整规则以 [开发共用规则](tasks/rules.md) 和 [08 后端模块与 API 设计 v4](design/08-后端模块与API设计.md) 为准；本文只保留同步所需的已核实事实，不替代设计原文。
 >
-> **最后更新：** 2026-11-12 15:40（Asia/Shanghai） / 项目记忆任务（maken t183u/t184u） / 见本提交
+> **最后更新：** 2026-11-12 15:50（Asia/Shanghai） / 后端监督方 / 见本提交（P0 放行、决策 47–49）
 
 ## 1. 项目定位
 
@@ -90,36 +90,39 @@ CrossERP 是面向中国境内主体、做出口跨境电商的智能体 ERP：�
 
 ## 6. 当前状态
 
-核实时间：2026-11-12 15:30（Asia/Shanghai）。以 `git log --first-parent main` 和 `git worktree list` 为准。
+核实时间：2026-11-12 15:50（Asia/Shanghai）。以 `git log --first-parent main` 和 `git worktree list` 为准。
 
-- **main 头提交：** `271b26b`（2026-11-12 15:22，Asia/Shanghai）`test(撤销): 覆盖目录中风险动作的成功回退`。其父提交为 `9ea7681`（合入 `docs/tasks`）。相对 `origin/main` 超前，**尚未推送**。
-- 主工作区在上述核对照时干净，无 `index.lock`、不在 merge/rebase 中间状态。
+- **main 头提交：** `ac97781`（项目记忆）之后的本次更新提交；代码基线为 `271b26b`。相对 `origin/main` 超前，**尚未推送**。
 
 ### 各批进度
 
-- **P0：** 平台底座、IAM 主体、审计/审批/执行器、审计导出、幂等与店铺范围统一函数均已在 main。撤销已合入（`3cc3037` 起）；打回项已用新提交修复（`1dd2b8d`…`71a60d9`）；`271b26b` 为类目、SKU、Listing、映射、组合装的中风险更新补了撤销成功测试。P0 放行还差：处理新建类动作撤销时「什么都没改却记成功」（15:20 已开 `fix-undo-create` 工作树）、最终全量测试 0 失败、按新 main 重建 `data.db` 并做启动健康检查。`p0tail-ok` 尚未写出。`P0-02-scope-roles`（数据范围挂到角色，含店铺运营默认「本人负责的店铺」）排在 merge-p1-fin 之后，合入后还要再重建一次 `data.db`。
-- **P1-01 商品目录：** 类目、品牌、SKU、Listing、映射、组合装、成本均已合入 main。
-- **P1-02 导入、P1-03 财务：** 已在各自功能工作树开发完成，待合并。按 t182u，已从当前 main 建立独立整合工作树 `int-p1-ing`、`int-p1-fin`，与 P0 收尾并行准备；P0 放行后再快进合入。财务中「财务导入」「费用与列映射」两张任务卡的接口清单仍待定，尚未开工。
-- **P2–P5：** 未开工。功能包文件已有方向，单功能拆分按 t181u 暂缓。
+- **P0：已放行（2026-11-12 15:32，`p0tail-ok`）。** merge-p0-tail 完成于 `271b26b`：SQLite 全量 513 passed / 7 skipped / 0 failed；MySQL `-m db` 124 passed（含迁移往返）；迁移单 head `0025_agent_undo`；ruff、mypy、文档链接、授权覆盖、API 合同均通过。`data.db` 已按 `271b26b` 重建（15:25），旧库改名为 `data.db.bak-interim-20261112-152458`，原始备份 `data.db.bak-20261112-052837` 未动；健康检查 200。遗留：新建类动作撤销空操作，由 `fix-undo-create` 处理（决策 48）。
+- **P0-02 数据范围挂角色（sec-scope2）：** 15:38 起在 `sec-scope2` 工作树开发；合入排在 int-p1-fin 之后，合入后第二次重建 `data.db`（已授权，旧库改名备份）。
+- **P1-01 商品目录：** 均已合入 main。
+- **P1-02 导入：** `int-p1-ing` 整合树合并 core/rules/project/dedup/issue（进行中）。chain6 自动启动 merge-p1-ing 已停用，由该树取代。
+- **P1-03 财务：** `int-p1-fin` 整合树合并 settle/recon/reconissue/profit/ref/exports（进行中）；「财务导入」「费用与列映射」等 ingest 合入 main 后再写卡开工。
+- **P2–P5：** 未开工。
 
-### 已建立的工作树（2026-11-12 15:30 列表）
+### 已建立的工作树（2026-11-12 15:50）
 
-| 工作树 | 提交 | 说明 |
+| 工作树 | 基于 | 说明 |
 |---|---|---|
-| 主工作区 main | 271b26b | P0 收尾合并进行中 |
-| `fix-undo-create` | 271b26b | 修复新建类动作撤销静默成功 |
-| `int-p1-ing` / `int-p1-fin` | 271b26b | 导入、财务并行整合 |
-| `merge-guard` | 75a0a01 | 合并前自动检查脚本，尚未提交；等 P0 放行后再审、再合 |
-| `p1-ing-*`（5 个）、`p1-fin-*`（6 个） | 各功能提交 | 待合并的功能树 |
-| `sec-scope` / `sec-idem` | bd485fa / 209bb54 | 已合入 main，树待 P0 放行后拆除 |
+| 主工作区 main | ac97781 | 空闲，按块错开合回 |
+| `merge-guard` | 75a0a01 | 合并前自动检查脚本，开发中；审查须能拦下 75a0a01 那次放宽 |
+| `int-p1-ing` | 271b26b | 导入整合（端口 18261） |
+| `int-p1-fin` | 271b26b | 财务整合（端口 18262） |
+| `fix-undo-create` | 271b26b | 新建类撤销空操作；dispatcher 不再函数内引用 catalog（端口 18263） |
+| `sec-scope2` | 271b26b | 数据范围挂角色与默认模板（端口 18264） |
+| `p1-ing-*`（5）、`p1-fin-*`（6） | 各功能提交 | 整合合回 main 后拆除 |
+
+合回流程：每块完成即审查 → 通过后把最新 main 合进该树并跑全量 → `--no-ff` 合回 main（主工作区一次一块）→ 拆树。不通过立即开独立修复 grok。
 
 ### 未解决问题
 
-- 新建品牌/SKU/组合装/Listing 等动作，撤销前快照缺少可回退字段时仍可能记成成功（15:20）。
-- `ActionDispatcher` 记录审计 diff 时的若干 `.get` 默认值是 P0 旧技术债（决策 46），不放进本轮 P0 收尾，排在 merge-p1-fin 之后。
-- `scripts/check_merge_guard.py` 尚未合入；新验收流程等该脚本审过合入后才全面启用。
-- 仓库外旧任务卡（`%TEMP%\cx-pw\backend\TASK-*.md` 等）等 merge-p0-tail、merge-p1-ing、merge-p1-fin、sec-scope2 全部完成后再归档，不删。
-- `~/.crosserp` 未改动；`data.db` 尚未按本轮最终迁移重建。
+- 新建品牌/SKU/组合装/Listing 撤销记成功但没回退（`fix-undo-create` 处理中）。
+- `ActionDispatcher` 审计 diff 的 `.get` 默认值（决策 46），排在财务合并后单开契约任务。
+- `check_merge_guard.py` 未合入；新验收流程在其合入后启用。
+- 仓库外旧任务卡等 merge-p0-tail、导入、财务、sec-scope2 全部完成后再归档到 `_archive/`，不删。
 
 ### 待 maken 决定
 
@@ -176,6 +179,9 @@ CrossERP 是面向中国境内主体、做出口跨境电商的智能体 ERP：�
 44. 商品目录收尾用 grok 在主工作区完成未提交改动，不重新设计幂等。
 45. sec-scope2 合入后按同样规则再重建 `data.db`（已获授权，不必再等确认）。
 46. 执行器记录审计 diff 的若干默认值属旧技术债，等财务合并后再单开契约任务处理，本轮不扩大范围。
+47. 导入、财务改为在独立整合树并行合并（t182u），停用 chain6 的自动 merge-p1-ing；合回 main 仍一次一块。
+48. P0 放行：新建类撤销空操作属业务正确性问题、非越权，交 `fix-undo-create` 并行修复，不阻塞 `p0tail-ok`。
+49. sec-scope2 先行开发（只改 IAM、种子、迁移），合入顺序仍在财务之后。
 
 ## 8. 更新规则
 
