@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from crosserp.api import install_api
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.routers.catalog_dedup import MergeRequest
+from crosserp.catalog.dedup import open_candidate
 from crosserp.db.migrate import upgrade_head
 from crosserp.db.repo.users import create_user
 from crosserp.db.schema import (
@@ -23,6 +24,7 @@ from crosserp.db.schema import (
     Store,
 )
 from crosserp.db.session import make_engine, sqlite_file_url
+from crosserp.platform.permissions import entity_matches_scope
 from crosserp.platform.principal import ActorType, Principal, get_principal
 
 
@@ -43,6 +45,10 @@ class _Permissions:
 
     def data_scope_filter(self, _principal: Principal, _entity: str) -> dict[str, object]:
         return self.scope
+
+    def entity_in_scope(self, _principal: Principal, entity: str, entity_id: str, resource) -> bool:
+        scope = self.scope if "filters" in self.scope else {"scopes": [], "filters": {}}
+        return entity_matches_scope(scope, entity, entity_id, resource)
 
 
 def _app(
@@ -94,17 +100,14 @@ def _seed_skus(engine, principal: Principal) -> tuple[DedupCandidate, Sku, Sku, 
             aliases_json=["A-OLD"],
             source_refs_json=["raw:2"],
         )
-        candidate = DedupCandidate(
-            id=uuid4(),
+        candidate = open_candidate(
+            session,
+            principal=principal,
             entity_type="Sku",
             ids=[str(first.id), str(second.id)],
             reason="相同内部 SKU",
             confidence="high",
-            status="open",
-            version=1,
             provenance={"rawRecordIds": [1, 2], "actorType": "human"},
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
         )
         link = DocumentLink(
             id=uuid4(),
@@ -174,6 +177,7 @@ def test_dedup_merge_preserves_aliases_sources_and_repoints_links(tmp_path) -> N
             select(EntityVersion).where(
                 EntityVersion.entity_type == "DedupCandidate",
                 EntityVersion.entity_id == str(candidate.id),
+                EntityVersion.action_id == "DedupCandidate.merge",
             )
         )
         event = session.scalar(
@@ -301,6 +305,7 @@ def test_agent_medium_merge_records_on_behalf_of_audit(tmp_path) -> None:
             select(EntityVersion).where(
                 EntityVersion.entity_type == "DedupCandidate",
                 EntityVersion.entity_id == str(candidate.id),
+                EntityVersion.action_id == "DedupCandidate.merge",
             )
         )
         assert audit is not None and audit.actor_type == "agent"
@@ -413,4 +418,59 @@ def test_idempotency_replay_runs_after_permission_check(tmp_path) -> None:
         )
     assert first_response.status_code == 200
     assert replay.status_code == 404
+    engine.dispose()
+
+
+def test_unauthorized_user_cannot_replay_another_idempotency_key(tmp_path) -> None:
+    app, engine, principal = _app(
+        tmp_path, allowed={"integration:read", "integration:write", "sku:write"}
+    )
+    candidate, first, _, _ = _seed_skus(engine, principal)
+    other = Principal(user_id=uuid4(), permissions=frozenset())
+    with TestClient(app) as client:
+        first_response = client.post(
+            f"/api/v1/ingest/dedup-candidates/{candidate.id}/merge",
+            json={"expectedVersion": 1, "targetId": str(first.id)},
+            headers={"Idempotency-Key": "dedup-other-user-replay"},
+        )
+        app.dependency_overrides[get_principal] = lambda: other
+        app.state.permission_service = _Permissions(set())
+        replay = client.post(
+            f"/api/v1/ingest/dedup-candidates/{candidate.id}/merge",
+            json={"expectedVersion": 1, "targetId": str(first.id)},
+            headers={"Idempotency-Key": "dedup-other-user-replay"},
+        )
+    assert first_response.status_code == 200, first_response.text
+    assert replay.status_code == 404
+    engine.dispose()
+
+
+def test_invalid_candidate_ids_are_rejected(tmp_path) -> None:
+    app, engine, _principal = _app(
+        tmp_path, allowed={"integration:read", "integration:write", "sku:write"}
+    )
+    with Session(engine) as session, session.begin():
+        now = datetime.now(UTC)
+        candidate = DedupCandidate(
+            id=uuid4(),
+            entity_type="Sku",
+            ids=["not-a-uuid", "also-bad"],
+            reason="bad ids",
+            confidence="low",
+            status="open",
+            version=1,
+            provenance={},
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(candidate)
+        candidate_id = candidate.id
+    with TestClient(app) as client:
+        listed = client.get("/api/v1/ingest/dedup-candidates")
+        merged = client.post(
+            f"/api/v1/ingest/dedup-candidates/{candidate_id}/merge",
+            json={"expectedVersion": 1, "targetId": str(uuid4())},
+        )
+    assert listed.status_code == 400
+    assert merged.status_code == 400
     engine.dispose()

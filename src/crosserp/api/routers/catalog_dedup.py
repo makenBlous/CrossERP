@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import Annotated, Any, cast
 from uuid import UUID
 
@@ -14,12 +13,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
+from crosserp.api.idempotency import dispatcher_idempotency
 from crosserp.api.metadata import api_endpoint
 from crosserp.api.routers._platform_common import _require, _write_guard
 from crosserp.api.schemas import CamelModel, PageParams
 from crosserp.approval.gateway import ApprovalGatewayImpl
-from crosserp.catalog.dedup import candidate_ids, merge_candidate
-from crosserp.db.schema import DedupCandidate, Sku
+from crosserp.catalog.dedup import candidate_visible, merge_candidate
+from crosserp.db.schema import DedupCandidate
 from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
 from crosserp.platform.principal import Principal, get_principal
@@ -55,40 +55,13 @@ def _candidate_payload(row: DedupCandidate) -> dict[str, Any]:
     }
 
 
-def _scope_filters(scope: Mapping[str, Any]) -> Mapping[str, Any]:
-    filters = scope.get("filters", scope)
-    return filters if isinstance(filters, Mapping) else {}
-
-
-def _candidate_in_scope(
-    session: Session, candidate: DedupCandidate, scope: Mapping[str, Any]
-) -> bool:
-    scopes = scope.get("scopes", ())
-    if isinstance(scopes, (list, tuple, set, frozenset)) and "all" in scopes:
-        return True
-    try:
-        ids = candidate_ids(candidate.ids)
-    except APIError:
-        return False
-    filters = _scope_filters(scope)
-    entity_ids = filters.get(f"{candidate.entity_type[:1].lower()}{candidate.entity_type[1:]}Ids")
-    if entity_ids is not None and not set(ids).issubset({str(value) for value in entity_ids}):
-        return False
-    if candidate.entity_type == "Sku" and "storeIds" in filters:
-        rows = list(session.scalars(select(Sku).where(Sku.id.in_([UUID(value) for value in ids]))))
-        allowed_store_ids = {str(value) for value in filters["storeIds"]}
-        return len(rows) == len(ids) and all(str(row.store_id) in allowed_store_ids for row in rows)
-    return True
-
-
 def _require_candidate_scope(
     session: Session,
     candidate: DedupCandidate,
     principal: Principal,
     permission_service: Any,
 ) -> None:
-    scope = permission_service.data_scope_filter(principal, candidate.entity_type)
-    if not _candidate_in_scope(session, candidate, scope):
+    if not candidate_visible(session, candidate, principal, permission_service):
         raise APIError(ErrorCode.DATA_SCOPE_DENIED, "数据不在当前范围内")
 
 
@@ -114,11 +87,7 @@ def list_dedup_candidates(
         rows = [
             row
             for row in session.scalars(select(DedupCandidate))
-            if _candidate_in_scope(
-                session,
-                row,
-                request.app.state.permission_service.data_scope_filter(principal, row.entity_type),
-            )
+            if candidate_visible(session, row, principal, request.app.state.permission_service)
         ]
         if q:
             needle = q.casefold()
@@ -147,6 +116,7 @@ def list_dedup_candidates(
 
 
 @router.post("/ingest/dedup-candidates/{id}/merge")
+@dispatcher_idempotency
 @api_endpoint(
     entity="DedupCandidate",
     action="DedupCandidate.merge",

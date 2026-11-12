@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from crosserp.api.errors import APIError, ErrorCode, error_payload
-from crosserp.api.idempotency import IdempotencyKey
+from crosserp.api.idempotency import IDEMPOTENCY_OWNER_KEY, IdempotencyKey
 from crosserp.api.metadata import API_METADATA_KEY
 from crosserp.iam.service import IAMService
 from crosserp.platform.permissions import DefaultPermissionService
@@ -56,9 +56,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if request.method != "POST" or request.url.path.rstrip("/").endswith("/dry-run"):
             return await call_next(request)
-        if request.url.path.startswith(
-            "/api/v1/ingest/dedup-candidates/"
-        ) and request.url.path.endswith("/merge"):
+        if _dispatcher_owns_idempotency(request):
             return await call_next(request)
         key = request.headers.get("Idempotency-Key")
         if not key:
@@ -132,6 +130,22 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         headers = dict(response.headers)
         headers.pop("content-length", None)
         return Response(content=response_body, status_code=response.status_code, headers=headers)
+
+
+def _dispatcher_owns_idempotency(request: Request) -> bool:
+    """匹配已注册路由。端点声明 dispatcher 幂等时不提前回放。"""
+    path = request.scope["path"]
+    method = request.method.upper()
+    for route in request.app.router.routes:
+        contexts = getattr(route, "effective_route_contexts", None)
+        if contexts is None:
+            continue
+        for context in contexts():
+            if method not in context.methods or context.path_regex is None:
+                continue
+            if context.path_regex.match(path):
+                return getattr(context.endpoint, IDEMPOTENCY_OWNER_KEY, None) == "dispatcher"
+    return False
 
 
 def _replay_response(row: IdempotencyKey, request_id: str) -> Response:

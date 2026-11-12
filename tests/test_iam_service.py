@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError
 from crosserp.db.migrate import downgrade_base, upgrade_head
-from crosserp.db.schema import AppSetting, AppUser
+from crosserp.db.schema import AppSetting, AppUser, IamDataScopeRule
 from crosserp.iam.service import IAMService
+from crosserp.platform.permissions import DefaultPermissionService
 from crosserp.platform.principal import ActorType, Principal
 
 
@@ -37,6 +38,26 @@ def _add_user(engine, user_id) -> None:
                 permission_version=0,
             )
         )
+
+
+def test_entity_in_scope_uses_iam_store_rules(iam_service: IAMService, engine) -> None:
+    user_id = uuid4()
+    _add_user(engine, user_id)
+    with Session(engine) as session, session.begin():
+        session.add(
+            IamDataScopeRule(
+                name="sku-stores",
+                entity="Sku",
+                scope_type="storeIds",
+                values=["store-allowed"],
+                updated_by=user_id,
+                updated_at=datetime.now(UTC),
+            )
+        )
+    service = DefaultPermissionService(iam_service)
+    principal = Principal(user_id=user_id)
+    assert service.entity_in_scope(principal, "Sku", str(uuid4()), {"storeId": "store-allowed"})
+    assert not service.entity_in_scope(principal, "Sku", str(uuid4()), {"storeId": "store-other"})
 
 
 def test_data_scope_rules_do_not_read_app_settings(iam_service: IAMService, engine) -> None:

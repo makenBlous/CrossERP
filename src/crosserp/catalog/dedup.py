@@ -8,7 +8,7 @@ import json
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -16,10 +16,90 @@ from sqlalchemy.orm import Session
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.db.schema import DedupCandidate, DocumentLink, EntityVersion, Sku
 from crosserp.platform.audit import DefaultAuditRecorder
+from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 
 MergeHandler = Callable[[Session, DedupCandidate, list[str], str, Principal], dict[str, Any]]
 _HANDLERS: dict[str, MergeHandler] = {}
+
+
+def open_candidate(
+    session: Session,
+    *,
+    principal: Principal,
+    entity_type: str,
+    ids: list[str],
+    reason: str,
+    confidence: str,
+    provenance: dict[str, Any],
+) -> DedupCandidate:
+    """写入候选和初始 EntityVersion。合并时的版本以这份版本记录为准。"""
+    parsed_ids = candidate_ids(ids)
+    now = datetime.now(UTC)
+    candidate_id = uuid4()
+    candidate = DedupCandidate(
+        id=candidate_id,
+        entity_type=entity_type,
+        ids=parsed_ids,
+        reason=reason,
+        confidence=confidence,
+        status="open",
+        version=1,
+        provenance=provenance,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(candidate)
+    session.add(
+        EntityVersion(
+            entity_type="DedupCandidate",
+            entity_id=str(candidate_id),
+            version=1,
+            changed_at=now,
+            actor_type="agent" if principal.is_agent else "human",
+            actor_id=principal.user_id,
+            on_behalf_of=principal.on_behalf_of,
+            delegation_id=principal.delegation_id,
+            run_id=principal.run_id,
+            is_subagent=principal.is_subagent,
+            channel=principal.channel,
+            action_id="DedupCandidate.open",
+            after_json={
+                "entityType": entity_type,
+                "ids": parsed_ids,
+                "status": "open",
+                "version": 1,
+            },
+        )
+    )
+    return candidate
+
+
+def entity_scope_resource(
+    session: Session, entity_type: str, entity_id: str
+) -> dict[str, str] | None:
+    """取出范围判断需要的实体属性。店铺范围实体不存在时返回 None。"""
+    if entity_type != "Sku":
+        return {}
+    row = session.get(Sku, UUID(entity_id))
+    if row is None:
+        return None
+    return {"storeId": str(row.store_id)}
+
+
+def candidate_visible(
+    session: Session,
+    candidate: DedupCandidate,
+    principal: Principal,
+    permission_service: PermissionService,
+) -> bool:
+    for entity_id in candidate_ids(candidate.ids):
+        resource = entity_scope_resource(session, candidate.entity_type, entity_id)
+        if not permission_service.entity_in_scope(
+            principal, candidate.entity_type, entity_id, resource
+        ):
+            return False
+    return True
 
 
 def register_merge_handler(entity_type: str, handler: MergeHandler) -> None:
@@ -206,4 +286,11 @@ def _sku_merge(
 
 register_merge_handler("Sku", _sku_merge)
 
-__all__ = ["candidate_ids", "merge_candidate", "register_merge_handler"]
+__all__ = [
+    "candidate_ids",
+    "candidate_visible",
+    "entity_scope_resource",
+    "merge_candidate",
+    "open_candidate",
+    "register_merge_handler",
+]
