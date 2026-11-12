@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from crosserp.api import install_api
 from crosserp.api.errors import APIError, ErrorCode
@@ -13,6 +14,7 @@ from crosserp.api.schemas import Money, PageParams
 from crosserp.db.migrate import downgrade_base, upgrade_head
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.iam.service import IAMService
+from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import (
     ActionDispatcher,
     AutonomyDecision,
@@ -47,14 +49,17 @@ def test_money_and_pagination_use_camel_case() -> None:
     assert PageParams(pageSize=200).page_size == 200
 
 
-def test_ai_risk_cap_and_dispatch_stage_order() -> None:
+def test_ai_risk_cap_and_dispatch_stage_order(api_engine) -> None:
     assert can_ai_execute(RiskTier.MEDIUM) is AutonomyDecision.EXECUTE
     assert can_ai_execute(RiskTier.HIGH) is AutonomyDecision.DRAFT_OR_APPROVAL
     assert can_ai_execute(RiskTier.CRITICAL) is AutonomyDecision.REJECT
     calls: list[str] = []
+    session = Session(api_engine)
     dispatcher = ActionDispatcher(
         {name: (lambda name=name, **_: calls.append(name)) for name in ActionDispatcher.STAGES},
+        session=session,
         permission_service=_UnitPermissionService(),
+        audit_recorder=DefaultAuditRecorder(session),
         approval_gateway=TestApprovalGateway(),
     )
     dispatcher.dispatch(

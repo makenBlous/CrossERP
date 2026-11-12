@@ -13,6 +13,7 @@ from crosserp.db.repo.users import create_user
 from crosserp.db.schema import DocumentLink, IamDataScopeRule, Store, UserRole
 from crosserp.iam.catalog import load_role_templates
 from crosserp.iam.service import IAMService
+from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import ActionDispatcher
 from crosserp.platform.principal import Principal
 
@@ -101,8 +102,13 @@ def test_dispatcher_requires_an_injected_approval_gateway() -> None:
         def current_permissions(self, principal: Principal) -> frozenset[str]:
             return principal.permissions
 
+    session = Session()
     with pytest.raises(RuntimeError, match="ApprovalGateway"):
-        ActionDispatcher(permission_service=PermissionService())
+        ActionDispatcher(
+            session=session,
+            permission_service=PermissionService(),
+            audit_recorder=DefaultAuditRecorder(session),
+        )
 
 
 def test_data_scope_denial_is_forbidden() -> None:

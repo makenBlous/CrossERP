@@ -36,7 +36,7 @@ from crosserp.db.schema import (
 from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.iam.catalog import load_catalog
 from crosserp.iam.service import IAMService
-from crosserp.platform.dispatcher import ActionDispatcher
+from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import DefaultPermissionService
 from crosserp.platform.principal import Principal, get_principal
 
@@ -65,17 +65,16 @@ def _principal_check(request: Request, principal: Principal, permission: str, ri
     def check_permission(**_: Any) -> None:
         permission_service.iam.require(principal, permission, risk_tier=risk)
 
-    ActionDispatcher(
-        permission_service=permission_service,
-        approval_gateway=request.app.state.approval_gateway,
-    ).dispatch(
-        principal=principal,
-        permission=permission,
-        risk_tier=risk,
-        action=permission,
-        business_action=lambda: None,
-        hooks={"permission": check_permission},
-    )
+    with _session(request) as session, session.begin():
+        make_action_dispatcher(session, permission_service).dispatch(
+            principal=principal,
+            permission=permission,
+            risk_tier=risk,
+            action=permission,
+            business_action=lambda: None,
+            hooks={"permission": check_permission},
+            request_id=request.state.request_id,
+        )
 
 
 def _result(data: Any, *, created: bool = False) -> dict[str, Any]:

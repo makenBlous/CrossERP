@@ -30,6 +30,7 @@ from crosserp.db.schema import (
 )
 from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import RiskTier
+from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter()
@@ -185,12 +186,15 @@ def audit_chain(request: Request, principal: Principal = Depends(get_principal))
 def verify_audit(request: Request, principal: Principal = Depends(get_principal)) -> dict[str, Any]:
     _auth(request, principal, "audit_log:read")
     with _session(request) as session, session.begin():
-        result: Any = request.app.state.dispatcher.dispatch(
+        result: Any = make_action_dispatcher(
+            session, request.app.state.permission_service
+        ).dispatch(
             principal=principal,
             permission="audit_log:read",
             risk_tier=RiskTier.LOW,
             action="AuditLog.create",
             business_action=lambda: verify_chain(session),
+            request_id=request.state.request_id,
         )
         DefaultAuditRecorder(session).record(
             principal=principal,
@@ -409,12 +413,13 @@ def resolve_alert(
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
         if row is None:
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
-        request.app.state.dispatcher.dispatch(
+        make_action_dispatcher(session, request.app.state.permission_service).dispatch(
             principal=principal,
             permission="audit_log:write",
             risk_tier=RiskTier.CRITICAL,
             action="AuditAlert.resolve",
             business_action=lambda: setattr(row, "status", "resolved"),
+            request_id=request.state.request_id,
         )
         row.resolved_at = datetime.now(UTC)
         row.resolved_by = principal.user_id
@@ -481,12 +486,13 @@ def update_retention(
             row.retain_days = body.retain_days
             row.updated_at = datetime.now(UTC)
         row.updated_by = principal.user_id
-        request.app.state.dispatcher.dispatch(
+        make_action_dispatcher(session, request.app.state.permission_service).dispatch(
             principal=principal,
             permission="audit_log:write",
             risk_tier=RiskTier.CRITICAL,
             action="RetentionPolicy.update",
             business_action=lambda: row,
+            request_id=request.state.request_id,
         )
         DefaultAuditRecorder(session).record(
             principal=principal,
@@ -523,12 +529,13 @@ def archive_retention(
         )
         session.add(run)
         session.flush()
-        request.app.state.dispatcher.dispatch(
+        make_action_dispatcher(session, request.app.state.permission_service).dispatch(
             principal=principal,
             permission="audit_log:write",
             risk_tier=RiskTier.CRITICAL,
             action="RetentionPolicy.archive",
             business_action=lambda: run,
+            request_id=request.state.request_id,
         )
         DefaultAuditRecorder(session).record(
             principal=principal,
