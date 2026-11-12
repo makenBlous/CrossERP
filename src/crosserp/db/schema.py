@@ -113,6 +113,26 @@ class Store(Base):
     version: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
 
 
+class Category(Base):
+    """商品类目树。版本由实体动作版本链同步维护。"""
+
+    __tablename__ = "category"
+    __table_args__ = (
+        Index("ix_category_parent_id", "parent_id"),
+        UniqueConstraint("parent_id", "name", name="uq_category_parent_name"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    name: Mapped[str] = mapped_column(String(255))
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(), ForeignKey("category.id"), nullable=True
+    )
+    active: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    version: Mapped[int] = mapped_column(Integer(), default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
 class Sku(Base):
     """平台 SKU 与内部 SKU 的映射。"""
 
