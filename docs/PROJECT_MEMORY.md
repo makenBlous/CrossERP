@@ -2,7 +2,7 @@
 
 > 切换 agent 或开工前先读本文和 [后端开发任务总览](tasks/README.md)。完整规则以 [开发共用规则](tasks/rules.md) 和 [08 后端模块与 API 设计 v4](design/08-后端模块与API设计.md) 为准；本文只保留同步所需的已核实事实，不替代设计原文。
 >
-> **最后更新：** 2026-11-12 15:50（Asia/Shanghai） / 后端监督方 / 见本提交（P0 放行、决策 47–49）
+> **最后更新：** 2026-11-12 17:20（Asia/Shanghai） / 后端监督方 / 见本提交（合入 merge-guard、决策 50）
 
 ## 1. 项目定位
 
@@ -90,9 +90,9 @@ CrossERP 是面向中国境内主体、做出口跨境电商的智能体 ERP：�
 
 ## 6. 当前状态
 
-核实时间：2026-11-12 15:50（Asia/Shanghai）。以 `git log --first-parent main` 和 `git worktree list` 为准。
+核实时间：2026-11-12 17:20（Asia/Shanghai）。以 `git log --first-parent main` 和 `git worktree list` 为准。
 
-- **main 头提交：** `ac97781`（项目记忆）之后的本次更新提交；代码基线为 `271b26b`。相对 `origin/main` 超前，**尚未推送**。
+- **main 头提交：** `00d3f8b`（合入合并前检查）之后的本次记忆更新。代码基线仍为 `271b26b` 加上检查脚本。相对 `origin/main` 超前，**尚未推送**。
 
 ### 各批进度
 
@@ -107,21 +107,20 @@ CrossERP 是面向中国境内主体、做出口跨境电商的智能体 ERP：�
 
 | 工作树 | 基于 | 说明 |
 |---|---|---|
-| 主工作区 main | ac97781 | 空闲，按块错开合回 |
-| `merge-guard` | 75a0a01 | 合并前自动检查脚本，开发中；审查须能拦下 75a0a01 那次放宽 |
-| `int-p1-ing` | 271b26b | 导入整合（端口 18261） |
-| `int-p1-fin` | 271b26b | 财务整合（端口 18262） |
-| `fix-undo-create` | 271b26b | 新建类撤销空操作；dispatcher 不再函数内引用 catalog（端口 18263） |
-| `sec-scope2` | 271b26b | 数据范围挂角色与默认模板（端口 18264） |
+| 主工作区 main | 00d3f8b | 空闲，按块错开合回 |
+| `int-p1-ing` | 271b26b | 导入整合（端口 18261），core/rules 已审过，仍在合后续块 |
+| `int-p1-fin` | 271b26b | 财务整合（端口 18262），settle/recon 已审过，仍在合后续块 |
+| `fix-undo-create` | 4c7e3e3 | 新建类撤销已审过，main 已合入该树，全量回归中（端口 18263） |
+| `sec-scope2` | f043f2f | 开发提交已完成，待审；合入仍排在 int-p1-fin 之后（端口 18264） |
 | `p1-ing-*`（5）、`p1-fin-*`（6） | 各功能提交 | 整合合回 main 后拆除 |
 
 合回流程：每块完成即审查 → 通过后把最新 main 合进该树并跑全量 → `--no-ff` 合回 main（主工作区一次一块）→ 拆树。不通过立即开独立修复 grok。
 
 ### 未解决问题
 
-- 新建品牌/SKU/组合装/Listing 撤销记成功但没回退（`fix-undo-create` 处理中）。
+- 新建品牌/SKU/组合装/Listing 撤销空操作已在 `fix-undo-create` 修完并审过，等全量通过后合回。
 - `ActionDispatcher` 审计 diff 的 `.get` 默认值（决策 46），排在财务合并后单开契约任务。
-- `check_merge_guard.py` 未合入；新验收流程在其合入后启用。
+- `check_merge_guard.py` 已合入 `00d3f8b`。之后每块合回前先跑该脚本，再按 acceptance.md 做独立验收。
 - 仓库外旧任务卡等 merge-p0-tail、导入、财务、sec-scope2 全部完成后再归档到 `_archive/`，不删。
 
 ### 待 maken 决定
@@ -182,6 +181,7 @@ CrossERP 是面向中国境内主体、做出口跨境电商的智能体 ERP：�
 47. 导入、财务改为在独立整合树并行合并（t182u），停用 chain6 的自动 merge-p1-ing；合回 main 仍一次一块。
 48. P0 放行：新建类撤销空操作属业务正确性问题、非越权，交 `fix-undo-create` 并行修复，不阻塞 `p0tail-ok`。
 49. sec-scope2 先行开发（只改 IAM、种子、迁移），合入顺序仍在财务之后。
+50. P1 财务金额字段在权限目录没有专用字段点时，经 `serialize` 使用已有 `sku.cost:read`，不自创 `settlement.amount:read`。目录补了专用点后再改映射。
 
 ## 8. 更新规则
 
