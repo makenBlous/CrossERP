@@ -163,6 +163,18 @@ class ActionDispatcher:
                     request_id=request_id,
                 )
                 result = _approval_result(approval)
+                approval_id = _approval_uuid(result) if self.session is not None else None
+                if self.session is not None:
+                    recorder = self.audit_recorder or DefaultAuditRecorder(self.session)
+                    recorder.record(
+                        principal=principal,
+                        entity=context["entity"],
+                        action=action,
+                        diff={"before": None, "after": _jsonable(result)},
+                        approval_id=approval_id,
+                        request_id=request_id,
+                        tool_call_id=tool_call_id,
+                    )
                 self._save_execution(
                     principal=principal,
                     action=action,
@@ -172,6 +184,7 @@ class ActionDispatcher:
                     result=result,
                     idempotency_key=idempotency_key,
                     request_payload=payload,
+                    approval_id=approval_id,
                 )
                 return result
 
@@ -201,6 +214,7 @@ class ActionDispatcher:
                 result={**_as_mapping(result), "version": context.get("version")},
                 idempotency_key=idempotency_key,
                 request_payload=payload,
+                approval_id=None,
             )
             self._hook(all_hooks, "entity_version_and_audit", context)
             return (
@@ -388,6 +402,7 @@ class ActionDispatcher:
         result: Any,
         idempotency_key: str | None,
         request_payload: Any,
+        approval_id: UUID | None,
     ) -> None:
         self.session.add(
             ActionExecution(
@@ -400,6 +415,7 @@ class ActionDispatcher:
                 actor_type="agent" if principal.is_agent else "human",
                 status=status,
                 result_json=_jsonable(result),
+                approval_id=approval_id,
                 version=result.get("version") if isinstance(result, dict) else None,
                 created_at=datetime.now(UTC),
             )
@@ -421,6 +437,13 @@ def _approval_result(value: Any) -> dict[str, Any]:
         "state": value.state,
         "resolution": value.resolution,
     }
+
+
+def _approval_uuid(value: Any) -> UUID | None:
+    raw = value.get("approvalId") if isinstance(value, dict) else None
+    if raw is None:
+        return None
+    return raw if isinstance(raw, UUID) else UUID(str(raw))
 
 
 def _as_mapping(value: Any) -> dict[str, Any]:
