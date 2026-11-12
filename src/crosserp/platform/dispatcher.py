@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager, nullcontext
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
@@ -203,6 +203,7 @@ class ActionDispatcher:
             undo = self._create_undo(
                 principal=principal,
                 action=action,
+                permission=permission,
                 entity=context["entity"],
                 entity_id=context["entity_id"],
                 result=result,
@@ -241,29 +242,31 @@ class ActionDispatcher:
         undo_action: Callable[[dict[str, Any]], Any] | None = None,
     ) -> Any:
         """通过同一 dispatcher 以关键动作风险执行一次版本回退。"""
-        if self.session is None:
-            raise RuntimeError("撤销需要数据库会话")
+        if principal.user_id is None:
+            raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录")
+        session = cast(Session, self.session)
         with self._transaction():
-            request_payload = {"undoId": str(undo_id)}
-            replay = self._find_replay(idempotency_key, request_payload)
-            if replay is not None:
-                return replay
             try:
                 key = UUID(str(undo_id))
             except ValueError as exc:
                 raise APIError(ErrorCode.NOT_FOUND, "撤销记录不存在") from exc
-            undo = self.session.get(AgentUndo, key)
-            if undo is None:
-                undo = self.session.scalar(select(AgentUndo).where(AgentUndo.suggestion_id == key))
+            undo = session.get(AgentUndo, key)
             if undo is None:
                 raise APIError(ErrorCode.NOT_FOUND, "撤销记录不存在")
             if not self._can_undo(undo, principal):
                 raise APIError(ErrorCode.NOT_FOUND, "撤销记录不存在")
+            self._require_undo_target_access(undo, principal)
+            request_payload = {"undoId": str(undo.id)}
+            replay = self._find_replay(idempotency_key, request_payload)
+            if replay is not None:
+                return replay
             if undo.undone_at is not None:
                 raise APIError(ErrorCode.UNDO_ALREADY_APPLIED, "动作已经撤销")
             if datetime.now(UTC) > undo.deadline_at:
                 raise APIError(ErrorCode.UNDO_EXPIRED, "撤销期限已过")
-            payload = dict(undo.undo_payload_json)
+            payload = undo.undo_payload_json
+            if not isinstance(payload, dict):
+                raise APIError(ErrorCode.INTERNAL_ERROR, "撤销记录参数格式无效")
             current_version = self._current_version(undo.entity_type, undo.entity_id)
             if current_version != undo.action_version:
                 raise APIError(
@@ -274,25 +277,18 @@ class ActionDispatcher:
                         "actualVersion": current_version,
                     },
                 )
-            version_row = self.session.scalar(
+            version_row = session.scalar(
                 select(EntityVersion).where(
                     EntityVersion.entity_type == undo.entity_type,
                     EntityVersion.entity_id == undo.entity_id,
                     EntityVersion.version == undo.action_version,
                 )
             )
-            before = version_row.after_json if version_row is not None else None
-            target = payload.get("before")
-            if target is None:
-                previous = self.session.scalar(
-                    select(EntityVersion).where(
-                        EntityVersion.entity_type == undo.entity_type,
-                        EntityVersion.entity_id == undo.entity_id,
-                        EntityVersion.version == undo.action_version - 1,
-                    )
-                )
-                target = previous.after_json if previous is not None else None
-            handler = undo_action or self._undo_handlers.get(str(payload.get("action")))
+            if version_row is None:
+                raise APIError(ErrorCode.CONFLICT_VERSION, "撤销版本不存在")
+            before = version_row.after_json
+            target = payload["before"]
+            handler = undo_action or self._undo_handlers.get(str(payload["action"]))
             work = (
                 (lambda: handler(payload))
                 if handler is not None
@@ -313,7 +309,7 @@ class ActionDispatcher:
             )
             undo.undone_by = principal.effective_user_id or principal.user_id
             undo.undone_at = datetime.now(UTC)
-            self.session.flush()
+            session.flush()
             return {**_as_mapping(result), "undone": True, "undoId": str(undo.id)}
 
     def _transaction(self) -> AbstractContextManager[Any]:
@@ -409,8 +405,6 @@ class ActionDispatcher:
             return None
         values = _as_mapping(result)
         before = values.get("before")
-        if before is None and isinstance(payload, dict):
-            before = payload.get("before")
         after = values.get("after", result)
         diff = values.get("diff", {"before": before, "after": after})
         recorder = self.audit_recorder or DefaultAuditRecorder(self.session)
@@ -454,6 +448,7 @@ class ActionDispatcher:
         *,
         principal: Principal,
         action: str,
+        permission: str,
         entity: str,
         entity_id: str | None,
         result: Any,
@@ -463,22 +458,24 @@ class ActionDispatcher:
         undo_action: Callable[[dict[str, Any]], Any] | None,
         audit_id: UUID | None,
     ) -> AgentUndo | None:
-        if (
-            self.session is None
-            or entity_id is None
-            or version is None
-            or RiskTier(risk_tier) not in {RiskTier.LOW, RiskTier.MEDIUM}
-        ):
+        tier = RiskTier(risk_tier)
+        if tier not in {RiskTier.LOW, RiskTier.MEDIUM}:
+            return None
+        if tier is RiskTier.MEDIUM and (entity_id is None or version is None):
+            raise APIError(ErrorCode.VALIDATION_FAILED, "中风险动作必须提供实体 ID 和版本")
+        if entity_id is None or version is None:
             return None
         values = _as_mapping(result)
-        before = values.get("before")
-        if before is None and isinstance(payload, dict):
-            before = payload.get("before")
+        if "before" not in values:
+            raise APIError(ErrorCode.VALIDATION_FAILED, "可撤销动作必须提供 before 快照")
+        before = values["before"]
+        payload_data: dict[str, Any] = {} if payload is None else payload
+        if not isinstance(payload_data, dict):
+            raise APIError(ErrorCode.VALIDATION_FAILED, "可撤销动作参数必须是对象")
+        session = cast(Session, self.session)
         undo = AgentUndo(
             id=uuid4(),
-            suggestion_id=(
-                _uuid_or_none(payload.get("suggestionId")) if isinstance(payload, dict) else None
-            ),
+            suggestion_id=(_uuid_or_none(payload_data.get("suggestionId"))),
             action_audit_id=audit_id,
             entity_type=entity,
             entity_id=entity_id,
@@ -487,6 +484,8 @@ class ActionDispatcher:
                 "entity": entity,
                 "entityId": entity_id,
                 "action": action,
+                "permission": permission,
+                "targetPermission": _entity_write_permission(entity),
                 "before": _jsonable(before),
                 "custom": undo_action is not None,
                 "actorId": str(principal.user_id) if principal.user_id else None,
@@ -495,8 +494,8 @@ class ActionDispatcher:
             },
             deadline_at=datetime.now(UTC) + timedelta(hours=24),
         )
-        self.session.add(undo)
-        self.session.flush()
+        session.add(undo)
+        session.flush()
         return undo
 
     def _emit_events(
@@ -551,15 +550,38 @@ class ActionDispatcher:
             )
 
     def _can_undo(self, undo: AgentUndo, principal: Principal) -> bool:
-        payload = dict(undo.undo_payload_json)
+        payload = undo.undo_payload_json
+        if not isinstance(payload, dict):
+            return False
+        current_permissions = self.permission_service.current_permissions(principal)
+        if "agent_suggestion:create" not in current_permissions:
+            return False
         actor_id = payload.get("actorId")
         on_behalf_of = payload.get("onBehalfOf")
         if principal.user_id is not None and str(principal.user_id) in {actor_id, on_behalf_of}:
             return True
-        return bool(
-            principal.permissions
-            & frozenset({"agent_suggestion:write", "agent_suggestion:approve", "system:admin"})
-        )
+        return "agent_suggestion:write" in current_permissions
+
+    def _require_undo_target_access(self, undo: AgentUndo, principal: Principal) -> None:
+        payload = undo.undo_payload_json
+        if not isinstance(payload, dict):
+            raise APIError(ErrorCode.NOT_FOUND, "撤销记录不存在")
+        permission = payload.get("targetPermission")
+        if not isinstance(permission, str):
+            permission = _entity_write_permission(undo.entity_type)
+        try:
+            self.permission_service.require(principal, permission, undo.entity_id)
+        except APIError as exc:
+            if exc.code in {ErrorCode.FORBIDDEN, ErrorCode.PERMISSION_DENIED, ErrorCode.NOT_FOUND}:
+                raise APIError(ErrorCode.NOT_FOUND, "撤销记录不存在") from exc
+            raise
+        scope = self.permission_service.data_scope_filter(principal, undo.entity_type)
+        if _scope_denies(scope, undo.entity_id):
+            raise APIError(
+                ErrorCode.DATA_SCOPE_DENIED,
+                "实体超出当前数据范围",
+                status_code=403,
+            )
 
     def _save_execution(
         self,
@@ -626,6 +648,41 @@ def _uuid_or_none(value: Any) -> UUID | None:
     if value is None:
         return None
     return UUID(str(value))
+
+
+def _entity_write_permission(entity_type: str) -> str:
+    characters: list[str] = []
+    for index, character in enumerate(entity_type):
+        if character.isupper() and index:
+            characters.append("_")
+        characters.append(character.lower())
+    return "".join(characters) + ":write"
+
+
+def _scope_denies(scope: Mapping[str, Any], entity_id: str) -> bool:
+    if scope.get("allowed") is False or scope.get("denied") is True:
+        return True
+    for key in (
+        "entityIds",
+        "entity_ids",
+        "allowedIds",
+        "allowed_ids",
+        "allowedEntityIds",
+        "allowed_entity_ids",
+        "storeIds",
+        "store_ids",
+        "warehouseIds",
+        "warehouse_ids",
+        "departmentIds",
+        "department_ids",
+        "ownerIds",
+        "owner_ids",
+        "ids",
+    ):
+        values = scope.get(key)
+        if isinstance(values, (list, tuple, set, frozenset)) and values:
+            return entity_id not in {str(value) for value in values}
+    return False
 
 
 def _jsonable(value: Any) -> Any:

@@ -97,6 +97,7 @@ def _dispatch_write(
         session=session,
         permission_service=request.app.state.permission_service,
         approval_gateway=ApprovalGatewayImpl(session),
+        audit_recorder=DefaultAuditRecorder(session),
     ).dispatch(
         principal=principal,
         permission=permission,

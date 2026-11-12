@@ -22,18 +22,20 @@ from crosserp.platform.principal import ActorType, Principal, get_principal
 
 
 class _Permissions:
+    def __init__(self, *, scope_allowed: bool = True) -> None:
+        self.allowed = None
+        self.scope_allowed = scope_allowed
+
     def require(self, principal, permission, _resource=None) -> None:
-        if (
-            permission not in {"public", "authenticated"}
-            and permission not in principal.permissions
-        ):
+        allowed = principal.permissions if self.allowed is None else self.allowed
+        if permission not in {"public", "authenticated"} and permission not in allowed:
             raise APIError(ErrorCode.FORBIDDEN, "无权执行该操作")
 
     def data_scope_filter(self, _principal, _entity):
-        return {}
+        return {"allowed": self.scope_allowed}
 
     def current_permissions(self, principal):
-        return principal.permissions
+        return principal.permissions if self.allowed is None else frozenset(self.allowed)
 
 
 def _agent(user_id=None) -> Principal:
@@ -42,7 +44,7 @@ def _agent(user_id=None) -> Principal:
         actor_type=ActorType.AGENT,
         agent_id="agent-undo",
         on_behalf_of=user_id or uuid4(),
-        permissions=frozenset({"entity:write", "agent_suggestion:create"}),
+        permissions=frozenset({"entity:write", "store:write", "agent_suggestion:create"}),
     )
 
 
@@ -73,7 +75,9 @@ def test_medium_action_creates_undo_and_default_version_revert() -> None:
                 result["undoId"],
                 principal=Principal(
                     user_id=owner,
-                    permissions=frozenset({"agent_suggestion:create"}),
+                    permissions=frozenset(
+                        {"entity:write", "store:write", "agent_suggestion:create"}
+                    ),
                 ),
             )
         assert reverted["undone"] is True
@@ -82,7 +86,9 @@ def test_medium_action_creates_undo_and_default_version_revert() -> None:
                 result["undoId"],
                 principal=Principal(
                     user_id=owner,
-                    permissions=frozenset({"agent_suggestion:create"}),
+                    permissions=frozenset(
+                        {"entity:write", "store:write", "agent_suggestion:create"}
+                    ),
                 ),
             )
         assert repeated.value.code is ErrorCode.UNDO_ALREADY_APPLIED
@@ -134,7 +140,9 @@ def test_undo_rejects_expired_repeated_concurrent_and_unauthorized() -> None:
                 result["undoId"],
                 principal=Principal(
                     user_id=owner,
-                    permissions=frozenset({"agent_suggestion:create"}),
+                    permissions=frozenset(
+                        {"entity:write", "store:write", "agent_suggestion:create"}
+                    ),
                 ),
             )
         assert conflict.value.code is ErrorCode.CONFLICT_VERSION
@@ -147,7 +155,9 @@ def test_undo_rejects_expired_repeated_concurrent_and_unauthorized() -> None:
                 result["undoId"],
                 principal=Principal(
                     user_id=owner,
-                    permissions=frozenset({"agent_suggestion:create"}),
+                    permissions=frozenset(
+                        {"entity:write", "store:write", "agent_suggestion:create"}
+                    ),
                 ),
             )
         assert expired.value.code is ErrorCode.UNDO_EXPIRED
@@ -156,10 +166,131 @@ def test_undo_rejects_expired_repeated_concurrent_and_unauthorized() -> None:
                 result["undoId"],
                 principal=Principal(
                     user_id=uuid4(),
-                    permissions=frozenset({"agent_suggestion:create"}),
+                    permissions=frozenset(
+                        {"entity:write", "store:write", "agent_suggestion:create"}
+                    ),
                 ),
             )
         assert denied.value.code is ErrorCode.NOT_FOUND
+        engine.dispose()
+
+
+def test_undo_rechecks_target_permission_and_data_scope() -> None:
+    with TemporaryDirectory() as directory:
+        url = sqlite_file_url(Path(directory) / "undo-security.db")
+        upgrade_head(url)
+        engine = make_engine(url)
+        permissions = _Permissions()
+        session = Session(engine)
+        owner = uuid4()
+        dispatcher = ActionDispatcher(session=session, permission_service=permissions)
+        with session.begin():
+            result = dispatcher.dispatch(
+                principal=_agent(owner),
+                permission="entity:write",
+                risk_tier=RiskTier.MEDIUM,
+                entity="Entity",
+                entity_id="entity-1",
+                action="Entity.update",
+                business_action=lambda: {"before": {"v": 0}, "after": {"v": 1}},
+            )
+
+        permissions.allowed = {"agent_suggestion:create"}
+        with pytest.raises(APIError) as missing_write, session.begin():
+            dispatcher.undo(
+                result["undoId"],
+                principal=Principal(
+                    user_id=owner,
+                    permissions=frozenset({"agent_suggestion:create", "entity:write"}),
+                ),
+            )
+        assert missing_write.value.code is ErrorCode.NOT_FOUND
+
+        permissions.allowed = {"entity:write"}
+        with pytest.raises(APIError) as revoked_owner, session.begin():
+            dispatcher.undo(
+                result["undoId"],
+                principal=Principal(
+                    user_id=owner,
+                    permissions=frozenset({"agent_suggestion:create", "entity:write"}),
+                ),
+            )
+        assert revoked_owner.value.code is ErrorCode.NOT_FOUND
+
+        permissions.allowed = {"agent_suggestion:create", "entity:write"}
+        permissions.scope_allowed = False
+        with pytest.raises(APIError) as out_of_scope, session.begin():
+            dispatcher.undo(
+                result["undoId"],
+                principal=Principal(
+                    user_id=owner,
+                    permissions=frozenset({"agent_suggestion:create", "entity:write"}),
+                ),
+            )
+        assert out_of_scope.value.code is ErrorCode.DATA_SCOPE_DENIED
+        assert out_of_scope.value.status_code == 403
+        engine.dispose()
+
+
+def test_undo_uses_current_permissions_before_idempotent_replay() -> None:
+    with TemporaryDirectory() as directory:
+        url = sqlite_file_url(Path(directory) / "undo-replay.db")
+        upgrade_head(url)
+        engine = make_engine(url)
+        permissions = _Permissions()
+        session = Session(engine)
+        owner = uuid4()
+        dispatcher = ActionDispatcher(session=session, permission_service=permissions)
+        with session.begin():
+            result = dispatcher.dispatch(
+                principal=_agent(owner),
+                permission="entity:write",
+                risk_tier=RiskTier.MEDIUM,
+                entity="Entity",
+                entity_id="entity-1",
+                action="Entity.update",
+                business_action=lambda: {"before": {"v": 0}, "after": {"v": 1}},
+            )
+        with session.begin():
+            dispatcher.undo(
+                result["undoId"],
+                principal=Principal(
+                    user_id=owner,
+                    permissions=frozenset(
+                        {"entity:write", "store:write", "agent_suggestion:create"}
+                    ),
+                ),
+                idempotency_key="undo-replay",
+            )
+        permissions.allowed = {"entity:write"}
+        with pytest.raises(APIError) as denied, session.begin():
+            dispatcher.undo(
+                result["undoId"],
+                principal=Principal(
+                    user_id=uuid4(),
+                    permissions=frozenset({"entity:write", "agent_suggestion:create"}),
+                ),
+                idempotency_key="undo-replay",
+            )
+        assert denied.value.code is ErrorCode.NOT_FOUND
+        engine.dispose()
+
+
+def test_medium_action_requires_entity_identity_for_undo() -> None:
+    with TemporaryDirectory() as directory:
+        url = sqlite_file_url(Path(directory) / "undo-required.db")
+        upgrade_head(url)
+        engine = make_engine(url)
+        with Session(engine) as session, pytest.raises(APIError) as error, session.begin():
+            ActionDispatcher(session=session, permission_service=_Permissions()).dispatch(
+                principal=_agent(),
+                permission="entity:write",
+                risk_tier=RiskTier.MEDIUM,
+                entity="Entity",
+                action="Entity.update",
+                business_action=lambda: {"before": {"v": 0}, "after": {"v": 1}},
+            )
+        assert error.value.code is ErrorCode.VALIDATION_FAILED
         engine.dispose()
 
 

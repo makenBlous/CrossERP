@@ -236,7 +236,10 @@ def test_medium_action_keeps_reversible_preimage_and_daily_summary_event() -> No
                 entity_id=entity_id,
                 action="Store.update",
                 payload={"before": {"name": "old"}},
-                business_action=lambda: {"after": {"name": "new"}},
+                business_action=lambda: {
+                    "before": {"name": "old"},
+                    "after": {"name": "new"},
+                },
             )
         with Session(engine) as check:
             version = check.scalar(select(EntityVersion))
@@ -416,15 +419,29 @@ def test_ai_medium_has_no_count_limit_and_critical_is_rejected() -> None:
         actor_type=ActorType.AGENT,
     )
     calls: list[int] = []
-    dispatcher = ActionDispatcher(permission_service=_UnitPermissionService())
-    for index in range(8):
-        dispatcher.dispatch(
-            principal=principal,
-            permission="store:write",
-            risk_tier=RiskTier.MEDIUM,
-            action="Store.update",
-            business_action=lambda index=index: calls.append(index),
-        )
+    with TemporaryDirectory() as directory:
+        url = sqlite_file_url(Path(directory) / "db.sqlite")
+        upgrade_head(url)
+        engine = make_engine(url)
+        session = Session(engine)
+        dispatcher = ActionDispatcher(session=session, permission_service=_UnitPermissionService())
+        for index in range(8):
+
+            def work(index: int = index) -> dict[str, dict[str, int]]:
+                calls.append(index)
+                return {"before": {"index": index - 1}, "after": {"index": index}}
+
+            with session.begin():
+                dispatcher.dispatch(
+                    principal=principal,
+                    permission="store:write",
+                    risk_tier=RiskTier.MEDIUM,
+                    entity="Store",
+                    entity_id=str(index),
+                    action="Store.update",
+                    business_action=work,
+                )
+        engine.dispose()
     assert calls == list(range(8))
     with pytest.raises(APIError) as error:
         dispatcher.dispatch(

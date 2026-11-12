@@ -13,7 +13,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.api.metadata import api_endpoint
+from crosserp.approval.gateway import ApprovalGatewayImpl
 from crosserp.db.schema import EntityEvent
+from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import ActionDispatcher
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal, get_principal
@@ -54,7 +56,7 @@ def daily_summary(
                 .order_by(EntityEvent.created_at)
             )
         )
-    effective_id = str(principal.effective_user_id or principal.user_id or "")
+    effective_id = principal.effective_user_id
     items = [_summary_item(event) for event in events if _visible_to(event, effective_id)]
     return {
         "date": selected_day.isoformat(),
@@ -74,7 +76,6 @@ def daily_summary(
 def undo_suggestion(
     id: str,
     request: Request,
-    body: dict[str, Any] | None = None,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     principal: Principal = Depends(get_principal),
     permission_service: PermissionService = Depends(_permission_service),
@@ -84,6 +85,8 @@ def undo_suggestion(
         dispatcher = ActionDispatcher(
             session=session,
             permission_service=permission_service,
+            approval_gateway=ApprovalGatewayImpl(session),
+            audit_recorder=DefaultAuditRecorder(session),
         )
         return cast(
             dict[str, Any],
@@ -91,15 +94,17 @@ def undo_suggestion(
                 id,
                 principal=principal,
                 idempotency_key=idempotency_key,
-                request_id=getattr(request.state, "request_id", None),
+                request_id=request.state.request_id,
                 undo_action=None,
             ),
         )
 
 
-def _visible_to(event: EntityEvent, effective_id: str) -> bool:
+def _visible_to(event: EntityEvent, effective_id: Any) -> bool:
     payload = dict(event.payload_json)
-    return payload.get("onBehalfOf") == effective_id or payload.get("actorUserId") == effective_id
+    return payload.get("onBehalfOf") == str(effective_id) or payload.get("actorUserId") == str(
+        effective_id
+    )
 
 
 def _summary_item(event: EntityEvent) -> dict[str, Any]:
