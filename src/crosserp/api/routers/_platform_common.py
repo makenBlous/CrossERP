@@ -37,10 +37,8 @@ def _db(request: Request) -> Session:
     return Session(_engine(request), expire_on_commit=False)
 
 
-def _principal_db(
-    request: Request, principal_override: Principal | None = None
-) -> tuple[Principal, Session]:
-    principal = get_principal(request) if principal_override is None else principal_override
+def _principal_db(request: Request) -> tuple[Principal, Session]:
+    principal = get_principal(request)
     session = _db(request)
     user = session.get(AppUser, principal.user_id) if principal.user_id else None
     if user is None or not user.is_active:

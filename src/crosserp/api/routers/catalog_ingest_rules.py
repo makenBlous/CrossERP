@@ -15,12 +15,12 @@ from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.metadata import api_endpoint
 from crosserp.api.routers._platform_common import _require, _write_guard
 from crosserp.api.schemas import CamelModel
-from crosserp.approval.gateway import ApprovalGatewayImpl
 from crosserp.catalog.ingest import MappingRuleBody
 from crosserp.catalog.ingest_rules import save_mapping_rule_version
 from crosserp.db.schema import MappingRule
-from crosserp.platform.audit import DefaultAuditRecorder
-from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
+from crosserp.platform.dispatcher import RiskTier
+from crosserp.platform.factory import make_action_dispatcher
+from crosserp.platform.permissions import PermissionService, get_permission_service
 from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter()
@@ -37,13 +37,13 @@ class MappingRuleUpdateBody(CamelModel):
     action="MappingRule.get",
     permission="integration:read",
     risk_tier="none",
+    idempotency="none",
 )
 def get_column_map(
     request: Request,
     id: UUID,
-    principal_override: Principal = Depends(get_principal),
+    principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    principal = principal_override
     with Session(request.app.state.database_engine) as session:
         _require(request, principal, "integration:read", entity="MappingRule")
         row = session.get(MappingRule, id)
@@ -59,7 +59,7 @@ def get_column_map(
             "status": row.status,
             "verified": row.verified,
             "createdAt": row.created_at.isoformat(),
-            "updatedAt": row.updated_at.isoformat() if row.updated_at else None,
+            "updatedAt": None if row.updated_at is None else row.updated_at.isoformat(),
         }
 
 
@@ -70,6 +70,7 @@ def get_column_map(
     action="MappingRule.update",
     permission="integration:write",
     risk_tier="high",
+    idempotency="dispatcher",
 )
 def update_mapping_rule(
     request: Request,
@@ -77,12 +78,13 @@ def update_mapping_rule(
     body: MappingRuleUpdateBody,
     csrf: str | None = Header(None, alias="X-CSRF-Token"),
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
-    principal_override: Principal = Depends(get_principal),
+    principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(get_permission_service),
 ) -> dict[str, Any]:
-    principal = principal_override
+    _write_guard(request, principal, csrf)
+    _require(request, principal, "integration:write", entity="MappingRule")
+    payload = body.model_dump(by_alias=True)
     with Session(request.app.state.database_engine) as session, session.begin():
-        _write_guard(request, principal, csrf)
-        _require(request, principal, "integration:write", entity="MappingRule")
         current = session.get(MappingRule, id)
         if current is None:
             raise not_found()
@@ -95,14 +97,7 @@ def update_mapping_rule(
                     "actualVersion": current.version,
                 },
             )
-        dispatcher = ActionDispatcher(
-            session=session,
-            permission_service=request.app.state.permission_service,
-            approval_gateway=ApprovalGatewayImpl(session),
-            audit_recorder=DefaultAuditRecorder(session),
-        )
-        payload = body.model_dump(by_alias=True)
-        result = dispatcher.dispatch(
+        result = make_action_dispatcher(session, permission_service).dispatch(
             principal=principal,
             permission="integration:write",
             risk_tier=RiskTier.HIGH,
@@ -116,7 +111,7 @@ def update_mapping_rule(
                 session, id, body=body.body, principal=principal
             ),
         )
-        return cast(dict[str, Any], result)
+    return cast(dict[str, Any], result)
 
 
 __all__ = ["router"]

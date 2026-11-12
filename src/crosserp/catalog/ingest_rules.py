@@ -61,7 +61,7 @@ def save_mapping_rule_version(
         "verified": row.verified,
         "previousId": str(current.id),
         "createdAt": row.created_at.isoformat(),
-        "updatedAt": row.updated_at.isoformat() if row.updated_at else None,
+        "updatedAt": None if row.updated_at is None else row.updated_at.isoformat(),
     }
 
 
