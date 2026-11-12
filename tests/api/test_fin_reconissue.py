@@ -316,9 +316,7 @@ def test_resolve_hides_unauthorized_replay_and_missing_key(
     assert anonymous.status_code == 401
 
 
-def test_other_admin_does_not_receive_resolve_replay(
-    json_client: TestClient, api_engine
-) -> None:
+def test_other_admin_does_not_receive_resolve_replay(json_client: TestClient, api_engine) -> None:
     with Session(api_engine) as session, session.begin():
         _user(session, "issue-owner", Role.ADMIN)
         _user(session, "issue-peer", Role.ADMIN)

@@ -98,4 +98,4 @@ def _filtered(scope: StoreScope, q: str | None) -> Select[tuple[Settlement, str]
                 Store.name.ilike(pattern),
             )
         )
-    return statement
+    return cast(Select[tuple[Settlement, str]], statement)

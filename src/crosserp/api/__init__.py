@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from types import ModuleType
 from typing import Any, cast
 
@@ -92,7 +92,7 @@ def register_routers(app: FastAPI) -> None:
             cast(Any, route).path = "/api/v1"
 
 
-def _public_validation_errors(errors: list[Any]) -> list[dict[str, Any]]:
+def _public_validation_errors(errors: Sequence[Any]) -> list[dict[str, Any]]:
     """08 错误体的 details 必须可序列化。不带回 pydantic 的异常对象。"""
     public: list[dict[str, Any]] = []
     for item in errors:
