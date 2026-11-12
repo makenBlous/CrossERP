@@ -473,7 +473,11 @@ class ActionDispatcher:
         risk_tier: RiskTier | str,
     ) -> AgentUndo | None:
         tier = RiskTier(risk_tier)
-        if tier not in {RiskTier.LOW, RiskTier.MEDIUM} or entity_id is None or version is None:
+        if tier not in {RiskTier.LOW, RiskTier.MEDIUM}:
+            return None
+        if tier is RiskTier.MEDIUM and (entity_id is None or version is None):
+            raise APIError(ErrorCode.VALIDATION_FAILED, "中风险动作必须提供实体 ID 和版本")
+        if entity_id is None or version is None:
             return None
         values = _as_mapping(result)
         before = values.get("before")
@@ -508,10 +512,10 @@ class ActionDispatcher:
     ) -> None:
         self.permission_service.require(principal, payload.permission, row.entity_id)
         scope = self.permission_service.store_scope(principal, row.entity_type)
-        store_id = payload.before.get("storeId")
-        if isinstance(scope, AllStores) or store_id is None:
+        if isinstance(scope, AllStores):
             return
-        if UUID(str(store_id)) not in scope:
+        store_id = payload.before.get("storeId")
+        if store_id is None or UUID(str(store_id)) not in scope:
             raise APIError(ErrorCode.DATA_SCOPE_DENIED, "超出店铺数据范围")
 
     def _emit_events(

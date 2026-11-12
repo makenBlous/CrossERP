@@ -15,7 +15,10 @@ from crosserp.db.schema import Brand, Bundle, Category, Listing, Sku, SkuMapping
 def restore_entity(
     session: Session, entity_type: str, entity_id: str, before: dict[str, Any]
 ) -> None:
-    row = session.get(_MODEL[entity_type], UUID(entity_id))
+    model = _MODEL.get(entity_type)
+    if model is None:
+        return
+    row = session.get(model, UUID(entity_id))
     if row is None:
         raise APIError(ErrorCode.NOT_FOUND, "撤销目标不存在")
     _FIELDS[entity_type](row, before)

@@ -14,10 +14,14 @@ from sqlalchemy.orm import Session
 from crosserp.api import install_api
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.routers.agent_undo import _permission_service
+from crosserp.approval.gateway import ApprovalGatewayImpl
 from crosserp.db.migrate import upgrade_head
 from crosserp.db.schema import AgentUndo, AuditLog, EntityEvent, EntityVersion
 from crosserp.db.session import make_engine, sqlite_file_url
+from crosserp.iam.scope import AllStores
+from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
+from crosserp.platform.file_storage import FileStorage
 from crosserp.platform.principal import ActorType, Principal, get_principal
 
 
@@ -37,6 +41,18 @@ class _Permissions:
     def current_permissions(self, principal):
         return principal.permissions if self.allowed is None else frozenset(self.allowed)
 
+    def store_scope(self, _principal, _entity):
+        return AllStores() if self.scope_allowed else frozenset()
+
+
+def _dispatcher(session, permissions):
+    return ActionDispatcher(
+        session=session,
+        permission_service=permissions,
+        audit_recorder=DefaultAuditRecorder(session),
+        approval_gateway=ApprovalGatewayImpl(session),
+    )
+
 
 def _agent(user_id=None) -> Principal:
     return Principal(
@@ -44,7 +60,9 @@ def _agent(user_id=None) -> Principal:
         actor_type=ActorType.AGENT,
         agent_id="agent-undo",
         on_behalf_of=user_id or uuid4(),
-        permissions=frozenset({"entity:write", "store:write", "agent_suggestion:create"}),
+        permissions=frozenset(
+            {"entity:write", "store:write", "system:write", "agent_suggestion:create"}
+        ),
     )
 
 
@@ -57,7 +75,7 @@ def test_medium_action_creates_undo_and_default_version_revert() -> None:
         owner = uuid4()
         principal = _agent(owner)
         entity_id = str(uuid4())
-        dispatcher = ActionDispatcher(session=session, permission_service=_Permissions())
+        dispatcher = _dispatcher(session, _Permissions())
         with session.begin():
             result = dispatcher.dispatch(
                 principal=principal,
@@ -76,7 +94,12 @@ def test_medium_action_creates_undo_and_default_version_revert() -> None:
                 principal=Principal(
                     user_id=owner,
                     permissions=frozenset(
-                        {"entity:write", "store:write", "agent_suggestion:create"}
+                        {
+                            "entity:write",
+                            "store:write",
+                            "system:write",
+                            "agent_suggestion:create",
+                        }
                     ),
                 ),
             )
@@ -87,7 +110,12 @@ def test_medium_action_creates_undo_and_default_version_revert() -> None:
                 principal=Principal(
                     user_id=owner,
                     permissions=frozenset(
-                        {"entity:write", "store:write", "agent_suggestion:create"}
+                        {
+                            "entity:write",
+                            "store:write",
+                            "system:write",
+                            "agent_suggestion:create",
+                        }
                     ),
                 ),
             )
@@ -111,7 +139,7 @@ def test_undo_rejects_expired_repeated_concurrent_and_unauthorized() -> None:
         owner = uuid4()
         principal = _agent(owner)
         entity_id = str(uuid4())
-        dispatcher = ActionDispatcher(session=session, permission_service=_Permissions())
+        dispatcher = _dispatcher(session, _Permissions())
         with session.begin():
             result = dispatcher.dispatch(
                 principal=principal,
@@ -141,7 +169,12 @@ def test_undo_rejects_expired_repeated_concurrent_and_unauthorized() -> None:
                 principal=Principal(
                     user_id=owner,
                     permissions=frozenset(
-                        {"entity:write", "store:write", "agent_suggestion:create"}
+                        {
+                            "entity:write",
+                            "store:write",
+                            "system:write",
+                            "agent_suggestion:create",
+                        }
                     ),
                 ),
             )
@@ -156,7 +189,12 @@ def test_undo_rejects_expired_repeated_concurrent_and_unauthorized() -> None:
                 principal=Principal(
                     user_id=owner,
                     permissions=frozenset(
-                        {"entity:write", "store:write", "agent_suggestion:create"}
+                        {
+                            "entity:write",
+                            "store:write",
+                            "system:write",
+                            "agent_suggestion:create",
+                        }
                     ),
                 ),
             )
@@ -166,12 +204,10 @@ def test_undo_rejects_expired_repeated_concurrent_and_unauthorized() -> None:
                 result["undoId"],
                 principal=Principal(
                     user_id=uuid4(),
-                    permissions=frozenset(
-                        {"entity:write", "store:write", "agent_suggestion:create"}
-                    ),
+                    permissions=frozenset({"entity:write", "store:write", "agent_suggestion:create"}),
                 ),
             )
-        assert denied.value.code is ErrorCode.NOT_FOUND
+        assert denied.value.code is ErrorCode.FORBIDDEN
         engine.dispose()
 
 
@@ -183,7 +219,7 @@ def test_undo_rechecks_target_permission_and_data_scope() -> None:
         permissions = _Permissions()
         session = Session(engine)
         owner = uuid4()
-        dispatcher = ActionDispatcher(session=session, permission_service=permissions)
+        dispatcher = _dispatcher(session, permissions)
         with session.begin():
             result = dispatcher.dispatch(
                 principal=_agent(owner),
@@ -204,7 +240,7 @@ def test_undo_rechecks_target_permission_and_data_scope() -> None:
                     permissions=frozenset({"agent_suggestion:create", "entity:write"}),
                 ),
             )
-        assert missing_write.value.code is ErrorCode.NOT_FOUND
+        assert missing_write.value.code is ErrorCode.FORBIDDEN
 
         permissions.allowed = {"entity:write"}
         with pytest.raises(APIError) as revoked_owner, session.begin():
@@ -240,7 +276,7 @@ def test_undo_uses_current_permissions_before_idempotent_replay() -> None:
         permissions = _Permissions()
         session = Session(engine)
         owner = uuid4()
-        dispatcher = ActionDispatcher(session=session, permission_service=permissions)
+        dispatcher = _dispatcher(session, permissions)
         with session.begin():
             result = dispatcher.dispatch(
                 principal=_agent(owner),
@@ -257,7 +293,12 @@ def test_undo_uses_current_permissions_before_idempotent_replay() -> None:
                 principal=Principal(
                     user_id=owner,
                     permissions=frozenset(
-                        {"entity:write", "store:write", "agent_suggestion:create"}
+                        {
+                            "entity:write",
+                            "store:write",
+                            "system:write",
+                            "agent_suggestion:create",
+                        }
                     ),
                 ),
                 idempotency_key="undo-replay",
@@ -282,7 +323,7 @@ def test_medium_action_requires_entity_identity_for_undo() -> None:
         upgrade_head(url)
         engine = make_engine(url)
         with Session(engine) as session, pytest.raises(APIError) as error, session.begin():
-            ActionDispatcher(session=session, permission_service=_Permissions()).dispatch(
+            _dispatcher(session, _Permissions()).dispatch(
                 principal=_agent(),
                 permission="entity:write",
                 risk_tier=RiskTier.MEDIUM,
@@ -301,7 +342,7 @@ def test_high_has_no_undo_and_critical_agent_is_blocked() -> None:
         engine = make_engine(url)
         session = Session(engine)
         principal = _agent()
-        dispatcher = ActionDispatcher(session=session, permission_service=_Permissions())
+        dispatcher = _dispatcher(session, _Permissions())
         with pytest.raises(APIError) as blocked, session.begin():
             dispatcher.dispatch(
                 principal=principal,
@@ -334,7 +375,7 @@ def test_daily_summary_counts_only_current_user_agent_actions() -> None:
         upgrade_head(url)
         engine = make_engine(url)
         app = FastAPI()
-        install_api(app, engine)
+        install_api(app, engine, file_storage=FileStorage(Path(directory) / "files"))
         owner = uuid4()
         principal = Principal(user_id=owner, permissions=frozenset({"agent_suggestion:read"}))
         with Session(engine) as session, session.begin():
