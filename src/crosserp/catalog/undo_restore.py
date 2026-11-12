@@ -10,7 +10,17 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
-from crosserp.db.schema import Brand, Bundle, Category, ImportBatch, Listing, Sku, SkuMapping, Store
+from crosserp.db.schema import (
+    Brand,
+    Bundle,
+    Category,
+    DedupCandidate,
+    ImportBatch,
+    Listing,
+    Sku,
+    SkuMapping,
+    Store,
+)
 
 UNDO_UNSUPPORTED = "该实体不支持撤销"
 
@@ -65,6 +75,13 @@ def _mapping(row: SkuMapping, before: dict[str, Any]) -> None:
     _text(row, before, "state", "internalSku")
 
 
+def _dedup_candidate(row: DedupCandidate, before: dict[str, Any]) -> None:
+    if "status" in before:
+        row.status = str(before["status"])
+    if "version" in before:
+        row.version = int(before["version"])
+
+
 def _ingest_batch(row: ImportBatch, before: dict[str, Any]) -> None:
     if "status" in before:
         row.status = str(before["status"])
@@ -102,6 +119,7 @@ _MODEL = {
     "Bundle": Bundle,
     "Store": Store,
     "IngestBatch": ImportBatch,
+    "DedupCandidate": DedupCandidate,
 }
 _FIELDS: dict[str, Callable[[Any, dict[str, Any]], None]] = {
     "Store": _store,
@@ -112,4 +130,5 @@ _FIELDS: dict[str, Callable[[Any, dict[str, Any]], None]] = {
     "SkuMapping": _mapping,
     "Bundle": _bundle,
     "IngestBatch": _ingest_batch,
+    "DedupCandidate": _dedup_candidate,
 }

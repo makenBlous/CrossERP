@@ -13,15 +13,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
-from crosserp.api.idempotency import dispatcher_idempotency
 from crosserp.api.metadata import api_endpoint
 from crosserp.api.routers._platform_common import _require, _write_guard
 from crosserp.api.schemas import CamelModel, PageParams
-from crosserp.approval.gateway import ApprovalGatewayImpl
-from crosserp.catalog.dedup import candidate_visible, merge_candidate
+from crosserp.catalog.dedup import candidate_ids, candidate_visible, merge_candidate
 from crosserp.db.schema import DedupCandidate
-from crosserp.platform.audit import DefaultAuditRecorder
-from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
+from crosserp.platform.dispatcher import RiskTier
+from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter(tags=["数据进入与溯源"])
@@ -71,6 +69,7 @@ def _require_candidate_scope(
     action="DedupCandidate.list",
     permission="integration:read",
     risk_tier="none",
+    idempotency="none",
 )
 def list_dedup_candidates(
     request: Request,
@@ -84,9 +83,12 @@ def list_dedup_candidates(
     if sort_name not in {"createdAt", "updatedAt", "confidence", "status"}:
         raise APIError(ErrorCode.VALIDATION_FAILED, "sort 不受支持")
     with Session(request.app.state.database_engine, expire_on_commit=False) as session:
+        rows = list(session.scalars(select(DedupCandidate)))
+        for row in rows:
+            candidate_ids(row.ids)
         rows = [
             row
-            for row in session.scalars(select(DedupCandidate))
+            for row in rows
             if candidate_visible(session, row, principal, request.app.state.permission_service)
         ]
         if q:
@@ -116,12 +118,12 @@ def list_dedup_candidates(
 
 
 @router.post("/ingest/dedup-candidates/{id}/merge")
-@dispatcher_idempotency
 @api_endpoint(
     entity="DedupCandidate",
     action="DedupCandidate.merge",
     permission="integration:write",
     risk_tier="medium",
+    idempotency="dispatcher",
 )
 def merge_dedup_candidate(
     request: Request,
@@ -157,19 +159,13 @@ def merge_dedup_candidate(
             target = str(UUID(payload.target_id))
         except ValueError as exc:
             raise APIError(ErrorCode.VALIDATION_FAILED, "targetId 必须是 UUID") from exc
-        result = ActionDispatcher(
-            session=session,
-            permission_service=request.app.state.permission_service,
-            approval_gateway=ApprovalGatewayImpl(session),
-            audit_recorder=DefaultAuditRecorder(session),
-        ).dispatch(
+        result = make_action_dispatcher(session, request.app.state.permission_service).dispatch(
             principal=principal,
             permission="integration:write",
             risk_tier=RiskTier.MEDIUM,
             entity="DedupCandidate",
             entity_id=str(candidate.id),
             action="DedupCandidate.merge",
-            expected_version=payload.expected_version,
             idempotency_key=idempotency_key,
             payload=payload.model_dump(by_alias=True),
             request_id=request.state.request_id,

@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.db.schema import DedupCandidate, DocumentLink, EntityVersion, Sku
+from crosserp.iam.scope import AllStores
 from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
@@ -93,11 +94,18 @@ def candidate_visible(
     principal: Principal,
     permission_service: PermissionService,
 ) -> bool:
+    scope = permission_service.store_scope(principal, candidate.entity_type)
+    if isinstance(scope, AllStores):
+        return True
     for entity_id in candidate_ids(candidate.ids):
         resource = entity_scope_resource(session, candidate.entity_type, entity_id)
-        if not permission_service.entity_in_scope(
-            principal, candidate.entity_type, entity_id, resource
-        ):
+        if resource is None or "storeId" not in resource:
+            return False
+        try:
+            store_id = UUID(resource["storeId"])
+        except ValueError:
+            return False
+        if store_id not in scope:
             return False
     return True
 
@@ -130,7 +138,9 @@ def merge_candidate(
     handler = _HANDLERS.get(candidate.entity_type)
     if handler is None:
         raise not_found(message="该实体类型尚未注册合并处理器")
+    before = {"status": candidate.status, "version": candidate.version}
     result = handler(session, candidate, ids, canonical_id, principal)
+    result["before"] = before
     now = datetime.now(UTC)
     candidate.status = "merged"
     candidate.merged_target_id = canonical_id

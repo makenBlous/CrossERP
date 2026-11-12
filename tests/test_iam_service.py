@@ -40,8 +40,10 @@ def _add_user(engine, user_id) -> None:
         )
 
 
-def test_entity_in_scope_uses_iam_store_rules(iam_service: IAMService, engine) -> None:
+def test_store_scope_uses_iam_store_rules(iam_service: IAMService, engine) -> None:
     user_id = uuid4()
+    allowed = uuid4()
+    other = uuid4()
     _add_user(engine, user_id)
     with Session(engine) as session, session.begin():
         session.add(
@@ -49,15 +51,16 @@ def test_entity_in_scope_uses_iam_store_rules(iam_service: IAMService, engine) -
                 name="sku-stores",
                 entity="Sku",
                 scope_type="storeIds",
-                values=["store-allowed"],
+                values=[str(allowed)],
                 updated_by=user_id,
                 updated_at=datetime.now(UTC),
             )
         )
     service = DefaultPermissionService(iam_service)
     principal = Principal(user_id=user_id)
-    assert service.entity_in_scope(principal, "Sku", str(uuid4()), {"storeId": "store-allowed"})
-    assert not service.entity_in_scope(principal, "Sku", str(uuid4()), {"storeId": "store-other"})
+    scope = service.store_scope(principal, "Sku")
+    assert allowed in scope
+    assert other not in scope
 
 
 def test_data_scope_rules_do_not_read_app_settings(iam_service: IAMService, engine) -> None:

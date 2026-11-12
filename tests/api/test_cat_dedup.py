@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -24,7 +24,8 @@ from crosserp.db.schema import (
     Store,
 )
 from crosserp.db.session import make_engine, sqlite_file_url
-from crosserp.platform.permissions import entity_matches_scope
+from crosserp.iam.scope import AllStores
+from crosserp.platform.file_storage import FileStorage
 from crosserp.platform.principal import ActorType, Principal, get_principal
 
 
@@ -46,9 +47,11 @@ class _Permissions:
     def data_scope_filter(self, _principal: Principal, _entity: str) -> dict[str, object]:
         return self.scope
 
-    def entity_in_scope(self, _principal: Principal, entity: str, entity_id: str, resource) -> bool:
-        scope = self.scope if "filters" in self.scope else {"scopes": [], "filters": {}}
-        return entity_matches_scope(scope, entity, entity_id, resource)
+    def store_scope(self, _principal: Principal, _entity: str):
+        filters = self.scope["filters"] if "filters" in self.scope else None  # noqa: SIM401
+        if isinstance(filters, dict) and "storeIds" in filters:
+            return frozenset(UUID(str(item)) for item in filters["storeIds"])
+        return AllStores()
 
 
 def _app(
@@ -62,7 +65,7 @@ def _app(
         user = create_user(session, username=f"dedup-{uuid4().hex[:8]}", password="Dedup-test-123")
         user_id = user.id
     app = FastAPI()
-    install_api(app, engine)
+    install_api(app, engine, file_storage=FileStorage(tmp_path / "files"))
     app.state.permission_service = _Permissions(allowed, scope)
     principal = Principal(user_id=user_id, permissions=frozenset(allowed))
     app.dependency_overrides[get_principal] = lambda: principal
@@ -188,7 +191,7 @@ def test_dedup_merge_preserves_aliases_sources_and_repoints_links(tmp_path) -> N
         assert duplicate is not None and duplicate.merged_into_id == str(first.id)
         assert link is not None and link.to_id == str(first.id)
         assert version is not None and version.actor_type == "human"
-        assert event is not None and event.event_type == "dedupcandidate.merge.done"
+        assert event is not None and event.event_type == "dedup_candidate.merged"
         assert audit is not None and audit.actor_type == "human"
     engine.dispose()
 
@@ -369,7 +372,8 @@ def test_dedup_scope_filters_candidates_and_merge_targets(tmp_path) -> None:
         )
     assert listed.status_code == 200
     assert listed.json()["total"] == 0
-    assert merged.status_code == 404
+    assert merged.status_code == 403
+    assert merged.json()["code"] == "DATA_SCOPE_DENIED"
     with Session(engine) as session:
         row = session.get(DedupCandidate, candidate.id)
         assert row is not None and row.status == "open"

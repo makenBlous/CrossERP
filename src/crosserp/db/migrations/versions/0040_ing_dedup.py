@@ -8,21 +8,23 @@ from alembic import op
 from crosserp.db.types import UtcDateTime
 
 revision: str = "0040_ing_dedup"
-down_revision: str | Sequence[str] | None = "0024_audit_approval"
+down_revision: str | Sequence[str] | None = "0040_ing_project"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    sqlite = bind.dialect.name == "sqlite"
+    if sqlite:
+        bind.exec_driver_sql("PRAGMA foreign_keys=OFF")
     with op.batch_alter_table("sku") as batch:
-        batch.add_column(sa.Column("aliases_json", sa.JSON(), nullable=True))
-        batch.add_column(sa.Column("source_refs_json", sa.JSON(), nullable=True))
+        batch.add_column(
+            sa.Column("source_refs_json", sa.JSON(), nullable=False, server_default="[]")
+        )
         batch.add_column(sa.Column("merged_into_id", sa.String(64), nullable=True))
-    op.execute(sa.text("UPDATE sku SET aliases_json = '[]' WHERE aliases_json IS NULL"))
-    op.execute(sa.text("UPDATE sku SET source_refs_json = '[]' WHERE source_refs_json IS NULL"))
-    with op.batch_alter_table("sku") as batch:
-        batch.alter_column("aliases_json", existing_type=sa.JSON(), nullable=False)
-        batch.alter_column("source_refs_json", existing_type=sa.JSON(), nullable=False)
+    if sqlite:
+        bind.exec_driver_sql("PRAGMA foreign_keys=ON")
 
     op.create_table(
         "dedup_candidate",
@@ -55,10 +57,15 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    sqlite = bind.dialect.name == "sqlite"
+    if sqlite:
+        bind.exec_driver_sql("PRAGMA foreign_keys=OFF")
     op.drop_index("ix_dedup_candidate_updated_at", table_name="dedup_candidate")
     op.drop_index("ix_dedup_candidate_entity_status", table_name="dedup_candidate")
     op.drop_table("dedup_candidate")
     with op.batch_alter_table("sku") as batch:
         batch.drop_column("merged_into_id")
         batch.drop_column("source_refs_json")
-        batch.drop_column("aliases_json")
+    if sqlite:
+        bind.exec_driver_sql("PRAGMA foreign_keys=ON")

@@ -1,33 +1,21 @@
+"""店铺范围缺规则时拒绝放行。"""
+
 from uuid import uuid4
 
-from crosserp.platform.permissions import DefaultPermissionService, entity_matches_scope
+import pytest
+
+from crosserp.api.errors import APIError, ErrorCode
+from crosserp.platform.permissions import DefaultPermissionService
 from crosserp.platform.principal import Principal
 
 
 class _ScopeIam:
-    def __init__(self, scope: dict[str, object]) -> None:
-        self.scope = scope
-
-    def data_scope_filter(self, _principal: Principal, _entity: str) -> dict[str, object]:
-        return self.scope
+    def store_scope(self, _principal: Principal, _entity: str):
+        raise APIError(ErrorCode.VALIDATION_FAILED, "店铺数据范围规则缺失")
 
 
-def test_entity_in_scope_honors_all_id_filter_and_store_filter() -> None:
-    service = DefaultPermissionService(_ScopeIam({"scopes": ["all"], "filters": {"storeIds": []}}))
-    principal = Principal(user_id=uuid4())
-    sku_id = str(uuid4())
-    assert service.entity_in_scope(principal, "Sku", sku_id, {"storeId": str(uuid4())})
-
-    limited = DefaultPermissionService(
-        _ScopeIam({"scopes": ["store"], "filters": {"skuIds": [sku_id], "storeIds": ["store-1"]}})
-    )
-    assert limited.entity_in_scope(principal, "Sku", sku_id, {"storeId": "store-1"})
-    assert not limited.entity_in_scope(principal, "Sku", str(uuid4()), {"storeId": "store-1"})
-    assert not limited.entity_in_scope(principal, "Sku", sku_id, {"storeId": "store-2"})
-    assert not limited.entity_in_scope(principal, "Sku", sku_id, None)
-    assert entity_matches_scope(
-        {"scopes": ["store"], "filters": {"storeIds": ["store-1"]}},
-        "Supplier",
-        str(uuid4()),
-        {},
-    )
+def test_store_scope_does_not_invent_entity_id_keys() -> None:
+    service = DefaultPermissionService(_ScopeIam())
+    with pytest.raises(APIError) as exc_info:
+        service.store_scope(Principal(user_id=uuid4()), "Sku")
+    assert exc_info.value.code is ErrorCode.VALIDATION_FAILED
