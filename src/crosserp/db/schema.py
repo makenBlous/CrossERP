@@ -150,30 +150,6 @@ class Brand(Base):
     provenance: Mapped[Any] = mapped_column(JSON(), nullable=False, default=dict)
 
 
-class Category(Base):
-    """商品类目最小只读主数据。"""
-
-    __tablename__ = "catalog_category"
-    __table_args__ = (Index("ix_catalog_category_name", "name"),)
-
-    id: Mapped[uuid.UUID] = _uuid_pk()
-    parent_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("catalog_category.id"))
-    name: Mapped[str] = mapped_column(String(255))
-    sort_no: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
-
-
-class Brand(Base):
-    """品牌最小只读主数据。"""
-
-    __tablename__ = "catalog_brand"
-    __table_args__ = (Index("ix_catalog_brand_name", "name"),)
-
-    id: Mapped[uuid.UUID] = _uuid_pk()
-    name: Mapped[str] = mapped_column(String(255))
-    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
-
-
 class Sku(Base):
     """平台 SKU 与内部 SKU 的映射。"""
 
@@ -190,8 +166,8 @@ class Sku(Base):
     internal_sku: Mapped[str] = mapped_column(String(128))
     title: Mapped[str | None] = mapped_column(String(512))
     title_en: Mapped[str | None] = mapped_column(String(512))
-    brand_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("catalog_brand.id"))
-    category_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("catalog_category.id"))
+    brand_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("brand.id"))
+    category_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("category.id"))
     uom: Mapped[str | None] = mapped_column(String(32))
     weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
     hs_code: Mapped[str | None] = mapped_column(String(32))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -8,7 +9,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from crosserp.db.schema import AuditLog, Brand, Category, EntityVersion, SkuCost, Store
+from crosserp.db.repo.users import create_user
+from crosserp.db.schema import (
+    AuditLog,
+    Brand,
+    Category,
+    EntityVersion,
+    IamPermissionOverride,
+    SkuCost,
+    Store,
+)
 from crosserp.platform.principal import ActorType, Principal, get_principal
 
 
@@ -27,6 +37,7 @@ def _principal(*permissions: str, agent: bool = False) -> Principal:
 
 def _seed(api_engine) -> tuple[UUID, UUID, UUID]:
     store_id, category_id, brand_id = uuid4(), uuid4(), uuid4()
+    now = datetime.now(UTC)
     with Session(api_engine) as session, session.begin():
         session.add(
             Store(
@@ -37,17 +48,62 @@ def _seed(api_engine) -> tuple[UUID, UUID, UUID]:
                 currency="USD",
             )
         )
-        session.add(Category(id=category_id, name="电子产品", active=True, sort_no=1))
-        session.add(Brand(id=brand_id, name="测试品牌", active=True))
+        session.add(
+            Category(
+                id=category_id,
+                name="电子产品",
+                active=True,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.add(
+            Brand(
+                id=brand_id,
+                name="测试品牌",
+                active=True,
+                created_at=now,
+                updated_at=now,
+                provenance={},
+            )
+        )
     return store_id, category_id, brand_id
+
+
+def _install(client: TestClient, principal: Principal) -> Principal:
+    from crosserp.platform.principal import get_principal
+
+    with Session(client.app.state.database_engine) as session, session.begin():
+        user = create_user(
+            session,
+            username=f"sku-{uuid4().hex}",
+            password="Sku-test-password-123",
+        )
+        for permission in principal.permissions:
+            session.add(
+                IamPermissionOverride(
+                    user_id=user.id,
+                    permission=permission,
+                    effect="allow",
+                    reason="catalog SKU test",
+                    data_scopes=[],
+                    created_at=datetime.now(UTC),
+                )
+            )
+        user_id = user.id
+    effective = replace(
+        principal,
+        user_id=user_id,
+        on_behalf_of=user_id if principal.is_agent else None,
+    )
+    client.app.dependency_overrides[get_principal] = lambda: effective
+    return effective
 
 
 def test_sku_crud_and_lookup(json_client: TestClient, api_engine, monkeypatch) -> None:
     store_id, category_id, brand_id = _seed(api_engine)
     app = json_client.app
-    app.dependency_overrides[get_principal] = lambda: _principal(
-        "item:read", "item:create", "item:write"
-    )
+    _install(json_client, _principal("item:read", "item:create", "item:write"))
     try:
         response = json_client.post(
             "/api/v1/catalog/skus",
@@ -105,12 +161,10 @@ def test_sku_crud_and_lookup(json_client: TestClient, api_engine, monkeypatch) -
             )
         cost_visible = json_client.get(f"/api/v1/catalog/skus/{sku_id}")
         assert "unitCost" not in cost_visible.json()
-        app.dependency_overrides[get_principal] = lambda: _principal("item:read", "item:cost:read")
+        _install(json_client, _principal("item:read", "item:cost:read"))
         cost_visible = json_client.get(f"/api/v1/catalog/skus/{sku_id}")
         assert cost_visible.json()["unitCost"] == {"amountMinor": 12500, "currency": "USD"}
-        app.dependency_overrides[get_principal] = lambda: _principal(
-            "item:read", "item:create", "item:write"
-        )
+        _install(json_client, _principal("item:read", "item:create", "item:write"))
 
         updated = json_client.patch(
             f"/api/v1/catalog/skus/{sku_id}",
@@ -146,7 +200,7 @@ def test_sku_crud_and_lookup(json_client: TestClient, api_engine, monkeypatch) -
 def test_sku_forbidden_and_missing_are_404(json_client: TestClient, api_engine) -> None:
     _, _, _ = _seed(api_engine)
     app = json_client.app
-    app.dependency_overrides[get_principal] = lambda: _principal("report:read")
+    _install(json_client, _principal("report:read"))
     try:
         assert json_client.get("/api/v1/catalog/skus").status_code == 404
         assert json_client.get(f"/api/v1/catalog/skus/{uuid4()}").status_code == 404
@@ -160,7 +214,7 @@ def test_agent_medium_action_has_undo_and_audit_context(
     store_id, _, _ = _seed(api_engine)
     principal = _principal("item:create", agent=True)
     app = json_client.app
-    app.dependency_overrides[get_principal] = lambda: principal
+    principal = _install(json_client, principal)
     try:
         response = json_client.post(
             "/api/v1/catalog/skus",
@@ -190,7 +244,7 @@ def test_agent_medium_action_has_undo_and_audit_context(
 
 def test_sku_invalid_input_returns_validation_error(json_client: TestClient) -> None:
     app = json_client.app
-    app.dependency_overrides[get_principal] = lambda: _principal("item:create")
+    _install(json_client, _principal("item:create"))
     try:
         response = json_client.post(
             "/api/v1/catalog/skus",
