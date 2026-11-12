@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from typing import Any, cast
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, or_, select
@@ -23,6 +22,7 @@ from crosserp.catalog.mapping import (
     mapping_dict,
 )
 from crosserp.db.schema import SkuMapping
+from crosserp.iam.scope import apply_store_scope
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService
@@ -54,13 +54,11 @@ def list_mappings(
     sort: str | None = None,
 ) -> dict[str, Any]:
     service.require(principal, "listing:read")
-    statement = select(SkuMapping)
-    scope = service.data_scope_filter(principal, "SkuMapping")
-    allowed = scope.get("storeIds") or scope.get("filters", {}).get("store_ids")
-    if allowed is not None:
-        statement = statement.where(
-            SkuMapping.store_id.in_([UUID(str(value)) for value in allowed])
-        )
+    statement = apply_store_scope(
+        select(SkuMapping),
+        SkuMapping.store_id,
+        service.store_scope(principal, "SkuMapping"),
+    )
     if q:
         term = f"%{q}%"
         statement = statement.where(

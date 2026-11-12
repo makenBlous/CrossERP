@@ -11,7 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.db.repo.users import create_user
-from crosserp.db.schema import AuditLog, Bundle, EntityVersion, IamPermissionOverride
+from crosserp.db.schema import (
+    AuditLog,
+    Bundle,
+    EntityVersion,
+    IamDataScopeRule,
+    IamPermissionOverride,
+)
 from crosserp.platform.principal import ActorType, Principal, get_principal
 from crosserp.web.app import create_app
 
@@ -39,6 +45,16 @@ def bundle_client(api_database: str) -> Iterator[tuple[TestClient, object]]:
                     created_at=datetime.now(UTC),
                 )
             )
+        session.add(
+            IamDataScopeRule(
+                name="bundle test all stores",
+                entity="*",
+                scope_type="all",
+                values=[],
+                updated_by=user.id,
+                updated_at=datetime.now(UTC),
+            )
+        )
         principal = replace(principal, user_id=user.id)
     app.dependency_overrides[get_principal] = lambda: principal
     with TestClient(app) as client:
@@ -167,6 +183,16 @@ def test_bundle_medium_ai_executes_and_critical_deactivate_is_rejected(bundle_cl
                     created_at=datetime.now(UTC),
                 )
             )
+        session.add(
+            IamDataScopeRule(
+                name="bundle agent all stores",
+                entity="*",
+                scope_type="all",
+                values=[],
+                updated_by=user.id,
+                updated_at=datetime.now(UTC),
+            )
+        )
         user_id = user.id
     principal = replace(principal, user_id=user_id, on_behalf_of=user_id)
     client.app.dependency_overrides[get_principal] = lambda: principal

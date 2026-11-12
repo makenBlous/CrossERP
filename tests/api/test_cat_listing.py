@@ -63,7 +63,7 @@ def _install(app: FastAPI, principal: Principal, store_ids: list[UUID]) -> Princ
                 id=uuid4(),
                 name="listing test scope",
                 entity="Listing",
-                scope_type="store_ids",
+                scope_type="storeIds",
                 values=[str(store_id) for store_id in store_ids],
                 updated_at=datetime.now(UTC),
             )

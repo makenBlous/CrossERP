@@ -19,10 +19,21 @@ from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.db.schema import ActionExecution, EntityEvent, EntityVersion
+from crosserp.ontology.catalog import load_catalog
 from crosserp.platform.approval import ApprovalGateway
 from crosserp.platform.audit import AuditRecorder
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
+
+_CATALOG = load_catalog()
+
+
+def _event_type(action: str, entity: str) -> str:
+    """事件名以实体目录 emits 为准。目录未声明时用实体与动作动词。"""
+    action_def = _CATALOG.action_by_id.get(action)
+    if action_def is not None and action_def.emits:
+        return action_def.emits[0]
+    return f"{entity.lower()}.{action.rsplit('.', 1)[-1]}.done"
 
 
 class RiskTier(StrEnum):
@@ -355,11 +366,7 @@ class ActionDispatcher:
     ) -> None:
         if context.get("entity_id") is None:
             return
-        event_type = {
-            "Listing.create": "listing.created",
-            "Listing.update": "listing.updated",
-            "Listing.status": "listing.status.done",
-        }.get(action, f"{context['entity'].lower()}.{action.rsplit('.', 1)[-1]}.done")
+        event_type = _event_type(action, str(context["entity"]))
         self.session.add(
             EntityEvent(
                 id=uuid4(),

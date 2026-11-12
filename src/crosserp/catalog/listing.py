@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -18,6 +17,7 @@ from crosserp.api.schemas import (
     ListingUpdateRequest,
 )
 from crosserp.db.schema import ActionExecution, Listing, Store
+from crosserp.iam.scope import AllStores, StoreScope, apply_store_scope
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier, _request_hash
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService
@@ -249,11 +249,11 @@ class ListingService:
     def _dispatcher(self) -> ActionDispatcher:
         return make_action_dispatcher(self.session, self.permission_service)
 
+    def _store_scope(self) -> StoreScope:
+        return self.permission_service.store_scope(self.principal, "Listing")
+
     def _scope_statement(self, statement: Any) -> Any:
-        ids = _scope_store_ids(self.permission_service.data_scope_filter(self.principal, "Listing"))
-        if ids is not None:
-            statement = statement.where(Listing.store_id.in_(ids))
-        return statement
+        return apply_store_scope(statement, Listing.store_id, self._store_scope())
 
     def _get_scoped(self, listing_id: UUID, *, write: bool = False) -> Listing:
         statement = select(Listing).where(Listing.id == listing_id)
@@ -264,25 +264,17 @@ class ListingService:
             if write:
                 existing = self.session.get(Listing, listing_id)
                 if existing is not None:
-                    raise APIError(ErrorCode.DATA_SCOPE_DENIED, "超出店铺数据范围", status_code=403)
+                    raise APIError(ErrorCode.DATA_SCOPE_DENIED, "超出店铺数据范围")
             raise not_found(message="Listing 不存在")
         return cast(Listing, row)
 
     def _require_store_scope(self, store_id: UUID, *, write: bool) -> None:
-        ids = _scope_store_ids(self.permission_service.data_scope_filter(self.principal, "Listing"))
-        if ids is not None and store_id not in ids:
-            if write:
-                raise APIError(ErrorCode.DATA_SCOPE_DENIED, "超出店铺数据范围", status_code=403)
-            raise not_found(message="Listing 不存在")
-
-
-def _scope_store_ids(scope: Mapping[str, Any]) -> set[UUID] | None:
-    values: Any = scope.get("store_ids")
-    if values is None:
-        values = scope.get("filters", {}).get("store_ids")
-    if values is None:
-        return None
-    return {UUID(value) for value in values}
+        scope = self._store_scope()
+        if isinstance(scope, AllStores) or store_id in scope:
+            return
+        if write:
+            raise APIError(ErrorCode.DATA_SCOPE_DENIED, "超出店铺数据范围")
+        raise not_found(message="Listing 不存在")
 
 
 def _provenance(principal: Principal) -> dict[str, Any]:

@@ -15,10 +15,11 @@ from pydantic import Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from crosserp.api.errors import APIError, ErrorCode
+from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.metadata import api_endpoint
 from crosserp.api.schemas import CamelModel, PageParams
 from crosserp.catalog.bundles import (
+    bundle_in_store_scope,
     bundle_payload,
     create_bundle,
     deactivate_bundle,
@@ -26,6 +27,7 @@ from crosserp.catalog.bundles import (
     update_bundle,
 )
 from crosserp.db.schema import Bundle
+from crosserp.iam.scope import AllStores
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService
@@ -116,12 +118,23 @@ def list_bundles(
             statement = statement.where(Bundle.bundle_sku.contains(q))
         column, descending = _sort_column(sort)
         statement = statement.order_by(column.desc() if descending else column.asc())
-        total = int(session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
-        rows = list(
-            session.scalars(
-                statement.offset((params.page - 1) * params.page_size).limit(params.page_size)
+        scope = permission_service.store_scope(principal, "Bundle")
+        if isinstance(scope, AllStores):
+            total = int(session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
+            rows = list(
+                session.scalars(
+                    statement.offset((params.page - 1) * params.page_size).limit(params.page_size)
+                )
             )
-        )
+        else:
+            visible = [
+                row
+                for row in session.scalars(statement)
+                if bundle_in_store_scope(session, row, principal, permission_service)
+            ]
+            total = len(visible)
+            start = (params.page - 1) * params.page_size
+            rows = visible[start : start + params.page_size]
         return _page([bundle_payload(row) for row in rows], params.page, params.page_size, total)
     finally:
         session.close()
@@ -195,6 +208,8 @@ def update_bundle_endpoint(
             if payload.bundle_sku is None and payload.components is None:
                 raise APIError(ErrorCode.VALIDATION_FAILED, "至少提供一个修改字段")
             row = get_bundle(session, id)
+            if not bundle_in_store_scope(session, row, principal, permission_service):
+                raise not_found(message="组合装不存在")
             dispatcher = make_action_dispatcher(session, permission_service)
 
             def work() -> dict[str, Any]:
@@ -253,6 +268,8 @@ def deactivate_bundles(
             results: list[dict[str, Any]] = []
             for target_id in target_ids:
                 row = get_bundle(session, target_id)
+                if not bundle_in_store_scope(session, row, principal, permission_service):
+                    raise not_found(message="组合装不存在")
                 if not row.active:
                     raise APIError(ErrorCode.ILLEGAL_TRANSITION, "组合装已作废")
                 if row.version != payload.expected_version:

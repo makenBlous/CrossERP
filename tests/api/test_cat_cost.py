@@ -10,7 +10,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.db.repo.users import create_user
-from crosserp.db.schema import AuditLog, EntityEvent, IamPermissionOverride, SkuCost
+from crosserp.db.schema import (
+    AuditLog,
+    EntityEvent,
+    IamDataScopeRule,
+    IamPermissionOverride,
+    SkuCost,
+)
 from crosserp.platform.principal import ActorType, Principal, get_principal
 
 
@@ -35,6 +41,16 @@ def _app(api_database: str, principal: Principal):
                     created_at=datetime.now(UTC),
                 )
             )
+        session.add(
+            IamDataScopeRule(
+                name="cost test all stores",
+                entity="*",
+                scope_type="all",
+                values=[],
+                updated_by=user.id,
+                updated_at=datetime.now(UTC),
+            )
+        )
         user_id = user.id
     principal = replace(
         principal,

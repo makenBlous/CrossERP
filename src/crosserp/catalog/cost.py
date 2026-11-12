@@ -11,7 +11,9 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
-from crosserp.db.schema import EntityEvent, SkuCost
+from crosserp.db.schema import EntityEvent, Sku, SkuCost
+from crosserp.iam.scope import AllStores, apply_store_scope
+from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 
 
@@ -32,14 +34,26 @@ def list_costs(
     page_size: int,
     q: str | None,
     sort: str | None,
+    principal: Principal,
+    permission_service: PermissionService,
 ) -> tuple[list[SkuCost], int]:
     statement = select(SkuCost)
+    scope = permission_service.store_scope(principal, "SkuCost")
+    limited_skus = (
+        None
+        if isinstance(scope, AllStores)
+        else apply_store_scope(select(Sku.internal_sku), Sku.store_id, scope)
+    )
+    if limited_skus is not None:
+        statement = statement.where(SkuCost.internal_sku.in_(limited_skus))
     if q:
         pattern = f"%{q}%"
         statement = statement.where(
             or_(SkuCost.internal_sku.ilike(pattern), SkuCost.period.ilike(pattern))
         )
     total_statement = select(SkuCost.id)
+    if limited_skus is not None:
+        total_statement = total_statement.where(SkuCost.internal_sku.in_(limited_skus))
     if q:
         total_statement = total_statement.where(
             or_(SkuCost.internal_sku.ilike(pattern), SkuCost.period.ilike(pattern))
@@ -72,7 +86,9 @@ def create_cost(
     currency: str,
     source: str,
     principal: Principal,
+    permission_service: PermissionService,
 ) -> dict[str, Any]:
+    _require_sku_store(session, principal, permission_service, internal_sku)
     valid_from, valid_to = period_bounds(period)
     statement = select(SkuCost).where(SkuCost.internal_sku == internal_sku)
     for existing in session.scalars(statement):
@@ -126,6 +142,26 @@ def create_cost(
         )
     )
     return serialize_cost(row)
+
+
+def _require_sku_store(
+    session: Session,
+    principal: Principal,
+    permission_service: PermissionService,
+    internal_sku: str,
+) -> None:
+    scope = permission_service.store_scope(principal, "SkuCost")
+    if isinstance(scope, AllStores):
+        return
+    allowed = session.scalar(
+        apply_store_scope(
+            select(Sku.id).where(Sku.internal_sku == internal_sku),
+            Sku.store_id,
+            scope,
+        )
+    )
+    if allowed is None:
+        raise APIError(ErrorCode.DATA_SCOPE_DENIED, "超出店铺数据范围")
 
 
 def serialize_cost(row: SkuCost) -> dict[str, Any]:

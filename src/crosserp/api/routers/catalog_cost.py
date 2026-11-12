@@ -55,7 +55,15 @@ def get_costs(
 ) -> dict[str, object]:
     _require(principal, "item:read", permission_service)
     with Session(request.app.state.database_engine) as session:
-        rows, total = list_costs(session, page=page, page_size=page_size, q=q, sort=sort)
+        rows, total = list_costs(
+            session,
+            page=page,
+            page_size=page_size,
+            q=q,
+            sort=sort,
+            principal=principal,
+            permission_service=permission_service,
+        )
     return {
         "items": [serialize_cost(row) for row in rows],
         "page": page,
@@ -97,6 +105,7 @@ def post_cost(
                 currency=body.unit_cost.currency,
                 source=body.source,
                 principal=principal,
+                permission_service=permission_service,
             ),
         )
     return cast(dict[str, object], result)

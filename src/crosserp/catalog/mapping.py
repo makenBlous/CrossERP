@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.schemas import CamelModel
 from crosserp.db.schema import SkuMapping, Store
+from crosserp.iam.scope import AllStores
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 
@@ -42,13 +43,8 @@ class MappingConfirmInput(CamelModel):
 def _scope_store_allowed(
     principal: Principal, permission_service: PermissionService, store_id: UUID
 ) -> bool:
-    scope = permission_service.data_scope_filter(principal, "SkuMapping")
-    if not scope:
-        return True
-    allowed = scope.get("storeIds") or scope.get("filters", {}).get("store_ids")
-    if allowed is None:
-        return True
-    return str(store_id) in allowed
+    scope = permission_service.store_scope(principal, "SkuMapping")
+    return isinstance(scope, AllStores) or store_id in scope
 
 
 def mapping_dict(row: SkuMapping) -> dict[str, Any]:

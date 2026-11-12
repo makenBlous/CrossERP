@@ -45,7 +45,7 @@ def _install(app, principal: Principal, store_id: str) -> Principal:
                 id=uuid4(),
                 name="mapping test scope",
                 entity="SkuMapping",
-                scope_type="store_ids",
+                scope_type="storeIds",
                 values=[store_id],
                 updated_at=datetime.now(UTC),
             )

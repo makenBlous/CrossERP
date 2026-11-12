@@ -11,7 +11,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
-from crosserp.db.schema import Bundle
+from crosserp.db.schema import Bundle, Sku
+from crosserp.iam.scope import AllStores, apply_store_scope
+from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 
 
@@ -105,6 +107,31 @@ def deactivate_bundle(session: Session, row: Bundle) -> tuple[dict[str, Any], di
     return before, bundle_payload(row)
 
 
+def bundle_in_store_scope(
+    session: Session,
+    row: Bundle,
+    principal: Principal,
+    permission_service: PermissionService,
+) -> bool:
+    """组合装没有店铺列。可见性由组成 SKU 所在店铺决定。"""
+    scope = permission_service.store_scope(principal, "Bundle")
+    if isinstance(scope, AllStores):
+        return True
+    skus = [str(item["internalSku"]) for item in row.components_json]
+    if not skus:
+        return False
+    allowed = set(
+        session.scalars(
+            apply_store_scope(
+                select(Sku.internal_sku).where(Sku.internal_sku.in_(skus)),
+                Sku.store_id,
+                scope,
+            )
+        )
+    )
+    return set(skus) <= allowed
+
+
 def bundle_payload(row: Bundle) -> dict[str, Any]:
     return {
         "id": str(row.id),
@@ -118,6 +145,7 @@ def bundle_payload(row: Bundle) -> dict[str, Any]:
 
 
 __all__ = [
+    "bundle_in_store_scope",
     "bundle_payload",
     "create_bundle",
     "deactivate_bundle",
