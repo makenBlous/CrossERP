@@ -17,6 +17,7 @@ from crosserp.db.schema import (
     EntityVersion,
     ImportBatch,
     RawRow,
+    WorkflowRule,
 )
 from crosserp.platform.principal import ActorType, Principal
 
@@ -210,6 +211,104 @@ def test_agent_money_resolution_waits_for_human(
         assert row is not None and row.status == "open"
         approval = session.scalar(select(Approval).order_by(Approval.requested_at.desc()))
         assert approval is not None and approval.state in {"awaiting_initiator", "pending"}
+        assert approval.risk_tier == "high"
+
+
+def test_agent_money_resolution_uses_same_high_risk_tier_as_human(
+    json_client: TestClient, api_engine, monkeypatch
+) -> None:
+    user_id, batch_id, issue_id = _issue(api_engine, "ing-issue-agent-money", money_impact=True)
+    csrf = _login(json_client, "ing-issue-agent-money")
+    monkeypatch.setattr(
+        "crosserp.api.routers._platform_common.get_principal",
+        lambda _request: Principal(
+            user_id=user_id,
+            roles=frozenset({Role.ADMIN.value}),
+            actor_type=ActorType.AGENT,
+            agent_id="ing-money-agent-same-risk",
+            on_behalf_of=user_id,
+            channel="mcp",
+        ),
+    )
+    response = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/resolve",
+        json={"decision": "duplicate", "reason": "涉钱", "expectedVersion": 1},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+    with Session(api_engine) as session:
+        approval = session.scalar(select(Approval).order_by(Approval.requested_at.desc()))
+        assert approval is not None and approval.risk_tier == "high"
+
+
+def test_issue_not_found_is_hidden(json_client: TestClient, api_engine) -> None:
+    _user_id, batch_id, _issue_id = _issue(api_engine, "ing-issue-missing")
+    csrf = _login(json_client, "ing-issue-missing")
+    response = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/issues/{uuid4()}/escalate",
+        json={"expectedVersion": 1},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 404
+
+
+def test_human_money_resolution_uses_high_risk_approval_and_keeps_issue_open(
+    json_client: TestClient, api_engine
+) -> None:
+    user_id, batch_id, issue_id = _issue(api_engine, "ing-issue-human-money", money_impact=True)
+    with Session(api_engine) as session, session.begin():
+        approver = create_user(
+            session,
+            username="ing-issue-human-approver",
+            password="password-123",
+            roles=(Role.FINANCE,),
+        )
+        approver_id = approver.id
+        session.add(
+            WorkflowRule(
+                id=uuid4(),
+                approval_type="cleansingissue",
+                version=1,
+                steps_json=[{"kind": "specific_user", "userId": str(approver.id)}],
+                enabled=True,
+                updated_at=datetime.now(UTC),
+            )
+        )
+    csrf = _login(json_client, "ing-issue-human-money")
+    response = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/resolve",
+        json={"decision": "duplicate", "reason": "人工提交涉钱结论", "expectedVersion": 1},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending"
+    with Session(api_engine) as session:
+        issue = session.get(CleansingIssue, issue_id)
+        approval = session.scalar(select(Approval).order_by(Approval.requested_at.desc()))
+        assert issue is not None and issue.status == "open" and issue.version == 1
+        assert approval is not None and approval.state == "pending"
+        assert approval.risk_tier == "high"
+        assert str(approver_id) in approval.approver_ids
+        assert str(user_id) == approval.requested_by
+
+
+def test_issue_requests_require_expected_version_and_forbid_extra_fields(
+    json_client: TestClient, api_engine
+) -> None:
+    _user_id, batch_id, issue_id = _issue(api_engine, "ing-issue-schema")
+    csrf = _login(json_client, "ing-issue-schema")
+    missing = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/resolve",
+        json={"decision": "ignore", "reason": "缺版本"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    extra = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/escalate",
+        json={"expectedVersion": 1, "unexpected": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert missing.status_code == 422
+    assert extra.status_code == 422
 
 
 def test_issue_write_is_hidden_without_import_permission(

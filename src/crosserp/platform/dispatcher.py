@@ -154,7 +154,7 @@ class ActionDispatcher:
                     details={"expectedVersion": expected_version, "actualVersion": current_version},
                 )
 
-            if principal.is_agent and decision is AutonomyDecision.DRAFT_OR_APPROVAL:
+            if decision is AutonomyDecision.DRAFT_OR_APPROVAL:
                 if self.approval_gateway is None:
                     raise APIError(ErrorCode.APPROVAL_REQUIRED, "高风险动作需要审批网关")
                 approval = self.approval_gateway.submit(
@@ -166,18 +166,22 @@ class ActionDispatcher:
                     approval_type=context["entity"].lower(),
                     request_id=request_id,
                 )
-                result = _approval_result(approval)
-                self._save_execution(
-                    principal=principal,
-                    action=action,
-                    entity=context["entity"],
-                    entity_id=context["entity_id"],
-                    status="awaiting_approval",
-                    result=result,
-                    idempotency_key=idempotency_key,
-                    request_payload=payload,
-                )
-                return result
+                approval_result = _approval_result(approval)
+                if principal.is_agent or approval_result.get("status") in {
+                    "pending",
+                    "awaiting_initiator",
+                }:
+                    self._save_execution(
+                        principal=principal,
+                        action=action,
+                        entity=context["entity"],
+                        entity_id=context["entity_id"],
+                        status="awaiting_approval",
+                        result=approval_result,
+                        idempotency_key=idempotency_key,
+                        request_payload=payload,
+                    )
+                    return approval_result
 
             result = _call_business_action(business_action)
             context["result"] = result
@@ -417,8 +421,10 @@ def _call_business_action(action: Callable[[], Any]) -> Any:
         raise APIError(ErrorCode.INTERNAL_ERROR, "业务动作必须是无参可调用对象") from exc
 
 
-def _approval_result(value: dict[str, Any]) -> dict[str, Any]:
-    return value
+def _approval_result(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    return {"approvalId": str(value.id), "status": value.state}
 
 
 def _as_mapping(value: Any) -> dict[str, Any]:

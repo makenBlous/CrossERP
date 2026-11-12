@@ -128,6 +128,9 @@ def list_transfers(session: Session, issue_id: UUID) -> Sequence[CleansingIssueT
 def get_issue(
     session: Session, batch_id: UUID, issue_id: UUID
 ) -> tuple[ImportBatch, CleansingIssue]:
+    # 08 v4 §9.3 defines IngestBatch/CleansingIssue without storeId; this
+    # chain is therefore company-wide. ActionDispatcher still invokes the
+    # PermissionService data-scope protocol for the entity on every action.
     batch = session.get(ImportBatch, batch_id)
     issue = session.get(CleansingIssue, issue_id)
     if batch is None or issue is None or issue.batch_id != batch_id:
