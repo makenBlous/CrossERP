@@ -23,6 +23,7 @@ from crosserp.db.schema import (
     IamTemporaryGrant,
     UserRole,
 )
+from crosserp.iam.scope import StoreScope, resolve_store_scope
 
 if TYPE_CHECKING:
     from crosserp.platform.principal import Principal
@@ -387,6 +388,39 @@ class IAMService:
             )
             filters = {row.scope_type: row.values for row in rules}
         return {"entity": entity, "scopes": sorted(scopes | set(filters)), "filters": filters}
+
+    def store_scope(self, principal: Principal, entity: str) -> StoreScope:
+        """返回全部店铺或店铺 id 集合。规则缺失或格式不对时拒绝放行。"""
+        effective_user_id = principal.effective_user_id
+        if effective_user_id is None:
+            raise _api_error("AUTH_REQUIRED", "需要登录")
+        role_tokens = self._role_store_tokens(effective_user_id)
+        with Session(self.engine) as session:
+            rules = list(
+                session.scalars(
+                    select(IamDataScopeRule).where(IamDataScopeRule.entity.in_((entity, "*")))
+                )
+            )
+        return resolve_store_scope(
+            role_tokens,
+            entity_rules=[(row.scope_type, row.values) for row in rules if row.entity == entity],
+            wildcard_rules=[(row.scope_type, row.values) for row in rules if row.entity == "*"],
+        )
+
+    def _role_store_tokens(self, user_id: UUID) -> set[str]:
+        self._refresh_roles()
+        with Session(self.engine) as session:
+            role_ids = set(
+                session.scalars(select(UserRole.role).where(UserRole.user_id == user_id))
+            )
+        tokens: set[str] = set()
+        visited: set[str] = set()
+        for role_id in role_ids:
+            for inherited in self._role_chain(role_id, visited):
+                role = self.roles[inherited]
+                if role.active:
+                    tokens.update(role.data_scopes)
+        return tokens
 
     def serialize(
         self, user_id: UUID, record: dict[str, Any], field_permissions: dict[str, str]

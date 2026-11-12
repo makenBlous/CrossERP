@@ -20,6 +20,7 @@ from crosserp.api.routers._platform_common import (
 )
 from crosserp.api.schemas import CamelModel, PageParams
 from crosserp.db.schema import Store
+from crosserp.iam.scope import apply_store_scope
 from crosserp.platform.dispatcher import RiskTier
 
 router = APIRouter()
@@ -72,13 +73,11 @@ def list_stores(
     principal, session = _principal_db(request)
     try:
         _require(request, principal, "report:read", entity="Store")
-        statement = select(Store).order_by(Store.name)
-        scope = request.app.state.permission_service.data_scope_filter(principal, "Store")
-        filters = scope.get("filters", scope)
-        if "all" not in scope.get("scopes", ()) and "storeIds" in filters:
-            statement = statement.where(
-                Store.id.in_([UUID(str(value)) for value in filters["storeIds"]])
-            )
+        statement = apply_store_scope(
+            select(Store).order_by(Store.name),
+            Store.id,
+            request.app.state.permission_service.store_scope(principal, "Store"),
+        )
         if q is not None:
             statement = statement.where(Store.name.contains(q))
         rows = list(session.scalars(statement))

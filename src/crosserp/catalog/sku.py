@@ -13,10 +13,13 @@ from sqlalchemy import String, func, literal, or_, select
 from sqlalchemy import cast as sa_cast
 from sqlalchemy.orm import Session
 
-from crosserp.api.errors import not_found
+from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.db.schema import Brand, Category, EntityVersion, Sku, SkuCost, Store
+from crosserp.iam.scope import AllStores, apply_store_scope
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
+
+_COST_FIELDS = {"unitCost": "sku.cost:read", "freightPerUnit": "sku.cost:read"}
 
 
 def list_skus(
@@ -29,8 +32,9 @@ def list_skus(
     sort: str | None,
     permission_service: PermissionService,
 ) -> dict[str, Any]:
-    statement = select(Sku)
-    statement = _apply_store_scope(statement, principal, permission_service, Sku.store_id)
+    statement = apply_store_scope(
+        select(Sku), Sku.store_id, permission_service.store_scope(principal, "Sku")
+    )
     if q:
         pattern = f"%{q}%"
         statement = statement.where(or_(Sku.internal_sku.like(pattern), Sku.title.like(pattern)))
@@ -42,7 +46,7 @@ def list_skus(
     )
     rows = session.scalars(statement).all()
     return {
-        "items": [sku_dict(row, include_cost=False, session=session) for row in rows],
+        "items": [sku_view(row, session, principal, permission_service) for row in rows],
         "page": page,
         "pageSize": page_size,
         "total": int(total),
@@ -56,13 +60,15 @@ def get_sku(
     *,
     permission_service: PermissionService,
 ) -> dict[str, Any]:
-    statement = select(Sku).where(Sku.id == sku_id)
-    statement = _apply_store_scope(statement, principal, permission_service, Sku.store_id)
+    statement = apply_store_scope(
+        select(Sku).where(Sku.id == sku_id),
+        Sku.store_id,
+        permission_service.store_scope(principal, "Sku"),
+    )
     row = session.scalar(statement)
     if row is None:
         raise not_found(message="SKU 不存在")
-    include_cost = _can_read_cost(principal)
-    return sku_dict(row, include_cost=include_cost, session=session)
+    return sku_view(row, session, principal, permission_service)
 
 
 def create_sku(
@@ -91,7 +97,7 @@ def create_sku(
     result = {
         "id": str(row.id),
         "status": "succeeded",
-        "after": sku_dict(row, include_cost=False),
+        "after": sku_dict(row, session),
         "undo": {"action": "Sku.update", "payload": {"id": str(row.id), "active": False}},
     }
     return row.id, result
@@ -100,17 +106,28 @@ def create_sku(
 def ensure_store_allowed(
     principal: Principal, store_id: UUID | None, service: PermissionService
 ) -> None:
-    scope = service.data_scope_filter(principal, "Sku")
-    values = scope.get("storeIds") or scope.get("store_ids")
-    if values and (store_id is None or str(store_id) not in {str(value) for value in values}):
-        raise not_found(message="SKU 不存在")
+    scope = service.store_scope(principal, "Sku")
+    if isinstance(scope, AllStores):
+        return
+    if store_id is None or store_id not in scope:
+        raise APIError(ErrorCode.DATA_SCOPE_DENIED, "超出店铺数据范围")
 
 
-def update_sku(session: Session, sku_id: UUID, payload: Mapping[str, Any]) -> dict[str, Any]:
+def update_sku(
+    session: Session,
+    sku_id: UUID,
+    payload: Mapping[str, Any],
+    *,
+    principal: Principal,
+    permission_service: PermissionService,
+) -> dict[str, Any]:
     row = session.get(Sku, sku_id)
     if row is None:
         raise not_found(message="SKU 不存在")
-    before = sku_dict(row, include_cost=False)
+    ensure_store_allowed(principal, row.store_id, permission_service)
+    if "storeId" in payload:
+        ensure_store_allowed(principal, _uuid_or_none(payload["storeId"]), permission_service)
+    before = sku_dict(row, session)
     field_map = {
         "storeId": "store_id",
         "platformSku": "platform_sku",
@@ -133,7 +150,7 @@ def update_sku(session: Session, sku_id: UUID, payload: Mapping[str, Any]) -> di
             setattr(row, attr, value)
     row.updated_at = datetime.now(UTC)
     session.flush()
-    after = sku_dict(row, include_cost=False)
+    after = sku_dict(row, session)
     return {
         "id": str(row.id),
         "status": "succeeded",
@@ -143,11 +160,19 @@ def update_sku(session: Session, sku_id: UUID, payload: Mapping[str, Any]) -> di
     }
 
 
-def change_status(session: Session, sku_id: UUID, active: bool) -> dict[str, Any]:
+def change_status(
+    session: Session,
+    sku_id: UUID,
+    active: bool,
+    *,
+    principal: Principal,
+    permission_service: PermissionService,
+) -> dict[str, Any]:
     row = session.get(Sku, sku_id)
     if row is None:
         raise not_found(message="SKU 不存在")
-    before = sku_dict(row, include_cost=False)
+    ensure_store_allowed(principal, row.store_id, permission_service)
+    before = sku_dict(row, session)
     row.active = active
     row.updated_at = datetime.now(UTC)
     session.flush()
@@ -155,7 +180,7 @@ def change_status(session: Session, sku_id: UUID, active: bool) -> dict[str, Any
         "id": str(row.id),
         "status": "succeeded",
         "before": before,
-        "after": sku_dict(row, include_cost=False),
+        "after": sku_dict(row, session),
         "undo": {"action": "Sku.status", "payload": {"ids": [str(row.id)], "active": not active}},
     }
 
@@ -170,7 +195,9 @@ def list_lookups(
     sort: str | None,
     permission_service: PermissionService,
 ) -> dict[str, Any]:
-    stores_statement = _apply_store_scope(select(Store), principal, permission_service, Store.id)
+    stores_statement = apply_store_scope(
+        select(Store), Store.id, permission_service.store_scope(principal, "Sku")
+    )
     stores: Any = stores_statement.subquery("scoped_store")
     category_rows = select(
         literal("category").label("kind"),
@@ -226,8 +253,8 @@ def list_lookups(
     }
 
 
-def sku_dict(row: Sku, *, include_cost: bool, session: Session | None = None) -> dict[str, Any]:
-    result: dict[str, Any] = {
+def sku_dict(row: Sku, session: Session) -> dict[str, Any]:
+    return {
         "id": str(row.id),
         "internalSku": row.internal_sku,
         "platformSku": row.platform_sku,
@@ -241,9 +268,7 @@ def sku_dict(row: Sku, *, include_cost: bool, session: Session | None = None) ->
         "hsCode": row.hs_code,
         "aliases": row.aliases_json,
         "active": row.active,
-        "version": 0
-        if session is None
-        else int(
+        "version": int(
             session.scalar(
                 select(func.max(EntityVersion.version)).where(
                     EntityVersion.entity_type == "Sku", EntityVersion.entity_id == str(row.id)
@@ -254,37 +279,28 @@ def sku_dict(row: Sku, *, include_cost: bool, session: Session | None = None) ->
         "createdAt": row.created_at.isoformat() if row.created_at else None,
         "updatedAt": row.updated_at.isoformat() if row.updated_at else None,
     }
-    if include_cost and session is not None:
-        cost = session.scalar(
-            select(SkuCost)
-            .where(SkuCost.internal_sku == row.internal_sku)
-            .order_by(SkuCost.valid_from.desc())
-        )
-        if cost is not None:
-            result["unitCost"] = _money(cost.unit_cost, cost.currency)
-            result["freightPerUnit"] = _money(cost.freight_per_unit, cost.currency)
-    return result
+
+
+def sku_view(
+    row: Sku,
+    session: Session,
+    principal: Principal,
+    permission_service: PermissionService,
+) -> dict[str, Any]:
+    record = sku_dict(row, session)
+    cost = session.scalar(
+        select(SkuCost)
+        .where(SkuCost.internal_sku == row.internal_sku)
+        .order_by(SkuCost.valid_from.desc())
+    )
+    if cost is not None:
+        record["unitCost"] = _money(cost.unit_cost, cost.currency)
+        record["freightPerUnit"] = _money(cost.freight_per_unit, cost.currency)
+    return permission_service.serialize(principal, record, _COST_FIELDS)
 
 
 def _money(value: Decimal, currency: str) -> dict[str, Any]:
     return {"amountMinor": int(value * 10000), "currency": currency}
-
-
-def _apply_store_scope(
-    statement: Any, principal: Principal, service: PermissionService, column: Any
-) -> Any:
-    scope = service.data_scope_filter(principal, "Sku")
-    values = scope.get("storeIds") or scope.get("store_ids")
-    if values:
-        statement = statement.where(column.in_([UUID(str(value)) for value in values]))
-    return statement
-
-
-def _can_read_cost(principal: Principal) -> bool:
-    return bool(
-        {"item:cost:read", "cost:read"} & principal.permissions
-        or {"admin", "finance"} & principal.roles
-    )
 
 
 def _uuid_or_none(value: Any) -> UUID | None:
@@ -303,6 +319,7 @@ __all__ = [
     "list_lookups",
     "list_skus",
     "sku_dict",
+    "sku_view",
     "update_sku",
 ]
 

@@ -136,9 +136,7 @@ def _user_payload(
         "displayName": user.display_name,
         "roles": roles,
         "permissions": sorted(request.app.state.permission_service.current_permissions(principal)),
-        "dataScopes": [
-            request.app.state.permission_service.data_scope_filter(principal, "UserAccount")
-        ],
+        "dataScopes": [_data_scope_view(request, principal, "UserAccount")],
         "fieldPolicies": [],
         "aiMode": "normal",
         "locale": "zh-CN",
@@ -146,6 +144,12 @@ def _user_payload(
         "baseCurrency": "CNY",
         "csrfToken": csrf,
     }
+
+
+def _data_scope_view(request: Request, principal: Principal, entity: str) -> dict[str, Any]:
+    """展示合同仍是 entity/scopes/filters。直接取键。"""
+    scope = request.app.state.permission_service.data_scope_filter(principal, entity)
+    return {"entity": scope["entity"], "scopes": scope["scopes"], "filters": scope["filters"]}
 
 
 def _user(session: Session, user_id: UUID | None) -> AppUser:

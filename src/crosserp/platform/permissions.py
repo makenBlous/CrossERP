@@ -8,6 +8,7 @@ from typing import Any, Protocol, cast
 from fastapi import Request
 
 from crosserp.api.errors import APIError, ErrorCode
+from crosserp.iam.scope import StoreScope
 from crosserp.iam.service import IAMService
 from crosserp.platform.principal import Principal
 
@@ -21,6 +22,12 @@ class PermissionService(Protocol):
     def require(self, principal: Principal, permission: str, resource: Any = None) -> None: ...
 
     def data_scope_filter(self, principal: Principal, entity: str) -> Mapping[str, Any]: ...
+
+    def store_scope(self, principal: Principal, entity: str) -> StoreScope: ...
+
+    def serialize(
+        self, principal: Principal, record: dict[str, Any], field_permissions: dict[str, str]
+    ) -> dict[str, Any]: ...
 
     def current_permissions(self, principal: Principal) -> frozenset[str]: ...
 
@@ -52,6 +59,21 @@ class DefaultPermissionService:
         if self.iam is None:
             raise RuntimeError("PermissionService 必须绑定 IAMService")
         return self.iam.data_scope_filter(principal, entity)
+
+    def store_scope(self, principal: Principal, entity: str) -> StoreScope:
+        if self.iam is None:
+            raise RuntimeError("PermissionService 必须绑定 IAMService")
+        return self.iam.store_scope(principal, entity)
+
+    def serialize(
+        self, principal: Principal, record: dict[str, Any], field_permissions: dict[str, str]
+    ) -> dict[str, Any]:
+        if self.iam is None:
+            raise RuntimeError("PermissionService 必须绑定 IAMService")
+        user_id = principal.effective_user_id
+        if user_id is None:
+            raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录")
+        return self.iam.serialize(user_id, record, field_permissions)
 
     def current_permissions(self, principal: Principal) -> frozenset[str]:
         """返回本次动作应使用的被代表人权限快照。"""

@@ -25,9 +25,7 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column("aliases_json", sa.JSON(), nullable=True))
         batch_op.add_column(sa.Column("created_at", UtcDateTime(), nullable=True))
         batch_op.add_column(sa.Column("updated_at", UtcDateTime(), nullable=True))
-        batch_op.create_foreign_key(
-            "fk_sku_brand_id_brand", "brand", ["brand_id"], ["id"]
-        )
+        batch_op.create_foreign_key("fk_sku_brand_id_brand", "brand", ["brand_id"], ["id"])
         batch_op.create_foreign_key(
             "fk_sku_category_id_category",
             "category",
