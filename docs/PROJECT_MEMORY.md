@@ -2,7 +2,7 @@
 
 > 切换 agent 或开工前先读本文和 [后端开发任务总览](tasks/README.md)。完整规则以 [开发共用规则](tasks/rules.md) 和 [08 后端模块与 API 设计 v4](design/08-后端模块与API设计.md) 为准；本文只保留同步所需的已核实事实，不替代设计原文。
 >
-> **最后更新：** 2026-11-12 17:20（Asia/Shanghai） / 后端监督方 / 见本提交（合入 merge-guard、决策 50）
+> **最后更新：** 2026-11-12 17:45（Asia/Shanghai） / 后端监督方 / 见本提交（合入新建撤销修复）
 
 ## 1. 项目定位
 
@@ -92,11 +92,11 @@ CrossERP 是面向中国境内主体、做出口跨境电商的智能体 ERP：�
 
 核实时间：2026-11-12 17:20（Asia/Shanghai）。以 `git log --first-parent main` 和 `git worktree list` 为准。
 
-- **main 头提交：** `00d3f8b`（合入合并前检查）之后的本次记忆更新。代码基线仍为 `271b26b` 加上检查脚本。相对 `origin/main` 超前，**尚未推送**。
+- **main 头提交：** `a83896e`（合入新建动作反向撤销）。相对 `origin/main` 超前，**尚未推送**。
 
 ### 各批进度
 
-- **P0：已放行（2026-11-12 15:32，`p0tail-ok`）。** merge-p0-tail 完成于 `271b26b`：SQLite 全量 513 passed / 7 skipped / 0 failed；MySQL `-m db` 124 passed（含迁移往返）；迁移单 head `0025_agent_undo`；ruff、mypy、文档链接、授权覆盖、API 合同均通过。`data.db` 已按 `271b26b` 重建（15:25），旧库改名为 `data.db.bak-interim-20261112-152458`，原始备份 `data.db.bak-20261112-052837` 未动；健康检查 200。遗留：新建类动作撤销空操作，由 `fix-undo-create` 处理（决策 48）。
+- **P0：已放行（2026-11-12 15:32，`p0tail-ok`）。** 新建类撤销空操作已于 `a83896e` 合入：空快照不再记成成功，反向停用先检查权限和店铺范围。合入前隔离库 SQLite 全量 520 passed / 7 skipped / 0 failed；ruff、mypy、文档链接为 0。MySQL 当时未监听，未跑 `-m db`。`data.db` 仍是 15:25 按 `271b26b` 重建的那份，本次不重建。
 - **P0-02 数据范围挂角色（sec-scope2）：** 15:38 起在 `sec-scope2` 工作树开发；合入排在 int-p1-fin 之后，合入后第二次重建 `data.db`（已授权，旧库改名备份）。
 - **P1-01 商品目录：** 均已合入 main。
 - **P1-02 导入：** `int-p1-ing` 整合树合并 core/rules/project/dedup/issue（进行中）。chain6 自动启动 merge-p1-ing 已停用，由该树取代。
@@ -107,10 +107,9 @@ CrossERP 是面向中国境内主体、做出口跨境电商的智能体 ERP：�
 
 | 工作树 | 基于 | 说明 |
 |---|---|---|
-| 主工作区 main | 00d3f8b | 空闲，按块错开合回 |
-| `int-p1-ing` | 271b26b | 导入整合（端口 18261），core/rules 已审过，仍在合后续块 |
-| `int-p1-fin` | 271b26b | 财务整合（端口 18262），settle/recon 已审过，仍在合后续块 |
-| `fix-undo-create` | 4c7e3e3 | 新建类撤销已审过，main 已合入该树，全量回归中（端口 18263） |
+| 主工作区 main | a83896e | 空闲，按块错开合回 |
+| `int-p1-ing` | 271b26b | 导入整合（端口 18261）。投射合并 f6f9c74 未过，原 grok 仍在修 |
+| `int-p1-fin` | 271b26b | 财务整合（端口 18262）。settle/recon/科目汇率/导出已审过，仍在收尾 |
 | `sec-scope2` | f043f2f | 开发提交已完成，待审；合入仍排在 int-p1-fin 之后（端口 18264） |
 | `p1-ing-*`（5）、`p1-fin-*`（6） | 各功能提交 | 整合合回 main 后拆除 |
 
@@ -118,7 +117,7 @@ CrossERP 是面向中国境内主体、做出口跨境电商的智能体 ERP：�
 
 ### 未解决问题
 
-- 新建品牌/SKU/组合装/Listing 撤销空操作已在 `fix-undo-create` 修完并审过，等全量通过后合回。
+- 合并前检查在「把 main 合进功能树」的合并提交上会把 main 新文件当成新增，可能误报 G2。功能提交 `42eeaf3` 对 `271b26b` 退出码 0。脚本误报另开修复，不挡本次合入。
 - `ActionDispatcher` 审计 diff 的 `.get` 默认值（决策 46），排在财务合并后单开契约任务。
 - `check_merge_guard.py` 已合入 `00d3f8b`。之后每块合回前先跑该脚本，再按 acceptance.md 做独立验收。
 - 仓库外旧任务卡等 merge-p0-tail、导入、财务、sec-scope2 全部完成后再归档到 `_archive/`，不删。
