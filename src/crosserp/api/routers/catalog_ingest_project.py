@@ -37,6 +37,7 @@ class _SupersedeRequest(CamelModel):
     action="IngestBatch.project",
     permission="integration:import",
     risk_tier="medium",
+    idempotency="dispatcher",
 )
 def project(
     request: Request,
@@ -112,6 +113,7 @@ def project(
     action="IngestBatch.supersede",
     permission="integration:import",
     risk_tier="critical",
+    idempotency="dispatcher",
 )
 def supersede(
     request: Request,

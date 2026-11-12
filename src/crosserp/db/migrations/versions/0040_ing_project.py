@@ -8,14 +8,22 @@ from alembic import op
 from crosserp.db.types import UtcDateTime
 
 revision: str = "0040_ing_project"
-down_revision: str | Sequence[str] | None = "0040_ing_core"
+down_revision: str | Sequence[str] | None = "0040_ing_rules"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    sqlite = bind.dialect.name == "sqlite"
+    if sqlite:
+        bind.exec_driver_sql("PRAGMA foreign_keys=OFF")
     with op.batch_alter_table("entity_version") as batch:
         batch.add_column(sa.Column("source_rule_version", sa.String(64), nullable=True))
+    with op.batch_alter_table("import_batch") as batch:
+        batch.add_column(sa.Column("updated_at", UtcDateTime(), nullable=True))
+    if sqlite:
+        bind.exec_driver_sql("PRAGMA foreign_keys=ON")
 
     op.create_table(
         "ingest_projection",
@@ -50,8 +58,16 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    sqlite = bind.dialect.name == "sqlite"
+    if sqlite:
+        bind.exec_driver_sql("PRAGMA foreign_keys=OFF")
     op.drop_index("ix_ingest_projection_entity", table_name="ingest_projection")
     op.drop_index("ix_ingest_projection_batch", table_name="ingest_projection")
     op.drop_table("ingest_projection")
     with op.batch_alter_table("entity_version") as batch:
         batch.drop_column("source_rule_version")
+    with op.batch_alter_table("import_batch") as batch:
+        batch.drop_column("updated_at")
+    if sqlite:
+        bind.exec_driver_sql("PRAGMA foreign_keys=ON")

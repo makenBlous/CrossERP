@@ -102,6 +102,7 @@ class ImportBatch(Base):
     version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     supersedes_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
     received_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
 
 
 class RawRow(Base):

@@ -10,7 +10,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
-from crosserp.db.schema import Brand, Bundle, Category, Listing, Sku, SkuMapping, Store
+from crosserp.db.schema import Brand, Bundle, Category, ImportBatch, Listing, Sku, SkuMapping, Store
 
 UNDO_UNSUPPORTED = "该实体不支持撤销"
 
@@ -65,6 +65,17 @@ def _mapping(row: SkuMapping, before: dict[str, Any]) -> None:
     _text(row, before, "state", "internalSku")
 
 
+def _ingest_batch(row: ImportBatch, before: dict[str, Any]) -> None:
+    if "status" in before:
+        row.status = str(before["status"])
+    if "projectedCount" in before:
+        row.projected_count = int(before["projectedCount"])
+    if "counts" in before:
+        row.counts_json = before["counts"]
+    if "version" in before:
+        row.version = int(before["version"])
+
+
 def _bundle(row: Bundle, before: dict[str, Any]) -> None:
     if "bundleSku" in before:
         row.bundle_sku = before["bundleSku"]
@@ -90,6 +101,7 @@ _MODEL = {
     "SkuMapping": SkuMapping,
     "Bundle": Bundle,
     "Store": Store,
+    "IngestBatch": ImportBatch,
 }
 _FIELDS: dict[str, Callable[[Any, dict[str, Any]], None]] = {
     "Store": _store,
@@ -99,4 +111,5 @@ _FIELDS: dict[str, Callable[[Any, dict[str, Any]], None]] = {
     "Sku": _sku,
     "SkuMapping": _mapping,
     "Bundle": _bundle,
+    "IngestBatch": _ingest_batch,
 }

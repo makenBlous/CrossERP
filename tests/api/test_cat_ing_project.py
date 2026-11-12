@@ -22,6 +22,7 @@ from crosserp.db.schema import (
     Sku,
     Store,
 )
+from crosserp.iam.scope import AllStores
 from crosserp.platform.principal import ActorType, Principal
 
 
@@ -335,8 +336,23 @@ def test_project_rejects_store_outside_data_scope_and_rolls_back(
         raw = session.scalar(select(RawRow).where(RawRow.batch_id == batch.id))
         assert raw is not None
         raw.payload_json = {**raw.payload_json, "storeId": str(blocked_store)}
+        hidden_sku = uuid4()
+        session.add(
+            Sku(
+                id=hidden_sku,
+                store_id=blocked_store,
+                platform_sku="BLOCKED",
+                internal_sku="BLOCKED",
+                title="blocked",
+                aliases_json=[],
+                active=True,
+                created_at=now,
+            )
+        )
         batch_id = batch.id
     csrf = _login(json_client, "project-scope")
+    hidden_read = json_client.get(f"/api/v1/catalog/skus/{hidden_sku}")
+    assert hidden_read.status_code == 404
     response = json_client.post(
         f"/api/v1/ingest/batches/{batch_id}/project",
         headers={"X-CSRF-Token": csrf, "Idempotency-Key": "project-scope-1"},
@@ -344,7 +360,8 @@ def test_project_rejects_store_outside_data_scope_and_rolls_back(
     assert response.status_code == 403
     assert response.json()["code"] == ErrorCode.DATA_SCOPE_DENIED
     with Session(api_engine) as session:
-        assert session.scalar(select(Sku)) is None
+        assert session.scalar(select(Sku).where(Sku.platform_sku != "BLOCKED")) is None
+        assert session.get(Sku, hidden_sku) is not None
         assert session.get(ImportBatch, batch_id).status == "cleansed"
 
 
@@ -357,6 +374,9 @@ def test_agent_money_projection_creates_approval_without_business_entity(api_eng
 
         def data_scope_filter(self, _principal, _entity):
             return {}
+
+        def store_scope(self, _principal, _entity):
+            return AllStores()
 
         def current_permissions(self, principal):
             return principal.permissions

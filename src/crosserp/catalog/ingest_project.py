@@ -21,6 +21,7 @@ from crosserp.db.schema import (
     RawRow,
     Sku,
 )
+from crosserp.iam.scope import AllStores
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.principal import Principal
@@ -62,12 +63,6 @@ class _SkuCreatePayload(_StrictModel):
     internal_sku: str = Field(alias="internalSku", min_length=1)
     title: str
     active: bool
-
-
-class _DataScope(_StrictModel):
-    entity: str | None = None
-    scopes: list[str] = Field(default_factory=list)
-    filters: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class _ProjectionResult(BaseModel):
@@ -126,9 +121,22 @@ def project_batch(
         rows = list(
             session.scalars(select(IngestProjection).where(IngestProjection.batch_id == batch.id))
         )
-        return _project_result(batch, rows)
+        replayed = _project_result(batch, rows)
+        replayed["before"] = {
+            "status": batch.status,
+            "version": batch.version,
+            "projectedCount": batch.projected_count,
+            "counts": batch.counts_json,
+        }
+        return replayed
     if batch.status != "cleansed":
         raise APIError(ErrorCode.ILLEGAL_TRANSITION, "只有已清洗批次可以投射")
+    before = {
+        "status": batch.status,
+        "version": batch.version,
+        "projectedCount": batch.projected_count,
+        "counts": batch.counts_json,
+    }
     rule = session.scalar(
         select(MappingRule).where(MappingRule.rule_version == batch.mapping_rule_version)
     )
@@ -154,7 +162,7 @@ def project_batch(
         definition = _ACTION_DEFINITIONS.get((entity, action))
         if definition is None:
             raise APIError(ErrorCode.VALIDATION_ERROR, "映射规则包含未登记的实体动作")
-        _validate_data_scope(permission_service, principal, entity, action, data)
+        _require_projection_scope(permission_service, principal, entity, data)
         existing = session.scalar(
             select(IngestProjection).where(
                 IngestProjection.batch_id == batch.id,
@@ -207,9 +215,9 @@ def project_batch(
             entity_type=entity,
             entity_id=entity_id,
             action_id=action,
-            status=str(result.get("status", "projected")),
+            status=str(result["status"]),
             result_json=result,
-            undo_payload_json=result.get("undo"),
+            undo_payload_json=result["undo"] if "undo" in result else None,  # noqa: SIM401
             created_at=datetime.now(UTC),
         )
         session.add(item)
@@ -227,7 +235,9 @@ def project_batch(
         "quarantined": batch.quarantined_count,
         "projected": batch.projected_count,
     }
-    return _project_result(batch, projections)
+    projected = _project_result(batch, projections)
+    projected["before"] = before
+    return projected
 
 
 def supersede_batch(
@@ -323,32 +333,28 @@ def _projection_spec(rule_body: MappingRuleBody, payload: Any) -> tuple[str, str
 
 
 def _entity_id(data: dict[str, Any]) -> str:
-    value = data.get("id")
-    return str(value) if value else str(uuid4())
+    if "id" not in data or not data["id"]:
+        return str(uuid4())
+    return str(data["id"])
 
 
-def _validate_data_scope(
-    permission_service: Any, principal: Principal, entity: str, action: str, data: dict[str, Any]
+def _require_projection_scope(
+    permission_service: Any, principal: Principal, entity: str, data: dict[str, Any]
 ) -> None:
-    if entity != "Sku" or action != "Sku.create":
+    scope = permission_service.store_scope(principal, entity)
+    if "storeId" not in data:
         return
     try:
-        sku = _SkuCreatePayload.model_validate(data)
-        store_id = UUID(sku.store_id)
-    except (ValidationError, ValueError) as exc:
-        raise APIError(ErrorCode.VALIDATION_ERROR, "Sku.create 数据无效") from exc
-    try:
-        scope = _DataScope.model_validate(permission_service.data_scope_filter(principal, "Sku"))
-    except ValidationError as exc:
-        raise APIError(ErrorCode.INTERNAL_ERROR, "数据范围协议返回无效") from exc
-    store_ids = scope.filters.get("storeIds")
-    if store_ids is not None and str(store_id) not in store_ids:
-        raise APIError(
-            ErrorCode.DATA_SCOPE_DENIED,
-            "目标店铺超出数据范围",
-            details={"entity": "Sku", "storeId": str(store_id)},
-            status_code=403,
-        )
+        store_id = UUID(str(data["storeId"]))
+    except ValueError as exc:
+        raise APIError(ErrorCode.VALIDATION_ERROR, "storeId 无效") from exc
+    if isinstance(scope, AllStores) or store_id in scope:
+        return
+    raise APIError(
+        ErrorCode.DATA_SCOPE_DENIED,
+        "超出店铺数据范围",
+        details={"entity": entity, "storeId": str(store_id)},
+    )
 
 
 def _apply_projection(
@@ -391,6 +397,7 @@ def _apply_projection(
         return {
             "id": str(row.id),
             "status": "created",
+            "before": {},
             "after": {
                 "storeId": str(row.store_id),
                 "platformSku": row.platform_sku,
