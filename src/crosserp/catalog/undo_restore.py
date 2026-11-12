@@ -14,6 +14,7 @@ from crosserp.db.schema import (
     Brand,
     Bundle,
     Category,
+    CleansingIssue,
     DedupCandidate,
     ImportBatch,
     Listing,
@@ -75,6 +76,15 @@ def _mapping(row: SkuMapping, before: dict[str, Any]) -> None:
     _text(row, before, "state", "internalSku")
 
 
+def _cleansing_issue(row: CleansingIssue, before: dict[str, Any]) -> None:
+    if "status" in before:
+        row.status = str(before["status"])
+    if "handler" in before:
+        row.handler = before["handler"]
+    if "version" in before:
+        row.version = int(before["version"])
+
+
 def _dedup_candidate(row: DedupCandidate, before: dict[str, Any]) -> None:
     if "status" in before:
         row.status = str(before["status"])
@@ -120,6 +130,7 @@ _MODEL = {
     "Store": Store,
     "IngestBatch": ImportBatch,
     "DedupCandidate": DedupCandidate,
+    "CleansingIssue": CleansingIssue,
 }
 _FIELDS: dict[str, Callable[[Any, dict[str, Any]], None]] = {
     "Store": _store,
@@ -131,4 +142,5 @@ _FIELDS: dict[str, Callable[[Any, dict[str, Any]], None]] = {
     "Bundle": _bundle,
     "IngestBatch": _ingest_batch,
     "DedupCandidate": _dedup_candidate,
+    "CleansingIssue": _cleansing_issue,
 }

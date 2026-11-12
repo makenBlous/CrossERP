@@ -72,11 +72,11 @@ def _dispatch(
     )
 
 
-def _agent_approval_response(issue: CleansingIssue, approval: Any) -> dict[str, Any]:
+def _agent_approval_response(issue: CleansingIssue, approval: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": str(issue.id),
-        "status": approval.state,
-        "approvalId": str(approval.id),
+        "status": approval["state"],
+        "approvalId": approval["approvalId"],
         "version": issue.version,
     }
 
@@ -87,6 +87,7 @@ def _agent_approval_response(issue: CleansingIssue, approval: Any) -> dict[str, 
     action="CleansingIssue.resolve",
     permission="integration:import",
     risk_tier="medium",
+    idempotency="dispatcher",
 )
 def resolve(
     request: Request,
@@ -136,6 +137,7 @@ def resolve(
     action="CleansingIssue.escalate",
     permission="integration:import",
     risk_tier="medium",
+    idempotency="dispatcher",
 )
 def escalate(
     request: Request,

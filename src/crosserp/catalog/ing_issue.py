@@ -80,6 +80,7 @@ def resolve(
         "status": issue.status,
         "decision": decision,
         "version": issue.version,
+        "before": previous,
         "undo": previous,
     }
 
@@ -98,6 +99,12 @@ def resolve_command(
 ) -> dict[str, Any]:
     """人处理涉钱问题时提交审批。免审批则生效, 其余结论直接执行。"""
     if issue.money_impact and not principal.is_agent:
+        if issue.version != expected_version:
+            raise APIError(
+                ErrorCode.CONFLICT_VERSION,
+                "清洗问题版本已变化",
+                details={"expectedVersion": expected_version, "actualVersion": issue.version},
+            )
         approval = ApprovalGatewayImpl(session).submit(
             principal=principal,
             entity="CleansingIssue",
@@ -116,15 +123,13 @@ def resolve_command(
                 mapping=mapping,
                 principal=principal,
             )
-            applied["approvalId"] = str(approval.id)
+            applied["approvalId"] = str(approval.approval_id)
             applied["approvalStatus"] = approval.state
             return applied
-        issue.version = expected_version + 1
-        issue.updated_at = datetime.now(UTC)
         return {
             "id": str(issue.id),
             "status": approval.state,
-            "approvalId": str(approval.id),
+            "approvalId": str(approval.approval_id),
             "version": issue.version,
         }
     return resolve(
@@ -195,6 +200,7 @@ def escalate(
         "agentAttempts": issue.agent_attempts,
         "transferId": str(transfer.id),
         "version": issue.version,
+        "before": previous,
         "undo": previous,
     }
 

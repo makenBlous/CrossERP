@@ -8,7 +8,7 @@ from alembic import op
 from crosserp.db.types import UtcDateTime
 
 revision: str = "0041_ing_issue"
-down_revision: str | Sequence[str] | None = "0040_ing_core"
+down_revision: str | Sequence[str] | None = "0040_ing_dedup"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

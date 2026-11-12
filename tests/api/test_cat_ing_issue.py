@@ -290,7 +290,7 @@ def test_human_money_resolution_uses_high_risk_approval_and_keeps_issue_open(
         issue = session.get(CleansingIssue, issue_id)
         approval = session.scalar(select(Approval).order_by(Approval.requested_at.desc()))
         assert issue is not None and issue.status == "open" and issue.resolution_json is None
-        assert issue.version == 1
+        assert issue.version == 0
         assert approval is not None and approval.state == "pending"
         assert approval.risk_tier == "high"
         assert str(approver_id) in approval.approver_ids
