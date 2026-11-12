@@ -90,8 +90,8 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                         ),
                         status_code=409,
                     )
-                response = _replay_response(row, request_id)
-                return response
+                if not _defer_success_replay(request, body):
+                    return _replay_response(row, request_id)
 
         async def receive() -> dict[str, Any]:
             return {"type": "http.request", "body": body, "more_body": False}
@@ -128,6 +128,91 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         headers = dict(response.headers)
         headers.pop("content-length", None)
         return Response(content=response_body, status_code=response.status_code, headers=headers)
+
+
+def _defer_success_replay(request: Request, body: bytes) -> bool:
+    """成功回放须在权限和数据范围校验之后。
+
+    无元数据或 public 路由仍回放缓存。其余路由在未登录、无权或超出数据范围时交给路由处理。
+    """
+    permission = _route_permission(request)
+    if permission is None or permission == "public":
+        return False
+    principal = _replay_principal(request)
+    if principal is None or principal.user_id is None:
+        return True
+    try:
+        request.app.state.permission_service.require(principal, permission)
+    except APIError:
+        return True
+    return _body_out_of_scope(request, principal, body)
+
+
+def _route_permission(request: Request) -> str | None:
+    from starlette.routing import Match
+
+    path = request.scope.get("path", "")
+    method = request.scope.get("method", "")
+    for prefix, route in _api_routes(request.app.routes):
+        methods = getattr(route, "methods", None)
+        if methods is not None and method not in methods:
+            continue
+        child_scope = dict(request.scope)
+        if prefix and path.startswith(prefix):
+            child_scope["path"] = path[len(prefix) :] or "/"
+        else:
+            child_scope["path"] = path
+        match, _child = route.matches(child_scope)
+        if match is not Match.FULL:
+            continue
+        metadata = getattr(route.endpoint, API_METADATA_KEY, None)
+        if metadata is None:
+            return None
+        return str(metadata.permission)
+    return None
+
+
+def _api_routes(routes: Any, prefix: str = "") -> Any:
+    for route in routes:
+        original = getattr(route, "original_router", None)
+        if original is not None:
+            yield from _api_routes(original.routes, prefix + getattr(route, "path", ""))
+            continue
+        if hasattr(route, "matches") and hasattr(route, "endpoint"):
+            yield prefix, route
+
+
+def _replay_principal(request: Request) -> Any:
+    from crosserp.platform.principal import get_principal, principal_from_session
+
+    override = request.app.dependency_overrides.get(get_principal)
+    if override is not None:
+        try:
+            return override()
+        except APIError:
+            return None
+    with Session(request.app.state.database_engine) as session:
+        return principal_from_session(session, request)
+
+
+def _body_out_of_scope(request: Request, principal: Any, body: bytes) -> bool:
+    if not body or not body.lstrip().startswith(b"{"):
+        return False
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    store_raw = payload.get("storeId")
+    period = payload.get("period")
+    if not isinstance(store_raw, str) or not isinstance(period, str):
+        return False
+    from uuid import UUID
+
+    from crosserp.finance.recon import scope_denied
+
+    return scope_denied(request.app.state.permission_service, principal, UUID(store_raw), period)
 
 
 def _replay_response(row: IdempotencyKey, request_id: str) -> Response:

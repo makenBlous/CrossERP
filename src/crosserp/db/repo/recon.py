@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ from crosserp.db.schema import Match, ReconRun
 def create_recon_run(
     session: Session,
     *,
+    id: UUID,
     store_id: UUID,
     period: str,
     as_of: date,
@@ -21,7 +22,7 @@ def create_recon_run(
     started_at: datetime,
 ) -> ReconRun:
     run = ReconRun(
-        id=uuid4(),
+        id=id,
         store_id=store_id,
         period=period,
         as_of=as_of,
