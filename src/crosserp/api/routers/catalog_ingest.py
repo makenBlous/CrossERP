@@ -257,6 +257,8 @@ def list_issues(
         return _page(params, items[start : start + params.page_size], len(items))
 
 
+@router.get("/finance/fee-map")
+@router.get("/finance/column-maps")
 @router.get("/ingest/mapping-rules")
 @api_endpoint(
     entity="MappingRule",
@@ -299,10 +301,12 @@ def list_mapping_rules(
                 "ruleKey": row.rule_key,
                 "kind": row.kind,
                 "version": row.rule_version,
+                "ruleVersion": row.rule_version,
                 "body": row.body_json,
                 "status": row.status,
                 "verified": row.verified,
                 "createdAt": row.created_at.isoformat(),
+                "updatedAt": row.updated_at.isoformat() if row.updated_at else None,
             }
             for row in rows
         ]
