@@ -97,6 +97,7 @@ def create_sku(
     result = {
         "id": str(row.id),
         "status": "succeeded",
+        "before": {},
         "after": sku_dict(row, session),
         "undo": {"action": "Sku.update", "payload": {"id": str(row.id), "active": False}},
     }

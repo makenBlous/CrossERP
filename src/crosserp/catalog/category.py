@@ -132,6 +132,7 @@ def create_category(
         session.add(row)
         session.flush()
         result = _as_dict(row)
+        result["before"] = {}
         result["undo"] = {
             "action": "Category.delete",
             "entity": "Category",

@@ -181,6 +181,7 @@ def create_bundle_endpoint(
                 )
                 return {
                     **bundle_payload(row),
+                    "before": {},
                     "undo": {"action": "Bundle.deactivate", "id": str(row.id)},
                 }
 

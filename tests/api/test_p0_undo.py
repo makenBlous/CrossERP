@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import UUID, uuid4
@@ -16,7 +17,19 @@ from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.routers.agent_undo import _permission_service
 from crosserp.approval.gateway import ApprovalGatewayImpl
 from crosserp.db.migrate import upgrade_head
-from crosserp.db.schema import AgentUndo, AuditLog, EntityEvent, EntityVersion
+from crosserp.db.schema import (
+    AgentUndo,
+    AuditLog,
+    Brand,
+    Bundle,
+    Category,
+    EntityEvent,
+    EntityVersion,
+    Listing,
+    Sku,
+    SkuMapping,
+    Store,
+)
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.iam.scope import AllStores
 from crosserp.platform.audit import DefaultAuditRecorder
@@ -75,8 +88,18 @@ def test_medium_action_creates_undo_and_default_version_revert() -> None:
         owner = uuid4()
         principal = _agent(owner)
         entity_id = str(uuid4())
+        before = {"name": "old", "storeId": entity_id}
         dispatcher = _dispatcher(session, _Permissions())
         with session.begin():
+            session.add(
+                Store(
+                    id=UUID(entity_id),
+                    platform="amazon",
+                    marketplace="US",
+                    name="new",
+                    currency="USD",
+                )
+            )
             result = dispatcher.dispatch(
                 principal=principal,
                 permission="entity:write",
@@ -84,8 +107,8 @@ def test_medium_action_creates_undo_and_default_version_revert() -> None:
                 entity="Store",
                 entity_id=entity_id,
                 action="Store.update",
-                payload={"before": {"name": "old"}},
-                business_action=lambda: {"before": {"name": "old"}, "after": {"name": "new"}},
+                payload={"before": before},
+                business_action=lambda: {"before": before, "after": {"name": "new"}},
             )
         assert result["undoId"]
         with session.begin():
@@ -125,7 +148,7 @@ def test_medium_action_creates_undo_and_default_version_revert() -> None:
             versions = list(check.scalars(select(EntityVersion).order_by(EntityVersion.version)))
             audits = list(check.scalars(select(AuditLog).order_by(AuditLog.seq)))
             assert undo is not None and undo.undone_at is not None
-            assert versions[-1].after_json == {"name": "old"}
+            assert versions[-1].after_json == before
             assert [row.action for row in audits][-2:] == ["Store.update", "AgentSuggestion.undo"]
         engine.dispose()
 
@@ -147,9 +170,12 @@ def test_undo_rejects_expired_repeated_concurrent_and_unauthorized() -> None:
                 risk_tier=RiskTier.MEDIUM,
                 entity="Store",
                 entity_id=entity_id,
-                payload={"before": {"name": "old"}},
+                payload={"before": {"name": "old", "storeId": entity_id}},
                 action="Store.update",
-                business_action=lambda: {"before": {"name": "old"}, "after": {"name": "new"}},
+                business_action=lambda: {
+                    "before": {"name": "old", "storeId": entity_id},
+                    "after": {"name": "new"},
+                },
             )
         with Session(engine) as change, change.begin():
             change.add(
@@ -222,15 +248,25 @@ def test_undo_rechecks_target_permission_and_data_scope() -> None:
         session = Session(engine)
         owner = uuid4()
         dispatcher = _dispatcher(session, permissions)
+        store_id = str(uuid4())
         with session.begin():
             result = dispatcher.dispatch(
-                principal=_agent(owner),
-                permission="entity:write",
+                principal=Principal(
+                    user_id=owner,
+                    actor_type=ActorType.AGENT,
+                    agent_id="agent-undo",
+                    on_behalf_of=owner,
+                    permissions=frozenset({"listing:write", "agent_suggestion:create"}),
+                ),
+                permission="listing:write",
                 risk_tier=RiskTier.MEDIUM,
-                entity="Entity",
-                entity_id="entity-1",
-                action="Entity.update",
-                business_action=lambda: {"before": {"v": 0}, "after": {"v": 1}},
+                entity="Listing",
+                entity_id=str(uuid4()),
+                action="Listing.update",
+                business_action=lambda: {
+                    "before": {"status": "active", "storeId": store_id},
+                    "after": {"status": "inactive"},
+                },
             )
 
         permissions.allowed = {"agent_suggestion:create"}
@@ -239,30 +275,30 @@ def test_undo_rechecks_target_permission_and_data_scope() -> None:
                 result["undoId"],
                 principal=Principal(
                     user_id=owner,
-                    permissions=frozenset({"agent_suggestion:create", "entity:write"}),
+                    permissions=frozenset({"agent_suggestion:create", "listing:write"}),
                 ),
             )
         assert missing_write.value.code is ErrorCode.FORBIDDEN
 
-        permissions.allowed = {"entity:write"}
+        permissions.allowed = {"listing:write"}
         with pytest.raises(APIError) as revoked_owner, session.begin():
             dispatcher.undo(
                 result["undoId"],
                 principal=Principal(
                     user_id=owner,
-                    permissions=frozenset({"agent_suggestion:create", "entity:write"}),
+                    permissions=frozenset({"agent_suggestion:create", "listing:write"}),
                 ),
             )
         assert revoked_owner.value.code is ErrorCode.NOT_FOUND
 
-        permissions.allowed = {"agent_suggestion:create", "entity:write"}
+        permissions.allowed = {"agent_suggestion:create", "listing:write"}
         permissions.scope_allowed = False
         with pytest.raises(APIError) as out_of_scope, session.begin():
             dispatcher.undo(
                 result["undoId"],
                 principal=Principal(
                     user_id=owner,
-                    permissions=frozenset({"agent_suggestion:create", "entity:write"}),
+                    permissions=frozenset({"agent_suggestion:create", "listing:write"}),
                 ),
             )
         assert out_of_scope.value.code is ErrorCode.DATA_SCOPE_DENIED
@@ -278,34 +314,35 @@ def test_undo_uses_current_permissions_before_idempotent_replay() -> None:
         permissions = _Permissions()
         session = Session(engine)
         owner = uuid4()
+        brand_id = uuid4()
         dispatcher = _dispatcher(session, permissions)
         with session.begin():
+            session.add(Brand(id=brand_id, name="new", active=True, provenance={}))
             result = dispatcher.dispatch(
-                principal=_agent(owner),
-                permission="entity:write",
+                principal=Principal(
+                    user_id=owner,
+                    actor_type=ActorType.AGENT,
+                    agent_id="agent-undo",
+                    on_behalf_of=owner,
+                    permissions=frozenset({"brand:write", "agent_suggestion:create"}),
+                ),
+                permission="brand:write",
                 risk_tier=RiskTier.MEDIUM,
-                entity="Entity",
-                entity_id="entity-1",
-                action="Entity.update",
-                business_action=lambda: {"before": {"v": 0}, "after": {"v": 1}},
+                entity="Brand",
+                entity_id=str(brand_id),
+                action="Brand.update",
+                business_action=lambda: {"before": {"name": "old"}, "after": {"name": "new"}},
             )
         with session.begin():
             dispatcher.undo(
                 result["undoId"],
                 principal=Principal(
                     user_id=owner,
-                    permissions=frozenset(
-                        {
-                            "entity:write",
-                            "store:write",
-                            "system:write",
-                            "agent_suggestion:create",
-                        }
-                    ),
+                    permissions=frozenset({"brand:write", "agent_suggestion:create"}),
                 ),
                 idempotency_key="undo-replay",
             )
-        permissions.allowed = {"entity:write"}
+        permissions.allowed = {"brand:write"}
         with pytest.raises(APIError) as denied, session.begin():
             dispatcher.undo(
                 result["undoId"],
@@ -324,7 +361,7 @@ def test_medium_action_requires_entity_identity_for_undo() -> None:
         url = sqlite_file_url(Path(directory) / "undo-required.db")
         upgrade_head(url)
         engine = make_engine(url)
-        with Session(engine) as session, session.begin():
+        with Session(engine) as session, pytest.raises(APIError) as error, session.begin():
             _dispatcher(session, _Permissions()).dispatch(
                 principal=_agent(),
                 permission="entity:write",
@@ -333,8 +370,7 @@ def test_medium_action_requires_entity_identity_for_undo() -> None:
                 action="Entity.update",
                 business_action=lambda: {"before": {"v": 0}, "after": {"v": 1}},
             )
-        with Session(engine) as session:
-            assert session.scalar(select(AgentUndo)) is None
+        assert error.value.code is ErrorCode.VALIDATION_FAILED
         engine.dispose()
 
 
@@ -391,8 +427,11 @@ def test_daily_summary_counts_only_current_user_agent_actions() -> None:
                     action_id="Store.update",
                     payload_json={
                         "action": "Store.update",
+                        "notificationKind": "daily_summary",
                         "riskTier": "medium",
+                        "onBehalfOf": None,
                         "actorUserId": str(owner),
+                        "reversibleUntil": datetime.now(UTC).isoformat(),
                         "undoId": str(uuid4()),
                     },
                     created_at=datetime.now(UTC),
@@ -405,7 +444,15 @@ def test_daily_summary_counts_only_current_user_agent_actions() -> None:
                     entity_type="Store",
                     entity_id="s2",
                     action_id="Store.update",
-                    payload_json={"actorUserId": str(uuid4())},
+                    payload_json={
+                        "action": "Store.update",
+                        "notificationKind": "daily_summary",
+                        "riskTier": "medium",
+                        "onBehalfOf": None,
+                        "actorUserId": str(uuid4()),
+                        "reversibleUntil": datetime.now(UTC).isoformat(),
+                        "undoId": None,
+                    },
                     created_at=datetime.now(UTC),
                 )
             )
@@ -416,4 +463,327 @@ def test_daily_summary_counts_only_current_user_agent_actions() -> None:
         assert response.status_code == 200
         assert response.json()["count"] == 1
         assert response.json()["message"] == "AI 今天替你做了 1 件事"
+        engine.dispose()
+
+
+def test_each_catalog_medium_update_undo_restores_the_row() -> None:
+    with TemporaryDirectory() as directory:
+        url = sqlite_file_url(Path(directory) / "undo-catalog.db")
+        upgrade_head(url)
+        engine = make_engine(url)
+        try:
+            _restore_catalog_rows(engine)
+        finally:
+            engine.dispose()
+
+
+def _restore_catalog_rows(engine) -> None:
+    now = datetime.now(UTC)
+    owner = uuid4()
+    store_id = uuid4()
+    category_id = uuid4()
+    sku_id = uuid4()
+    listing_id = uuid4()
+    mapping_id = uuid4()
+    bundle_id = uuid4()
+    permissions = frozenset(
+        {"item_group:write", "item:write", "listing:write", "agent_suggestion:create"}
+    )
+    agent = Principal(
+        user_id=owner,
+        actor_type=ActorType.AGENT,
+        permissions=permissions,
+    )
+    with Session(engine) as session, session.begin():
+        session.add(
+            Store(
+                id=store_id,
+                platform="amazon",
+                marketplace="US",
+                name="scope",
+                currency="USD",
+            )
+        )
+        session.flush()
+        session.add_all(
+            [
+                Category(
+                    id=category_id,
+                    name="new-category",
+                    active=True,
+                    version=1,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                Sku(
+                    id=sku_id,
+                    platform_sku="P-NEW",
+                    internal_sku="I-NEW",
+                    title="new-title",
+                    aliases_json=[],
+                    active=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                Listing(
+                    id=listing_id,
+                    store_id=store_id,
+                    platform_sku="L-NEW",
+                    price=Decimal("1.0000"),
+                    currency="USD",
+                    status="inactive",
+                    version=1,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                SkuMapping(
+                    id=mapping_id,
+                    platform_sku="M-NEW",
+                    store_id=store_id,
+                    internal_sku="I-NEW",
+                    confidence="high",
+                    source="human",
+                    state="confirmed",
+                    version=1,
+                    created_at=now,
+                    updated_at=now,
+                    provenance_json={},
+                ),
+                Bundle(
+                    id=bundle_id,
+                    bundle_sku="BUNDLE-NEW",
+                    components_json=[],
+                    active=True,
+                    version=1,
+                    created_at=now,
+                    updated_at=now,
+                ),
+            ]
+        )
+    with Session(engine) as session:
+        dispatcher = _dispatcher(session, _Permissions())
+        cases = (
+            (
+                "Category",
+                category_id,
+                "Category.update",
+                "item_group:write",
+                {"name": "old-category"},
+            ),
+            ("Sku", sku_id, "Sku.update", "item:write", {"title": "old-title"}),
+            (
+                "Listing",
+                listing_id,
+                "Listing.update",
+                "listing:write",
+                {"status": "active", "storeId": str(store_id)},
+            ),
+            (
+                "SkuMapping",
+                mapping_id,
+                "SkuMapping.create",
+                "item:write",
+                {"state": "suggested", "storeId": str(store_id)},
+            ),
+            ("Bundle", bundle_id, "Bundle.update", "item:write", {"bundleSku": "BUNDLE-OLD"}),
+        )
+        undo_ids = []
+        for entity, entity_id, action, permission, before in cases:
+            result = dispatcher.dispatch(
+                principal=agent,
+                permission=permission,
+                risk_tier=RiskTier.MEDIUM,
+                entity=entity,
+                entity_id=str(entity_id),
+                action=action,
+                business_action=lambda before=before: {"before": before, "after": {}},
+            )
+            undo_ids.append(result["undoId"])
+        with session.begin():
+            for undo_id in undo_ids:
+                restored = dispatcher.undo(
+                    undo_id,
+                    principal=Principal(user_id=owner, permissions=permissions),
+                )
+                assert restored["undone"] is True
+    with Session(engine) as check:
+        assert check.get(Category, category_id).name == "old-category"
+        assert check.get(Sku, sku_id).title == "old-title"
+        assert check.get(Listing, listing_id).status == "active"
+        assert check.get(SkuMapping, mapping_id).state == "suggested"
+        assert check.get(Bundle, bundle_id).bundle_sku == "BUNDLE-OLD"
+
+
+def test_command_without_catalog_emits_raises() -> None:
+    with TemporaryDirectory() as directory:
+        url = sqlite_file_url(Path(directory) / "undo-emits.db")
+        upgrade_head(url)
+        engine = make_engine(url)
+        with Session(engine) as session, pytest.raises(APIError) as error, session.begin():
+            _dispatcher(session, _Permissions()).dispatch(
+                principal=Principal(user_id=uuid4(), permissions=frozenset({"brand:write"})),
+                permission="brand:write",
+                risk_tier=RiskTier.LOW,
+                entity="Brand",
+                entity_id=str(uuid4()),
+                action="Widget.update",
+                business_action=lambda: {"before": {}, "after": {}},
+            )
+        assert error.value.code is ErrorCode.VALIDATION_FAILED
+        assert error.value.message == "实体目录未声明事件名"
+        engine.dispose()
+
+
+def test_daily_summary_rejects_payload_missing_required_field() -> None:
+    with TemporaryDirectory() as directory:
+        url = sqlite_file_url(Path(directory) / "summary-missing.db")
+        upgrade_head(url)
+        engine = make_engine(url)
+        app = FastAPI()
+        install_api(app, engine, file_storage=FileStorage(Path(directory) / "files"))
+        owner = uuid4()
+        with Session(engine) as session, session.begin():
+            session.add(
+                EntityEvent(
+                    id=uuid4(),
+                    event_type="notification.daily_summary",
+                    entity_type="Brand",
+                    entity_id=str(uuid4()),
+                    action_id="Brand.update",
+                    payload_json={"actorUserId": str(owner)},
+                    created_at=datetime.now(UTC),
+                )
+            )
+        app.dependency_overrides[get_principal] = lambda: Principal(
+            user_id=owner, permissions=frozenset({"agent_suggestion:read"})
+        )
+        app.dependency_overrides[_permission_service] = lambda: _Permissions()
+        with TestClient(app) as client:
+            response = client.get("/api/v1/agent/daily-summary")
+        assert response.status_code == 400
+        assert response.json()["code"] == "VALIDATION_FAILED"
+        engine.dispose()
+
+
+def test_unsupported_entity_is_not_issued_and_undo_does_not_fake_success() -> None:
+    with TemporaryDirectory() as directory:
+        url = sqlite_file_url(Path(directory) / "undo-unsupported.db")
+        upgrade_head(url)
+        engine = make_engine(url)
+        brand_id = uuid4()
+        with Session(engine) as session, pytest.raises(APIError) as blocked, session.begin():
+            session.add(Brand(id=brand_id, name="kept", active=True, provenance={}))
+            _dispatcher(session, _Permissions()).dispatch(
+                principal=_agent(),
+                permission="entity:write",
+                risk_tier=RiskTier.MEDIUM,
+                entity="Widget",
+                entity_id=str(uuid4()),
+                action="Widget.update",
+                business_action=lambda: {"before": {"name": "old"}, "after": {"name": "new"}},
+            )
+        assert blocked.value.code is ErrorCode.VALIDATION_FAILED
+        with Session(engine) as session, session.begin():
+            session.add(Brand(id=brand_id, name="kept", active=True, provenance={}))
+            token = AgentUndo(
+                id=uuid4(),
+                entity_type="Widget",
+                entity_id=str(brand_id),
+                action_version=1,
+                undo_payload_json={
+                    "entity": "Widget",
+                    "entityId": str(brand_id),
+                    "action": "Widget.update",
+                    "permission": "entity:write",
+                    "before": {"name": "other"},
+                    "actorId": None,
+                    "onBehalfOf": None,
+                    "actorType": "agent",
+                },
+                deadline_at=datetime.now(UTC) + timedelta(hours=1),
+            )
+            session.add(token)
+            token_id = token.id
+        with Session(engine) as session, pytest.raises(APIError) as denied, session.begin():
+            _dispatcher(session, _Permissions()).undo(
+                token_id,
+                principal=Principal(
+                    user_id=uuid4(),
+                    permissions=frozenset({"entity:write", "agent_suggestion:create"}),
+                ),
+            )
+        assert denied.value.code is ErrorCode.VALIDATION_FAILED
+        with Session(engine) as session:
+            brand = session.get(Brand, brand_id)
+            audits = list(session.scalars(select(AuditLog)))
+            assert brand is not None and brand.name == "kept"
+            assert session.scalar(select(AgentUndo).where(AgentUndo.entity_type == "Widget"))
+            assert all(row.action != "AgentSuggestion.undo" for row in audits)
+        engine.dispose()
+
+
+def test_global_entity_undo_skips_store_scope_and_store_entity_requires_store_id() -> None:
+    with TemporaryDirectory() as directory:
+        url = sqlite_file_url(Path(directory) / "undo-scope.db")
+        upgrade_head(url)
+        engine = make_engine(url)
+        permissions = _Permissions()
+        brand_id = uuid4()
+        owner = uuid4()
+        with Session(engine) as session:
+            dispatcher = _dispatcher(session, permissions)
+            with session.begin():
+                session.add(Brand(id=brand_id, name="new", active=True, provenance={}))
+                issued = dispatcher.dispatch(
+                    principal=Principal(
+                        user_id=owner,
+                        actor_type=ActorType.AGENT,
+                        permissions=frozenset({"brand:write", "agent_suggestion:create"}),
+                    ),
+                    permission="brand:write",
+                    risk_tier=RiskTier.MEDIUM,
+                    entity="Brand",
+                    entity_id=str(brand_id),
+                    action="Brand.update",
+                    business_action=lambda: {"before": {"name": "old"}, "after": {"name": "new"}},
+                )
+            permissions.scope_allowed = False
+            with session.begin():
+                dispatcher.undo(
+                    issued["undoId"],
+                    principal=Principal(
+                        user_id=owner,
+                        permissions=frozenset({"brand:write", "agent_suggestion:create"}),
+                    ),
+                )
+            listing_id = str(uuid4())
+            with pytest.raises(APIError) as missing_store, session.begin():
+                missing = dispatcher.dispatch(
+                    principal=Principal(
+                        user_id=owner,
+                        actor_type=ActorType.AGENT,
+                        permissions=frozenset({"listing:write", "agent_suggestion:create"}),
+                    ),
+                    permission="listing:write",
+                    risk_tier=RiskTier.MEDIUM,
+                    entity="Listing",
+                    entity_id=listing_id,
+                    action="Listing.update",
+                    business_action=lambda: {
+                        "before": {"status": "active"},
+                        "after": {"status": "x"},
+                    },
+                )
+                dispatcher.undo(
+                    missing["undoId"],
+                    principal=Principal(
+                        user_id=owner,
+                        permissions=frozenset({"listing:write", "agent_suggestion:create"}),
+                    ),
+                )
+            assert missing_store.value.code is ErrorCode.VALIDATION_FAILED
+        with Session(engine) as check:
+            brand = check.get(Brand, brand_id)
+            assert brand is not None and brand.name == "old"
+            assert check.scalar(select(AgentUndo).where(AgentUndo.entity_id == listing_id)) is None
         engine.dispose()

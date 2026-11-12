@@ -1,7 +1,7 @@
 # 触发：push 到 main，以及任意 pull_request。
 # 数据库密码 dev 只给测试容器用，不是真实密钥。与 AGENTS.md 本地示例相同。
 # MySQL utf8mb4 不经 options 传给 mysqld。service options 是 docker create 旗标。
-# mysql 矩阵项在测试前 ALTER DATABASE。说明见 docs/tasks/T07-ci-matrix.md 完成记录。
+# mysql 矩阵项在测试前 ALTER DATABASE。说明见 docs/tasks/_archive/T07-ci-matrix.md 完成记录。
 
 name: CI
 
