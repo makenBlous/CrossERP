@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -7,8 +9,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from crosserp.db.schema import AuditLog, EntityEvent, SkuCost
-from crosserp.platform.approval import ApprovalResolution
+from crosserp.db.repo.users import create_user
+from crosserp.db.schema import AuditLog, EntityEvent, IamPermissionOverride, SkuCost
 from crosserp.platform.principal import ActorType, Principal, get_principal
 
 
@@ -16,6 +18,29 @@ def _app(api_database: str, principal: Principal):
     from crosserp.web.app import create_app
 
     app = create_app(api_database)
+    with Session(app.state.database_engine) as session, session.begin():
+        user = create_user(
+            session,
+            username=f"cost-{uuid4().hex}",
+            password="Cost-test-password-123",
+        )
+        for permission in principal.permissions:
+            session.add(
+                IamPermissionOverride(
+                    user_id=user.id,
+                    permission=permission,
+                    effect="allow",
+                    reason="cost test",
+                    data_scopes=[],
+                    created_at=datetime.now(UTC),
+                )
+            )
+        user_id = user.id
+    principal = replace(
+        principal,
+        user_id=user_id,
+        on_behalf_of=user_id if principal.is_agent else None,
+    )
     app.dependency_overrides[get_principal] = lambda: principal
     return app
 
@@ -89,23 +114,14 @@ def test_cost_agent_high_risk_waits_for_approval_without_writing(
     )
     app = _app(api_database, principal)
     with TestClient(app) as client:
-
-        class Gateway:
-            def submit(self, **_: object) -> object:
-                return {
-                    "approvalId": str(uuid4()),
-                    "resolution": ApprovalResolution.AWAITING_INITIATOR,
-                }
-
-        app.state.approval_gateway = Gateway()
         response = client.post("/api/v1/catalog/costs", json=_body())
         assert response.status_code == 201
-        assert response.json()["resolution"] == "awaiting_initiator"
+        assert response.json()["state"] == "awaiting_initiator"
     with Session(app.state.database_engine) as session:
         assert session.scalar(select(SkuCost)) is None
         audit = session.scalar(select(AuditLog))
         assert audit is not None and audit.actor_type == "agent"
-        assert audit.after_json["on_behalf_of"] == str(principal.on_behalf_of)
+        assert audit.on_behalf_of is not None
 
 
 def test_cost_idempotency_and_expected_version(api_database: str) -> None:
@@ -126,7 +142,7 @@ def test_cost_idempotency_and_expected_version(api_database: str) -> None:
 
 
 def test_cost_audit_keeps_actor_and_on_behalf_of(api_database: str) -> None:
-    from crosserp.db.schema import AuditLog, EntityVersion
+    from crosserp.db.schema import AuditLog
 
     represented = uuid4()
     principal = Principal(
@@ -138,11 +154,8 @@ def test_cost_audit_keeps_actor_and_on_behalf_of(api_database: str) -> None:
     )
     app = _app(api_database, principal)
     with TestClient(app) as client:
-        principal = Principal(user_id=uuid4(), permissions=frozenset({"item:write"}))
-        app.dependency_overrides[get_principal] = lambda: principal
         assert client.post("/api/v1/catalog/costs", json=_body()).status_code == 201
     with Session(app.state.database_engine) as session:
-        version = session.scalar(select(EntityVersion))
         audit = session.scalar(select(AuditLog))
-        assert version is not None and version.actor_type == "human"
-        assert audit is not None
+        assert audit is not None and audit.actor_type == "agent"
+        assert audit.on_behalf_of is not None

@@ -15,9 +15,9 @@ from sqlalchemy.orm import Session
 from crosserp.api.metadata import api_endpoint
 from crosserp.api.schemas import CamelModel, Money
 from crosserp.catalog.cost import create_cost, list_costs, serialize_cost
-from crosserp.db.session import session_scope
-from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
-from crosserp.platform.permissions import DefaultPermissionService
+from crosserp.platform.dispatcher import RiskTier
+from crosserp.platform.factory import make_action_dispatcher
+from crosserp.platform.permissions import PermissionService, get_permission_service
 from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter(tags=["商品与主数据"])
@@ -38,8 +38,8 @@ class CostCreate(CamelModel):
         return value
 
 
-def _require(principal: Principal, permission: str) -> None:
-    DefaultPermissionService().require(principal, permission)
+def _require(principal: Principal, permission: str, service: PermissionService) -> None:
+    service.require(principal, permission)
 
 
 @router.get("/catalog/costs")
@@ -51,8 +51,9 @@ def get_costs(
     page_size: int = Query(50, alias="pageSize", ge=1, le=200),
     q: str | None = None,
     sort: str | None = None,
+    permission_service: PermissionService = Depends(get_permission_service),
 ) -> dict[str, object]:
-    _require(principal, "item:read")
+    _require(principal, "item:read", permission_service)
     with Session(request.app.state.database_engine) as session:
         rows, total = list_costs(session, page=page, page_size=page_size, q=q, sort=sort)
     return {
@@ -70,15 +71,13 @@ def post_cost(
     body: CostCreate,
     principal: Principal = Depends(get_principal),
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    permission_service: PermissionService = Depends(get_permission_service),
 ) -> dict[str, object]:
-    _require(principal, "item:write")
+    _require(principal, "item:write", permission_service)
     entity_id = uuid4()
     payload = body.model_dump(by_alias=True)
-    with session_scope(request.app.state.database_engine) as session:
-        dispatcher = ActionDispatcher(
-            session=session,
-            approval_gateway=getattr(request.app.state, "approval_gateway", None),
-        )
+    with Session(request.app.state.database_engine) as session, session.begin():
+        dispatcher = make_action_dispatcher(session, permission_service)
         result = dispatcher.dispatch(
             principal=principal,
             permission="item:write",

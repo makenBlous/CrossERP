@@ -163,18 +163,16 @@ class ActionDispatcher:
                     request_id=request_id,
                 )
                 result = _approval_result(approval)
-                approval_id = _approval_uuid(result) if self.session is not None else None
-                if self.session is not None:
-                    recorder = self.audit_recorder or DefaultAuditRecorder(self.session)
-                    recorder.record(
-                        principal=principal,
-                        entity=context["entity"],
-                        action=action,
-                        diff={"before": None, "after": _jsonable(result)},
-                        approval_id=approval_id,
-                        request_id=request_id,
-                        tool_call_id=tool_call_id,
-                    )
+                approval_id = _approval_uuid(result)
+                self.audit_recorder.record(
+                    principal=principal,
+                    entity=context["entity"],
+                    action=action,
+                    diff={"before": None, "after": _jsonable(result)},
+                    approval_id=approval_id,
+                    request_id=request_id,
+                    tool_call_id=tool_call_id,
+                )
                 self._save_execution(
                     principal=principal,
                     action=action,
@@ -439,11 +437,8 @@ def _approval_result(value: Any) -> dict[str, Any]:
     }
 
 
-def _approval_uuid(value: Any) -> UUID | None:
-    raw = value.get("approvalId") if isinstance(value, dict) else None
-    if raw is None:
-        return None
-    return raw if isinstance(raw, UUID) else UUID(str(raw))
+def _approval_uuid(value: dict[str, Any]) -> UUID:
+    return UUID(value["approvalId"])
 
 
 def _as_mapping(value: Any) -> dict[str, Any]:
