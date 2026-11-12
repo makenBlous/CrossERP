@@ -12,7 +12,9 @@ from sqlalchemy.orm import Session
 from crosserp.api.errors import not_found
 from crosserp.api.schemas import BrandCreateRequest, BrandStatusRequest, BrandUpdateRequest
 from crosserp.db.schema import Brand
-from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
+from crosserp.platform.dispatcher import RiskTier
+from crosserp.platform.factory import make_action_dispatcher
+from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 
 
@@ -31,10 +33,20 @@ def brand_dict(row: Brand) -> dict[str, Any]:
 class BrandService:
     """品牌查询与动作服务。"""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, permission_service: PermissionService) -> None:
         self.session = session
+        self.permission_service = permission_service
 
-    def list(self, *, page: int, page_size: int, q: str | None, sort: str | None) -> dict[str, Any]:
+    def list(
+        self,
+        *,
+        principal: Principal,
+        page: int,
+        page_size: int,
+        q: str | None,
+        sort: str | None,
+    ) -> dict[str, Any]:
+        self.permission_service.require(principal, "brand:read")
         statement = select(Brand)
         if q:
             statement = statement.where(Brand.name.ilike(f"%{q}%"))
@@ -199,10 +211,9 @@ class BrandService:
         )
 
     def _dispatch(self, **kwargs: Any) -> dict[str, Any]:
-        with self.session.begin():
-            result = ActionDispatcher(session=self.session).dispatch(
-                risk_tier=RiskTier.MEDIUM, **kwargs
-            )
+        result = make_action_dispatcher(self.session, self.permission_service).dispatch(
+            risk_tier=RiskTier.MEDIUM, **kwargs
+        )
         return cast(dict[str, Any], result)
 
 

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from crosserp.db.repo.users import create_user, grant_role
 from crosserp.db.schema import ActionExecution, AuditLog, Brand, EntityEvent, EntityVersion
 from crosserp.db.session import sqlite_file_url
 from crosserp.platform.principal import ActorType, Principal, get_principal
@@ -19,8 +20,16 @@ from crosserp.web.app import create_app
 def brand_client(tmp_path: Path) -> Iterator[tuple[TestClient, object, Principal]]:
     database_url = sqlite_file_url(tmp_path / "brand.db")
     app = create_app(database_url)
+    with Session(app.state.database_engine) as session, session.begin():
+        user = create_user(
+            session,
+            username=f"brand-{uuid4().hex}",
+            password="Brand-test-password-123",
+        )
+        grant_role(session, user.id, "admin")
+        user_id = user.id
     principal = Principal(
-        user_id=uuid4(),
+        user_id=user_id,
         permissions=frozenset({"brand:read", "brand:create", "brand:write"}),
     )
     app.dependency_overrides[get_principal] = lambda: principal
@@ -66,13 +75,13 @@ def test_brand_create_writes_action_version_audit_and_undo(brand_client) -> None
         assert version is not None and version.actor_type == "human"
         assert version.action_id == "Brand.create"
         assert audit is not None
-        assert audit.actor_type == "user"
+        assert audit.actor_type == "human"
         assert session.scalar(select(func.count()).select_from(EntityEvent)) == 2
         assert principal.user_id == version.actor_id
 
 
 def test_brand_write_is_idempotent_and_expected_version_conflicts(brand_client) -> None:
-    client, engine, _ = brand_client
+    client, engine, principal = brand_client
     first = client.post(
         "/api/v1/catalog/brands",
         json={"name": "Acme"},
@@ -141,7 +150,7 @@ def test_brand_rejects_invalid_request_with_validation_error(brand_client) -> No
 
 
 def test_brand_permission_and_agent_medium_behavior(brand_client) -> None:
-    client, engine, _ = brand_client
+    client, engine, principal = brand_client
     from crosserp.web.app import create_app
 
     denied_app = create_app(sqlite_file_url(Path(engine.url.database)))
@@ -152,10 +161,10 @@ def test_brand_permission_and_agent_medium_behavior(brand_client) -> None:
     denied_app.state.database_engine.dispose()
 
     agent = Principal(
-        user_id=uuid4(),
+        user_id=principal.user_id,
         actor_type=ActorType.AGENT,
         agent_id="agent-1",
-        on_behalf_of=uuid4(),
+        on_behalf_of=principal.user_id,
         permissions=frozenset({"brand:create", "brand:read", "brand:write"}),
         channel="mcp",
     )
