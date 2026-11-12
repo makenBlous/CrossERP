@@ -15,6 +15,7 @@ from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.schemas import CamelModel
 from crosserp.approval.gateway import ApprovalGatewayImpl
 from crosserp.audit.context import AuditContext
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.core.enums import IssueStatus
 from crosserp.core.money import to_amount_minor
 from crosserp.db.repo.issues import detail_of
@@ -32,7 +33,6 @@ from crosserp.iam.scope import AllStores, store_contains
 from crosserp.issues.catalog import render
 from crosserp.issues.service import transition
 from crosserp.ledger.write_service import write_issue_adjustment_draft
-from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal

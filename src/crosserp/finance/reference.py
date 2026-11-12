@@ -15,12 +15,12 @@ from sqlalchemy.orm import Session
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.schemas import CamelModel
 from crosserp.approval.gateway import ApprovalGatewayImpl
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.core.currency import require_iso_4217
 from crosserp.core.errors import PrecisionError
 from crosserp.db.repo.fx import get_fx_rate, upsert_fx_rate
 from crosserp.db.schema import EntityVersion, FxRate
 from crosserp.db.types import FxRate as FxRateColumn
-from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal

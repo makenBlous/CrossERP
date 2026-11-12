@@ -14,6 +14,7 @@ from sqlalchemy.sql import Select
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.schemas import CamelModel
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.core.money import to_amount_minor
 from crosserp.db.schema import EntityVersion, Issue, Match, ReconRun, Store
 from crosserp.iam.scope import (
@@ -22,7 +23,6 @@ from crosserp.iam.scope import (
     period_contains,
     store_contains,
 )
-from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
