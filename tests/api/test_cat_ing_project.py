@@ -7,11 +7,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from crosserp.api.errors import ErrorCode
 from crosserp.auth.roles import Role
+from crosserp.catalog.ingest_project import project_batch
 from crosserp.db.repo.users import create_user
 from crosserp.db.schema import (
     EntityEvent,
     EntityVersion,
+    IamDataScopeRule,
     ImportBatch,
     IngestProjection,
     MappingRule,
@@ -19,6 +22,7 @@ from crosserp.db.schema import (
     Sku,
     Store,
 )
+from crosserp.platform.principal import ActorType, Principal
 
 
 def _login(client: TestClient, username: str) -> str:
@@ -61,6 +65,7 @@ def _batch(session: Session, *, user_id, status: str = "cleansed") -> ImportBatc
                 "platformSku": "P-1",
                 "internalSku": "I-1",
                 "title": "Demo",
+                "active": True,
             },
             received_at=now,
         )
@@ -168,3 +173,228 @@ def test_project_unknown_batch_is_404(json_client: TestClient, api_engine) -> No
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 404
+
+
+def test_project_ignores_row_permission_and_uses_action_permission(
+    json_client: TestClient, api_engine
+) -> None:
+    now = datetime.now(UTC)
+    with Session(api_engine) as session, session.begin():
+        user = create_user(
+            session, username="project-permission", password="password-123", roles=(Role.OPERATOR,)
+        )
+        store = Store(
+            id=uuid4(), platform="amazon", marketplace="US", name="permission", currency="USD"
+        )
+        session.add(store)
+        session.add(
+            MappingRule(
+                id=uuid4(),
+                rule_key="sku-permission",
+                rule_version="permission-v1",
+                kind="sku",
+                body_json={"projection": {"entity": "Sku", "action": "Sku.create"}},
+                status="active",
+                verified=True,
+                created_at=now,
+            )
+        )
+        batch = _batch(session, user_id=user.id)
+        batch.mapping_rule_version = "permission-v1"
+        raw = session.scalar(select(RawRow).where(RawRow.batch_id == batch.id))
+        assert raw is not None
+        raw.payload_json = {
+            **raw.payload_json,
+            "storeId": str(store.id),
+            "permission": "authenticated",
+        }
+        batch_id = batch.id
+    csrf = _login(json_client, "project-permission")
+    response = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/project",
+        headers={"X-CSRF-Token": csrf, "Idempotency-Key": "project-permission-1"},
+    )
+    assert response.status_code == 404
+    assert response.json()["code"] == ErrorCode.FORBIDDEN
+
+
+def test_project_ignores_row_entity_and_action(json_client: TestClient, api_engine) -> None:
+    now = datetime.now(UTC)
+    with Session(api_engine) as session, session.begin():
+        user = create_user(
+            session, username="project-spec", password="password-123", roles=(Role.ADMIN,)
+        )
+        store = Store(id=uuid4(), platform="amazon", marketplace="US", name="spec", currency="USD")
+        session.add(store)
+        session.add(
+            MappingRule(
+                id=uuid4(),
+                rule_key="sku-spec",
+                rule_version="spec-v1",
+                kind="sku",
+                body_json={"projection": {"entity": "Sku", "action": "Sku.create"}},
+                status="active",
+                verified=True,
+                created_at=now,
+            )
+        )
+        batch = _batch(session, user_id=user.id)
+        batch.mapping_rule_version = "spec-v1"
+        raw = session.scalar(select(RawRow).where(RawRow.batch_id == batch.id))
+        assert raw is not None
+        raw.payload_json = {
+            **raw.payload_json,
+            "storeId": str(store.id),
+            "entityType": "Store",
+            "action": "Store.create",
+        }
+        batch_id = batch.id
+    csrf = _login(json_client, "project-spec")
+    response = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/project",
+        headers={"X-CSRF-Token": csrf, "Idempotency-Key": "project-spec-1"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["items"][0]["entityType"] == "Sku"
+    assert response.json()["items"][0]["action"] == "Sku.create"
+
+
+def test_project_rejects_unverified_mapping_rule(json_client: TestClient, api_engine) -> None:
+    now = datetime.now(UTC)
+    with Session(api_engine) as session, session.begin():
+        user = create_user(
+            session, username="project-unverified", password="password-123", roles=(Role.ADMIN,)
+        )
+        session.add(
+            MappingRule(
+                id=uuid4(),
+                rule_key="sku-unverified",
+                rule_version="unverified-v1",
+                kind="sku",
+                body_json={"projection": {"entity": "Sku", "action": "Sku.create"}},
+                status="active",
+                verified=False,
+                created_at=now,
+            )
+        )
+        batch = _batch(session, user_id=user.id)
+        batch.mapping_rule_version = "unverified-v1"
+        batch_id = batch.id
+    csrf = _login(json_client, "project-unverified")
+    response = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/project",
+        headers={"X-CSRF-Token": csrf, "Idempotency-Key": "project-unverified-1"},
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == ErrorCode.UNVERIFIED_RULE_VERSION
+
+
+def test_project_rejects_store_outside_data_scope_and_rolls_back(
+    json_client: TestClient, api_engine
+) -> None:
+    now = datetime.now(UTC)
+    allowed_store = uuid4()
+    blocked_store = uuid4()
+    with Session(api_engine) as session, session.begin():
+        user = create_user(
+            session, username="project-scope", password="password-123", roles=(Role.ADMIN,)
+        )
+        session.add(
+            Store(
+                id=blocked_store,
+                platform="amazon",
+                marketplace="US",
+                name="blocked",
+                currency="USD",
+            )
+        )
+        session.add(
+            IamDataScopeRule(
+                name="sku-scope",
+                entity="Sku",
+                scope_type="storeIds",
+                values=[str(allowed_store)],
+                updated_by=user.id,
+                updated_at=now,
+            )
+        )
+        session.add(
+            MappingRule(
+                id=uuid4(),
+                rule_key="sku-scope",
+                rule_version="scope-v1",
+                kind="sku",
+                body_json={"projection": {"entity": "Sku", "action": "Sku.create"}},
+                status="active",
+                verified=True,
+                created_at=now,
+            )
+        )
+        batch = _batch(session, user_id=user.id)
+        batch.mapping_rule_version = "scope-v1"
+        raw = session.scalar(select(RawRow).where(RawRow.batch_id == batch.id))
+        assert raw is not None
+        raw.payload_json = {**raw.payload_json, "storeId": str(blocked_store)}
+        batch_id = batch.id
+    csrf = _login(json_client, "project-scope")
+    response = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/project",
+        headers={"X-CSRF-Token": csrf, "Idempotency-Key": "project-scope-1"},
+    )
+    assert response.status_code == 403
+    assert response.json()["code"] == ErrorCode.DATA_SCOPE_DENIED
+    with Session(api_engine) as session:
+        assert session.scalar(select(Sku)) is None
+        assert session.get(ImportBatch, batch_id).status == "cleansed"
+
+
+def test_agent_money_projection_creates_approval_without_business_entity(api_engine) -> None:
+    now = datetime.now(UTC)
+
+    class PermissionService:
+        def require(self, _principal, _permission, _resource=None) -> None:
+            return None
+
+        def data_scope_filter(self, _principal, _entity):
+            return {}
+
+        def current_permissions(self, principal):
+            return principal.permissions
+
+    with Session(api_engine) as session, session.begin():
+        user = create_user(
+            session, username="project-agent-money", password="password-123", roles=(Role.ADMIN,)
+        )
+        session.add(
+            MappingRule(
+                id=uuid4(),
+                rule_key="voucher-agent",
+                rule_version="voucher-agent-v1",
+                kind="voucher",
+                body_json={"projection": {"entity": "Voucher", "action": "Voucher.from_order"}},
+                status="active",
+                verified=True,
+                created_at=now,
+            )
+        )
+        batch = _batch(session, user_id=user.id)
+        batch.mapping_rule_version = "voucher-agent-v1"
+        principal = Principal(
+            user_id=user.id,
+            actor_type=ActorType.AGENT,
+            agent_id="ingest-agent",
+            on_behalf_of=user.id,
+            permissions=frozenset({"journal_entry:create"}),
+        )
+        result = project_batch(
+            session,
+            batch.id,
+            principal=principal,
+            permission_service=PermissionService(),
+            request_id="agent-money",
+            idempotency_key="agent-money-1",
+            payload={},
+        )
+        assert result["items"][0]["status"] == "awaiting_initiator"
+        assert result["items"][0]["result"]["approvalId"]
+        assert session.scalar(select(Sku)) is None
