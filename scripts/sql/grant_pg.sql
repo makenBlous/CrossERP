@@ -34,11 +34,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.approval, public.api_token,
   public.category,
   public.idempotency_key, public.match, public.order_line, public.profit_snapshot, public.prompt_version,
   public.raw_row, public.recon_run, public.security_event, public.settlement,
-  public.settlement_line, public.sku, public.sku_cost, public.store, public.listing, public.user_role,
-  public.password_reset_token, public.file_object, public.job, public.document_link, public.delegation,
   public.settlement_line, public.sku, public.sku_mapping, public.sku_cost, public.store, public.listing, public.user_role,
+  public.password_reset_token, public.file_object, public.job, public.document_link, public.delegation,
   public.user_session, public.voucher, public.voucher_line, public.entity_version,
-  public.action_execution, public.entity_event TO crosserp_app;
+  public.action_execution, public.entity_event, public.bundle TO crosserp_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.iam_role,
   public.iam_permission_override, public.iam_temporary_grant, public.iam_field_policy,
   public.iam_data_scope_rule, public.iam_access_review, public.iam_sod_rule,
@@ -67,10 +66,10 @@ GRANT SELECT ON TABLE public.approval, public.api_token, public.app_setting, pub
   public.import_batch, public.idempotency_key, public.issue, public.llm_alert, public.llm_budget, public.llm_call,
   public.llm_tool_call, public.category, public.match, public.order_line, public.profit_snapshot,
   public.prompt_version, public.raw_row, public.recon_run, public.security_event,
-  public.settlement, public.settlement_line, public.sku, public.sku_cost, public.store, public.listing,
+  public.settlement, public.settlement_line, public.sku, public.sku_mapping, public.sku_cost, public.store, public.listing,
   public.password_reset_token, public.file_object, public.job, public.document_link, public.delegation,
   public.user_role, public.user_session, public.voucher, public.voucher_line TO crosserp_agent;
-GRANT SELECT ON TABLE public.entity_version, public.action_execution, public.entity_event,
+GRANT SELECT ON TABLE public.entity_version, public.action_execution, public.entity_event, public.bundle,
   public.settlement, public.settlement_line, public.sku, public.sku_mapping, public.sku_cost, public.store, public.listing,
   public.user_role, public.user_session, public.voucher, public.voucher_line,
   public.iam_role, public.iam_permission_override, public.iam_temporary_grant,
@@ -88,3 +87,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE crosserp_owner IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO crosserp_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE crosserp_owner IN SCHEMA public
   GRANT SELECT ON TABLES TO crosserp_agent;
+
+
+

@@ -242,6 +242,22 @@ class SkuCost(Base):
     source_batch_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("import_batch.id"))
 
 
+class Bundle(Base):
+    """组合装及其内部 SKU 组成。"""
+
+    __tablename__ = "bundle"
+    __table_args__ = (UniqueConstraint("bundle_sku", name="uq_bundle_bundle_sku"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    bundle_sku: Mapped[str] = mapped_column(String(128))
+    components_json: Mapped[Any] = mapped_column(JSON())
+    active: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    version: Mapped[int] = mapped_column(Integer(), default=1, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    provenance_json: Mapped[Any | None] = mapped_column(JSON())
+
+
 class FeeReference(Base):
     """按 SKU、生效期存放的配送费参考值。"""
 
