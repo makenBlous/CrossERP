@@ -3964,8 +3964,10 @@ entityTypes:
   properties:
   - 'exportId: id'
   - 'target: string'
+  - 'fileName: string?'
   - 'sha256: string'
   - 'approvalId: id'
+  - 'createdAt: datetime(UTC)'
   relations:
   - from → Voucher
   actions:
