@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.schemas import CamelModel
 from crosserp.db.schema import Category
-from crosserp.platform.dispatcher import ActionDispatcher
-from crosserp.platform.permissions import DefaultPermissionService
+from crosserp.platform.factory import make_action_dispatcher
+from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 
 
@@ -61,12 +61,13 @@ def list_categories(
     session: Session,
     *,
     principal: Principal,
+    permission_service: PermissionService,
     page: int,
     page_size: int,
     q: str | None,
     sort: str | None,
 ) -> dict[str, Any]:
-    DefaultPermissionService().require(principal, "item_group:read")
+    permission_service.require(principal, "item_group:read")
     statement = select(Category)
     if q:
         statement = statement.where(Category.name.ilike(f"%{q}%"))
@@ -103,6 +104,7 @@ def create_category(
     session: Session,
     *,
     principal: Principal,
+    permission_service: PermissionService,
     payload: CategoryCreatePayload,
     idempotency_key: str | None,
     request_id: str | None,
@@ -140,7 +142,7 @@ def create_category(
 
     return cast(
         dict[str, Any],
-        ActionDispatcher(session=session).dispatch(
+        make_action_dispatcher(session, permission_service).dispatch(
             principal=principal,
             permission="item_group:create",
             risk_tier="medium",
@@ -159,6 +161,7 @@ def update_category(
     session: Session,
     *,
     principal: Principal,
+    permission_service: PermissionService,
     category_id: UUID,
     payload: CategoryUpdatePayload,
     idempotency_key: str | None,
@@ -203,7 +206,7 @@ def update_category(
 
     return cast(
         dict[str, Any],
-        ActionDispatcher(session=session).dispatch(
+        make_action_dispatcher(session, permission_service).dispatch(
             principal=principal,
             permission="item_group:write",
             risk_tier="medium",
@@ -223,6 +226,7 @@ def set_category_status(
     session: Session,
     *,
     principal: Principal,
+    permission_service: PermissionService,
     category_id: UUID,
     payload: CategoryStatusPayload,
     idempotency_key: str | None,
@@ -258,7 +262,7 @@ def set_category_status(
 
     return cast(
         dict[str, Any],
-        ActionDispatcher(session=session).dispatch(
+        make_action_dispatcher(session, permission_service).dispatch(
             principal=principal,
             permission="item_group:write",
             risk_tier="medium",
