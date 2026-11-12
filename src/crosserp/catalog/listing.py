@@ -120,7 +120,8 @@ class ListingService:
             self.session.add(listing)
             self.session.flush()
             result = _listing_dict(listing)
-            result["undoPayload"] = {"action": "Listing.update", "before": None}
+            result["before"] = {"storeId": str(store_id)}
+            result["undoPayload"] = {"action": "Listing.update", "before": result["before"]}
             return result
 
         dispatcher = self._dispatcher()
@@ -223,6 +224,7 @@ class ListingService:
                 listing.provenance_json = _provenance(self.principal)
                 self.session.flush()
                 result = _listing_dict(listing)
+                result["before"] = before
                 result["undoPayload"] = {"action": "Listing.update", "before": before}
                 return result
 

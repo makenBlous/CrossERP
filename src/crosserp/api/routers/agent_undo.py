@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.metadata import api_endpoint
 from crosserp.db.schema import EntityEvent
 from crosserp.platform.factory import make_action_dispatcher
@@ -91,24 +92,45 @@ def undo_suggestion(
         )
 
 
-def _visible_to(event: EntityEvent, effective_id: Any) -> bool:
+_SUMMARY_FIELDS = (
+    "action",
+    "notificationKind",
+    "riskTier",
+    "onBehalfOf",
+    "actorUserId",
+    "reversibleUntil",
+    "undoId",
+)
+
+
+def _summary_payload(event: EntityEvent) -> dict[str, Any]:
     payload = dict(event.payload_json)
-    return payload.get("onBehalfOf") == str(effective_id) or payload.get("actorUserId") == str(
-        effective_id
-    )
+    missing = [key for key in _SUMMARY_FIELDS if key not in payload]
+    if missing:
+        raise APIError(
+            ErrorCode.VALIDATION_FAILED,
+            "每日摘要事件缺少必有字段",
+            details={"fields": missing},
+        )
+    return payload
+
+
+def _visible_to(event: EntityEvent, effective_id: Any) -> bool:
+    payload = _summary_payload(event)
+    return payload["onBehalfOf"] == str(effective_id) or payload["actorUserId"] == str(effective_id)
 
 
 def _summary_item(event: EntityEvent) -> dict[str, Any]:
-    payload = dict(event.payload_json)
+    payload = _summary_payload(event)
     return {
         "id": str(event.id),
-        "action": payload.get("action", event.action_id),
+        "action": payload["action"],
         "entityType": event.entity_type,
         "entityId": event.entity_id,
-        "riskTier": payload.get("riskTier"),
+        "riskTier": payload["riskTier"],
         "at": event.created_at.isoformat(),
-        "reversibleUntil": payload.get("reversibleUntil"),
-        "undoId": payload.get("undoId"),
+        "reversibleUntil": payload["reversibleUntil"],
+        "undoId": payload["undoId"],
     }
 
 

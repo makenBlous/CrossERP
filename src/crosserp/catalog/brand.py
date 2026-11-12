@@ -96,6 +96,7 @@ class BrandService:
             return {
                 "id": str(brand_id),
                 "status": "succeeded",
+                "before": {},
                 "after": after,
                 "undo": {
                     "action": "Brand.status",

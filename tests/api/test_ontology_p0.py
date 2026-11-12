@@ -263,7 +263,7 @@ def test_medium_action_keeps_reversible_preimage_and_daily_summary_event() -> No
                 entity_id=entity_id,
                 action="Store.update",
                 payload={"before": {"name": "old"}},
-                business_action=lambda: {"after": {"name": "new"}},
+                business_action=lambda: {"before": {"name": "old"}, "after": {"name": "new"}},
             )
         with Session(engine) as check:
             version = check.scalar(select(EntityVersion))
@@ -465,13 +465,20 @@ def test_ai_medium_has_no_count_limit_and_critical_is_rejected(api_engine) -> No
         audit_recorder=DefaultAuditRecorder(session),
         approval_gateway=TestApprovalGateway(),
     )
+    # Medium actions must carry an entity id and before so an undo token can be issued.
+    # Store.update is critical in the catalog. This test still passes medium to check the count rule.
+    entity_id = str(uuid4())
     for index in range(8):
         dispatcher.dispatch(
             principal=principal,
             permission="store:write",
             risk_tier=RiskTier.MEDIUM,
+            entity="Store",
+            entity_id=entity_id,
             action="Store.update",
-            business_action=lambda index=index: calls.append(index),
+            business_action=lambda index=index: (
+                calls.append(index) or {"before": {"name": "old"}, "after": {"name": str(index)}}
+            ),
         )
     assert calls == list(range(8))
     with pytest.raises(APIError) as error:

@@ -31,12 +31,19 @@ from crosserp.platform.principal import Principal
 _CATALOG = load_catalog()
 
 
-def _event_type(action: str, entity: str) -> str:
-    """事件名以实体目录 emits 为准。目录未声明时用实体与动作动词。"""
+def _event_type(action: str) -> str:
+    """事件名只来自实体目录 emits。查询动作不产生事件。"""
     action_def = _CATALOG.action_by_id.get(action)
-    if action_def is not None and action_def.emits:
-        return action_def.emits[0]
-    return f"{entity.lower()}.{action.rsplit('.', 1)[-1]}.done"
+    if action_def is None or not action_def.emits:
+        raise APIError(ErrorCode.VALIDATION_FAILED, "实体目录未声明事件名")
+    return action_def.emits[0]
+
+
+def _has_store_dimension(entity: str) -> bool:
+    entity_def = _CATALOG.entity_by_id.get(entity)
+    if entity_def is None:
+        raise APIError(ErrorCode.VALIDATION_FAILED, "该实体不支持撤销")
+    return any(item.split(":", 1)[0].strip() == "storeId" for item in entity_def.properties)
 
 
 class UndoPayload(BaseModel):
@@ -287,6 +294,10 @@ class ActionDispatcher:
         if row is None or not self._can_undo(row, principal):
             raise APIError(ErrorCode.NOT_FOUND, "撤销记录不存在")
         payload = UndoPayload.model_validate(row.undo_payload_json)
+        from crosserp.catalog.undo_restore import supports_undo
+
+        if not supports_undo(payload.entity):
+            raise APIError(ErrorCode.VALIDATION_FAILED, "该实体不支持撤销")
         self._require_undo_target_access(row, principal, payload)
         request_payload = {"undoId": str(row.id)}
         replay = find_action_replay(
@@ -473,16 +484,29 @@ class ActionDispatcher:
         risk_tier: RiskTier | str,
     ) -> AgentUndo | None:
         tier = RiskTier(risk_tier)
-        if tier not in {RiskTier.LOW, RiskTier.MEDIUM} or entity_id is None or version is None:
+        if tier not in {RiskTier.LOW, RiskTier.MEDIUM}:
             return None
-        values = _as_mapping(result)
-        before = values.get("before")
+        if tier is RiskTier.MEDIUM and (entity_id is None or version is None):
+            raise APIError(ErrorCode.VALIDATION_FAILED, "中风险动作必须提供实体 ID 和版本")
+        if entity_id is None or version is None:
+            return None
+        from crosserp.catalog.undo_restore import supports_undo
+
+        if not supports_undo(entity):
+            raise APIError(ErrorCode.VALIDATION_FAILED, "该实体不支持撤销")
+        if (
+            not isinstance(result, dict)
+            or "before" not in result
+            or not isinstance(result["before"], dict)
+        ):
+            raise APIError(ErrorCode.VALIDATION_FAILED, "可撤销动作必须返回 before 对象")
+        before = result["before"]
         payload = UndoPayload(
             entity=entity,
             entityId=entity_id,
             action=action,
             permission=_catalog_permission(action, permission),
-            before=before if isinstance(before, dict) else {},
+            before=before,
             actorId=str(principal.user_id) if principal.user_id else None,
             onBehalfOf=str(principal.on_behalf_of) if principal.on_behalf_of else None,
             actorType="agent" if principal.is_agent else "human",
@@ -507,11 +531,15 @@ class ActionDispatcher:
         self, row: AgentUndo, principal: Principal, payload: UndoPayload
     ) -> None:
         self.permission_service.require(principal, payload.permission, row.entity_id)
+        if not _has_store_dimension(payload.entity):
+            return
+        if "storeId" not in payload.before:
+            raise APIError(ErrorCode.VALIDATION_FAILED, "店铺维度实体撤销缺少 storeId")
         scope = self.permission_service.store_scope(principal, row.entity_type)
         if isinstance(scope, AllStores):
             return
-        store_id = payload.before.get("storeId")
-        if store_id is None or UUID(str(store_id)) not in scope:
+        store_id = payload.before["storeId"]
+        if UUID(str(store_id)) not in scope:
             raise APIError(ErrorCode.DATA_SCOPE_DENIED, "超出店铺数据范围")
 
     def _emit_events(
@@ -524,7 +552,10 @@ class ActionDispatcher:
     ) -> None:
         if context.get("entity_id") is None:
             return
-        event_type = _event_type(action, str(context["entity"]))
+        action_def = _CATALOG.action_by_id.get(action)
+        if action_def is not None and action_def.kind == "查询":
+            return
+        event_type = _event_type(action)
         self.session.add(
             EntityEvent(
                 id=uuid4(),
@@ -537,6 +568,7 @@ class ActionDispatcher:
             )
         )
         if RiskTier(risk_tier) is RiskTier.MEDIUM:
+            principal = context["principal"]
             reversible_until = datetime.now(UTC) + timedelta(hours=24)
             self.session.add(
                 EntityEvent(
@@ -548,8 +580,15 @@ class ActionDispatcher:
                     payload_json={
                         "action": action,
                         "notificationKind": "daily_summary",
+                        "riskTier": RiskTier(risk_tier).value,
+                        "onBehalfOf": None
+                        if principal.on_behalf_of is None
+                        else str(principal.on_behalf_of),
+                        "actorUserId": None
+                        if principal.user_id is None
+                        else str(principal.user_id),
                         "reversibleUntil": reversible_until.isoformat(),
-                        "undoId": str(undo.id) if undo is not None else None,
+                        "undoId": None if undo is None else str(undo.id),
                     },
                     created_at=datetime.now(UTC),
                 )

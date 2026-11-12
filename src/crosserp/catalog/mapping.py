@@ -105,6 +105,7 @@ def create_mapping(
     session.add(row)
     session.flush()
     result = mapping_dict(row)
+    result["before"] = {"storeId": str(store_id)}
     result["undoPayload"] = {"action": "SkuMapping.delete", "id": str(mapping_id)}
     return result
 
