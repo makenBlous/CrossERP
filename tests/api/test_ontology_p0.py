@@ -465,8 +465,8 @@ def test_ai_medium_has_no_count_limit_and_critical_is_rejected(api_engine) -> No
         audit_recorder=DefaultAuditRecorder(session),
         approval_gateway=TestApprovalGateway(),
     )
-    # Medium actions must carry an entity id and before so an undo token can be issued.
-    # Store.update is critical in the catalog. This test still passes medium to check the count rule.
+    # Medium actions need an entity id and before so an undo token can be issued.
+    # Catalog marks Store.update critical. This call still passes medium to check the count rule.
     entity_id = str(uuid4())
     for index in range(8):
         dispatcher.dispatch(
