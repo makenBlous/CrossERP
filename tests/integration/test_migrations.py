@@ -17,7 +17,7 @@ from crosserp.db.session import session_scope, sqlite_file_url
 
 pytestmark = pytest.mark.db
 
-_EXPECTED_COUNT = 69  # 原 67 张表加上 cleansing_issue、mapping_rule
+_EXPECTED_COUNT = 70  # 69 张表加上 ingest_projection
 
 
 def _url(engine: Engine) -> str:
