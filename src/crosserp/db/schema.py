@@ -139,13 +139,13 @@ class CleansingIssue(Base):
     message: Mapped[str] = mapped_column(String(1000))
     suggestion_json: Mapped[Any | None] = mapped_column(JSON(), default=dict, nullable=True)
     status: Mapped[str] = mapped_column(_KIND, default="open", server_default="open")
-    handler: Mapped[str | None] = mapped_column(_KIND, nullable=True)
+    handler: Mapped[str | None] = mapped_column(String(64), nullable=True)
     agent_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     assignee_user_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(), ForeignKey("app_user.id"), nullable=True
     )
     money_impact: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
-    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     resolution_json: Mapped[Any | None] = mapped_column(JSON(), nullable=True)
     escalation_json: Mapped[Any | None] = mapped_column(JSON(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())

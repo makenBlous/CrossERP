@@ -11,8 +11,36 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
+from crosserp.approval.gateway import ApprovalGatewayImpl
 from crosserp.db.schema import CleansingIssue, CleansingIssueTransfer, ImportBatch
 from crosserp.platform.principal import Principal
+
+
+def _handler_user_id(principal: Principal) -> str:
+    user_id = principal.effective_user_id
+    if user_id is None:
+        raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录")
+    return str(user_id)
+
+
+def _resolution_record(
+    principal: Principal,
+    *,
+    decision: str,
+    reason: str | None,
+    mapping: dict[str, Any] | None,
+) -> dict[str, Any]:
+    record = {
+        "decision": decision,
+        "reason": reason,
+        "mapping": mapping,
+        "actorType": "agent" if principal.is_agent else "human",
+        "actorId": _handler_user_id(principal),
+        "onBehalfOf": str(principal.on_behalf_of) if principal.on_behalf_of else None,
+    }
+    if principal.is_agent:
+        record["agentId"] = principal.agent_id
+    return record
 
 
 def resolve(
@@ -22,7 +50,7 @@ def resolve(
     decision: str,
     reason: str | None,
     mapping: dict[str, Any] | None,
-    handler: str,
+    principal: Principal,
 ) -> dict[str, Any]:
     """执行一个清洗问题结论, 并返回可撤销信息。"""
     if issue.status not in {"open", "escalated"}:
@@ -41,8 +69,10 @@ def resolve(
         "version": issue.version,
     }
     issue.status = "ignored" if decision == "ignore" else "resolved"
-    issue.handler = handler
-    issue.resolution_json = {"decision": decision, "reason": reason, "mapping": mapping}
+    issue.handler = _handler_user_id(principal)
+    issue.resolution_json = _resolution_record(
+        principal, decision=decision, reason=reason, mapping=mapping
+    )
     issue.updated_at = datetime.now(UTC)
     issue.version += 1
     return {
@@ -52,6 +82,59 @@ def resolve(
         "version": issue.version,
         "undo": previous,
     }
+
+
+def resolve_command(
+    session: Session,
+    issue: CleansingIssue,
+    *,
+    principal: Principal,
+    decision: str,
+    reason: str | None,
+    mapping: dict[str, Any] | None,
+    expected_version: int,
+    request_id: str | None,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """人处理涉钱问题时提交审批。免审批则生效, 其余结论直接执行。"""
+    if issue.money_impact and not principal.is_agent:
+        approval = ApprovalGatewayImpl(session).submit(
+            principal=principal,
+            entity="CleansingIssue",
+            action="CleansingIssue.resolve",
+            payload=payload,
+            risk_tier="high",
+            approval_type="cleansingissue",
+            request_id=request_id,
+        )
+        if approval.state == "auto_effective":
+            applied = resolve(
+                session,
+                issue,
+                decision=decision,
+                reason=reason,
+                mapping=mapping,
+                principal=principal,
+            )
+            applied["approvalId"] = str(approval.id)
+            applied["approvalStatus"] = approval.state
+            return applied
+        issue.version = expected_version + 1
+        issue.updated_at = datetime.now(UTC)
+        return {
+            "id": str(issue.id),
+            "status": approval.state,
+            "approvalId": str(approval.id),
+            "version": issue.version,
+        }
+    return resolve(
+        session,
+        issue,
+        decision=decision,
+        reason=reason,
+        mapping=mapping,
+        principal=principal,
+    )
 
 
 def escalate(
@@ -138,4 +221,4 @@ def get_issue(
     return batch, issue
 
 
-__all__ = ["escalate", "get_issue", "list_transfers", "resolve"]
+__all__ = ["escalate", "get_issue", "list_transfers", "resolve", "resolve_command"]

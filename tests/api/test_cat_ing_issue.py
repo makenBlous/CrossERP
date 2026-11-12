@@ -19,7 +19,7 @@ from crosserp.db.schema import (
     RawRow,
     WorkflowRule,
 )
-from crosserp.platform.principal import ActorType, Principal
+from crosserp.platform.principal import ActorType, Principal, get_principal
 
 
 def _login(client: TestClient, username: str, password: str = "password-123") -> str:
@@ -77,10 +77,10 @@ def _issue(api_engine, username: str, *, money_impact: bool = False) -> tuple[UU
 def test_resolve_ignore_requires_reason_and_is_idempotent(
     json_client: TestClient, api_engine
 ) -> None:
-    _user_id, batch_id, issue_id = _issue(api_engine, "ing-issue-resolve")
+    user_id, batch_id, issue_id = _issue(api_engine, "ing-issue-resolve")
     csrf = _login(json_client, "ing-issue-resolve")
     headers = {"X-CSRF-Token": csrf, "Idempotency-Key": "ing-issue-resolve-1"}
-    payload = {"decision": "ignore", "reason": "人工确认是测试数据", "expectedVersion": 1}
+    payload = {"decision": "ignore", "reason": "人工确认是测试数据", "expectedVersion": 0}
 
     first = json_client.post(
         f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/resolve",
@@ -96,10 +96,11 @@ def test_resolve_ignore_requires_reason_and_is_idempotent(
     assert first.status_code == replay.status_code == 200
     assert replay.json() == first.json()
     assert first.json()["status"] == "ignored"
-    assert first.json()["version"] == 2
+    assert first.json()["version"] == 1
     with Session(api_engine) as session:
         row = session.get(CleansingIssue, issue_id)
-        assert row is not None and row.status == "ignored" and row.version == 2
+        assert row is not None and row.status == "ignored" and row.version == 1
+        assert row.handler == str(user_id)
         audit = session.scalar(
             select(AuditLog)
             .where(AuditLog.action == "CleansingIssue.resolve")
@@ -130,7 +131,7 @@ def test_escalate_creates_transfer_for_batch_uploader(json_client: TestClient, a
             "attempts": [{"action": "补映射", "result": "没有唯一候选"}],
             "evidence": [{"rawRecordId": "1"}],
             "suggestion": {"next": "人工确认"},
-            "expectedVersion": 1,
+            "expectedVersion": 0,
         },
         headers={"X-CSRF-Token": csrf},
     )
@@ -163,7 +164,7 @@ def test_agent_resolve_records_actor_context(
     )
     response = json_client.post(
         f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/resolve",
-        json={"decision": "duplicate", "reason": "指纹相同", "expectedVersion": 1},
+        json={"decision": "duplicate", "reason": "指纹相同", "expectedVersion": 0},
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 200
@@ -181,6 +182,9 @@ def test_agent_resolve_records_actor_context(
             and version.actor_type == "agent"
             and version.on_behalf_of == user_id
         )
+        row = session.get(CleansingIssue, issue_id)
+        assert row is not None and row.handler == str(user_id)
+        assert row.resolution_json["agentId"] == "ing-agent"
 
 
 def test_agent_money_resolution_waits_for_human(
@@ -201,16 +205,16 @@ def test_agent_money_resolution_waits_for_human(
     )
     response = json_client.post(
         f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/resolve",
-        json={"decision": "duplicate", "reason": "涉及金额", "expectedVersion": 1},
+        json={"decision": "duplicate", "reason": "涉及金额", "expectedVersion": 0},
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 200
-    assert response.json()["status"] in {"awaiting_initiator", "pending"}
+    assert response.json()["status"] == "awaiting_initiator"
     with Session(api_engine) as session:
         row = session.get(CleansingIssue, issue_id)
-        assert row is not None and row.status == "open"
+        assert row is not None and row.status == "open" and row.resolution_json is None
         approval = session.scalar(select(Approval).order_by(Approval.requested_at.desc()))
-        assert approval is not None and approval.state in {"awaiting_initiator", "pending"}
+        assert approval is not None and approval.state == "awaiting_initiator"
         assert approval.risk_tier == "high"
 
 
@@ -232,7 +236,7 @@ def test_agent_money_resolution_uses_same_high_risk_tier_as_human(
     )
     response = json_client.post(
         f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/resolve",
-        json={"decision": "duplicate", "reason": "涉钱", "expectedVersion": 1},
+        json={"decision": "duplicate", "reason": "涉钱", "expectedVersion": 0},
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 200
@@ -277,7 +281,7 @@ def test_human_money_resolution_uses_high_risk_approval_and_keeps_issue_open(
     csrf = _login(json_client, "ing-issue-human-money")
     response = json_client.post(
         f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/resolve",
-        json={"decision": "duplicate", "reason": "人工提交涉钱结论", "expectedVersion": 1},
+        json={"decision": "duplicate", "reason": "人工提交涉钱结论", "expectedVersion": 0},
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 200
@@ -285,7 +289,8 @@ def test_human_money_resolution_uses_high_risk_approval_and_keeps_issue_open(
     with Session(api_engine) as session:
         issue = session.get(CleansingIssue, issue_id)
         approval = session.scalar(select(Approval).order_by(Approval.requested_at.desc()))
-        assert issue is not None and issue.status == "open" and issue.version == 1
+        assert issue is not None and issue.status == "open" and issue.resolution_json is None
+        assert issue.version == 1
         assert approval is not None and approval.state == "pending"
         assert approval.risk_tier == "high"
         assert str(approver_id) in approval.approver_ids
@@ -323,7 +328,92 @@ def test_issue_write_is_hidden_without_import_permission(
     csrf = _login(json_client, "ing-issue-viewer")
     response = json_client.post(
         f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/resolve",
-        json={"decision": "ignore", "reason": "无权", "expectedVersion": 1},
+        json={"decision": "ignore", "reason": "无权", "expectedVersion": 0},
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 404
+
+
+def test_stale_entity_version_returns_409(json_client: TestClient, api_engine) -> None:
+    _user_id, batch_id, issue_id = _issue(api_engine, "ing-issue-stale-version")
+    csrf = _login(json_client, "ing-issue-stale-version")
+    response = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/resolve",
+        json={"decision": "ignore", "reason": "尚未产生实体版本", "expectedVersion": 1},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 409
+    assert response.json()["code"] == "CONFLICT_VERSION"
+
+
+def test_human_money_without_approver_is_auto_effective(
+    json_client: TestClient, api_engine
+) -> None:
+    user_id, batch_id, issue_id = _issue(api_engine, "ing-issue-auto", money_impact=True)
+    csrf = _login(json_client, "ing-issue-auto")
+    response = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/resolve",
+        json={"decision": "ignore", "reason": "无审批人直接生效", "expectedVersion": 0},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "ignored"
+    assert response.json()["approvalStatus"] == "auto_effective"
+    with Session(api_engine) as session:
+        issue = session.get(CleansingIssue, issue_id)
+        approval = session.scalar(select(Approval).order_by(Approval.requested_at.desc()))
+        audit = session.scalar(
+            select(AuditLog)
+            .where(AuditLog.action == "approval.submit")
+            .order_by(AuditLog.seq.desc())
+        )
+        assert issue is not None and issue.status == "ignored" and issue.handler == str(user_id)
+        assert approval is not None and approval.state == "auto_effective"
+        assert approval.resolution["reason"] == "no_rule"
+        assert audit is not None
+        assert audit.after_json["state"] == "auto_effective"
+        assert audit.after_json["resolution"]["reason"] == "no_rule"
+        assert "无审批人" in audit.after_json["resolution"]["note"]
+
+
+def test_agent_cannot_confirm_initiator_approval(
+    json_client: TestClient, api_engine, monkeypatch
+) -> None:
+    user_id, batch_id, issue_id = _issue(api_engine, "ing-issue-confirm", money_impact=True)
+    csrf = _login(json_client, "ing-issue-confirm")
+    agent = Principal(
+        user_id=user_id,
+        roles=frozenset({Role.ADMIN.value}),
+        actor_type=ActorType.AGENT,
+        agent_id="ing-confirm-agent",
+        on_behalf_of=user_id,
+        channel="mcp",
+    )
+    monkeypatch.setattr(
+        "crosserp.api.routers._platform_common.get_principal",
+        lambda _request: agent,
+    )
+    opened = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/resolve",
+        json={"decision": "duplicate", "reason": "等本人确认", "expectedVersion": 0},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert opened.status_code == 200
+    assert opened.json()["status"] == "awaiting_initiator"
+    with Session(api_engine) as session:
+        approval = session.scalar(select(Approval).order_by(Approval.requested_at.desc()))
+        assert approval is not None
+        approval_id = approval.id
+    json_client.app.dependency_overrides[get_principal] = lambda: agent
+    denied = json_client.post(
+        f"/api/v1/approvals/{approval_id}/initiator-confirm",
+        json={"confirm": True},
+    )
+    json_client.app.dependency_overrides.pop(get_principal, None)
+    assert denied.status_code == 403
+    assert denied.json()["code"] == "AI_AUTONOMY_CAPPED"
+    with Session(api_engine) as session:
+        row = session.get(Approval, approval_id)
+        issue = session.get(CleansingIssue, issue_id)
+        assert row is not None and row.state == "awaiting_initiator"
+        assert issue is not None and issue.status == "open"

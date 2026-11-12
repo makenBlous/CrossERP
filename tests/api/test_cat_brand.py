@@ -81,7 +81,7 @@ def test_brand_create_writes_action_version_audit_and_undo(brand_client) -> None
 
 
 def test_brand_write_is_idempotent_and_expected_version_conflicts(brand_client) -> None:
-    client, engine, principal = brand_client
+    client, engine, _principal = brand_client
     first = client.post(
         "/api/v1/catalog/brands",
         json={"name": "Acme"},

@@ -17,7 +17,7 @@ from crosserp.db.session import session_scope, sqlite_file_url
 
 pytestmark = pytest.mark.db
 
-_EXPECTED_COUNT = 66  # P0 平台、本体、IAM、审计、审批，以及类目、品牌、SKU 与导入链路表
+_EXPECTED_COUNT = 66  # P0 平台、本体、IAM、审计、审批, 以及类目、品牌、SKU 与导入链路表
 
 
 def _url(engine: Engine) -> str:
