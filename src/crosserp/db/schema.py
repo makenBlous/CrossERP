@@ -160,6 +160,9 @@ class MappingRule(Base):
     verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    updated_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
+    on_behalf_of: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
 
 
 class Store(Base):
