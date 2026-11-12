@@ -53,7 +53,7 @@ def is_placeholder_code(code: str) -> bool:
     return code.startswith(("待填", "待会计核实"))
 
 
-def load_accounts(path: Path | None = None) -> AccountsConfig:
+def load_accounts(path: Path) -> AccountsConfig:
     accounts, digest = _read_account_mappings(path)
     for key, mapping in accounts.items():
         if is_placeholder_code(mapping.code):
@@ -61,13 +61,13 @@ def load_accounts(path: Path | None = None) -> AccountsConfig:
     return AccountsConfig(accounts=accounts, content_hash=digest)
 
 
-def read_account_chart(path: Path | None = None) -> tuple[dict[str, AccountMapping], str]:
+def read_account_chart(path: Path) -> tuple[dict[str, AccountMapping], str]:
     """读取科目表, 保留占位编码. 过账仍必须走 load_accounts."""
     return _read_account_mappings(path)
 
 
-def _read_account_mappings(path: Path | None) -> tuple[dict[str, AccountMapping], str]:
-    selected = path or default_accounts_path()
+def _read_account_mappings(path: Path) -> tuple[dict[str, AccountMapping], str]:
+    selected = path
     if not selected.is_file():
         raise FileNotFoundError(
             f"找不到科目映射文件 {selected}。请复制 config/accounts.example.yaml 后填写。"

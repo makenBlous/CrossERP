@@ -19,7 +19,7 @@ from crosserp.finance.reference import (
     list_accounts,
     list_fx_rates,
 )
-from crosserp.platform.permissions import PermissionService
+from crosserp.platform.permissions import PermissionService, get_permission_service
 from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter(tags=["平台结算对账与资金"])
@@ -29,12 +29,14 @@ def get_database_engine(request: Request) -> Engine:
     return cast(Engine, request.app.state.database_engine)
 
 
-def get_permission_service(request: Request) -> PermissionService:
-    return cast(PermissionService, request.app.state.permission_service)
-
-
 @router.get("/finance/accounts")
-@api_endpoint(entity="Account", action="Account.list", permission="report:read", risk_tier="none")
+@api_endpoint(
+    entity="Account",
+    action="Account.list",
+    permission="report:read",
+    risk_tier="none",
+    idempotency="none",
+)
 def get_finance_accounts(
     permission_service: PermissionService = Depends(get_permission_service),
     principal: Principal = Depends(get_principal),
@@ -54,7 +56,13 @@ def get_finance_accounts(
 
 
 @router.get("/finance/fx-rates")
-@api_endpoint(entity="FxRate", action="FxRate.list", permission="report:read", risk_tier="none")
+@api_endpoint(
+    entity="FxRate",
+    action="FxRate.list",
+    permission="report:read",
+    risk_tier="none",
+    idempotency="none",
+)
 def get_finance_fx_rates(
     database_engine: Engine = Depends(get_database_engine),
     permission_service: PermissionService = Depends(get_permission_service),
@@ -78,7 +86,11 @@ def get_finance_fx_rates(
 
 @router.post("/finance/fx-rates")
 @api_endpoint(
-    entity="FxRate", action="FxRate.create", permission="integration:write", risk_tier="high"
+    entity="FxRate",
+    action="FxRate.create",
+    permission="integration:write",
+    risk_tier="high",
+    idempotency="dispatcher",
 )
 def post_finance_fx_rates(
     request: Request,

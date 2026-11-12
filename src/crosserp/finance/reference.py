@@ -25,6 +25,7 @@ from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 from crosserp.vouchers.accounts import (
     AccountMapping,
+    default_accounts_path,
     is_placeholder_code,
     read_account_chart,
 )
@@ -79,7 +80,7 @@ def list_accounts(
 ) -> dict[str, Any]:
     permission_service.require(principal, "report:read")
     try:
-        accounts, _digest = read_account_chart()
+        accounts, _digest = read_account_chart(default_accounts_path())
     except FileNotFoundError as exc:
         raise APIError(ErrorCode.VALIDATION_FAILED, str(exc)) from exc
     except ValueError as exc:
@@ -208,7 +209,7 @@ def _present(result: Any) -> dict[str, Any]:
 
 def _approval_body(approval: Any, *, applied: bool) -> dict[str, Any]:
     return {
-        "approvalId": str(approval.id),
+        "approvalId": str(approval.approval_id),
         "state": approval.state,
         "applied": applied,
     }

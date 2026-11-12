@@ -92,6 +92,21 @@ def register_routers(app: FastAPI) -> None:
             cast(Any, route).path = "/api/v1"
 
 
+def _public_validation_errors(errors: list[Any]) -> list[dict[str, Any]]:
+    """08 错误体的 details 必须可序列化。不带回 pydantic 的异常对象。"""
+    public: list[dict[str, Any]] = []
+    for item in errors:
+        loc = item["loc"]
+        public.append(
+            {
+                "type": str(item["type"]),
+                "loc": [str(part) for part in loc],
+                "msg": str(item["msg"]),
+            }
+        )
+    return public
+
+
 def install_api(app: FastAPI, engine: Any, *, file_storage: FileStorage) -> None:
     """把 API 中间件、异常处理器和自动路由安装到现有 FastAPI 应用。"""
     app.state.database_engine = engine
@@ -120,7 +135,7 @@ def install_api(app: FastAPI, engine: Any, *, file_storage: FileStorage) -> None
                 ErrorCode.VALIDATION_ERROR,
                 "请求参数校验失败",
                 request.state.request_id,
-                {"errors": exc.errors()},
+                {"errors": _public_validation_errors(exc.errors())},
             ),
             status_code=422,
         )
@@ -134,7 +149,7 @@ def install_api(app: FastAPI, engine: Any, *, file_storage: FileStorage) -> None
                 ErrorCode.VALIDATION_ERROR,
                 "请求参数校验失败",
                 request.state.request_id,
-                {"errors": exc.errors()},
+                {"errors": _public_validation_errors(exc.errors())},
             ),
             status_code=422,
         )

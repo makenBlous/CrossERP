@@ -318,7 +318,10 @@ def test_fx_rate_rejects_invalid_payload(
         headers={"Idempotency-Key": f"fx-invalid-{uuid4().hex}"},
     )
     assert response.status_code == 422
-    assert message in response.text
+    body = response.json()
+    assert set(body) == {"code", "message", "details", "requestId"}
+    assert body["code"] == "VALIDATION_ERROR"
+    assert message in body["message"] or message in response.text
 
 
 def test_fx_rate_idempotency_mismatch(json_client: TestClient) -> None:
@@ -336,3 +339,22 @@ def test_fx_rate_idempotency_mismatch(json_client: TestClient) -> None:
     )
     assert conflict.status_code == 409
     assert conflict.json()["code"] in {"IDEMPOTENCY_REPLAY_MISMATCH", "IDEMPOTENCY_CONFLICT"}
+
+
+def test_fx_rate_other_user_does_not_receive_replay(json_client: TestClient) -> None:
+    _override(json_client, _principal("integration:write"), "admin")
+    first = json_client.post(
+        "/api/v1/finance/fx-rates",
+        json=_rate_body(period="2026-08"),
+        headers={"Idempotency-Key": "fx-cross-user"},
+    )
+    assert first.status_code == 200
+    _override(json_client, _principal("integration:write"), "admin")
+    replay = json_client.post(
+        "/api/v1/finance/fx-rates",
+        json=_rate_body(period="2026-08"),
+        headers={"Idempotency-Key": "fx-cross-user"},
+    )
+    assert replay.json() != first.json()
+    assert replay.status_code == 400
+    assert replay.json()["code"] == "VALIDATION_FAILED"
