@@ -570,8 +570,9 @@ def test_agent_audit_context_and_chain_tamper_detection(
 
 
 def test_ledger_write_service_accepts_only_effective_approval_states(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr("crosserp.ledger.write_service.ledger_export_dir", lambda: tmp_path)
     from crosserp.approval.service import hash_token
     from tests.guard.test_denials import _report
 
@@ -605,10 +606,20 @@ def test_ledger_write_service_accepts_only_effective_approval_states(
             session.add(row)
         with Session(engine) as session:
             if state in accepted:
-                artifact = export(session, batch, "xlsx", token, output_dir=tmp_path)
+                artifact = export(
+                    session,
+                    batch,
+                    "xlsx",
+                    token,
+                )
                 assert artifact.file_path
             else:
                 with pytest.raises(ApprovalRequired):
-                    export(session, batch, "xlsx", token, output_dir=tmp_path)
+                    export(
+                        session,
+                        batch,
+                        "xlsx",
+                        token,
+                    )
     engine.dispose()
     downgrade_base(database_url)

@@ -15,7 +15,9 @@ if TYPE_CHECKING:
 
 # 08/02 第 13 节的范围维度。店铺 id 只认代码和测试里真实使用的 storeIds。
 # 期间是对账范围的第二维。规则类型 periods 与 storeIds 分开解析。
-_OTHER_SCOPE_TYPES = frozenset({"department", "self", "owner", "warehouse", "amount", "periods"})
+_OTHER_SCOPE_TYPES = frozenset(
+    {"department", "self", "owner", "warehouse", "amount", "periods", "legalEntities"}
+)
 _STORE_SCOPE_TYPES = frozenset({"storeIds", "all"})
 _PERIOD_SCOPE_TYPES = frozenset({"periods", "all"})
 _KNOWN_SCOPE_TYPES = _STORE_SCOPE_TYPES | _OTHER_SCOPE_TYPES
@@ -36,6 +38,14 @@ class AllPeriods:
 
 
 PeriodScope = AllPeriods | frozenset[str]
+
+
+@dataclass(frozen=True, slots=True)
+class AllLegalEntities:
+    """角色或数据范围规则明确给出的全部法人。"""
+
+
+LegalEntityScope = AllLegalEntities | frozenset[str]
 
 
 def store_contains(scope: StoreScope, store_id: UUID) -> bool:
@@ -126,12 +136,53 @@ def resolve_period_scope(
     return frozenset()
 
 
+def legal_entity_contains(scope: LegalEntityScope, legal_entity: str | None) -> bool:
+    """单条记录是否落在法人范围内。空集或缺失法人为否。"""
+    if isinstance(scope, AllLegalEntities):
+        return True
+    if legal_entity is None:
+        return False
+    return legal_entity in scope
+
+
+def resolve_legal_entity_scope(
+    role_tokens: set[str],
+    *,
+    entity_rules: Sequence[tuple[str, Any]],
+    wildcard_rules: Sequence[tuple[str, Any]],
+) -> LegalEntityScope:
+    """按角色并集和 IamDataScopeRule 解析法人范围。格式不对时拒绝放行。"""
+    for token in role_tokens:
+        if token != "all":
+            raise _invalid(f"角色数据范围格式无效: {token}")
+    _reject_unknown([*entity_rules, *wildcard_rules])
+    selected = entity_rules if _has_legal_rule(entity_rules) else wildcard_rules
+    legal_rules = [values for scope_type, values in selected if scope_type == "legalEntities"]
+    all_rules = [values for scope_type, values in selected if scope_type == "all"]
+    if legal_rules:
+        names: set[str] = set()
+        for values in legal_rules:
+            names.update(_parse_legal_entities(values))
+        if all_rules:
+            _assert_all_values(all_rules)
+            return AllLegalEntities()
+        return frozenset(names)
+    if all_rules or "all" in role_tokens:
+        _assert_all_values(all_rules)
+        return AllLegalEntities()
+    return frozenset()
+
+
 def _has_store_rule(rules: Sequence[tuple[str, Any]]) -> bool:
     return any(scope_type in _STORE_SCOPE_TYPES for scope_type, _values in rules)
 
 
 def _has_period_rule(rules: Sequence[tuple[str, Any]]) -> bool:
     return any(scope_type in _PERIOD_SCOPE_TYPES for scope_type, _values in rules)
+
+
+def _has_legal_rule(rules: Sequence[tuple[str, Any]]) -> bool:
+    return any(scope_type in {"legalEntities", "all"} for scope_type, _values in rules)
 
 
 def _reject_unknown(rules: Sequence[tuple[str, Any]]) -> None:
@@ -171,6 +222,17 @@ def _parse_periods(values: Any) -> frozenset[str]:
     return frozenset(parsed)
 
 
+def _parse_legal_entities(values: Any) -> frozenset[str]:
+    if not isinstance(values, list):
+        raise _invalid("法人范围 legalEntities 必须是数组")
+    parsed: set[str] = set()
+    for item in values:
+        if not isinstance(item, str) or item == "":
+            raise _invalid("法人范围 legalEntities 必须是非空字符串")
+        parsed.add(item)
+    return frozenset(parsed)
+
+
 def _invalid(message: str) -> APIError:
     from crosserp.api.errors import APIError, ErrorCode
 
@@ -178,13 +240,17 @@ def _invalid(message: str) -> APIError:
 
 
 __all__ = [
+    "AllLegalEntities",
     "AllPeriods",
     "AllStores",
+    "LegalEntityScope",
     "PeriodScope",
     "StoreScope",
     "apply_period_scope",
     "apply_store_scope",
+    "legal_entity_contains",
     "period_contains",
+    "resolve_legal_entity_scope",
     "resolve_period_scope",
     "resolve_store_scope",
     "store_contains",

@@ -23,7 +23,14 @@ from crosserp.db.schema import (
     IamTemporaryGrant,
     UserRole,
 )
-from crosserp.iam.scope import PeriodScope, StoreScope, resolve_period_scope, resolve_store_scope
+from crosserp.iam.scope import (
+    LegalEntityScope,
+    PeriodScope,
+    StoreScope,
+    resolve_legal_entity_scope,
+    resolve_period_scope,
+    resolve_store_scope,
+)
 
 if TYPE_CHECKING:
     from crosserp.platform.principal import Principal
@@ -420,6 +427,24 @@ class IAMService:
                 )
             )
         return resolve_period_scope(
+            role_tokens,
+            entity_rules=[(row.scope_type, row.values) for row in rules if row.entity == entity],
+            wildcard_rules=[(row.scope_type, row.values) for row in rules if row.entity == "*"],
+        )
+
+    def legal_entity_scope(self, principal: Principal, entity: str) -> LegalEntityScope:
+        """返回全部法人或法人名称集合。格式不对时拒绝放行。"""
+        effective_user_id = principal.effective_user_id
+        if effective_user_id is None:
+            raise _api_error("AUTH_REQUIRED", "需要登录")
+        role_tokens = self._role_store_tokens(effective_user_id)
+        with Session(self.engine) as session:
+            rules = list(
+                session.scalars(
+                    select(IamDataScopeRule).where(IamDataScopeRule.entity.in_((entity, "*")))
+                )
+            )
+        return resolve_legal_entity_scope(
             role_tokens,
             entity_rules=[(row.scope_type, row.values) for row in rules if row.entity == entity],
             wildcard_rules=[(row.scope_type, row.values) for row in rules if row.entity == "*"],

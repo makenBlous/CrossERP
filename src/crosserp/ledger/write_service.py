@@ -115,13 +115,16 @@ def _digest(value: dict[str, object]) -> str:
     ).hexdigest()
 
 
+def ledger_export_dir() -> Path:
+    """写出文件的唯一目录。"""
+    return Path.cwd() / "exports"
+
+
 def export(
     session: Session,
     batch_id: str,
     target_id: str,
     approval_token: str | None,
-    *,
-    output_dir: Path | None = None,
 ) -> ExportArtifact:
     """验证审批、生成 XLSX、记录产物并消费一次性 token。"""
     return export_many(
@@ -129,7 +132,6 @@ def export(
         batch_id,
         approval_token,
         target_ids=[target_id],
-        output_dir=output_dir,
     )[0]
 
 
@@ -139,7 +141,6 @@ def export_many(
     approval_token: str | None,
     *,
     target_ids: list[str],
-    output_dir: Path | None = None,
 ) -> list[ExportArtifact]:
     """一次校验并消费审批 token, 生成多个格式的凭证产物。"""
     if not target_ids:
@@ -193,7 +194,7 @@ def export_many(
             session,
             batch_id=batch_id,
             approval_id=str(approval.id),
-            output_dir=output_dir or Path.cwd() / "exports",
+            output_dir=ledger_export_dir(),
         )
         for target in targets
     ]

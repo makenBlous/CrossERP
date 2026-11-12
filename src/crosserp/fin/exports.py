@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.db.schema import Approval, ExportArtifact, Store, Voucher
+from crosserp.iam.scope import legal_entity_contains, store_contains
 from crosserp.ledger.write_service import export_target_catalog
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
@@ -42,8 +43,7 @@ def list_exports(
             .where(ExportArtifact.target_id.in_(_TARGET_IDS))
         ).all()
     )
-    scope = permission_service.data_scope_filter(principal, "ExportPackage")
-    visible = [pair for pair in rows if _in_scope(session, pair[1], scope)]
+    visible = [pair for pair in rows if _in_scope(session, pair[1], principal, permission_service)]
     if q:
         needle = q.casefold()
         visible = [pair for pair in visible if _matches(pair[0], needle)]
@@ -102,20 +102,20 @@ def _sort_key(artifact: ExportArtifact, field: str) -> tuple[int, str, str]:
     return (missing, value, str(artifact.id))
 
 
-def _in_scope(session: Session, approval: Approval, scope: Any) -> bool:
-    filters = scope["filters"]
-    if "all" in scope["scopes"]:
-        return True
+def _in_scope(
+    session: Session,
+    approval: Approval,
+    principal: Principal,
+    permission_service: PermissionService,
+) -> bool:
     store_id, legal_entity, claimed = _affiliation(session, approval)
     if not claimed:
         return True
-    if store_id is None and ("storeIds" in filters or "legalEntities" in filters):
+    stores = permission_service.store_scope(principal, "ExportPackage")
+    books = permission_service.legal_entity_scope(principal, "ExportPackage")
+    if store_id is None or not store_contains(stores, store_id):
         return False
-    if "storeIds" in filters and str(store_id) not in {str(value) for value in filters["storeIds"]}:
-        return False
-    if legal_entity is None or "legalEntities" not in filters:
-        return True
-    return legal_entity in {str(value) for value in filters["legalEntities"]}
+    return legal_entity_contains(books, legal_entity)
 
 
 def _affiliation(session: Session, approval: Approval) -> tuple[UUID | None, str | None, bool]:

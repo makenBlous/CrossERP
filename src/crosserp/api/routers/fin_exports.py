@@ -27,6 +27,7 @@ class ExportPageParams(PageParams):
     action="ExportPackage.list",
     permission="report:read",
     risk_tier="none",
+    idempotency="none",
 )
 def get_finance_exports(
     request: Request,

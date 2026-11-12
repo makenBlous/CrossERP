@@ -18,7 +18,8 @@ from crosserp.vouchers.service import save_draft
 pytestmark = pytest.mark.db
 
 
-def test_approved_voucher_exports_kingdee_xlsx_once(engine, tmp_path: Path) -> None:
+def test_approved_voucher_exports_kingdee_xlsx_once(engine, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("crosserp.ledger.write_service.ledger_export_dir", lambda: tmp_path)
     url = engine.url.render_as_string(hide_password=False)
     upgrade_head(url)
     try:
@@ -79,7 +80,12 @@ def test_approved_voucher_exports_kingdee_xlsx_once(engine, tmp_path: Path) -> N
             token = approve(session, approval, approver="finance")
             batch = f"voucher:{row.id}"
         with session_scope(engine) as session:
-            artifact = export(session, batch, "kingdee_xlsx", token, output_dir=tmp_path)
+            artifact = export(
+                session,
+                batch,
+                "kingdee_xlsx",
+                token,
+            )
             output = Path(artifact.file_path or "")
             assert output.is_file()
             book = load_workbook(output, data_only=False)
@@ -102,7 +108,12 @@ def test_approved_voucher_exports_kingdee_xlsx_once(engine, tmp_path: Path) -> N
             assert sheet.cell(3, 8).value == 10
         with session_scope(engine) as session:
             with pytest.raises(ApprovalRequired, match="已被使用"):
-                export(session, batch, "kingdee_xlsx", token, output_dir=tmp_path)
+                export(
+                    session,
+                    batch,
+                    "kingdee_xlsx",
+                    token,
+                )
             assert (
                 session.scalar(select(Voucher).where(Voucher.source_id == "source-export"))
                 is not None
