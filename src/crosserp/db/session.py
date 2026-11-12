@@ -42,12 +42,14 @@ def _load_env_file() -> None:
 
 
 def get_database_url() -> str:
-    """读配置文件或环境变量里的 CROSSERP_DATABASE_URL。未设置时用 ~/.crosserp/data.db。"""
+    """读配置文件或环境变量里的 CROSSERP_DATABASE_URL。未设置时用默认数据库文件。"""
     _load_env_file()
     configured = os.environ.get("CROSSERP_DATABASE_URL", "").strip()
     if configured:
         return configured
-    path = Path.home() / ".crosserp" / "data.db"
+    from crosserp.config import default_database_file
+
+    path = default_database_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     return sqlite_file_url(path)
 

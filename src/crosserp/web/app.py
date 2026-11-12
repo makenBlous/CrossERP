@@ -72,7 +72,7 @@ from crosserp.issues.service import transition as transition_issue
 from crosserp.ledger.write_service import ApprovalRequired
 from crosserp.ledger.write_service import export_many as export_ledger_many
 from crosserp.observability.stats import summarize
-from crosserp.platform.permissions import DefaultPermissionService
+from crosserp.platform.file_storage import FileStorage
 from crosserp.web.csrf import login_form_token, valid_pair
 from crosserp.web.deps import require
 
@@ -85,18 +85,19 @@ def plain_text(content: str, status_code: int) -> PlainTextResponse:
     return PlainTextResponse(content, status_code=status_code)
 
 
-def create_app(database_url: str | None = None) -> FastAPI:
+def create_app(
+    database_url: str | None = None, *, file_storage_dir: str | Path | None = None
+) -> FastAPI:
     """创建应用。健康检查和静态资源匿名, 其余页面需要登录。"""
     app = FastAPI()
     templates = Jinja2Templates(directory=_WEB_DIR / "templates")
-    settings = load_settings()
+    settings = load_settings(file_storage_dir=file_storage_dir)
     app.mount("/static", StaticFiles(directory=_WEB_DIR / "static"), name="static")
     resolved = database_url or get_database_url()
     ensure_database_directory(resolved)
     upgrade_head(resolved)
     engine = make_engine(resolved)
-    app.state.permission_service = DefaultPermissionService()
-    install_api(app, engine)
+    install_api(app, engine, file_storage=FileStorage(settings.file_storage_dir))
 
     @app.on_event("shutdown")
     async def dispose_database_engine() -> None:

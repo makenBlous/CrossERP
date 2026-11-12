@@ -22,6 +22,7 @@ from crosserp.db.schema import (
     Store,
 )
 from crosserp.db.session import make_engine, sqlite_file_url
+from crosserp.platform.file_storage import FileStorage
 from crosserp.platform.permissions import DefaultPermissionService
 from crosserp.platform.principal import ActorType, Principal, get_principal
 
@@ -36,7 +37,7 @@ def _app(tmp_path: Path) -> tuple[FastAPI, object, UUID]:
         session.add(store)
     app = FastAPI()
     app.state.permission_service = DefaultPermissionService()
-    install_api(app, engine)
+    install_api(app, engine, file_storage=FileStorage(tmp_path / "files"))
     return app, engine, store_id
 
 

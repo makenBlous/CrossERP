@@ -24,13 +24,18 @@ def _sqlite_file_url(path: Path) -> str:
 def isolate_default_database(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
     """测试进程默认使用本次测试专用 SQLite, 不触碰用户 home 数据库。"""
     if os.environ.get("CROSSERP_TEST_DATABASE_URL", "").startswith(("mysql", "postgres")):
+        if not os.environ.get("CROSSERP_FILES_DIR"):
+            os.environ["CROSSERP_FILES_DIR"] = str(tmp_path_factory.mktemp("crosserp-files"))
         yield
         return
     database = _sqlite_file_url(tmp_path_factory.mktemp("crosserp-session") / "data.db")
+    files_dir = tmp_path_factory.mktemp("crosserp-files")
     previous_database = os.environ.get("CROSSERP_DATABASE_URL")
     previous_migrate = os.environ.get("CROSSERP_MIGRATE_DATABASE_URL")
+    previous_files = os.environ.get("CROSSERP_FILES_DIR")
     os.environ["CROSSERP_DATABASE_URL"] = database
     os.environ["CROSSERP_MIGRATE_DATABASE_URL"] = database
+    os.environ["CROSSERP_FILES_DIR"] = str(files_dir)
     try:
         yield
     finally:
@@ -42,6 +47,10 @@ def isolate_default_database(tmp_path_factory: pytest.TempPathFactory) -> Iterat
             os.environ.pop("CROSSERP_MIGRATE_DATABASE_URL", None)
         else:
             os.environ["CROSSERP_MIGRATE_DATABASE_URL"] = previous_migrate
+        if previous_files is None:
+            os.environ.pop("CROSSERP_FILES_DIR", None)
+        else:
+            os.environ["CROSSERP_FILES_DIR"] = previous_files
 
 
 def _drop_probe_tables(engine: Engine) -> None:

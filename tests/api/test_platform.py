@@ -15,6 +15,7 @@ from crosserp.db.migrate import downgrade_base, upgrade_head
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.iam.service import IAMService
 from crosserp.platform.audit import DefaultAuditRecorder
+from crosserp.platform.file_storage import FileStorage
 from crosserp.platform.dispatcher import (
     ActionDispatcher,
     AutonomyDecision,
@@ -105,7 +106,7 @@ def test_idempotency_replays_and_rejects_different_body() -> None:
         upgrade_head(url)
         engine = make_engine(url)
         app = FastAPI()
-        install_api(app, engine)
+        install_api(app, engine, file_storage=FileStorage(Path(directory) / "files"))
         router = APIRouter()
         caller = Principal(user_id=uuid4(), permissions=frozenset({"authenticated"}))
 

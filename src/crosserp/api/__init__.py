@@ -27,6 +27,7 @@ from crosserp.api.idempotency import (
 )
 from crosserp.api.metadata import ENDPOINT_METADATA
 from crosserp.iam.service import IAMService
+from crosserp.platform.file_storage import FileStorage
 from crosserp.platform.permissions import DefaultPermissionService
 
 
@@ -91,14 +92,14 @@ def register_routers(app: FastAPI) -> None:
             cast(Any, route).path = "/api/v1"
 
 
-def install_api(app: FastAPI, engine: Any) -> None:
+def install_api(app: FastAPI, engine: Any, *, file_storage: FileStorage) -> None:
     """把 API 中间件、异常处理器和自动路由安装到现有 FastAPI 应用。"""
     app.state.database_engine = engine
+    app.state.file_storage = file_storage
     iam_service = IAMService(engine)
 
     app.state.iam_service = iam_service
     app.state.permission_service = DefaultPermissionService(iam_service)
-    app.state.audit_exports = {}
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(IdempotencyRecorder, engine=engine)
 

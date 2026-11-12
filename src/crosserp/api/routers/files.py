@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-import os
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -100,10 +98,7 @@ async def upload_file(
             session.commit()
             return FileRef.model_validate(result)
 
-        root = Path(os.environ.get("CROSSERP_FILES_DIR", "var/files"))
-        root.mkdir(parents=True, exist_ok=True)
-        path = root / digest
-        path.write_bytes(content)
+        path = request.app.state.file_storage.write(digest, content)
         row = FileObject(
             id=uuid4(),
             sha256=digest,

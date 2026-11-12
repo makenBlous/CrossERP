@@ -817,16 +817,23 @@ class AuditExport(Base):
     """一次审计包导出的索引记录。"""
 
     __tablename__ = "audit_export"
+    __table_args__ = (Index("ix_audit_export_file_id", "file_id"),)
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     requested_by: Mapped[str] = mapped_column(String(64))
+    actor_type: Mapped[str] = mapped_column(String(16), default="human", server_default="human")
+    on_behalf_of: Mapped[uuid.UUID | None] = mapped_column(Uuid())
     from_ts: Mapped[datetime] = mapped_column(UtcDateTime())
     to_ts: Mapped[datetime] = mapped_column(UtcDateTime())
     format: Mapped[str] = mapped_column(String(16))
+    chain: Mapped[str] = mapped_column(String(32), default="audit_log", server_default="audit_log")
+    filter_json: Mapped[Any] = mapped_column(JSON(), default=dict)
     row_count: Mapped[int] = mapped_column(Integer)
     first_hash: Mapped[str | None] = mapped_column(String(64))
     last_hash: Mapped[str | None] = mapped_column(String(64))
     file_sha256: Mapped[str] = mapped_column(String(64))
+    file_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("file_object.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="ready", server_default="ready")
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 

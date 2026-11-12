@@ -21,6 +21,7 @@ from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.ontology.catalog import load_catalog, validate_catalog
 from crosserp.platform.approval import ApprovalSubmission
 from crosserp.platform.audit import DefaultAuditRecorder
+from crosserp.platform.file_storage import FileStorage
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
 from crosserp.platform.principal import ActorType, Principal, get_principal
 from tests.api.conftest import TestApprovalGateway
@@ -282,7 +283,7 @@ def test_all_ontology_endpoints_have_success_and_404_paths_and_dry_run_is_read_o
         upgrade_head(url)
         engine = make_engine(url)
         app = FastAPI()
-        install_api(app, engine)
+        install_api(app, engine, file_storage=FileStorage(Path(directory) / "files"))
         with Session(engine) as session, session.begin():
             allowed_user = create_user(
                 session,
