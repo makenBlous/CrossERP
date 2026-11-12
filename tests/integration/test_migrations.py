@@ -18,7 +18,7 @@ from crosserp.db.session import session_scope, sqlite_file_url
 pytestmark = pytest.mark.db
 
 _EXPECTED_COUNT = (
-    66  # P0 平台、本体、IAM、审计与审批表及类目、品牌、SKU、Listing、映射、组合装、成本表
+    67  # 原 66 张表加上 agent_undo
 )
 
 

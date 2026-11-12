@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.metadata import api_endpoint
 from crosserp.api.schemas import CamelModel
+from crosserp.approval.gateway import ApprovalGatewayImpl
 from crosserp.audit.log import verify_chain
 from crosserp.audit.security import SecurityEventName
 from crosserp.audit.security import record as record_security
@@ -64,6 +65,15 @@ def _session(request: Request) -> Session:
 
 def _auth(request: Request, principal: Principal, permission: str) -> None:
     request.app.state.permission_service.require(principal, permission)
+
+
+def _dispatcher(request: Request, session: Session) -> ActionDispatcher:
+    return ActionDispatcher(
+        session=session,
+        permission_service=request.app.state.permission_service,
+        approval_gateway=ApprovalGatewayImpl(session),
+        audit_recorder=DefaultAuditRecorder(session),
+    )
 
 
 def _log(row: AuditLog) -> dict[str, Any]:

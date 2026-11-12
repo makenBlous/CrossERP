@@ -97,7 +97,6 @@ def install_api(app: FastAPI, engine: Any, *, file_storage: FileStorage) -> None
     app.state.database_engine = engine
     app.state.file_storage = file_storage
     iam_service = IAMService(engine)
-
     app.state.iam_service = iam_service
     app.state.permission_service = DefaultPermissionService(iam_service)
     app.add_middleware(RequestIdMiddleware)

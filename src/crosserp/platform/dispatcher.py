@@ -14,11 +14,13 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
-from crosserp.db.schema import ActionExecution, EntityEvent, EntityVersion
+from crosserp.db.schema import ActionExecution, AgentUndo, EntityEvent, EntityVersion
+from crosserp.iam.scope import AllStores
 from crosserp.ontology.catalog import load_catalog
 from crosserp.platform.approval import ApprovalGateway
 from crosserp.platform.audit import AuditRecorder
@@ -35,6 +37,21 @@ def _event_type(action: str, entity: str) -> str:
     if action_def is not None and action_def.emits:
         return action_def.emits[0]
     return f"{entity.lower()}.{action.rsplit('.', 1)[-1]}.done"
+
+
+class UndoPayload(BaseModel):
+    """撤销登记的非空 JSON 对象。"""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    entity: str
+    entity_id: str = Field(alias="entityId")
+    action: str
+    permission: str
+    before: dict[str, Any] = Field(default_factory=dict)
+    actor_id: str | None = Field(default=None, alias="actorId")
+    on_behalf_of: str | None = Field(default=None, alias="onBehalfOf")
+    actor_type: str = Field(alias="actorType")
 
 
 class RiskTier(StrEnum):
@@ -220,11 +237,22 @@ class ActionDispatcher:
                 tool_call_id=tool_call_id,
                 payload=payload,
             )
-            self._emit_events(context, action, result, risk_tier)
-            returned = (
+            undo = self._create_undo(
+                principal=principal,
+                action=action,
+                permission=permission,
+                entity=context["entity"],
+                entity_id=context["entity_id"],
+                result=result,
+                version=context.get("version"),
+                risk_tier=risk_tier,
+            )
+            self._emit_events(context, action, result, risk_tier, undo)
+            returned = _with_undo(
                 result
                 if context.get("version") is None
-                else _with_version(result, context["version"])
+                else _with_version(result, context["version"]),
+                undo,
             )
             self._save_execution(
                 principal=principal,
@@ -239,6 +267,81 @@ class ActionDispatcher:
             )
             self._hook(all_hooks, "entity_version_and_audit", context)
             return returned
+
+    def undo(
+        self,
+        undo_id: UUID | str,
+        *,
+        principal: Principal,
+        idempotency_key: str | None = None,
+        request_id: str | None = None,
+    ) -> dict[str, Any]:
+        """以同一执行器撤销中风险动作，并重新校验写权限和店铺范围。"""
+        if principal.user_id is None:
+            raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录")
+        try:
+            key = UUID(str(undo_id))
+        except ValueError as exc:
+            raise APIError(ErrorCode.NOT_FOUND, "撤销记录不存在") from exc
+        row = self.session.get(AgentUndo, key)
+        if row is None or not self._can_undo(row, principal):
+            raise APIError(ErrorCode.NOT_FOUND, "撤销记录不存在")
+        payload = UndoPayload.model_validate(row.undo_payload_json)
+        self._require_undo_target_access(row, principal, payload)
+        request_payload = {"undoId": str(row.id)}
+        replay = find_action_replay(
+            self.session,
+            principal,
+            key=idempotency_key,
+            payload=request_payload,
+            action="AgentSuggestion.undo",
+        )
+        if replay is not None:
+            return _as_mapping(replay)
+        if row.undone_at is not None:
+            raise APIError(ErrorCode.UNDO_ALREADY_APPLIED, "动作已经撤销")
+        if datetime.now(UTC) > row.deadline_at:
+            raise APIError(ErrorCode.UNDO_EXPIRED, "撤销期限已过")
+        current_version = self._current_version(row.entity_type, row.entity_id)
+        if current_version != row.action_version:
+            raise APIError(
+                ErrorCode.CONFLICT_VERSION,
+                "实体已被后续动作修改，无法撤销",
+                details={"expectedVersion": row.action_version, "actualVersion": current_version},
+            )
+        version_row = self.session.scalar(
+            select(EntityVersion).where(
+                EntityVersion.entity_type == row.entity_type,
+                EntityVersion.entity_id == row.entity_id,
+                EntityVersion.version == row.action_version,
+            )
+        )
+        if version_row is None:
+            raise APIError(ErrorCode.CONFLICT_VERSION, "撤销版本不存在")
+
+        def restore() -> dict[str, Any]:
+            from crosserp.catalog.undo_restore import restore_entity
+
+            restore_entity(self.session, row.entity_type, row.entity_id, payload.before)
+            return {"before": version_row.after_json, "after": payload.before}
+
+        result = self.dispatch(
+            principal=principal,
+            permission=payload.permission,
+            risk_tier=RiskTier.CRITICAL,
+            action="AgentSuggestion.undo",
+            entity=row.entity_type,
+            entity_id=row.entity_id,
+            payload=request_payload,
+            expected_version=row.action_version,
+            idempotency_key=idempotency_key,
+            request_id=request_id,
+            business_action=restore,
+        )
+        row.undone_by = principal.effective_user_id or principal.user_id
+        row.undone_at = datetime.now(UTC)
+        self.session.flush()
+        return {**_as_mapping(result), "undone": True, "undoId": str(row.id)}
 
     def _transaction(self) -> AbstractContextManager[Any]:
         if self.session.in_transaction():
@@ -357,8 +460,67 @@ class ActionDispatcher:
         self.session.flush()
         return row.version
 
+    def _create_undo(
+        self,
+        *,
+        principal: Principal,
+        action: str,
+        permission: str,
+        entity: str,
+        entity_id: str | None,
+        result: Any,
+        version: int | None,
+        risk_tier: RiskTier | str,
+    ) -> AgentUndo | None:
+        tier = RiskTier(risk_tier)
+        if tier not in {RiskTier.LOW, RiskTier.MEDIUM} or entity_id is None or version is None:
+            return None
+        values = _as_mapping(result)
+        before = values.get("before")
+        payload = UndoPayload(
+            entity=entity,
+            entityId=entity_id,
+            action=action,
+            permission=_catalog_permission(action, permission),
+            before=before if isinstance(before, dict) else {},
+            actorId=str(principal.user_id) if principal.user_id else None,
+            onBehalfOf=str(principal.on_behalf_of) if principal.on_behalf_of else None,
+            actorType="agent" if principal.is_agent else "human",
+        )
+        row = AgentUndo(
+            id=uuid4(),
+            entity_type=entity,
+            entity_id=entity_id,
+            action_version=version,
+            undo_payload_json=payload.model_dump(by_alias=True),
+            deadline_at=datetime.now(UTC) + timedelta(hours=24),
+        )
+        self.session.add(row)
+        self.session.flush()
+        return row
+
+    def _can_undo(self, row: AgentUndo, principal: Principal) -> bool:
+        UndoPayload.model_validate(row.undo_payload_json)
+        return "agent_suggestion:create" in self.permission_service.current_permissions(principal)
+
+    def _require_undo_target_access(
+        self, row: AgentUndo, principal: Principal, payload: UndoPayload
+    ) -> None:
+        self.permission_service.require(principal, payload.permission, row.entity_id)
+        scope = self.permission_service.store_scope(principal, row.entity_type)
+        store_id = payload.before.get("storeId")
+        if isinstance(scope, AllStores) or store_id is None:
+            return
+        if UUID(str(store_id)) not in scope:
+            raise APIError(ErrorCode.DATA_SCOPE_DENIED, "超出店铺数据范围")
+
     def _emit_events(
-        self, context: dict[str, Any], action: str, result: Any, risk_tier: RiskTier | str
+        self,
+        context: dict[str, Any],
+        action: str,
+        result: Any,
+        risk_tier: RiskTier | str,
+        undo: AgentUndo | None = None,
     ) -> None:
         if context.get("entity_id") is None:
             return
@@ -387,6 +549,7 @@ class ActionDispatcher:
                         "action": action,
                         "notificationKind": "daily_summary",
                         "reversibleUntil": reversible_until.isoformat(),
+                        "undoId": str(undo.id) if undo is not None else None,
                     },
                     created_at=datetime.now(UTC),
                 )
@@ -439,6 +602,21 @@ def _call_business_action(action: Callable[[], Any]) -> Any:
 
 def _as_mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {"value": value}
+
+
+def _catalog_permission(action: str, fallback: str) -> str:
+    action_def = _CATALOG.action_by_id.get(action)
+    if action_def is None:
+        return fallback
+    return action_def.permission
+
+
+def _with_undo(value: Any, undo: AgentUndo | None) -> Any:
+    if undo is None:
+        return value
+    if isinstance(value, dict):
+        return {**value, "undoId": str(undo.id)}
+    return {"result": value, "undoId": str(undo.id)}
 
 
 def _with_version(value: Any, version: int) -> Any:
