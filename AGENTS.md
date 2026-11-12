@@ -1,5 +1,9 @@
 # CrossERP 开发代理入口
 
+## 项目记忆（所有 agent 必读）
+
+所有 agent 开工前先读 [项目记忆](docs/PROJECT_MEMORY.md) 和 [后端开发任务总览](docs/tasks/README.md)。完成合并、做出决策，或当前状态发生变化时，必须在同一提交或紧接着的提交里更新 `docs/PROJECT_MEMORY.md`（规则见该文件「更新规则」一节）。
+
 ## 项目与当前状态
 
 CrossERP 是面向跨境电商卖家的 ERP：把平台结算和业务文件导入系统，使用确定性代码完成清洗、对账、异常分析、SKU 利润和凭证流程，并以审批和操作日志保护写入动作。正式环境以 MySQL 8.4 LTS 为主库；本机演示保留 SQLite，PostgreSQL 只在明确满足替换条件时采用，详见 [后端模块与 API 设计](docs/design/08-后端模块与API设计.md) 第 11 章。
@@ -16,14 +20,15 @@ CrossERP 是面向跨境电商卖家的 ERP：把平台结算和业务文件导�
 
 ## 开始前的阅读顺序
 
-1. [全仓文档索引](docs/README.md)：先确认事实来源和文档状态。
-2. [设计方案索引](docs/design/README.md)：了解 00–08 的关系。
-3. [后端模块与 API 设计](docs/design/08-后端模块与API设计.md)：后端与 agent 的唯一接口依据。
-4. [后端开发指南](docs/backend/README.md)：包边界、动作执行器、权限、迁移和 MySQL 规则。
-5. [前端文档索引](frontend/docs/README.md)：静态原型、组件复用和接口切换方式。
-6. [业务域索引](docs/domains/README.md)：实体、流程和业务口径。
-7. [开发任务路线](docs/tasks/README.md)：按 P0–P5 排序的任务卡。
-8. [开发规则](docs/dev/开发规则.md)：工作树、权限、金额、AI 安全和文档纪律。
+1. [项目记忆](docs/PROJECT_MEMORY.md)：当前进度、已定决策和更新规则。
+2. [全仓文档索引](docs/README.md)：先确认事实来源和文档状态。
+3. [设计方案索引](docs/design/README.md)：了解 00–08 的关系。
+4. [后端模块与 API 设计](docs/design/08-后端模块与API设计.md)：后端与 agent 的唯一接口依据。
+5. [后端开发指南](docs/backend/README.md)：包边界、动作执行器、权限、迁移和 MySQL 规则。
+6. [前端文档索引](frontend/docs/README.md)：静态原型、组件复用和接口切换方式。
+7. [业务域索引](docs/domains/README.md)：实体、流程和业务口径。
+8. [开发任务路线](docs/tasks/README.md)：按 P0–P5 排序的任务卡。
+9. [开发规则](docs/dev/开发规则.md)：工作树、权限、金额、AI 安全和文档纪律。
 
 ## 已拍板决定（一句话）
 

@@ -32,6 +32,7 @@ from crosserp.iam.scope import AllStores, store_contains
 from crosserp.issues.catalog import render
 from crosserp.issues.service import transition
 from crosserp.ledger.write_service import write_issue_adjustment_draft
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
@@ -263,7 +264,9 @@ def _dispatch(
     request_id: str | None,
     business_action: Any,
 ) -> dict[str, Any]:
-    result = make_action_dispatcher(session, permission_service).dispatch(
+    result = make_action_dispatcher(
+        session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+    ).dispatch(
         principal=principal,
         permission=permission,
         risk_tier=risk_tier,

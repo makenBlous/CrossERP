@@ -11,8 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
-from crosserp.approval.gateway import ApprovalGatewayImpl
 from crosserp.audit.log import AuditLog
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.repo.users import create_user
 from crosserp.db.schema import (
     ActionExecution,
@@ -21,8 +21,8 @@ from crosserp.db.schema import (
     IamPermissionOverride,
     SkuCost,
 )
-from crosserp.platform.audit import DefaultAuditRecorder
-from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
+from crosserp.platform.dispatcher import RiskTier
+from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.principal import ActorType, Principal, get_principal
 from crosserp.web.app import create_app
 
@@ -54,41 +54,18 @@ def test_install_api_does_not_keep_request_dispatcher_or_approval_gateway(json_c
     assert not hasattr(json_client.app.state, "approval_gateway")
 
 
-def test_dispatcher_requires_session_audit_recorder_and_approval_gateway() -> None:
-    permission_service = _PermissionService()
+def test_dispatcher_factory_requires_undo_restore_registry() -> None:
     session = Session()
-    recorder = DefaultAuditRecorder(session)
-    gateway = ApprovalGatewayImpl(session)
-
-    with pytest.raises(TypeError, match="session"):
-        ActionDispatcher(
-            permission_service=permission_service,
-            audit_recorder=recorder,
-            approval_gateway=gateway,
-        )
-    with pytest.raises(TypeError, match="audit_recorder"):
-        ActionDispatcher(
-            session=session,
-            permission_service=permission_service,
-            approval_gateway=gateway,
-        )
-    with pytest.raises(TypeError, match="approval_gateway"):
-        ActionDispatcher(
-            session=session,
-            permission_service=permission_service,
-            audit_recorder=recorder,
-        )
+    with pytest.raises(TypeError, match="undo_restore"):
+        make_action_dispatcher(session, _PermissionService())
     session.close()
 
 
 def test_agent_high_risk_approval_and_audit_commit_in_request_session(api_engine) -> None:
     principal = _principal()
     with Session(api_engine) as session, session.begin():
-        dispatcher = ActionDispatcher(
-            session=session,
-            permission_service=_PermissionService(),
-            audit_recorder=DefaultAuditRecorder(session),
-            approval_gateway=ApprovalGatewayImpl(session),
+        dispatcher = make_action_dispatcher(
+            session, _PermissionService(), undo_restore=CATALOG_UNDO_RESTORE
         )
         result = dispatcher.dispatch(
             principal=principal,
@@ -177,11 +154,8 @@ def test_http_agent_high_risk_returns_approval_payload_without_writing(api_datab
 def test_approval_and_audit_roll_back_with_request_transaction(api_engine) -> None:
     def failing_request() -> None:
         with Session(api_engine) as session, session.begin():
-            dispatcher = ActionDispatcher(
-                session=session,
-                permission_service=_PermissionService(),
-                audit_recorder=DefaultAuditRecorder(session),
-                approval_gateway=ApprovalGatewayImpl(session),
+            dispatcher = make_action_dispatcher(
+                session, _PermissionService(), undo_restore=CATALOG_UNDO_RESTORE
             )
             dispatcher.dispatch(
                 principal=_principal(),

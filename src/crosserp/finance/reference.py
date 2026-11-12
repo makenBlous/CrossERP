@@ -20,6 +20,7 @@ from crosserp.core.errors import PrecisionError
 from crosserp.db.repo.fx import get_fx_rate, upsert_fx_rate
 from crosserp.db.schema import EntityVersion, FxRate
 from crosserp.db.types import FxRate as FxRateColumn
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
@@ -183,7 +184,9 @@ def create_fx_rate(
         body.update(_approval_body(approval, applied=True))
         return body
 
-    result = make_action_dispatcher(session, permission_service).dispatch(
+    result = make_action_dispatcher(
+        session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+    ).dispatch(
         principal=principal,
         permission="integration:write",
         risk_tier="high",

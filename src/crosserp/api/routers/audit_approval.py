@@ -22,6 +22,7 @@ from crosserp.api.schemas import CamelModel
 from crosserp.audit.log import verify_chain
 from crosserp.audit.security import SecurityEventName
 from crosserp.audit.security import record as record_security
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.schema import (
     Approval,
     ArchiveRun,
@@ -216,7 +217,7 @@ def verify_audit(request: Request, principal: Principal = Depends(get_principal)
     _auth(request, principal, "audit_log:read")
     with _session(request) as session, session.begin():
         result: Any = make_action_dispatcher(
-            session, request.app.state.permission_service
+            session, request.app.state.permission_service, undo_restore=CATALOG_UNDO_RESTORE
         ).dispatch(
             principal=principal,
             permission="audit_log:read",
@@ -571,7 +572,9 @@ def resolve_alert(
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
         if row is None:
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
-        make_action_dispatcher(session, request.app.state.permission_service).dispatch(
+        make_action_dispatcher(
+            session, request.app.state.permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        ).dispatch(
             principal=principal,
             permission="audit_log:write",
             risk_tier=RiskTier.CRITICAL,
@@ -646,7 +649,9 @@ def update_retention(
             row.retain_days = body.retain_days
             row.updated_at = datetime.now(UTC)
         row.updated_by = principal.user_id
-        make_action_dispatcher(session, request.app.state.permission_service).dispatch(
+        make_action_dispatcher(
+            session, request.app.state.permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        ).dispatch(
             principal=principal,
             permission="audit_log:write",
             risk_tier=RiskTier.CRITICAL,
@@ -690,7 +695,9 @@ def archive_retention(
         )
         session.add(run)
         session.flush()
-        make_action_dispatcher(session, request.app.state.permission_service).dispatch(
+        make_action_dispatcher(
+            session, request.app.state.permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        ).dispatch(
             principal=principal,
             permission="audit_log:write",
             risk_tier=RiskTier.CRITICAL,

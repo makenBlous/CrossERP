@@ -22,6 +22,7 @@ from crosserp.iam.scope import (
     period_contains,
     store_contains,
 )
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
@@ -205,7 +206,9 @@ def create_recon_run(
 
     return cast(
         dict[str, Any],
-        make_action_dispatcher(session, permission_service).dispatch(
+        make_action_dispatcher(
+            session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        ).dispatch(
             principal=principal,
             permission="integration:write",
             risk_tier="low",

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.schemas import PageParams
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.schema import (
     ApiToken,
     AppUser,
@@ -93,7 +94,9 @@ def _dispatch_write(
     payload: Any = None,
 ) -> Any:
     _require(request, principal, permission, entity=entity)
-    result = make_action_dispatcher(session, request.app.state.permission_service).dispatch(
+    result = make_action_dispatcher(
+        session, request.app.state.permission_service, undo_restore=CATALOG_UNDO_RESTORE
+    ).dispatch(
         principal=principal,
         permission=permission,
         risk_tier=risk,

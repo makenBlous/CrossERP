@@ -21,6 +21,7 @@ from crosserp.catalog.mapping import (
     create_mapping,
     mapping_dict,
 )
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.schema import SkuMapping
 from crosserp.iam.scope import apply_store_scope
 from crosserp.platform.dispatcher import RiskTier
@@ -108,7 +109,7 @@ def post_mapping(
     service: PermissionService = Depends(get_permission_service),
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    dispatcher = make_action_dispatcher(session, service)
+    dispatcher = make_action_dispatcher(session, service, undo_restore=CATALOG_UNDO_RESTORE)
     payload = body.model_dump(mode="json", by_alias=True, exclude_none=True, exclude={"id"})
     result = cast(
         dict[str, Any],
@@ -152,7 +153,7 @@ def post_mapping_confirm(
     row = session.get(SkuMapping, body.id)
     if row is None:
         raise not_found(message="映射不存在")
-    dispatcher = make_action_dispatcher(session, service)
+    dispatcher = make_action_dispatcher(session, service, undo_restore=CATALOG_UNDO_RESTORE)
     return cast(
         dict[str, Any],
         dispatcher.dispatch(

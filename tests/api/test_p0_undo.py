@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from crosserp.api import install_api
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.routers.agent_undo import _permission_service
-from crosserp.approval.gateway import ApprovalGatewayImpl
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.migrate import upgrade_head
 from crosserp.db.schema import (
     AgentUndo,
@@ -32,8 +32,8 @@ from crosserp.db.schema import (
 )
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.iam.scope import AllStores
-from crosserp.platform.audit import DefaultAuditRecorder
-from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
+from crosserp.platform.dispatcher import RiskTier
+from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.file_storage import FileStorage
 from crosserp.platform.principal import ActorType, Principal, get_principal
 
@@ -59,12 +59,7 @@ class _Permissions:
 
 
 def _dispatcher(session, permissions):
-    return ActionDispatcher(
-        session=session,
-        permission_service=permissions,
-        audit_recorder=DefaultAuditRecorder(session),
-        approval_gateway=ApprovalGatewayImpl(session),
-    )
+    return make_action_dispatcher(session, permissions, undo_restore=CATALOG_UNDO_RESTORE)
 
 
 def _agent(user_id=None) -> Principal:
@@ -699,6 +694,9 @@ def test_unsupported_entity_is_not_issued_and_undo_does_not_fake_success() -> No
                     "actorId": None,
                     "onBehalfOf": None,
                     "actorType": "agent",
+                    "reverseAction": None,
+                    "reversePayload": None,
+                    "reversePermission": None,
                 },
                 deadline_at=datetime.now(UTC) + timedelta(hours=1),
             )

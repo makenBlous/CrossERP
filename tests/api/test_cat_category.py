@@ -57,7 +57,7 @@ def test_category_crud_tree_pagination_and_idempotency(
     assert created.status_code == 201
     root = created.json()
     assert root["version"] == 1
-    assert root["undo"]["action"] == "Category.delete"
+    assert root["undo"]["action"] == "Category.status"
 
     replay = json_client.post(
         "/api/v1/catalog/categories",
