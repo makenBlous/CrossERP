@@ -13,6 +13,8 @@ GRANT SELECT ON crosserp.alembic_version TO 'crosserp_app'@'%';
 -- MySQL 没有从 database 级授权中单独撤回某张表的 UPDATE。
 -- 因此应用账号对业务表逐表授权，新增迁移后把新业务表补到这里并重跑脚本。
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.approval TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.catalog_category TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.catalog_brand TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.export_artifact TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.fee TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.fee_reference TO 'crosserp_app'@'%';
@@ -79,6 +81,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.audit_archive_run TO 'crosserp_
 GRANT SELECT ON crosserp.* TO 'crosserp_agent'@'%';
 REVOKE ALL PRIVILEGES ON crosserp.* FROM 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.approval TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.catalog_category TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.catalog_brand TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.app_setting TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.category TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.brand TO 'crosserp_agent'@'%';

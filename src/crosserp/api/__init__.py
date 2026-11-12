@@ -63,7 +63,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             request_id = request.state.request_id
             return JSONResponse(
                 error_payload(
-                    ErrorCode.VALIDATION_FAILED,
+                    ErrorCode.VALIDATION_ERROR,
                     "Idempotency-Key 过长",
                     request_id,
                 ),

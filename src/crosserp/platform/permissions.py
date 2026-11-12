@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
+
+from fastapi import Request
 
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.iam.service import IAMService
@@ -61,4 +63,13 @@ class DefaultPermissionService:
         return permissions
 
 
-__all__ = ["DefaultPermissionService", "PermissionDenied", "PermissionService"]
+def get_permission_service(request: Request) -> PermissionService:
+    return cast(PermissionService, request.app.state.permission_service)
+
+
+__all__ = [
+    "DefaultPermissionService",
+    "PermissionDenied",
+    "PermissionService",
+    "get_permission_service",
+]
