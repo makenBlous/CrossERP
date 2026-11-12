@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from typing import Any, cast
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, or_, select
@@ -57,7 +58,9 @@ def list_mappings(
     scope = service.data_scope_filter(principal, "SkuMapping")
     allowed = scope.get("storeIds") or scope.get("filters", {}).get("store_ids")
     if allowed is not None:
-        statement = statement.where(SkuMapping.store_id.in_(allowed))
+        statement = statement.where(
+            SkuMapping.store_id.in_([UUID(str(value)) for value in allowed])
+        )
     if q:
         term = f"%{q}%"
         statement = statement.where(
@@ -100,7 +103,9 @@ def post_mapping(
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
     dispatcher = make_action_dispatcher(session, service)
-    payload = body.model_dump(mode="json", by_alias=True, exclude_none=True)
+    payload = body.model_dump(
+        mode="json", by_alias=True, exclude_none=True, exclude={"id"}
+    )
     result = cast(
         dict[str, Any],
         dispatcher.dispatch(

@@ -413,8 +413,14 @@ def _call_business_action(action: Callable[[], Any]) -> Any:
         raise APIError(ErrorCode.INTERNAL_ERROR, "业务动作必须是无参可调用对象") from exc
 
 
-def _approval_result(value: dict[str, Any]) -> dict[str, Any]:
-    return value
+def _approval_result(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    return {
+        "approvalId": str(value.id),
+        "state": value.state,
+        "resolution": value.resolution,
+    }
 
 
 def _as_mapping(value: Any) -> dict[str, Any]:
