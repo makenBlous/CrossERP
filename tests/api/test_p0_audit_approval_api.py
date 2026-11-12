@@ -84,7 +84,7 @@ def _pending_approval(api_engine, *, approval_type: str = "api-voucher") -> tupl
             risk_tier="high",
             approval_type=approval_type,
         )
-        return UUID(str(row.id)), UUID(str(submitter.id)), UUID(str(approver.id))
+        return row.approval_id, UUID(str(submitter.id)), UUID(str(approver.id))
 
 
 def _awaiting_initiator(api_engine) -> tuple[UUID, UUID, Principal]:
@@ -108,7 +108,7 @@ def _awaiting_initiator(api_engine) -> tuple[UUID, UUID, Principal]:
             risk_tier="high",
             approval_type="api-no-rule",
         )
-        return UUID(str(row.id)), UUID(str(submitter.id)), agent
+        return row.approval_id, UUID(str(submitter.id)), agent
 
 
 @pytest.fixture
@@ -476,9 +476,9 @@ def test_approval_resolution_filter_and_three_reasons(
             approval_type="api-no-rule",
         )
         ids = {
-            "only_self": str(only_self.id),
-            "no_account": str(no_account.id),
-            "no_rule": str(no_rule.id),
+            "only_self": str(only_self.approval_id),
+            "no_account": str(no_account.approval_id),
+            "no_rule": str(no_rule.approval_id),
         }
     use_principal(_principal(role="admin"))
     for reason, expected_id in ids.items():
@@ -500,8 +500,10 @@ def test_admin_submitter_with_approver_rule_stays_pending(api_engine) -> None:
             risk_tier="high",
             approval_type="api-admin-rule",
         )
+        saved = session.get(Approval, row.approval_id)
+        assert saved is not None
         assert row.state == "pending"
-        assert str(approver.id) in row.approver_ids
+        assert str(approver.id) in saved.approver_ids
 
 
 def test_multilevel_rule_with_no_live_steps_is_auto_effective(api_engine) -> None:

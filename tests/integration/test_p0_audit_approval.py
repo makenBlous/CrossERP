@@ -12,7 +12,7 @@ from crosserp.audit.log import append, verify_chain
 from crosserp.auth.roles import Role
 from crosserp.db.migrate import downgrade_base, upgrade_head
 from crosserp.db.repo.users import create_user, grant_role
-from crosserp.db.schema import AuditLog, WorkflowRule
+from crosserp.db.schema import Approval, AuditLog, WorkflowRule
 from crosserp.db.session import session_scope
 from crosserp.platform.principal import ActorType, Principal
 
@@ -53,11 +53,15 @@ def test_resolution_auto_effective_and_agent_confirmation(engine) -> None:
             )
             assert waiting.state == "awaiting_initiator"
             confirmed = ApprovalGatewayImpl(session).initiator_confirm(
-                waiting.id, principal=human, content={"confirm": True}
+                waiting.approval_id, principal=human, content={"confirm": True}
             )
             assert confirmed.state == "initiator_confirmed"
-            rows = list(session.scalars(select(AuditLog).where(AuditLog.approval_id == waiting.id)))
-            assert any(row.actor_type == "agent" and row.agent_id == "agent-1" for row in rows)
+            rows = list(
+                session.scalars(select(AuditLog).where(AuditLog.approval_id == waiting.approval_id))
+            )
+            assert any(
+                item.actor_type == "agent" and item.agent_id == "agent-1" for item in rows
+            )
             assert verify_chain(session).ok
     finally:
         downgrade_base(url)
@@ -89,13 +93,15 @@ def test_configured_approver_excludes_submitter_and_rejects_self_approval(engine
                 risk_tier="high",
                 approval_type="voucher",
             )
+            saved = session.get(Approval, row.approval_id)
+            assert saved is not None
             assert row.state == "pending"
-            assert str(approver.id) in row.approver_ids
+            assert str(approver.id) in saved.approver_ids
             from crosserp.api.errors import APIError
 
             with pytest.raises(APIError):
                 ApprovalGatewayImpl(session).decide(
-                    row.id, principal=principal, decision="approve", comment="self"
+                    row.approval_id, principal=principal, decision="approve", comment="self"
                 )
     finally:
         downgrade_base(url)
@@ -212,16 +218,18 @@ def test_multilevel_rule_skips_unresolvable_step_and_requires_each_live_step(eng
                 risk_tier="high",
                 approval_type="multi",
             )
+            saved = session.get(Approval, row.approval_id)
+            assert saved is not None
             assert row.state == "pending"
-            assert row.current_step == 1
+            assert saved.current_step == 1
             assert row.resolution["snapshot"][0]["skipped"] is True
             assert row.resolution["snapshot"][0]["reason"] == "no_account"
             approved = ApprovalGatewayImpl(session).decide(
-                row.id,
+                row.approval_id,
                 principal=Principal(user_id=approver.id),
                 decision="approve",
                 comment="ok",
-                content_hash=row.content_hash,
+                content_hash=saved.content_hash,
             )
             assert approved.state == "approved"
             assert any(
@@ -269,27 +277,31 @@ def test_approval_rejects_payload_mismatch_and_represented_human(engine) -> None
                 risk_tier="high",
                 approval_type="represented",
             )
-            assert row.requested_by == str(represented.id)
+            saved = session.get(Approval, row.approval_id)
+            assert saved is not None
+            assert saved.requested_by == str(represented.id)
             assert row.state == "pending"
             with pytest.raises(APIError) as self_error:
                 ApprovalGatewayImpl(session).decide(
-                    row.id,
+                    row.approval_id,
                     principal=Principal(user_id=represented.id),
                     decision="approve",
                     comment="self",
-                    content_hash=row.content_hash,
+                    content_hash=saved.content_hash,
                 )
             assert self_error.value.code == ErrorCode.FORBIDDEN
             with pytest.raises(APIError) as hash_error:
                 ApprovalGatewayImpl(session).decide(
-                    row.id,
+                    row.approval_id,
                     principal=Principal(user_id=approver.id),
                     decision="approve",
                     comment="bad hash",
                     content_hash="0" * 64,
                 )
             assert hash_error.value.code == ErrorCode.PAYLOAD_HASH_MISMATCH
-            audit = list(session.scalars(select(AuditLog).where(AuditLog.approval_id == row.id)))
+            audit = list(
+                session.scalars(select(AuditLog).where(AuditLog.approval_id == row.approval_id))
+            )
             submit_audit = audit[0]
             assert submit_audit.actor_type == "agent"
             assert submit_audit.agent_id == "agent-represented"
