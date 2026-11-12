@@ -10075,6 +10075,23 @@ paths:
       - $ref: '#/components/parameters/PageSize'
       - $ref: '#/components/parameters/Q'
       - $ref: '#/components/parameters/Sort'
+      - name: storeId
+        in: query
+        schema:
+          type: string
+          format: uuid
+        description: 店铺
+      - name: period
+        in: query
+        schema:
+          type: string
+          example: 2026-10
+        description: 期间 YYYY-MM
+      - name: sku
+        in: query
+        schema:
+          type: string
+        description: 内部 SKU
       responses:
         '200':
           description: 成功
@@ -10119,6 +10136,18 @@ paths:
         required: true
         schema:
           type: string
+      - name: storeId
+        in: query
+        schema:
+          type: string
+          format: uuid
+        description: 店铺；范围外与不存在均为 404
+      - name: period
+        in: query
+        schema:
+          type: string
+          example: 2026-10
+        description: 期间 YYYY-MM
       responses:
         '200':
           description: 成功
