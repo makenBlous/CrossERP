@@ -287,7 +287,7 @@ class ActionDispatcher:
             if version_row is None:
                 raise APIError(ErrorCode.CONFLICT_VERSION, "撤销版本不存在")
             before = version_row.after_json
-            target = payload["before"]
+            target = version_row.before_json
             handler = undo_action or self._undo_handlers.get(str(payload["action"]))
             work = (
                 (lambda: handler(payload))
