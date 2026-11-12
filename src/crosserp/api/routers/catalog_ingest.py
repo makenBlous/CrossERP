@@ -4,11 +4,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.metadata import api_endpoint
@@ -23,7 +26,7 @@ _SENSITIVE_TOKENS = ("password", "secret", "token", "api_key", "apikey", "phone"
 
 
 def _batch_payload(row: ImportBatch) -> dict[str, Any]:
-    counts = dict(row.counts_json or {})
+    counts = dict(row.counts_json)
     counts.setdefault("landed", row.landed_count)
     counts.setdefault("valid", row.valid_count)
     counts.setdefault("duplicate", row.duplicate_count)
@@ -70,14 +73,16 @@ def _redact(value: Any) -> Any:
     return value
 
 
-def _get_batch(request: Request, batch_id: UUID) -> tuple[Any, Any, ImportBatch]:
+@contextmanager
+def _ingest_session(request: Request) -> Iterator[tuple[Any, Session]]:
     principal, session = _principal_db(request)
-    _require(request, principal, "integration:read", entity="IngestBatch")
-    batch = session.get(ImportBatch, batch_id)
-    if batch is None:
+    session.rollback()
+    try:
+        with session.begin():
+            _require(request, principal, "integration:read", entity="IngestBatch")
+            yield principal, session
+    finally:
         session.close()
-        raise not_found()
-    return principal, session, batch
 
 
 @router.get("/ingest/batches")
@@ -90,8 +95,7 @@ def list_batches(
     q: str | None = Query(None),
     sort: str = Query("-createdAt"),
 ) -> dict[str, Any]:
-    principal, session = _principal_db(request)
-    try:
+    with _ingest_session(request) as (principal, session):
         _require(request, principal, "integration:read", entity="IngestBatch")
         if sort not in {"createdAt", "-createdAt", "status", "-status"}:
             raise APIError(ErrorCode.VALIDATION_ERROR, "sort 参数无效")
@@ -120,8 +124,6 @@ def list_batches(
             [_batch_payload(row) for row in rows[start : start + params.page_size]],
             len(rows),
         )
-    finally:
-        session.close()
 
 
 @router.get("/ingest/batches/{id}")
@@ -129,11 +131,11 @@ def list_batches(
     entity="IngestBatch", action="IngestBatch.get", permission="integration:read", risk_tier="none"
 )
 def get_batch(request: Request, id: UUID) -> dict[str, Any]:
-    _principal, session, batch = _get_batch(request, id)
-    try:
+    with _ingest_session(request) as (_principal, session):
+        batch = session.get(ImportBatch, id)
+        if batch is None:
+            raise not_found()
         return _batch_payload(batch)
-    finally:
-        session.close()
 
 
 @router.get("/ingest/batches/{id}/raw-records")
@@ -147,8 +149,10 @@ def list_raw_records(
     q: str | None = Query(None),
     sort: str = Query("rowNo"),
 ) -> dict[str, Any]:
-    principal, session, _batch = _get_batch(request, id)
-    try:
+    with _ingest_session(request) as (principal, session):
+        batch = session.get(ImportBatch, id)
+        if batch is None:
+            raise not_found()
         if sort not in {"rowNo", "-rowNo"}:
             raise APIError(ErrorCode.VALIDATION_ERROR, "sort 参数无效")
         rows = list(
@@ -171,7 +175,7 @@ def list_raw_records(
                     "rowNo": row.row_no,
                     "payload": _redact(row.payload_json),
                     "sha256": row.sha256,
-                    "receivedAt": (row.received_at or _batch.imported_at).isoformat(),
+                    "receivedAt": (row.received_at or batch.imported_at).isoformat(),
                 }
             )
         if sensitive_read:
@@ -183,11 +187,8 @@ def list_raw_records(
                 request_id=request.state.request_id,
                 reason="读取敏感原始字段",
             )
-            session.commit()
         start = (params.page - 1) * params.page_size
         return _page(params, items[start : start + params.page_size], len(items))
-    finally:
-        session.close()
 
 
 @router.get("/ingest/batches/{id}/issues")
@@ -204,8 +205,10 @@ def list_issues(
     q: str | None = Query(None),
     sort: str = Query("rowNo"),
 ) -> dict[str, Any]:
-    _principal, session, _batch = _get_batch(request, id)
-    try:
+    with _ingest_session(request) as (_principal, session):
+        batch = session.get(ImportBatch, id)
+        if batch is None:
+            raise not_found()
         if sort not in {"rowNo", "-rowNo"}:
             raise APIError(ErrorCode.VALIDATION_ERROR, "sort 参数无效")
         rows = list(
@@ -239,8 +242,6 @@ def list_issues(
         ]
         start = (params.page - 1) * params.page_size
         return _page(params, items[start : start + params.page_size], len(items))
-    finally:
-        session.close()
 
 
 @router.get("/finance/fee-map")
@@ -255,8 +256,7 @@ def list_mapping_rules(
     q: str | None = Query(None),
     sort: str = Query("-createdAt"),
 ) -> dict[str, Any]:
-    _principal, session = _principal_db(request)
-    try:
+    with _ingest_session(request) as (_principal, session):
         _require(request, _principal, "integration:read", entity="MappingRule")
         if sort not in {"createdAt", "-createdAt", "ruleVersion", "-ruleVersion"}:
             raise APIError(ErrorCode.VALIDATION_ERROR, "sort 参数无效")
@@ -296,8 +296,6 @@ def list_mapping_rules(
         ]
         start = (params.page - 1) * params.page_size
         return _page(params, items[start : start + params.page_size], len(items))
-    finally:
-        session.close()
 
 
 __all__ = ["router"]

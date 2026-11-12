@@ -18,11 +18,35 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.db.schema import CleansingIssue, FileObject, ImportBatch, MappingRule, RawRow
+
+
+class MappingRuleBody(BaseModel):
+    """清洗链路支持的映射规则体。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    columns: dict[StrictStr, StrictStr] = Field(default_factory=dict)
+    required: list[StrictStr] = Field(default_factory=list)
+    amountFields: list[StrictStr] = Field(default_factory=list)
+    periodField: StrictStr | None = None
+    directionField: StrictStr | None = None
+
+
+def _parse_mapping_rule_body(body: Any) -> MappingRuleBody:
+    try:
+        return MappingRuleBody.model_validate(body)
+    except ValidationError as exc:
+        raise APIError(
+            ErrorCode.VALIDATION_ERROR,
+            "映射规则格式无效",
+            details={"errors": exc.errors()},
+        ) from exc
 
 
 def land_file(
@@ -104,6 +128,7 @@ def register_mapping_rule(
     verified: bool = False,
 ) -> MappingRule:
     """登记一个不可覆盖的规则版本；更新规则只会新增版本。"""
+    parsed_body = _parse_mapping_rule_body(body)
     existing = session.scalar(
         select(MappingRule).where(
             MappingRule.rule_key == rule_key, MappingRule.rule_version == rule_version
@@ -116,7 +141,7 @@ def register_mapping_rule(
         rule_key=rule_key,
         rule_version=rule_version,
         kind=kind,
-        body_json=body,
+        body_json=parsed_body.model_dump(),
         status="active",
         verified=verified,
         created_at=datetime.now(UTC),
@@ -178,53 +203,60 @@ def cleanse_batch(session: Session, batch_id: UUID) -> ImportBatch:
     )
     if rule is None:
         raise APIError(ErrorCode.UNVERIFIED_RULE_VERSION, "批次绑定的映射规则不存在")
-    body = rule.body_json if isinstance(rule.body_json, dict) else {}
-    required = [str(value) for value in body.get("required", [])]
-    amount_fields = {str(value) for value in body.get("amountFields", [])}
-    period_field = body.get("periodField")
-    direction_field = body.get("directionField")
-    columns = body.get("columns", {})
+    rule_body = _parse_mapping_rule_body(rule.body_json)
+    required = list(rule_body.required)
+    amount_fields = set(rule_body.amountFields)
+    period_field = rule_body.periodField
+    direction_field = rule_body.directionField
     valid = quarantined = duplicate = 0
     seen: set[str] = set()
     rows = list(
         session.scalars(select(RawRow).where(RawRow.batch_id == batch.id).order_by(RawRow.row_no))
     )
     for raw in rows:
-        payload = _normalise_payload(raw.payload_json, columns)
-        fingerprint = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        issue: tuple[str, str | None, str, dict[str, Any]] | None = None
-        for field in required:
-            if not str(payload.get(field, "")).strip():
-                issue = ("invalid", field, "必填项为空", {})
-                break
-        if issue is None:
-            for field in amount_fields:
-                value = str(payload.get(field, "")).strip()
-                try:
-                    amount = Decimal(value)
-                except InvalidOperation:
-                    issue = ("invalid", field, "金额无法解析", {})
-                    break
-                exponent = amount.as_tuple().exponent
-                if not amount.is_finite() or not isinstance(exponent, int) or exponent < -4:
-                    issue = ("invalid", field, "金额精度超过万分位", {})
-                    break
-        if issue is None and period_field:
-            value = str(payload.get(str(period_field), "")).strip()
-            if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", value):
-                issue = ("invalid", str(period_field), "期间必须是 YYYY-MM", {})
-        if issue is None and direction_field:
-            value = str(payload.get(str(direction_field), "")).strip().casefold()
-            if value not in {"借", "贷", "借方", "贷方", "debit", "credit"}:
-                issue = ("invalid", str(direction_field), "借贷方向无效", {})
-        if issue is None and fingerprint in seen:
-            issue = (
-                "duplicate",
-                None,
-                "批次内原始记录重复",
-                {"fingerprint": hashlib.sha256(fingerprint.encode()).hexdigest()},
+        issue: tuple[str, str | None, str, dict[str, Any]] | None
+        if not isinstance(raw.payload_json, dict):
+            issue = ("invalid", None, "原始记录必须是对象", {})
+            fingerprint = None
+        else:
+            payload = _normalise_payload(raw.payload_json, rule_body.columns)
+            fingerprint = json.dumps(
+                payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
             )
+            issue = None
+            for field in required:
+                if not str(payload.get(field, "")).strip():
+                    issue = ("invalid", field, "必填项为空", {})
+                    break
+            if issue is None:
+                for field in amount_fields:
+                    value = str(payload.get(field, "")).strip()
+                    try:
+                        amount = Decimal(value)
+                    except InvalidOperation:
+                        issue = ("invalid", field, "金额无法解析", {})
+                        break
+                    exponent = amount.as_tuple().exponent
+                    if not amount.is_finite() or not isinstance(exponent, int) or exponent < -4:
+                        issue = ("invalid", field, "金额精度超过万分位", {})
+                        break
+            if issue is None and period_field:
+                value = str(payload.get(period_field, "")).strip()
+                if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", value):
+                    issue = ("invalid", period_field, "期间必须是 YYYY-MM", {})
+            if issue is None and direction_field:
+                value = str(payload.get(direction_field, "")).strip().casefold()
+                if value not in {"借", "贷", "借方", "贷方", "debit", "credit"}:
+                    issue = ("invalid", direction_field, "借贷方向无效", {})
+            if issue is None and fingerprint in seen:
+                issue = (
+                    "duplicate",
+                    None,
+                    "批次内原始记录重复",
+                    {"fingerprint": hashlib.sha256(fingerprint.encode()).hexdigest()},
+                )
         if issue is None:
+            assert fingerprint is not None
             seen.add(fingerprint)
             valid += 1
             continue
@@ -260,23 +292,21 @@ def cleanse_batch(session: Session, batch_id: UUID) -> ImportBatch:
     return batch
 
 
-def _read_file(path: Path, content_type: str | None) -> list[tuple[int, dict[str, Any]]]:
+def _read_file(path: Path, content_type: str | None) -> list[tuple[int, Any]]:
     if content_type == "application/json" or path.suffix.casefold() == ".json":
         value = json.loads(path.read_text(encoding="utf-8-sig"))
         if not isinstance(value, list):
             raise APIError(ErrorCode.VALIDATION_ERROR, "JSON 原件必须是对象数组")
-        return [(index, item) for index, item in enumerate(value, 1) if isinstance(item, dict)]
+        return list(enumerate(value, 1))
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         return [(index, dict(row)) for index, row in enumerate(csv.DictReader(handle), 2)]
 
 
-def _normalise_payload(payload: Any, columns: Any) -> dict[str, Any]:
-    source = payload if isinstance(payload, dict) else {}
-    mapping = columns if isinstance(columns, dict) else {}
+def _normalise_payload(payload: dict[str, Any], columns: dict[str, str]) -> dict[str, Any]:
     output: dict[str, Any] = {}
-    for key, value in source.items():
+    for key, value in payload.items():
         canonical = next(
-            (str(target) for target, source_name in mapping.items() if source_name == key), str(key)
+            (target for target, source_name in columns.items() if source_name == key), str(key)
         )
         text = unicodedata.normalize("NFKC", str(value)).strip() if value is not None else ""
         output[canonical] = text

@@ -26,6 +26,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    text,
 )
 from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -50,6 +51,10 @@ class Base(DeclarativeBase):
     """v0.1 声明式基类。"""
 
     metadata = MetaData(naming_convention=_NAMING)
+
+
+def _default_ingest_counts() -> dict[str, int]:
+    return {"landed": 0, "valid": 0, "duplicate": 0, "quarantined": 0, "projected": 0}
 
 
 def _uuid_pk() -> Mapped[uuid.UUID]:
@@ -81,7 +86,12 @@ class ImportBatch(Base):
     source: Mapped[str] = mapped_column(_KIND, default="file", server_default="file")
     kind: Mapped[str] = mapped_column(_KIND, default="unknown", server_default="unknown")
     mapping_rule_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    counts_json: Mapped[Any | None] = mapped_column(JSON(), default=dict, nullable=True)
+    counts_json: Mapped[dict[str, int]] = mapped_column(
+        JSON(),
+        default=_default_ingest_counts,
+        server_default=text("('{}')"),
+        nullable=False,
+    )
     landed_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     valid_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     duplicate_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
