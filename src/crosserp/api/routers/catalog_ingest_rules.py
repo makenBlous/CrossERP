@@ -7,18 +7,28 @@ from __future__ import annotations
 from typing import Any, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, Request
+from pydantic import Field, StrictInt
+from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.metadata import api_endpoint
-from crosserp.api.routers._platform_common import _principal_db, _require, _write_guard
+from crosserp.api.routers._platform_common import _require, _write_guard
+from crosserp.api.schemas import CamelModel
+from crosserp.approval.gateway import ApprovalGatewayImpl
+from crosserp.catalog.ingest import MappingRuleBody
 from crosserp.catalog.ingest_rules import save_mapping_rule_version
 from crosserp.db.schema import MappingRule
-from crosserp.platform.approval import ApprovalGateway
+from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
 from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter()
+
+
+class MappingRuleUpdateBody(CamelModel):
+    expected_version: StrictInt = Field(alias="expectedVersion", ge=1)
+    body: MappingRuleBody
 
 
 @router.get("/finance/column-maps/{id}")
@@ -33,8 +43,8 @@ def get_column_map(
     id: UUID,
     principal_override: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    principal, session = _principal_db(request, principal_override)
-    try:
+    principal = principal_override
+    with Session(request.app.state.database_engine) as session:
         _require(request, principal, "integration:read", entity="MappingRule")
         row = session.get(MappingRule, id)
         if row is None:
@@ -51,8 +61,6 @@ def get_column_map(
             "createdAt": row.created_at.isoformat(),
             "updatedAt": row.updated_at.isoformat() if row.updated_at else None,
         }
-    finally:
-        session.close()
 
 
 @router.put("/finance/column-maps/{id}")
@@ -66,34 +74,34 @@ def get_column_map(
 def update_mapping_rule(
     request: Request,
     id: UUID,
-    body: dict[str, Any] = Body(default_factory=dict),
+    body: MappingRuleUpdateBody,
     csrf: str | None = Header(None, alias="X-CSRF-Token"),
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     principal_override: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    principal, session = _principal_db(request, principal_override)
-    try:
+    principal = principal_override
+    with Session(request.app.state.database_engine) as session, session.begin():
         _write_guard(request, principal, csrf)
         _require(request, principal, "integration:write", entity="MappingRule")
         current = session.get(MappingRule, id)
         if current is None:
             raise not_found()
-        expected = body.get("expectedVersion")
-        if expected is not None and int(expected) != current.version:
+        if body.expected_version != current.version:
             raise APIError(
                 ErrorCode.CONFLICT_VERSION,
                 "实体版本已变化",
-                details={"expectedVersion": expected, "actualVersion": current.version},
+                details={
+                    "expectedVersion": body.expected_version,
+                    "actualVersion": current.version,
+                },
             )
-        from crosserp.approval.gateway import ApprovalGatewayImpl
-
-        gateway: ApprovalGateway = ApprovalGatewayImpl(session)
         dispatcher = ActionDispatcher(
             session=session,
             permission_service=request.app.state.permission_service,
-            approval_gateway=gateway,
+            approval_gateway=ApprovalGatewayImpl(session),
+            audit_recorder=DefaultAuditRecorder(session),
         )
-        payload = dict(body)
+        payload = body.model_dump(by_alias=True)
         result = dispatcher.dispatch(
             principal=principal,
             permission="integration:write",
@@ -105,12 +113,10 @@ def update_mapping_rule(
             idempotency_key=idempotency_key,
             request_id=request.state.request_id,
             business_action=lambda: save_mapping_rule_version(
-                session, id, body=payload, principal=principal
+                session, id, body=body.body, principal=principal
             ),
         )
         return cast(dict[str, Any], result)
-    finally:
-        session.close()
 
 
 __all__ = ["router"]

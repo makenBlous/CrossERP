@@ -19,6 +19,22 @@ from crosserp.db.schema import Approval, AppUser, UserRole, WorkflowRule
 from crosserp.platform.principal import Principal
 
 
+class ApprovalSubmission(dict[str, Any]):
+    """审批网关统一返回的结果，同时保留已创建审批记录的读取属性。"""  # noqa: RUF002
+
+    def __init__(self, row: Approval) -> None:
+        self._row = row
+        super().__init__(
+            approvalId=str(row.id),
+            status=row.state,
+            state=row.state,
+            resolution=row.resolution,
+        )
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._row, name)
+
+
 class ApproverResolver:
     """按规则逐步解析在职且具审批权限的账号。"""
 
@@ -135,7 +151,7 @@ class ApprovalGatewayImpl:
         risk_tier: str,
         approval_type: str,
         request_id: str | None = None,
-    ) -> Approval:
+    ) -> dict[str, Any]:
         payload_hash = hashlib.sha256(_canonical(payload).encode()).hexdigest()
         requested_by = principal.effective_user_id
         if requested_by is None:
@@ -228,7 +244,7 @@ class ApprovalGatewayImpl:
                     diff_json={"step": step["index"], "reason": step["reason"]},
                     request_id=request_id,
                 )
-        return row
+        return ApprovalSubmission(row)
 
     def decide(
         self,

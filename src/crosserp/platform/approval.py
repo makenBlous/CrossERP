@@ -31,7 +31,7 @@ class ApprovalGateway(Protocol):
         risk_tier: str,
         approval_type: str,
         request_id: str | None = None,
-    ) -> Any: ...
+    ) -> dict[str, Any]: ...
 
 
 __all__ = ["ApprovalGateway", "ApprovalReason", "ApprovalResolution"]

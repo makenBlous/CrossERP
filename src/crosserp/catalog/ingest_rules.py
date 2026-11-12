@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
+from crosserp.catalog.ingest import MappingRuleBody
 from crosserp.db.schema import MappingRule
 from crosserp.platform.principal import Principal
 
@@ -19,7 +20,7 @@ def save_mapping_rule_version(
     session: Session,
     rule_id: UUID,
     *,
-    body: dict[str, Any],
+    body: MappingRuleBody,
     principal: Principal,
 ) -> dict[str, Any]:
     """保存规则的新版本，并将旧版本标记为 superseded。"""  # noqa: RUF002
@@ -31,18 +32,14 @@ def save_mapping_rule_version(
 
     now = datetime.now(UTC)
     next_version = _next_rule_version(session, current.rule_key)
-    raw_body = body.get("body", body)
-    if not isinstance(raw_body, dict):
-        raise APIError(ErrorCode.VALIDATION_ERROR, "body 必须是对象")
-    kind = str(body.get("kind", current.kind))
     row = MappingRule(
         id=uuid4(),
         rule_key=current.rule_key,
         rule_version=next_version,
-        kind=kind,
-        body_json=dict(raw_body),
+        kind=current.kind,
+        body_json=body.model_dump(by_alias=True),
         status="active",
-        verified=bool(body.get("verified", False)),
+        verified=False,
         version=1,
         created_at=now,
         updated_at=now,

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.auth.roles import Role
 from crosserp.db.repo.users import create_user
-from crosserp.db.schema import AppUser, ImportBatch, MappingRule, WorkflowRule
+from crosserp.db.schema import Approval, AppUser, ImportBatch, MappingRule, WorkflowRule
 from crosserp.platform.principal import ActorType, Principal, get_principal
 
 
@@ -124,12 +124,12 @@ def test_put_mapping_rule_hides_missing_and_unauthorized_resources(
     unauthorized = json_client.put(
         f"/api/v1/ingest/mapping-rules/{rule_id}",
         headers={"X-CSRF-Token": csrf},
-        json={"body": {}},
+        json={"expectedVersion": 1, "body": {}},
     )
     missing = json_client.put(
         f"/api/v1/ingest/mapping-rules/{uuid4()}",
         headers={"X-CSRF-Token": csrf},
-        json={"body": {}},
+        json={"expectedVersion": 1, "body": {}},
     )
     assert unauthorized.status_code == 404
     assert missing.status_code == 404
@@ -171,3 +171,38 @@ def test_agent_put_mapping_rule_enters_approval_without_changing_active_rule(
     json_client.app.dependency_overrides.pop(get_principal, None)
     assert response.status_code == 200
     assert response.json()["status"] == "pending"
+    with Session(api_engine) as session:
+        approval = session.scalar(
+            select(Approval).where(Approval.target_id == "MappingRule.update")
+        )
+        active = session.get(MappingRule, UUID(rule_id))
+        assert approval is not None and approval.state == "pending"
+        assert active is not None and active.status == "active"
+
+
+def test_put_mapping_rule_requires_expected_version(json_client: TestClient, api_engine) -> None:
+    rule_id, _ = _rule(api_engine, username="ing-rules-required-version")
+    csrf = _login(json_client, "ing-rules-required-version")
+    response = json_client.put(
+        f"/api/v1/ingest/mapping-rules/{rule_id}",
+        headers={"X-CSRF-Token": csrf},
+        json={"body": {"columns": {"orderId": "订单号"}}},
+    )
+    assert response.status_code == 422
+
+
+def test_put_mapping_rule_rejects_client_controlled_verified_flag(
+    json_client: TestClient, api_engine
+) -> None:
+    rule_id, _ = _rule(api_engine, username="ing-rules-verified")
+    csrf = _login(json_client, "ing-rules-verified")
+    response = json_client.put(
+        f"/api/v1/ingest/mapping-rules/{rule_id}",
+        headers={"X-CSRF-Token": csrf},
+        json={
+            "expectedVersion": 1,
+            "verified": True,
+            "body": {"columns": {"orderId": "订单号"}},
+        },
+    )
+    assert response.status_code == 422
