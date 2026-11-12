@@ -83,14 +83,11 @@ def undo_suggestion(
     permission_service.require(principal, "agent_suggestion:create")
     with Session(request.app.state.database_engine) as session, session.begin():
         dispatcher = make_action_dispatcher(session, permission_service)
-        return cast(
-            dict[str, Any],
-            dispatcher.undo(
-                id,
-                principal=principal,
-                idempotency_key=idempotency_key,
-                request_id=request.state.request_id,
-            ),
+        return dispatcher.undo(
+            id,
+            principal=principal,
+            idempotency_key=idempotency_key,
+            request_id=request.state.request_id,
         )
 
 

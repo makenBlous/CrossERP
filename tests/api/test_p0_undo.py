@@ -204,7 +204,9 @@ def test_undo_rejects_expired_repeated_concurrent_and_unauthorized() -> None:
                 result["undoId"],
                 principal=Principal(
                     user_id=uuid4(),
-                    permissions=frozenset({"entity:write", "store:write", "agent_suggestion:create"}),
+                    permissions=frozenset(
+                        {"entity:write", "store:write", "agent_suggestion:create"}
+                    ),
                 ),
             )
         assert denied.value.code is ErrorCode.FORBIDDEN

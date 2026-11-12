@@ -59,9 +59,7 @@ def test_resolution_auto_effective_and_agent_confirmation(engine) -> None:
             rows = list(
                 session.scalars(select(AuditLog).where(AuditLog.approval_id == waiting.approval_id))
             )
-            assert any(
-                item.actor_type == "agent" and item.agent_id == "agent-1" for item in rows
-            )
+            assert any(item.actor_type == "agent" and item.agent_id == "agent-1" for item in rows)
             assert verify_chain(session).ok
     finally:
         downgrade_base(url)

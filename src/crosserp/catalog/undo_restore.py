@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -18,13 +19,12 @@ def restore_entity(
     model = _MODEL.get(entity_type)
     if model is None:
         return
-    row = session.get(model, UUID(entity_id))
+    row: Any = session.get(model, UUID(entity_id))
     if row is None:
         raise APIError(ErrorCode.NOT_FOUND, "撤销目标不存在")
     _FIELDS[entity_type](row, before)
     row.updated_at = datetime.now(UTC)
-    if hasattr(row, "version"):
-        row.version = int(row.version) + 1
+    row.version = int(row.version) + 1
     session.flush()
 
 
@@ -75,7 +75,7 @@ _MODEL = {
     "SkuMapping": SkuMapping,
     "Bundle": Bundle,
 }
-_FIELDS = {
+_FIELDS: dict[str, Callable[[Any, dict[str, Any]], None]] = {
     "Brand": _brand,
     "Category": _category,
     "Listing": _listing,
