@@ -17,7 +17,7 @@ from crosserp.db.session import session_scope, sqlite_file_url
 
 pytestmark = pytest.mark.db
 
-_EXPECTED_COUNT = 67  # 原 66 张表加上 agent_undo
+_EXPECTED_COUNT = 69  # 67 张表加上 user_store_grant 与 agent_store_scope
 
 
 def _url(engine: Engine) -> str:

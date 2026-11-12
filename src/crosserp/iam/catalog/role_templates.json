@@ -1055,5 +1055,23 @@
     "accounts_payable:read",
     "expense_claim:approve_manager",
     "expense_claim:approve_finance"
-  ]
+  ],
+  "_dataScopes": {
+    "owner_manager": ["all"],
+    "store_operator": ["ownedStores"],
+    "operations_manager": ["department"],
+    "advertising": ["ownedStores"],
+    "product_developer": ["skuCategory"],
+    "purchaser": ["purchaseOrder", "warehouse"],
+    "warehouse_logistics": ["warehouse"],
+    "customer_service": ["ownedStores"],
+    "accountant": ["all"],
+    "finance_manager": ["all"],
+    "cashier": ["paymentAccount"],
+    "hr_admin": ["employees"],
+    "employee": ["self"],
+    "department_manager": ["department"],
+    "auditor_template": ["all"],
+    "external_viewer": ["ownedStores"]
+  }
 }

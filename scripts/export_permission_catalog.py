@@ -112,8 +112,11 @@ def check(source: Path = SOURCE, target: Path = TARGET) -> None:
         raise SystemExit(f"权限点数量异常：期望 811，实际 {len(actual)}")
     expected_roles = export_roles(source, None)
     actual_roles = json.loads(ROLE_TARGET.read_text(encoding="utf-8"))
-    if actual_roles != expected_roles:
+    actual_permissions = {key: value for key, value in actual_roles.items() if key != "_dataScopes"}
+    if actual_permissions != expected_roles:
         raise SystemExit("role_templates.json 与前端 roleTemplates 不一致")
+    if "_dataScopes" not in actual_roles:
+        raise SystemExit("role_templates.json 缺少 _dataScopes")
 
 
 if __name__ == "__main__":

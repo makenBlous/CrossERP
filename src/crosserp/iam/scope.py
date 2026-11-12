@@ -12,10 +12,23 @@ from sqlalchemy import false
 if TYPE_CHECKING:
     from crosserp.api.errors import APIError
 
-# 08/02 第 13 节的范围维度。店铺 id 只认代码和测试里真实使用的 storeIds。
-_OTHER_SCOPE_TYPES = frozenset({"department", "self", "owner", "warehouse", "amount"})
-_STORE_SCOPE_TYPES = frozenset({"storeIds", "all"})
-_KNOWN_SCOPE_TYPES = _STORE_SCOPE_TYPES | _OTHER_SCOPE_TYPES
+# 店铺 id 只认 storeIds、all、ownedStores。其余维度还没有部门 SKU 仓库数据。
+STORE_SCOPE_TYPES = frozenset({"storeIds", "all", "ownedStores"})
+UNIMPLEMENTED_SCOPE_TYPES = frozenset(
+    {
+        "department",
+        "self",
+        "owner",
+        "warehouse",
+        "amount",
+        "skuCategory",
+        "employees",
+        "paymentAccount",
+        "purchaseOrder",
+    }
+)
+KNOWN_SCOPE_TYPES = STORE_SCOPE_TYPES | UNIMPLEMENTED_SCOPE_TYPES
+ScopeRule = tuple[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,39 +51,186 @@ def apply_store_scope(statement: Any, column: Any, scope: StoreScope) -> Any:
 def resolve_store_scope(
     role_tokens: set[str],
     *,
-    entity_rules: Sequence[tuple[str, Any]],
-    wildcard_rules: Sequence[tuple[str, Any]],
+    role_rules: Sequence[ScopeRule],
+    global_rules: Sequence[ScopeRule],
+    owned_store_ids: frozenset[UUID],
+    allow_tokens: set[str],
+    deny_tokens: set[str],
+    apply_agent_narrowing: bool,
+    agent_store_ids: frozenset[UUID],
+    universe_store_ids: frozenset[UUID],
 ) -> StoreScope:
-    """按角色并集和 IamDataScopeRule 解析店铺范围。缺失或格式不对时拒绝放行。"""
-    for token in role_tokens:
-        if token != "all":
-            raise _invalid(f"角色数据范围格式无效: {token}")
-    _reject_unknown([*entity_rules, *wildcard_rules])
-    selected = entity_rules if _has_store_rule(entity_rules) else wildcard_rules
-    store_rules = [values for scope_type, values in selected if scope_type == "storeIds"]
-    all_rules = [values for scope_type, values in selected if scope_type == "all"]
-    if store_rules:
-        store_ids: set[UUID] = set()
-        for values in store_rules:
-            store_ids.update(_parse_store_ids(values))
-        if all_rules:
-            _assert_all_values(all_rules)
-            return AllStores()
-        return frozenset(store_ids)
-    if all_rules or "all" in role_tokens:
-        _assert_all_values(all_rules)
+    """角色规则并集后应用用户例外再与 AI 收窄取交集。
+
+    role_id 为空的全局规则与角色结果取交集。缺规则或格式不对时拒绝。
+    未实现维度贡献空集。
+    """
+    _reject_unknown([*role_rules, *global_rules])
+    _reject_unknown_tokens(role_tokens | allow_tokens | deny_tokens)
+    role_scope = _role_union(role_tokens, role_rules, owned_store_ids)
+    global_scope = _listed_scope(global_rules, owned_store_ids)
+    if role_scope is None and global_scope is None and not allow_tokens:
+        raise _invalid("店铺数据范围规则缺失")
+    base = _combine_role_and_global(role_scope, global_scope)
+    expanded = _union(base, _token_scope(allow_tokens, owned_store_ids))
+    narrowed = _subtract(
+        expanded,
+        _token_scope(deny_tokens, owned_store_ids),
+        universe_store_ids,
+    )
+    if apply_agent_narrowing:
+        return _intersect(narrowed, agent_store_ids)
+    return narrowed
+
+
+def choose_entity_rules(rows: Sequence[tuple[str, str, Any]], entity: str) -> list[ScopeRule]:
+    """实体上已有店铺规则时用实体规则。否则用通配规则。"""
+    entity_rows = [
+        (scope_type, values) for row_entity, scope_type, values in rows if row_entity == entity
+    ]
+    if any(scope_type in STORE_SCOPE_TYPES for scope_type, _values in entity_rows):
+        return entity_rows
+    return [(scope_type, values) for row_entity, scope_type, values in rows if row_entity == "*"]
+
+
+def _combine_role_and_global(
+    role_scope: StoreScope | None, global_scope: StoreScope | None
+) -> StoreScope:
+    if role_scope is None:
+        if global_scope is None:
+            return frozenset()
+        return global_scope
+    if global_scope is None:
+        return role_scope
+    return _intersect(role_scope, global_scope)
+
+
+def _role_union(
+    tokens: set[str],
+    rules: Sequence[ScopeRule],
+    owned_store_ids: frozenset[UUID],
+) -> StoreScope | None:
+    if not tokens and not rules:
+        return None
+    if "all" in tokens or any(scope_type == "all" for scope_type, _values in rules):
+        _assert_all_values([values for scope_type, values in rules if scope_type == "all"])
         return AllStores()
+    if _has_store_contribution(tokens, rules):
+        return frozenset(_collect_store_ids(tokens, rules, owned_store_ids))
+    if _only_unimplemented(tokens, rules):
+        return frozenset()
     raise _invalid("店铺数据范围规则缺失")
 
 
-def _has_store_rule(rules: Sequence[tuple[str, Any]]) -> bool:
-    return any(scope_type in _STORE_SCOPE_TYPES for scope_type, _values in rules)
+def _listed_scope(
+    rules: Sequence[ScopeRule], owned_store_ids: frozenset[UUID]
+) -> StoreScope | None:
+    if not rules:
+        return None
+    store_rules = [values for scope_type, values in rules if scope_type == "storeIds"]
+    all_rules = [values for scope_type, values in rules if scope_type == "all"]
+    if store_rules and all_rules:
+        _assert_all_values(all_rules)
+        return AllStores()
+    if store_rules:
+        parsed: set[UUID] = set()
+        for values in store_rules:
+            parsed.update(_parse_store_ids(values))
+        return frozenset(parsed)
+    if all_rules:
+        _assert_all_values(all_rules)
+        return AllStores()
+    if any(scope_type == "ownedStores" for scope_type, _values in rules):
+        return frozenset(owned_store_ids)
+    if _only_unimplemented(set(), rules):
+        return None
+    raise _invalid("店铺数据范围规则缺失")
 
 
-def _reject_unknown(rules: Sequence[tuple[str, Any]]) -> None:
+def _has_store_contribution(tokens: set[str], rules: Sequence[ScopeRule]) -> bool:
+    if "ownedStores" in tokens or any(token.startswith("store:") for token in tokens):
+        return True
+    return any(scope_type in {"storeIds", "ownedStores"} for scope_type, _values in rules)
+
+
+def _only_unimplemented(tokens: set[str], rules: Sequence[ScopeRule]) -> bool:
+    tokens_known = all(token in UNIMPLEMENTED_SCOPE_TYPES for token in tokens)
+    rules_known = all(scope_type in UNIMPLEMENTED_SCOPE_TYPES for scope_type, _values in rules)
+    return tokens_known and rules_known and bool(tokens or rules)
+
+
+def _collect_store_ids(
+    tokens: set[str],
+    rules: Sequence[ScopeRule],
+    owned_store_ids: frozenset[UUID],
+) -> set[UUID]:
+    store_ids: set[UUID] = set()
+    if "ownedStores" in tokens or any(scope_type == "ownedStores" for scope_type, _values in rules):
+        store_ids.update(owned_store_ids)
+    for scope_type, values in rules:
+        if scope_type == "storeIds":
+            store_ids.update(_parse_store_ids(values))
+    for token in tokens:
+        if token.startswith("store:"):
+            store_ids.add(_parse_store_token(token))
+    return store_ids
+
+
+def _token_scope(tokens: set[str], owned_store_ids: frozenset[UUID]) -> StoreScope:
+    if not tokens:
+        return frozenset()
+    if "all" in tokens:
+        return AllStores()
+    if _only_unimplemented(tokens, []):
+        return frozenset()
+    if not _has_store_contribution(tokens, []):
+        raise _invalid("店铺数据范围规则缺失")
+    return frozenset(_collect_store_ids(tokens, [], owned_store_ids))
+
+
+def _union(left: StoreScope, right: StoreScope) -> StoreScope:
+    if isinstance(left, AllStores) or isinstance(right, AllStores):
+        if (isinstance(left, AllStores) and not right) or (
+            isinstance(right, AllStores) and not left
+        ):
+            return left if isinstance(left, AllStores) else right
+        return AllStores()
+    return frozenset(left) | frozenset(right)
+
+
+def _intersect(left: StoreScope, right: StoreScope | frozenset[UUID]) -> StoreScope:
+    if isinstance(right, AllStores):
+        return left
+    if isinstance(left, AllStores):
+        return frozenset(right)
+    return frozenset(left) & frozenset(right)
+
+
+def _subtract(
+    scope: StoreScope, removed: StoreScope, universe_store_ids: frozenset[UUID]
+) -> StoreScope:
+    if isinstance(removed, AllStores):
+        return frozenset()
+    if not removed:
+        return scope
+    if isinstance(scope, AllStores):
+        return universe_store_ids - removed
+    return frozenset(scope) - removed
+
+
+def _reject_unknown(rules: Sequence[ScopeRule]) -> None:
     for scope_type, _values in rules:
-        if scope_type not in _KNOWN_SCOPE_TYPES:
+        if scope_type not in KNOWN_SCOPE_TYPES:
             raise _invalid(f"店铺范围规则格式无效: {scope_type}")
+
+
+def _reject_unknown_tokens(tokens: set[str]) -> None:
+    for token in tokens:
+        if token.startswith("store:"):
+            _parse_store_token(token)
+            continue
+        if token not in KNOWN_SCOPE_TYPES:
+            raise _invalid(f"角色数据范围格式无效: {token}")
 
 
 def _assert_all_values(values_list: Sequence[Any]) -> None:
@@ -93,10 +253,26 @@ def _parse_store_ids(values: Any) -> frozenset[UUID]:
     return frozenset(parsed)
 
 
+def _parse_store_token(token: str) -> UUID:
+    try:
+        return UUID(token.removeprefix("store:"))
+    except ValueError as exc:
+        raise _invalid("店铺范围 store 令牌含无效 UUID") from exc
+
+
 def _invalid(message: str) -> APIError:
     from crosserp.api.errors import APIError, ErrorCode
 
     return APIError(ErrorCode.VALIDATION_FAILED, message)
 
 
-__all__ = ["AllStores", "StoreScope", "apply_store_scope", "resolve_store_scope"]
+__all__ = [
+    "KNOWN_SCOPE_TYPES",
+    "STORE_SCOPE_TYPES",
+    "UNIMPLEMENTED_SCOPE_TYPES",
+    "AllStores",
+    "StoreScope",
+    "apply_store_scope",
+    "choose_entity_rules",
+    "resolve_store_scope",
+]
