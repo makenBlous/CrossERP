@@ -418,8 +418,30 @@ def _call_business_action(action: Callable[[], Any]) -> Any:
         raise APIError(ErrorCode.INTERNAL_ERROR, "业务动作必须是无参可调用对象") from exc
 
 
-def _approval_result(value: dict[str, Any]) -> dict[str, Any]:
-    return value
+class _ApprovalResult(dict[str, Any]):
+    """审批结果的 JSON 字典。保留 state 属性，供已有高风险测试读取。"""
+
+    @property
+    def state(self) -> str:
+        return str(self["state"])
+
+
+def _approval_result(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    on_behalf_of = value.on_behalf_of
+    return _ApprovalResult(
+        {
+            "approvalId": str(value.id),
+            "state": value.state,
+            "targetType": value.target_type,
+            "targetId": value.target_id,
+            "riskTier": value.risk_tier,
+            "actorType": value.actor_type,
+            "onBehalfOf": None if on_behalf_of is None else str(on_behalf_of),
+            "resolution": _jsonable(value.resolution),
+        }
+    )
 
 
 def _as_mapping(value: Any) -> dict[str, Any]:

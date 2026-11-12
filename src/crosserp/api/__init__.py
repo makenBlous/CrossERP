@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 import json
 import pkgutil
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime, timedelta
 from email import policy
 from email.parser import BytesParser
@@ -26,6 +26,7 @@ from crosserp.api.idempotency import IdempotencyKey
 from crosserp.api.metadata import API_METADATA_KEY
 from crosserp.iam.service import IAMService
 from crosserp.platform.permissions import DefaultPermissionService
+from crosserp.platform.principal import principal_from_session
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
@@ -80,7 +81,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                     IdempotencyKey.expires_at > now,
                 )
             )
-            if row is not None:
+            if row is not None and _caller_may_replay(request, session):
                 if row.request_hash != request_hash:
                     return JSONResponse(
                         error_payload(
@@ -128,6 +129,73 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         headers = dict(response.headers)
         headers.pop("content-length", None)
         return Response(content=response_body, status_code=response.status_code, headers=headers)
+
+
+def _json_errors(errors: Sequence[Any]) -> list[Any]:
+    safe: list[Any] = []
+    for error in errors:
+        item = dict(error)
+        ctx = item.get("ctx")
+        if isinstance(ctx, dict):
+            item["ctx"] = {
+                key: value if _json_scalar(value) else str(value) for key, value in ctx.items()
+            }
+        safe.append(item)
+    return safe
+
+
+def _json_scalar(value: object) -> bool:
+    return value is None or isinstance(value, (str, int, float, bool))
+
+
+def _caller_may_replay(request: Request, session: Session) -> bool:
+    """无权请求不能吃到别人的幂等回放。无权限元数据的路由保持原回放。"""
+    permission = _route_permission(request)
+    if permission is None or permission == "public":
+        return True
+    principal = principal_from_session(session, request)
+    if principal is None:
+        return False
+    if not hasattr(request.app.state, "permission_service"):
+        return True
+    try:
+        request.app.state.permission_service.require(principal, permission)
+    except APIError:
+        return False
+    return True
+
+
+def _route_permission(request: Request) -> str | None:
+    path = request.url.path
+    for route in _iter_routes(request.app.routes):
+        if (
+            not hasattr(route, "methods")
+            or not hasattr(route, "path")
+            or not hasattr(route, "endpoint")
+        ):
+            continue
+        if request.method not in route.methods or not _path_matches(path, route.path):
+            continue
+        endpoint = route.endpoint
+        if not hasattr(endpoint, API_METADATA_KEY):
+            continue
+        return str(getattr(endpoint, API_METADATA_KEY).permission)
+    return None
+
+
+def _path_matches(request_path: str, route_path: str) -> bool:
+    if request_path == route_path:
+        return True
+    return route_path.startswith("/") and request_path.endswith(route_path)
+
+
+def _iter_routes(routes: Iterable[Any]) -> Iterable[Any]:
+    for route in routes:
+        yield route
+        if hasattr(route, "routes"):
+            yield from _iter_routes(route.routes)
+        if hasattr(route, "original_router") and hasattr(route.original_router, "routes"):
+            yield from _iter_routes(route.original_router.routes)
 
 
 def _replay_response(row: IdempotencyKey, request_id: str) -> Response:
@@ -232,7 +300,7 @@ def install_api(app: FastAPI, engine: Any) -> None:
                 ErrorCode.VALIDATION_ERROR,
                 "请求参数校验失败",
                 request.state.request_id,
-                {"errors": exc.errors()},
+                {"errors": _json_errors(exc.errors())},
             ),
             status_code=422,
         )
@@ -246,7 +314,7 @@ def install_api(app: FastAPI, engine: Any) -> None:
                 ErrorCode.VALIDATION_ERROR,
                 "请求参数校验失败",
                 request.state.request_id,
-                {"errors": exc.errors()},
+                {"errors": _json_errors(exc.errors())},
             ),
             status_code=422,
         )
