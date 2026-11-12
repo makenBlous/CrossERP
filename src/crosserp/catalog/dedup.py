@@ -43,7 +43,7 @@ def merge_candidate(
         )
     if candidate.status != "open":
         raise APIError(ErrorCode.ILLEGAL_TRANSITION, "疑似重复候选已处理")
-    ids = _candidate_ids(candidate.ids)
+    ids = candidate_ids(candidate.ids)
     canonical_id = target_id or ids[0]
     if canonical_id not in ids:
         raise APIError(ErrorCode.VALIDATION_FAILED, "targetId 必须属于候选实体")
@@ -66,7 +66,7 @@ def merge_candidate(
     return result
 
 
-def _candidate_ids(value: Any) -> list[str]:
+def candidate_ids(value: Any) -> list[str]:
     if not isinstance(value, list) or len(value) < 2:
         raise APIError(ErrorCode.VALIDATION_FAILED, "候选 ids 至少需要两个实体")
     ids: list[str] = []
@@ -109,15 +109,15 @@ def _sku_merge(
         if duplicate.internal_sku != canonical.internal_sku:
             raise APIError(ErrorCode.VALIDATION_FAILED, "SKU 内部编码冲突，不能自动合并")
 
-    old_aliases = list(canonical.aliases_json or [])
-    old_sources = list(canonical.source_refs_json or [])
+    old_aliases = list(canonical.aliases_json)
+    old_sources = list(canonical.source_refs_json)
     aliases = _stable_union(
         [*old_aliases, canonical.platform_sku]
-        + [value for row in duplicates for value in (row.aliases_json or [])]
+        + [value for row in duplicates for value in row.aliases_json]
         + [row.platform_sku for row in duplicates]
     )
     sources = _stable_union(
-        [*old_sources] + [value for row in duplicates for value in (row.source_refs_json or [])]
+        [*old_sources] + [value for row in duplicates for value in row.source_refs_json]
     )
     preimage = {
         "canonical": {
@@ -206,4 +206,4 @@ def _sku_merge(
 
 register_merge_handler("Sku", _sku_merge)
 
-__all__ = ["merge_candidate", "register_merge_handler"]
+__all__ = ["candidate_ids", "merge_candidate", "register_merge_handler"]

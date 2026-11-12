@@ -27,21 +27,27 @@ from crosserp.platform.principal import ActorType, Principal, get_principal
 
 
 class _Permissions:
-    def __init__(self, allowed: set[str]) -> None:
+    def __init__(self, allowed: set[str], scope: dict[str, object] | None = None) -> None:
         self.allowed = allowed
+        self.scope = scope or {}
 
     def require(self, _principal: Principal, permission: str, _resource=None) -> None:
-        if permission not in self.allowed and permission != "authenticated":
+        if (
+            permission not in self.allowed
+            or (_principal.is_agent and permission not in _principal.permissions)
+        ) and permission != "authenticated":
             raise APIError(ErrorCode.FORBIDDEN, "无权执行该操作")
 
     def current_permissions(self, _principal: Principal) -> frozenset[str]:
         return frozenset(self.allowed)
 
     def data_scope_filter(self, _principal: Principal, _entity: str) -> dict[str, object]:
-        return {}
+        return self.scope
 
 
-def _app(tmp_path, *, allowed: set[str]) -> tuple[FastAPI, object, Principal]:
+def _app(
+    tmp_path, *, allowed: set[str], scope: dict[str, object] | None = None
+) -> tuple[FastAPI, object, Principal]:
     tmp_path.mkdir(parents=True, exist_ok=True)
     url = sqlite_file_url(tmp_path / "dedup.db")
     upgrade_head(url)
@@ -51,7 +57,7 @@ def _app(tmp_path, *, allowed: set[str]) -> tuple[FastAPI, object, Principal]:
         user_id = user.id
     app = FastAPI()
     install_api(app, engine)
-    app.state.permission_service = _Permissions(allowed)
+    app.state.permission_service = _Permissions(allowed, scope)
     principal = Principal(user_id=user_id, permissions=frozenset(allowed))
     app.dependency_overrides[get_principal] = lambda: principal
     return app, engine, principal
@@ -144,7 +150,9 @@ def test_dedup_list_is_paginated_and_searchable(tmp_path) -> None:
 
 
 def test_dedup_merge_preserves_aliases_sources_and_repoints_links(tmp_path) -> None:
-    app, engine, principal = _app(tmp_path, allowed={"integration:read", "integration:write"})
+    app, engine, principal = _app(
+        tmp_path, allowed={"integration:read", "integration:write", "sku:write"}
+    )
     candidate, first, second, _ = _seed_skus(engine, principal)
     with TestClient(app) as client:
         response = client.post(
@@ -182,7 +190,9 @@ def test_dedup_merge_preserves_aliases_sources_and_repoints_links(tmp_path) -> N
 
 
 def test_dedup_merge_is_idempotent_and_rejects_stale_version(tmp_path) -> None:
-    app, engine, principal = _app(tmp_path, allowed={"integration:read", "integration:write"})
+    app, engine, principal = _app(
+        tmp_path, allowed={"integration:read", "integration:write", "sku:write"}
+    )
     candidate, first, _, _ = _seed_skus(engine, principal)
     with TestClient(app) as client:
         first_response = client.post(
@@ -219,7 +229,7 @@ def test_dedup_permissions_and_missing_candidate_use_required_statuses(tmp_path)
         assert (
             client.post(
                 f"/api/v1/ingest/dedup-candidates/{uuid4()}/merge",
-                json={"expectedVersion": 1},
+                json={"expectedVersion": 1, "targetId": str(uuid4())},
             ).status_code
             == 404
         )
@@ -266,7 +276,8 @@ def test_agent_medium_merge_keeps_actor_context_and_unknown_entity_is_explicit(t
 
 def test_agent_medium_merge_records_on_behalf_of_audit(tmp_path) -> None:
     app, engine, principal = _app(
-        tmp_path / "agent", allowed={"integration:read", "integration:write"}
+        tmp_path / "agent",
+        allowed={"integration:read", "integration:write", "sku:write"},
     )
     candidate, first, _, _ = _seed_skus(engine, principal)
     agent = Principal(
@@ -274,7 +285,7 @@ def test_agent_medium_merge_records_on_behalf_of_audit(tmp_path) -> None:
         actor_type=ActorType.AGENT,
         agent_id="dedup-agent",
         on_behalf_of=principal.user_id,
-        permissions=frozenset({"integration:write"}),
+        permissions=frozenset({"integration:write", "sku:write"}),
         channel="mcp",
     )
     app.dependency_overrides[get_principal] = lambda: agent
@@ -302,3 +313,104 @@ def test_agent_medium_merge_records_on_behalf_of_audit(tmp_path) -> None:
 def test_merge_request_uses_camel_case_expected_version() -> None:
     request = MergeRequest.model_validate({"expectedVersion": 3, "targetId": str(uuid4())})
     assert request.expected_version == 3
+
+
+def test_merge_requires_expected_version_and_rejects_canonical_id_alias(tmp_path) -> None:
+    app, engine, principal = _app(
+        tmp_path, allowed={"integration:read", "integration:write", "sku:write"}
+    )
+    candidate, first, _, _ = _seed_skus(engine, principal)
+    with TestClient(app) as client:
+        missing = client.post(
+            f"/api/v1/ingest/dedup-candidates/{candidate.id}/merge",
+            json={"targetId": str(first.id)},
+        )
+        alias = client.post(
+            f"/api/v1/ingest/dedup-candidates/{candidate.id}/merge",
+            json={"expectedVersion": 1, "canonicalId": str(first.id)},
+        )
+    assert missing.status_code == 422
+    assert alias.status_code == 422
+    engine.dispose()
+
+
+def test_merge_requires_target_entity_write_permission(tmp_path) -> None:
+    app, engine, principal = _app(tmp_path, allowed={"integration:read", "integration:write"})
+    candidate, first, _, _ = _seed_skus(engine, principal)
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/v1/ingest/dedup-candidates/{candidate.id}/merge",
+            json={"expectedVersion": 1, "targetId": str(first.id)},
+        )
+    assert response.status_code == 404
+    with Session(engine) as session:
+        row = session.get(DedupCandidate, candidate.id)
+        assert row is not None and row.status == "open"
+    engine.dispose()
+
+
+def test_dedup_scope_filters_candidates_and_merge_targets(tmp_path) -> None:
+    app, engine, principal = _app(
+        tmp_path,
+        allowed={"integration:read", "integration:write", "sku:write"},
+        scope={"scopes": ["store"], "filters": {"storeIds": [str(uuid4())]}},
+    )
+    candidate, first, _, _ = _seed_skus(engine, principal)
+    with TestClient(app) as client:
+        listed = client.get("/api/v1/ingest/dedup-candidates")
+        merged = client.post(
+            f"/api/v1/ingest/dedup-candidates/{candidate.id}/merge",
+            json={"expectedVersion": 1, "targetId": str(first.id)},
+        )
+    assert listed.status_code == 200
+    assert listed.json()["total"] == 0
+    assert merged.status_code == 404
+    with Session(engine) as session:
+        row = session.get(DedupCandidate, candidate.id)
+        assert row is not None and row.status == "open"
+    engine.dispose()
+
+
+def test_agent_permission_scope_is_checked_without_rebuilding_principal(tmp_path) -> None:
+    app, engine, principal = _app(
+        tmp_path, allowed={"integration:read", "integration:write", "sku:write"}
+    )
+    candidate, first, _, _ = _seed_skus(engine, principal)
+    agent = Principal(
+        user_id=principal.user_id,
+        actor_type=ActorType.AGENT,
+        agent_id="dedup-agent",
+        on_behalf_of=principal.user_id,
+        permissions=frozenset({"integration:write"}),
+        channel="mcp",
+    )
+    app.dependency_overrides[get_principal] = lambda: agent
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/v1/ingest/dedup-candidates/{candidate.id}/merge",
+            json={"expectedVersion": 1, "targetId": str(first.id)},
+        )
+    assert response.status_code == 404
+    engine.dispose()
+
+
+def test_idempotency_replay_runs_after_permission_check(tmp_path) -> None:
+    app, engine, principal = _app(
+        tmp_path, allowed={"integration:read", "integration:write", "sku:write"}
+    )
+    candidate, first, _, _ = _seed_skus(engine, principal)
+    with TestClient(app) as client:
+        first_response = client.post(
+            f"/api/v1/ingest/dedup-candidates/{candidate.id}/merge",
+            json={"expectedVersion": 1, "targetId": str(first.id)},
+            headers={"Idempotency-Key": "dedup-permission-replay"},
+        )
+        app.state.permission_service = _Permissions(set())
+        replay = client.post(
+            f"/api/v1/ingest/dedup-candidates/{candidate.id}/merge",
+            json={"expectedVersion": 1, "targetId": str(first.id)},
+            headers={"Idempotency-Key": "dedup-permission-replay"},
+        )
+    assert first_response.status_code == 200
+    assert replay.status_code == 404
+    engine.dispose()

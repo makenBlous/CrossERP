@@ -56,6 +56,10 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if request.method != "POST" or request.url.path.rstrip("/").endswith("/dry-run"):
             return await call_next(request)
+        if request.url.path.startswith(
+            "/api/v1/ingest/dedup-candidates/"
+        ) and request.url.path.endswith("/merge"):
+            return await call_next(request)
         key = request.headers.get("Idempotency-Key")
         if not key:
             return await call_next(request)

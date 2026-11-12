@@ -127,8 +127,8 @@ class Sku(Base):
     internal_sku: Mapped[str] = mapped_column(String(128))
     title: Mapped[str | None] = mapped_column(String(512))
     active: Mapped[bool] = mapped_column(Boolean())
-    aliases_json: Mapped[Any | None] = mapped_column(JSON(), nullable=True)
-    source_refs_json: Mapped[Any | None] = mapped_column(JSON(), nullable=True)
+    aliases_json: Mapped[Any] = mapped_column(JSON(), default=list, nullable=False)
+    source_refs_json: Mapped[Any] = mapped_column(JSON(), default=list, nullable=False)
     merged_into_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 

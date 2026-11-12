@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
-from crosserp.db.schema import ActionExecution, EntityEvent, EntityVersion
+from crosserp.db.schema import ActionExecution, DedupCandidate, EntityEvent, EntityVersion
 from crosserp.platform.approval import ApprovalGateway
 from crosserp.platform.audit import AuditRecorder, DefaultAuditRecorder
 from crosserp.platform.permissions import PermissionService
@@ -272,7 +272,13 @@ class ActionDispatcher:
                 EntityVersion.entity_type == entity, EntityVersion.entity_id == entity_id
             )
         )
-        return 0 if value is None else int(value)
+        if value is not None:
+            return int(value)
+        if entity == "DedupCandidate":
+            candidate = self.session.get(DedupCandidate, UUID(entity_id))
+            if candidate is not None:
+                return candidate.version
+        return 0
 
     def _find_replay(self, key: str | None, payload: Any) -> Any:
         if self.session is None or not key:

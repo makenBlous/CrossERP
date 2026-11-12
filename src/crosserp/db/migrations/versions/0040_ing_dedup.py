@@ -18,6 +18,11 @@ def upgrade() -> None:
         batch.add_column(sa.Column("aliases_json", sa.JSON(), nullable=True))
         batch.add_column(sa.Column("source_refs_json", sa.JSON(), nullable=True))
         batch.add_column(sa.Column("merged_into_id", sa.String(64), nullable=True))
+    op.execute(sa.text("UPDATE sku SET aliases_json = '[]' WHERE aliases_json IS NULL"))
+    op.execute(sa.text("UPDATE sku SET source_refs_json = '[]' WHERE source_refs_json IS NULL"))
+    with op.batch_alter_table("sku") as batch:
+        batch.alter_column("aliases_json", existing_type=sa.JSON(), nullable=False)
+        batch.alter_column("source_refs_json", existing_type=sa.JSON(), nullable=False)
 
     op.create_table(
         "dedup_candidate",

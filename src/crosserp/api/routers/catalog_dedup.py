@@ -4,20 +4,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Annotated, Any, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from pydantic import Field
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.metadata import api_endpoint
 from crosserp.api.routers._platform_common import _require, _write_guard
 from crosserp.api.schemas import CamelModel, PageParams
-from crosserp.catalog.dedup import merge_candidate
-from crosserp.db.schema import AppUser, DedupCandidate, EntityVersion, UserRole
+from crosserp.approval.gateway import ApprovalGatewayImpl
+from crosserp.catalog.dedup import candidate_ids, merge_candidate
+from crosserp.db.schema import DedupCandidate, Sku
+from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
 from crosserp.platform.principal import Principal, get_principal
 
@@ -25,9 +28,15 @@ router = APIRouter(tags=["数据进入与溯源"])
 
 
 class MergeRequest(CamelModel):
-    expected_version: int | None = Field(default=None, alias="expectedVersion", ge=1)
-    target_id: str | None = Field(default=None, alias="targetId")
-    canonical_id: str | None = Field(default=None, alias="canonicalId")
+    expected_version: int = Field(alias="expectedVersion", ge=1)
+    target_id: str = Field(alias="targetId")
+
+
+_ENTITY_WRITE_PERMISSIONS = {
+    "Sku": "sku:write",
+    "Supplier": "supplier:write",
+    "Customer": "customer:write",
+}
 
 
 def _candidate_payload(row: DedupCandidate) -> dict[str, Any]:
@@ -46,31 +55,41 @@ def _candidate_payload(row: DedupCandidate) -> dict[str, Any]:
     }
 
 
-def _principal_session(request: Request, principal: Principal) -> tuple[Principal, Session]:
-    session = Session(request.app.state.database_engine, expire_on_commit=False)
-    user = session.get(AppUser, principal.effective_user_id)
-    if user is None or not user.is_active:
-        session.close()
-        raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录")
-    roles = frozenset(
-        role for role in session.scalars(select(UserRole.role).where(UserRole.user_id == user.id))
-    )
-    resolved = Principal(
-        user_id=user.id,
-        roles=roles,
-        session_id=principal.session_id,
-        actor_type=principal.actor_type,
-        agent_id=principal.agent_id,
-        on_behalf_of=principal.on_behalf_of,
-        delegation_id=principal.delegation_id,
-        run_id=principal.run_id,
-        is_subagent=principal.is_subagent,
-        channel=principal.channel,
-        permissions=request.app.state.permission_service.current_permissions(principal),
-        represented_permissions=principal.represented_permissions,
-        data_scope=request.app.state.permission_service.data_scope_filter(principal, "UserAccount"),
-    )
-    return resolved, session
+def _scope_filters(scope: Mapping[str, Any]) -> Mapping[str, Any]:
+    filters = scope.get("filters", scope)
+    return filters if isinstance(filters, Mapping) else {}
+
+
+def _candidate_in_scope(
+    session: Session, candidate: DedupCandidate, scope: Mapping[str, Any]
+) -> bool:
+    scopes = scope.get("scopes", ())
+    if isinstance(scopes, (list, tuple, set, frozenset)) and "all" in scopes:
+        return True
+    try:
+        ids = candidate_ids(candidate.ids)
+    except APIError:
+        return False
+    filters = _scope_filters(scope)
+    entity_ids = filters.get(f"{candidate.entity_type[:1].lower()}{candidate.entity_type[1:]}Ids")
+    if entity_ids is not None and not set(ids).issubset({str(value) for value in entity_ids}):
+        return False
+    if candidate.entity_type == "Sku" and "storeIds" in filters:
+        rows = list(session.scalars(select(Sku).where(Sku.id.in_([UUID(value) for value in ids]))))
+        allowed_store_ids = {str(value) for value in filters["storeIds"]}
+        return len(rows) == len(ids) and all(str(row.store_id) in allowed_store_ids for row in rows)
+    return True
+
+
+def _require_candidate_scope(
+    session: Session,
+    candidate: DedupCandidate,
+    principal: Principal,
+    permission_service: Any,
+) -> None:
+    scope = permission_service.data_scope_filter(principal, candidate.entity_type)
+    if not _candidate_in_scope(session, candidate, scope):
+        raise APIError(ErrorCode.DATA_SCOPE_DENIED, "数据不在当前范围内")
 
 
 @router.get("/ingest/dedup-candidates")
@@ -87,13 +106,20 @@ def list_dedup_candidates(
     sort: str | None = Query(default=None),
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    principal, session = _principal_session(request, principal)
-    try:
-        _require(request, principal, "integration:read", entity="DedupCandidate")
-        sort_name = (sort or "-createdAt").lstrip("-")
-        if sort_name not in {"createdAt", "updatedAt", "confidence", "status"}:
-            raise APIError(ErrorCode.VALIDATION_FAILED, "sort 不受支持")
-        rows = list(session.scalars(select(DedupCandidate)))
+    _require(request, principal, "integration:read", entity="DedupCandidate")
+    sort_name = (sort or "-createdAt").lstrip("-")
+    if sort_name not in {"createdAt", "updatedAt", "confidence", "status"}:
+        raise APIError(ErrorCode.VALIDATION_FAILED, "sort 不受支持")
+    with Session(request.app.state.database_engine, expire_on_commit=False) as session:
+        rows = [
+            row
+            for row in session.scalars(select(DedupCandidate))
+            if _candidate_in_scope(
+                session,
+                row,
+                request.app.state.permission_service.data_scope_filter(principal, row.entity_type),
+            )
+        ]
         if q:
             needle = q.casefold()
             rows = [
@@ -118,8 +144,6 @@ def list_dedup_candidates(
             "pageSize": params.page_size,
             "total": total,
         }
-    finally:
-        session.close()
 
 
 @router.post("/ingest/dedup-candidates/{id}/merge")
@@ -132,38 +156,42 @@ def list_dedup_candidates(
 def merge_dedup_candidate(
     request: Request,
     id: str,
-    payload: MergeRequest | None = None,
+    payload: MergeRequest,
     csrf: str | None = Header(default=None, alias="X-CSRF-Token"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
-    principal, session = _principal_session(request, principal)
+    _write_guard(request, principal, csrf)
+    if idempotency_key is not None and len(idempotency_key) > 255:
+        raise APIError(ErrorCode.VALIDATION_FAILED, "Idempotency-Key 过长")
+    _require(request, principal, "integration:write", entity="DedupCandidate")
     try:
-        _write_guard(request, principal, csrf)
-        _require(request, principal, "integration:write", entity="DedupCandidate")
-        try:
-            candidate_id = UUID(id)
-        except ValueError as exc:
-            raise not_found(message="疑似重复候选不存在") from exc
+        candidate_id = UUID(id)
+    except ValueError as exc:
+        raise not_found(message="疑似重复候选不存在") from exc
+    with (
+        Session(request.app.state.database_engine, expire_on_commit=False) as session,
+        session.begin(),
+    ):
         candidate = session.get(DedupCandidate, candidate_id)
         if candidate is None:
             raise not_found(message="疑似重复候选不存在")
-        body = MergeRequest() if payload is None else payload
-        target = body.target_id or body.canonical_id
-        if target is not None:
-            try:
-                target = str(UUID(target))
-            except ValueError as exc:
-                raise APIError(ErrorCode.VALIDATION_FAILED, "targetId 必须是 UUID") from exc
-        current_entity_version = session.scalar(
-            select(func.max(EntityVersion.version)).where(
-                EntityVersion.entity_type == "DedupCandidate",
-                EntityVersion.entity_id == str(candidate.id),
-            )
+        target_permission = _ENTITY_WRITE_PERMISSIONS.get(candidate.entity_type)
+        if target_permission is None:
+            raise not_found(message="该实体类型尚未注册合并处理器")
+        _require(request, principal, target_permission, entity=candidate.entity_type)
+        _require_candidate_scope(
+            session, candidate, principal, request.app.state.permission_service
         )
+        try:
+            target = str(UUID(payload.target_id))
+        except ValueError as exc:
+            raise APIError(ErrorCode.VALIDATION_FAILED, "targetId 必须是 UUID") from exc
         result = ActionDispatcher(
             session=session,
             permission_service=request.app.state.permission_service,
+            approval_gateway=ApprovalGatewayImpl(session),
+            audit_recorder=DefaultAuditRecorder(session),
         ).dispatch(
             principal=principal,
             permission="integration:write",
@@ -171,22 +199,19 @@ def merge_dedup_candidate(
             entity="DedupCandidate",
             entity_id=str(candidate.id),
             action="DedupCandidate.merge",
-            expected_version=0 if current_entity_version is None else int(current_entity_version),
+            expected_version=payload.expected_version,
             idempotency_key=idempotency_key,
-            payload=body.model_dump(by_alias=True),
+            payload=payload.model_dump(by_alias=True),
             request_id=request.state.request_id,
             business_action=lambda: merge_candidate(
                 session,
                 candidate,
                 target_id=target,
-                expected_version=body.expected_version,
+                expected_version=payload.expected_version,
                 principal=principal,
             ),
         )
-        session.commit()
         return cast(dict[str, Any], result)
-    finally:
-        session.close()
 
 
 __all__ = ["MergeRequest", "router"]
