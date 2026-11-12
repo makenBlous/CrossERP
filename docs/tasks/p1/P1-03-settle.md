@@ -1,0 +1,41 @@
+# 结算与打款查询（P1-03-settle）
+
+- **旧任务卡：** TASK-p1-fin-settle（仓库外）
+- **状态：** 已开发待合并（740ac97）
+- **规则：** [rules.md](../rules.md)；验收流程 [acceptance.md](../acceptance.md)
+
+## 方向与业务价值
+
+结算对账快赢的一部分，见 [P1-03 功能包](P1-03-finance.md)。
+
+## 范围：接口与迁移
+
+`GET /finance/settlements`（Settlement.list）、`GET /finance/settlements/{id}`（Settlement.get），report:read，none。复用 amazon_settlement_v2 已落库数据。 路由 `src/crosserp/api/routers/fin_<功能>.py`。
+
+## 依赖
+
+P0。
+
+## 必须复用的共用函数
+
+见 [rules.md](../rules.md) 第 3 节。本功能重点：`PermissionService.store_scope` + `apply_store_scope`（店铺范围）、`make_action_dispatcher`（写动作）、`api_endpoint(..., idempotency="dispatcher")`（写接口幂等归属）、`ApprovalGateway.submit` → `ApprovalSubmission`（高风险）、`AuditRecorder`（工厂注入）、dispatcher 撤销登记（中风险）。 复用已有计算：`crosserp.recon`、`profit`、`issues`、`ledger`、`vouchers`、`db/repo/{recon,profit,fx,issues}.py`；账务只经 `ledger/write_service.py` 写草稿。**不得改共享组件**（dispatcher、middleware、permissions、principal、_platform_common）。
+
+## 验收标准（逐条可测试）
+
+1. 结算详情含明细汇总，金额 amountMinor；settle 的 `int()` 截断改为统一转换函数。
+2. 范围外单条 404。
+3. 有权调用返回 200，列表真正分页切片，`q`/`sort` 按草案实现。
+4. 无权限点返回 404（不是 403），不存在的 id 返回 404，未登录返回统一 401 错误体。
+5. 店铺/数据范围：列表只返回范围内数据（用 `store_scope` + `apply_store_scope`），范围外单条 404；空范围返回空列表。
+6. 金额字段为 `Money{amountMinor,currency}` 万分位整数，无浮点；字段权限按 `PermissionService.serialize`。
+7. `check_merge_guard.py --base <切出点>` 0 命中，或命中已在验收报告中逐条豁免。
+8. 独立验收报告 `<块>-accept.txt` 结论为"通过"，横向对比无不一致项。
+9. rules.md 第 5 节全部检查 0 失败（SQLite 全量、MySQL `-m db`、双库迁移往返、ruff、mypy、文档链接、授权覆盖、API contract、密钥扫描）。
+
+## 进度
+
+已在独立工作树提交，等 merge-p1-fin。合并时丢弃：`api/__init__.py` 上的幂等补丁（`_defer_success_replay`、`_caller_may_replay`、`_replay_permitted`）、dispatcher 的 `_approval_result` 兼容壳、gateway 兼容壳、`_allowed_store_ids`/`_store_ids` 失败放行。
+
+## 待定 / 需拍板
+
+无。

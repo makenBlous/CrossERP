@@ -1,78 +1,116 @@
-# CrossERP 开发任务索引
+# CrossERP 后端开发任务（P0–P5）：总览与进度
 
-> **适用范围与状态：** 本目录包含早期 T01–T56 历史任务卡，以及按 08 v4 重排的 [P0–P5 后端任务卡](backend-phases.md)。T01–T56 的“已完成”表示代码或任务提交已存在；“部分”表示实现存在但真实数据、远程 CI、模型或人工证据仍有边界；“已被 08 v4 取代”表示不再作为现行开发依据。当前后端唯一依据是 [08-后端模块与 API 设计](../design/08-后端模块与API设计.md) 及其 [实体目录](../design/08/ontology-entities.yaml)、[OpenAPI 草案](../design/08/openapi-draft.yaml)。
+> 本目录是后端开发任务的**唯一来源**。每个功能包、每个已拆分的单功能各有一个文件，写明方向、依赖、必须复用的共用函数、验收标准和当前进度。开发 agent、独立验收 agent 和监督方都读这里；新任务卡只从这里生成。
+> 设计依据：[08 后端模块与 API 设计 v4](../design/08-后端模块与API设计.md)（含[实体目录](../design/08/ontology-entities.yaml)、[OpenAPI 草案](../design/08/openapi-draft.yaml)）和 [07 成本记账与补货计划补齐](../design/07-成本记账与补货计划补齐.md)。
+> 进度更新于 2026-11-12 15:10（北京时间），以 `git log --first-parent main` 为准；表中提交号是合入 main 的提交或功能工作树上的提交。
 
-## 使用方式
+## 怎么读
 
-1. 新开发按 [backend-phases.md](backend-phases.md) 的 P0–P5 顺序执行；一次只做一张卡。
-2. 先读 [AGENTS.md](../../AGENTS.md)，再读任务卡和 08 v4 对应章节。
-3. 任务卡中的历史验收命令只用于复核历史实现；新增接口必须补权限、审计、三路径一致性、mock 点击和密钥扫描验收。
-4. 任务状态由 maken 人工把 review 改为 done；真实数据、远程 CI 或模型未核实的项不得写成“通过”。
+1. 先读 [rules.md](rules.md)（共用规则、必须复用的共用函数、禁止防御性编程、测试纪律）。
+2. 再读自己那块的功能文件：`p<批次>/<功能编号>.md`。功能包文件（如 [P1-01-catalog](p1/P1-01-catalog.md)）写包级目标、范围、拆分和包级验收；单功能文件（如 [P1-01-sku](p1/P1-01-sku.md)）写本功能的接口和逐条验收标准。
+3. 合并前按 [acceptance.md](acceptance.md) 跑自动检查 `scripts/check_merge_guard.py`，再由独立验收 agent 逐条判定。
+4. 每个文件顶部的"旧任务卡"注明它取代的旧卡：仓库内旧卡已移到 [_archive/](_archive/README.md)；仓库外的卡（`%TEMP%\cx-pw\backend\TASK-*.md` 等）只作历史记录。
 
-## T01–T56 总表
+## 规则优先级
 
-| 编号 | 标题 | 状态 | 对应 08 模块 |
+从高到低，冲突时以高者为准：
+
+1. maken 的明确指示（含已记录的拍板）。
+2. 安全边界：权限、数据范围、审批、审计、幂等隔离、撤销、AI 风险档、密钥（[rules.md](rules.md) 第 2、3 节）。任何规则都不能用来放松它们。
+3. 08 v4 设计（OpenAPI 草案、实体目录）；财务补齐看 07。
+4. [rules.md](rules.md)（共用规则）。
+5. 功能文件（本目录 `p0/`–`p5/`）。
+6. 单次任务卡上的临时补充（只能补充或收紧，不能放松以上任何一条）。
+
+## 依赖图
+
+```
+P0-01 平台底座 ─┬─ P0-02 IAM ─┐
+                └─ P0-03 审计/审批/执行器/撤销 ─┐
+P1-01 商品主数据 ← P0 全部
+P1-02 数据进入   ← P0-01(files)、P0-03
+P1-03 财务快赢   ← P0（imports/feemap ← P1-02）
+P2-01 ← P1-01、P1-02、P0-03；P2-02 ← P2-01
+P3-01 ← P1-03、P2-01；P3-02 ← P2-01、P3-01
+P4-01 ← P0-02、P0-03、P3-01；P4-02 ← P4-01、P1-02；P4-03 ← P1-02、P3-01、P4-01
+P5-01/02 ← P0、P2、P3；P5-03 ← 全部
+```
+
+按依赖调度，不整批等待：不依赖卡住块的功能可以先合并、先开下一批。
+
+## 进度表
+
+状态：**已合入**（在 main 上）/ **合入中**（合并任务进行中）/ **待合并**（已在功能工作树提交，等合并）/ **未开工** / **待定**（还没拆成功能文件）。
+
+### P0 底座（3 个功能包）
+
+| 功能 | 文件 | 状态 | 提交 |
 |---|---|---|---|
-| T01 | [仓库骨架：uv + pyproject + 规范工具](T01-repo-skeleton.md) | 已完成 | platform/db |
-| T02 | [FastAPI 最小服务：hello 页 + /health](T02-fastapi-health.md) | 已完成 | web/platform |
-| T03 | [金额核心：Money + parse_amount](T03-core-money.md) | 已完成 | core |
-| T04 | [数据库层：Money4 / FxRate / UtcDateTime 类型 + 连接会话 + MySQL 启动自检](T04-db-types-session.md) | 已完成 | db |
-| T05 | [数据模型：v0.1 业务表 + Alembic 初始迁移 + upsert](T05-schema-migrations.md) | 已完成 | db |
-| T06 | [审计日志：只追加哈希链 append / verify_chain](T06-audit-chain.md) | 已完成 | audit |
-| T07 | [CI：三系统 × Python 3.12/3.14 + 三数据库矩阵](T07-ci-matrix.md) | 已完成 | ci |
-| T08 | [合成样本生成器：121 单 + 结算/打款文件 + 故意埋的边界情况](T08-sample-generator.md) | 已完成 | samples |
-| T09 | [连接器协议 + 注册表 + 导入批次（sha256 去重、坏行不中断）](T09-connector-base-import-batch.md) | 已完成 | connectors/ingest |
-| T10 | [Amazon 结算报告 Flat File V2 导入器 + 费用分类表](T10-amazon-settlement-v2.md) | 已完成 | connectors/settlement |
-| T11 | [Shopify Payments 打款 CSV 导入器](T11-shopify-payouts.md) | 已完成 | connectors/settlement |
-| T12 | [通用映射导入器：领星 / 赛狐 / 成本表 / 汇率表 / SKU 映射](T12-generic-mapped.md) | 已完成 | connectors/ingest |
-| T13 | [导入命令 `crosserp import` + 全样本端到端测试 + 真实文件试导入](T13-import-cli-golden.md) | 已完成 | ingest/cli |
-| T14 | [对账异常分类设计（为 W3 做准备，只写文档和枚举草案）](T14-recon-categories-design.md) | 已完成 | issues/reconciliation |
-| T15 | [导入批次规则：失败批次可重导 + 打不开的文件也留失败记录（⚠ 待 maken 确认）](T15-import-batch-rules.md) | 已完成 | ingest |
-| T16 | [三库实测：CI db-matrix 在 MySQL 8.4 / PostgreSQL 18 跑通（历史验收口径）](T16-three-db-verify.md) | 部分 | db/ci |
-| T17 | [异常目录：原因码枚举定稿 + 中文模板 + 候选码落地](T17-issues-catalog.md) | 已完成 | issues |
-| T18 | [对账引擎核心：规则注册表 + 订单号/SKU 确定性匹配](T18-recon-engine-core.md) | 已完成 | reconciliation |
-| T19 | [对账补充规则：在途/待下期、多收费、拒付、部分退款、重复结算](T19-recon-timing-fees-refunds.md) | 已完成 | reconciliation |
-| T20 | [利润计算：订单行 / SKU 利润（成本按生效期、月汇率折人民币）](T20-profit-sku-order.md) | 已完成 | profit |
-| T21 | [标准答案比对：利润逐分一致 + 匹配率/异常原因断言（指标 2、3）](T21-golden-eval.md) | 已完成 | evals |
-| T22 | [报表输出：`reconcile` / `profit --out report.xlsx`](T22-cli-report-xlsx.md) | 已完成 | web/reports |
-| T23 | [只读网页：导入记录 / SKU 利润 / 异常清单](T23-web-readonly.md) | 已完成 | web |
-| T24 | [`crosserp demo` + 基础安装（`uv tool install` 三系统可用）](T24-demo-basic-install.md) | 已完成 | cli/demo |
-| T25 | [v0.1 验收：指标 2、3 + 基础安装 + 三库（历史验收口径），汇总证据](T25-v01-acceptance.md) | 部分 | evals/evidence |
-| T26 | [发布 v0.1.0：release.yml + PyPI Trusted Publishing（发布动作由 maken 操作）](T26-release-v01.md) | 已被 08 v4 第 8 节取代 | release（已取代） |
-| T27 | [审批状态机 `approval/`](T27-approval-state-machine.md) | 已完成 | approval |
-| T28 | [唯一写出口 `ledger/write_service.py` + 守卫测试（指标 4）](T28-write-service-guard.md) | 已完成 | ledger |
-| T29 | [业务审计补全：字段齐全 + 与业务修改同一事务 + 全动作覆盖](T29-audit-fields-transaction.md) | 已完成 | audit |
-| T30 | [数据库账号权限（MySQL/PG）+ 智能体只读会话](T30-db-grants-readonly-session.md) | 已完成 | db/agent |
-| T31 | [审计导出 / 离线校验 / 保留策略 + W4 验收（指标 4）](T31-audit-export-retention.md) | 已完成 | audit |
-| T32 | [用户 / 角色 / 会话表 + argon2 + `init` 建第一个管理员（⚠ 待 maken 确认）](T32-auth-tables-init-admin.md) | 已完成 | auth |
-| T33 | [网页登录 / 登出 / 会话 / CSRF / 登录锁定 + `config.py`（⚠ 待 maken 确认）](T33-login-session-csrf-lockout.md) | 已完成 | auth/web |
-| T34 | [登录/权限审计 security_event：独立哈希链 + 登录日志页 + 导出（⚠ 待 maken 确认）](T34-security-event-chain.md) | 已完成 | audit/security |
-| T35 | [权限 `require(permission)` + 权限矩阵参数化测试 + 职责分离 / 单人模式（已被 08 v4 取代；⚠ 待 maken 确认）](T35-permissions-matrix.md) | 已完成 | iam |
-| T36 | [用户管理页（admin）](T36-user-admin-page.md) | 已完成 | auth/web |
-| T37 | [异常处理队列页：状态流转 + 写说明 + 查看原始行](T37-issue-queue-page.md) | 已完成 | issues/web |
-| T38 | [审批台 + 审计页（改前改后对比、链状态）+ W5 验收证据](T38-approval-console-audit-page.md) | 已完成 | approval/audit |
-| T39 | [凭证草稿：会计科目映射 `accounts.yaml` + `voucher` / `voucher_line` 表 + 借贷平衡（⚠ 待 maken 确认）](T39-voucher-model-accounts.md) | 已完成 | vouchers |
-| T40 | [写出目标重构 + 金蝶导入模板 `kingdee_xlsx`（表头可配置，⚠ 待真实模板验证）](T40-ledger-kingdee-xlsx.md) | 已完成 | ledger |
-| T41 | [通用 Excel 目标 `generic_xlsx` + 网页「下载凭证」+ W6 验收证据（⚠ 待 maken 确认）](T41-generic-xlsx-download-w6.md) | 已完成 | ledger/web |
-| T42 | [AI 只读工具层 `agent/tools.py`（只读账号）+ 规则文档检索（⚠ 待 maken 确认）](T42-agent-readonly-tools.md) | 已完成 | agent |
-| T43 | [AI 运行时：引用检查 + 数字核对 + `crosserp ask` + 提示词文件（⚠ 待 maken 确认）](T43-agent-runtime-ask.md) | 已完成 | agent |
-| T44 | [AI 调用记录：OTel → 数据库（`llm_call` / `llm_tool_call` / `prompt_version`）+ 费用表（⚠ 待 maken 确认）](T44-llm-observability-tables.md) | 已完成 | observability |
-| T45 | [发给模型前脱敏 + 提示注入防护 + AI 正文保留期（⚠ 待 maken 确认）](T45-redaction-injection-retention.md) | 已完成 | agent |
-| T46 | [网页 AI 问答页：引用可点开到原始行 + 审计](T46-web-ask-page.md) | 已完成 | agent/web |
-| T47 | [MCP 服务（只读工具）+ API token 鉴权与安全事件（⚠ 待 maken 确认）](T47-mcp-server-api-token.md) | 已完成 | mcp_server |
-| T48 | [AI 监控页：调用量、费用、拒答率、慢调用](T48-llm-monitor-page.md) | 已完成 | observability/web |
-| T49 | [AI 预算与告警：超额横幅 + 硬拒绝 + 演示脚本 + W8 验收证据（⚠ 待 maken 确认）](T49-llm-budget-alert-w8.md) | 已完成 | observability |
-| T50 | [AI 评测集：20 个问题 + pydantic-evals 评分（⚠ 待 maken 确认）](T50-eval-question-set.md) | 已完成 | evals |
-| T51 | [评测记录入库 + 基线对比 + CI 离线评测（⚠ 待 maken 确认）](T51-eval-run-ci.md) | 已完成 | evals/ci |
-| T52 | [Docker Compose 部署：SQLite / PostgreSQL / MySQL 三种 profile（历史并列目标，现行主库见 08 v4 第 11.3 节；不推镜像）（⚠ 待 maken 确认）](T52-docker-compose.md) | 已完成 | deploy |
-| T53 | [安装矩阵计时：三系统从零到看到首页（不经 PyPI）（⚠ 待 maken 确认）](T53-install-matrix-timing.md) | 部分 | deploy/ci |
-| T54 | [质量门槛提高：覆盖率 80%、mypy 覆盖新模块（⚠ 待 maken 确认）](T54-coverage-mypy-hardening.md) | 已完成 | ci |
-| T55 | [文档：中英文 README、架构图、安全/可观测/数据库文档、ADR、贡献与安全说明（⚠ 待 maken 确认）](T55-docs-adr-zh.md) | 已完成 | docs |
-| T56 | [v0.5 内部验收：指标 1–6 + 新增验收项 A–F 证据汇总（⚠ 待 maken 确认）](T56-v05-internal-acceptance.md) | 部分 | evals/evidence |
-## 状态解释
+| P0-01 认证、会话与平台底座 | [包](p0/P0-01-platform.md) | 已合入 | d0bea5c 等 |
+| └ 登录/登出/当前用户/重置密码 | [P0-01-auth](p0/P0-01-auth.md) | 已合入 | b84385e–26ef0a5、64b824b |
+| └ 我的账户 | [P0-01-account](p0/P0-01-account.md) | 已合入 | 3fd08b9–2fd57d3 |
+| └ 文件对象 | [P0-01-files](p0/P0-01-files.md) | 已合入 | 24ca557–58b54d0 |
+| └ 后台任务 | [P0-01-jobs](p0/P0-01-jobs.md) | 已合入 | 285f7af |
+| └ 店铺与数据范围 | [P0-01-stores](p0/P0-01-stores.md) | 已合入 | 75a2971–d07372a |
+| └ 单据关联 | [P0-01-docs](p0/P0-01-docs.md) | 已合入 | a8ff7c2–fefe4a5 |
+| P0-02 权限引擎 | [包](p0/P0-02-iam.md) | 主体已合入 | 438d5bd–9938aff、4592a1a、3803221b、3a7b56d、c4164bb |
+| └ 数据范围挂到角色 | [P0-02-scope-roles](p0/P0-02-scope-roles.md) | 未开工（排在 merge-p1-fin 后） | — |
+| P0-03 审计、审批、执行器 | [包](p0/P0-03-audit-approval-ontology.md) | 主体已合入 | f432fe0、c958d5d、2a2c5df、2c36c46、e96a470 等 |
+| └ 审计导出包落库 | [P0-03-audit-export](p0/P0-03-audit-export.md) | 已合入 | 6f68c2a |
+| └ 中风险撤销与每日摘要 | [P0-03-undo](p0/P0-03-undo.md) | 合入中（打回项已用新提交修复，待最终核对） | 3cc3037 … 71a60d9 |
 
-- **已完成：** 当前仓库能找到对应实现或任务提交，但不替代人工验收。
-- **部分：** 已有实现或历史证据，但至少一项真实数据、远程 CI、跨平台、模型或人工证据未核实。
-- **已被 08 v4 取代：** 旧卡片原文保留，开头有取代标注；现行要求以 08 v4 和 [backend-phases.md](backend-phases.md) 为准。
+### P1 主数据、数据进入与快赢（3 个功能包）
 
-T01–T56 的正文不重写。每张卡开头新增“当前状态”和“现行依据”；与已拍板决定冲突的旧要求以“取代标注”保留，避免代理按过时要求实现。T26 的发布动作暂停，符合 v1.0 前不发布规则。
+| 功能 | 文件 | 状态 | 提交 |
+|---|---|---|---|
+| P1-01 商品主数据与映射 | [包](p1/P1-01-catalog.md) | 已合入（撤销接入随 P0 收尾） | cbb6b5c、1f62e85 |
+| └ 类目 | [P1-01-category](p1/P1-01-category.md) | 已合入 | 0e971cf |
+| └ 品牌 | [P1-01-brand](p1/P1-01-brand.md) | 已合入 | e144c3e |
+| └ SKU 与下拉 | [P1-01-sku](p1/P1-01-sku.md) | 已合入 | 599620d |
+| └ Listing | [P1-01-listing](p1/P1-01-listing.md) | 已合入 | 0a7db9b |
+| └ SKU 映射 | [P1-01-mapping](p1/P1-01-mapping.md) | 已合入 | 9ef219d |
+| └ 组合装 | [P1-01-bundle](p1/P1-01-bundle.md) | 已合入 | d564a4d |
+| └ 成本期间 | [P1-01-cost](p1/P1-01-cost.md) | 已合入 | 868a5f3 |
+| P1-02 数据进入链路 | [包](p1/P1-02-ingest.md) | 待合并（merge-p1-ing 在 P0 收尾后自动开始） | — |
+| └ 批次核心 | [P1-02-core](p1/P1-02-core.md) | 待合并 | f00580a |
+| └ 去重合并 | [P1-02-dedup](p1/P1-02-dedup.md) | 待合并 | f976cf0 |
+| └ 问题处理与转交 | [P1-02-issue](p1/P1-02-issue.md) | 待合并 | 7ea9dfa |
+| └ 投射与替代 | [P1-02-project](p1/P1-02-project.md) | 待合并 | d1631e0 |
+| └ 映射规则版本 | [P1-02-rules](p1/P1-02-rules.md) | 待合并 | cc616fa |
+| P1-03 结算对账快赢 | [包](p1/P1-03-finance.md) | 待合并（排在 merge-p1-ing 后） | — |
+| └ 结算查询 | [P1-03-settle](p1/P1-03-settle.md) | 待合并 | 740ac97 |
+| └ 对账运行 | [P1-03-recon](p1/P1-03-recon.md) | 待合并 | 67f3bb1 |
+| └ 对账异常 | [P1-03-reconissue](p1/P1-03-reconissue.md) | 待合并 | 199d1b3 |
+| └ 利润 | [P1-03-profit](p1/P1-03-profit.md) | 待合并 | faa81e0 |
+| └ 科目与汇率 | [P1-03-ref](p1/P1-03-ref.md) | 待合并 | 67df14a |
+| └ 导出产物列表 | [P1-03-exports](p1/P1-03-exports.md) | 待合并 | d3a6926 |
+| └ 财务导入 | [P1-03-imports](p1/P1-03-imports.md) | 未开工（接口清单待定） | — |
+| └ 费用与列映射 | [P1-03-feemap](p1/P1-03-feemap.md) | 未开工（接口清单待定） | — |
+
+### P2–P5（10 个功能包，均未开工，功能拆分待定）
+
+| 功能包 | 文件 | 08 v4 依据 | 状态 |
+|---|---|---|---|
+| P2-01 订单、库存与物流 | [包](p2/P2-01-order-inventory-logistics.md) | 5.6、5.7、5.9 | 未开工，拆分待定 |
+| P2-02 补货、采购与站内通知 | [包](p2/P2-02-replenishment-procurement-notify.md) | 5.7、5.8、5.17、5.4；07 | 未开工，拆分待定 |
+| P3-01 资金、总账、核销与税务 | [包](p3/P3-01-finance-ledger-tax.md) | 5.10–5.13；07 | 未开工，拆分待定 |
+| P3-02 数字孪生与推演 | [包](p3/P3-02-twin.md) | 5.25、9.5 | 未开工，拆分待定 |
+| P4-01 智能体中心与委托通行证 | [包](p4/P4-01-agent.md) | 5.22、10 | 未开工，拆分待定 |
+| P4-02 知识库与规则编译 | [包](p4/P4-02-knowledge.md) | 5.20、9.6 | 未开工，拆分待定 |
+| P4-03 平台适配器与外部账套 | [包](p4/P4-03-connectors-ledger-targets.md) | 5.21、4.11 | 未开工，拆分待定 |
+| P5-01 人事与薪资 | [包](p5/P5-01-hr-payroll.md) | 5.18 | 未开工，拆分待定 |
+| P5-02 行政、CRM 与广告 | [包](p5/P5-02-office-crm-ads.md) | 5.19、5.15、5.14 | 未开工，拆分待定 |
+| P5-03 IM 审批与全量回归 | [包](p5/P5-03-im-approval-regression.md) | 5.16、5.17、4.11 | 未开工，拆分待定 |
+
+16 个功能包中：P0-01、P1-01 已全部合入；P0-02、P0-03 主体已合入；P1-02、P1-03 已开发待合并；P2–P5 共 10 个包未开工。
+
+## 新任务卡怎么生成
+
+1. 从本目录对应功能文件出发写任务卡（工作树、端口、测试库、基线提交写在任务卡里），任务卡只能补充或收紧，不能放松功能文件和 rules.md。
+2. P2–P5 开工前，先在功能包文件的"功能拆分"一节按 08 第 5 节接口表逐行拆出单功能文件（含逐条验收标准），提交后再开发。
+3. 合并后更新功能文件的"状态"和"进度"、本页进度表。
+
+## 旧任务卡归档
+
+- 仓库内：T01–T56 历史任务卡、旧索引和 `backend-phases.md`（P0–P5 旧任务卡）已用 `git mv` 移到 [_archive/](_archive/README.md)，保留历史；新文件顶部注明对应的旧卡。
+- 仓库外：`%TEMP%\cx-pw\backend\TASK-*.md`、`COMMON.md`、`NODEF.md`、`DBISO.md`、`P1-*-COMMON.md` 及监督方本地副本，在正在进行的 merge-p0-tail、merge-p1-ing、merge-p1-fin、sec-scope2 全部完成前不移动、不修改；全部完成后移到同级 `_archive/` 子目录（不删除），之后新任务卡只从本目录生成。

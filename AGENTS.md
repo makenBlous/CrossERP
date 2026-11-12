@@ -22,7 +22,7 @@ CrossERP 是面向跨境电商卖家的 ERP：把平台结算和业务文件导�
 4. [后端开发指南](docs/backend/README.md)：包边界、动作执行器、权限、迁移和 MySQL 规则。
 5. [前端文档索引](frontend/docs/README.md)：静态原型、组件复用和接口切换方式。
 6. [业务域索引](docs/domains/README.md)：实体、流程和业务口径。
-7. [开发任务路线](docs/tasks/backend-phases.md)：按 P0–P5 排序的任务卡。
+7. [开发任务路线](docs/tasks/README.md)：按 P0–P5 排序的任务卡。
 8. [开发规则](docs/dev/开发规则.md)：工作树、权限、金额、AI 安全和文档纪律。
 
 ## 已拍板决定（一句话）
