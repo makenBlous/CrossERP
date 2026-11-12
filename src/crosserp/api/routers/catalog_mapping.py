@@ -103,9 +103,7 @@ def post_mapping(
     principal: Principal = Depends(get_principal),
 ) -> dict[str, Any]:
     dispatcher = make_action_dispatcher(session, service)
-    payload = body.model_dump(
-        mode="json", by_alias=True, exclude_none=True, exclude={"id"}
-    )
+    payload = body.model_dump(mode="json", by_alias=True, exclude_none=True, exclude={"id"})
     result = cast(
         dict[str, Any],
         dispatcher.dispatch(

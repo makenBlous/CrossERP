@@ -23,7 +23,7 @@ from crosserp.db.schema import (
 )
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.platform.permissions import DefaultPermissionService
-from crosserp.platform.principal import ActorType, Principal
+from crosserp.platform.principal import ActorType, Principal, get_principal
 
 
 def _app(tmp_path: Path) -> tuple[FastAPI, object, UUID]:
@@ -41,8 +41,6 @@ def _app(tmp_path: Path) -> tuple[FastAPI, object, UUID]:
 
 
 def _install(app: FastAPI, principal: Principal, store_ids: list[UUID]) -> Principal:
-    from crosserp.platform.principal import get_principal
-
     with Session(app.state.database_engine) as session, session.begin():
         user = create_user(
             session,
@@ -88,8 +86,6 @@ def test_listing_crud_scope_pagination_idempotency_version_and_audit(tmp_path: P
         data_scope={"store_ids": [str(store_id)]},
     )
     # FastAPI dependency overrides need the actual callable as key.
-    from crosserp.platform.principal import get_principal
-
     principal = _install(app, principal, [store_id])
     with TestClient(app) as client:
         first = client.post(
@@ -224,8 +220,6 @@ def test_listing_agent_medium_action_has_undo_and_audit_context(tmp_path: Path) 
         permissions=frozenset({"listing:create"}),
         data_scope={"store_ids": [str(store_id)]},
     )
-    from crosserp.platform.principal import get_principal
-
     agent = _install(app, agent, [store_id])
     with TestClient(app) as client:
         response = client.post(
@@ -266,8 +260,6 @@ def test_listing_scope_denial_is_403_for_write_and_404_for_read(tmp_path: Path) 
         permissions=frozenset({"listing:read", "listing:create", "listing:write"}),
         data_scope={"store_ids": [str(denied_store)]},
     )
-    from crosserp.platform.principal import get_principal
-
     _install(app, principal, [denied_store])
     with TestClient(app) as client:
         response = client.post(
@@ -288,8 +280,6 @@ def test_listing_scope_denial_is_403_for_write_and_404_for_read(tmp_path: Path) 
 
 def test_listing_unauthorized_is_404(tmp_path: Path) -> None:
     app, engine, store_id = _app(tmp_path)
-    from crosserp.platform.principal import get_principal
-
     app.dependency_overrides[get_principal] = lambda: Principal(user_id=uuid4())
     with TestClient(app) as client:
         assert client.get("/api/v1/catalog/listings").status_code == 404
@@ -309,7 +299,6 @@ def test_listing_unauthorized_is_404(tmp_path: Path) -> None:
 
 def test_listing_invalid_request_body_returns_validation_error(tmp_path: Path) -> None:
     app, engine, store_id = _app(tmp_path)
-    from crosserp.platform.principal import get_principal
 
     principal = Principal(
         user_id=uuid4(),

@@ -113,9 +113,7 @@ def test_mapping_list_denies_without_permission_as_404(tmp_path: Path) -> None:
 def test_human_create_is_idempotent_and_audited(tmp_path: Path) -> None:
     app, engine = _app(tmp_path)
     store_id, _ = _seed(engine)
-    principal = _install(
-        app, Principal(user_id=uuid4(), permissions=frozenset({"item:write"})), store_id
-    )
+    _install(app, Principal(user_id=uuid4(), permissions=frozenset({"item:write"})), store_id)
     body = {
         "storeId": store_id,
         "platformSku": "AMZ-2",
@@ -201,9 +199,7 @@ def test_human_high_confirm_submits_approval_without_mutating(tmp_path: Path) ->
     app, engine = _app(tmp_path)
     store_id, mapping_id = _seed(engine)
 
-    principal = _install(
-        app, Principal(user_id=uuid4(), permissions=frozenset({"item:write"})), store_id
-    )
+    _install(app, Principal(user_id=uuid4(), permissions=frozenset({"item:write"})), store_id)
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/catalog/mappings/confirm",
