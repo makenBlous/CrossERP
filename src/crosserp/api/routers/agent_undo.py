@@ -117,7 +117,9 @@ def _summary_payload(event: EntityEvent) -> dict[str, Any]:
 
 def _visible_to(event: EntityEvent, effective_id: Any) -> bool:
     payload = _summary_payload(event)
-    return payload["onBehalfOf"] == str(effective_id) or payload["actorUserId"] == str(effective_id)
+    return bool(
+        payload["onBehalfOf"] == str(effective_id) or payload["actorUserId"] == str(effective_id)
+    )
 
 
 def _summary_item(event: EntityEvent) -> dict[str, Any]:
