@@ -138,7 +138,11 @@ def create_catalog_sku(
     payload = body.model_dump(by_alias=True, exclude_none=True)
     sku_id = uuid4()
     with Session(request.app.state.database_engine) as session, session.begin():
-        ensure_store_allowed(principal, body.store_id, permission_service)
+
+        def create_work() -> dict[str, Any]:
+            ensure_store_allowed(principal, body.store_id, permission_service)
+            return create_sku(session, payload, sku_id=sku_id)[1]
+
         result = make_action_dispatcher(session, permission_service).dispatch(
             principal=principal,
             permission="item:create",
@@ -149,7 +153,7 @@ def create_catalog_sku(
             payload=payload,
             idempotency_key=idempotency_key,
             request_id=request.state.request_id,
-            business_action=lambda: create_sku(session, payload, sku_id=sku_id)[1],
+            business_action=create_work,
         )
     return cast(dict[str, Any], result)
 
@@ -171,7 +175,6 @@ def update_catalog_sku(
     payload = body.model_dump(by_alias=True, exclude_none=True)
     expected_version = payload.pop("expectedVersion", None)
     with Session(request.app.state.database_engine) as session, session.begin():
-        get_sku(session, principal, parsed, permission_service=permission_service)
         return cast(
             dict[str, Any],
             make_action_dispatcher(session, permission_service).dispatch(
@@ -185,7 +188,13 @@ def update_catalog_sku(
                 expected_version=expected_version,
                 idempotency_key=idempotency_key,
                 request_id=request.state.request_id,
-                business_action=lambda: update_sku(session, parsed, payload),
+                business_action=lambda: update_sku(
+                    session,
+                    parsed,
+                    payload,
+                    principal=principal,
+                    permission_service=permission_service,
+                ),
             ),
         )
 
@@ -203,7 +212,6 @@ def status_catalog_skus(
     for sku_id in body.ids:
         key = f"{idempotency_key}:{sku_id}" if idempotency_key else None
         with Session(request.app.state.database_engine) as session, session.begin():
-            get_sku(session, principal, sku_id, permission_service=permission_service)
             result = make_action_dispatcher(session, permission_service).dispatch(
                 principal=principal,
                 permission="item:write",
@@ -217,7 +225,13 @@ def status_catalog_skus(
                 request_id=request.state.request_id,
                 business_action=cast(
                     Callable[[], Any],
-                    lambda sku_id=sku_id: change_status(session, sku_id, body.active),
+                    lambda sku_id=sku_id: change_status(
+                        session,
+                        sku_id,
+                        body.active,
+                        principal=principal,
+                        permission_service=permission_service,
+                    ),
                 ),
             )
             results.append(result)

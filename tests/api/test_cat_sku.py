@@ -15,6 +15,7 @@ from crosserp.db.schema import (
     Brand,
     Category,
     EntityVersion,
+    IamDataScopeRule,
     IamPermissionOverride,
     SkuCost,
     Store,
@@ -65,6 +66,15 @@ def _seed(api_engine) -> tuple[UUID, UUID, UUID]:
                 created_at=now,
                 updated_at=now,
                 provenance={},
+            )
+        )
+        session.add(
+            IamDataScopeRule(
+                name="sku-test-all-stores",
+                entity="*",
+                scope_type="all",
+                values=[],
+                updated_at=now,
             )
         )
     return store_id, category_id, brand_id
@@ -161,7 +171,7 @@ def test_sku_crud_and_lookup(json_client: TestClient, api_engine, monkeypatch) -
             )
         cost_visible = json_client.get(f"/api/v1/catalog/skus/{sku_id}")
         assert "unitCost" not in cost_visible.json()
-        _install(json_client, _principal("item:read", "item:cost:read"))
+        _install(json_client, _principal("item:read", "sku.cost:read"))
         cost_visible = json_client.get(f"/api/v1/catalog/skus/{sku_id}")
         assert cost_visible.json()["unitCost"] == {"amountMinor": 12500, "currency": "USD"}
         _install(json_client, _principal("item:read", "item:create", "item:write"))
