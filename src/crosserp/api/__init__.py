@@ -3,28 +3,30 @@
 from __future__ import annotations
 
 import importlib
-import inspect
-import json
 import pkgutil
 from collections.abc import Iterable
-from datetime import UTC, datetime, timedelta
-from email import policy
-from email.parser import BytesParser
-from hashlib import sha256
 from types import ModuleType
 from typing import Any, cast
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
+from fastapi.routing import APIRoute
 from pydantic import ValidationError
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from crosserp.api.errors import APIError, ErrorCode, error_payload
-from crosserp.api.idempotency import IdempotencyKey
-from crosserp.api.metadata import API_METADATA_KEY
+from crosserp.api.idempotency import (
+    ROUTE_INDEX,
+    WRITE_METHODS,
+    IdempotencyRecorder,
+    IdempotencyReplay,
+    bind_dispatcher_scope,
+    classify_route,
+    replay_authorized_write,
+    replay_public_write,
+)
+from crosserp.api.metadata import ENDPOINT_METADATA
 from crosserp.iam.service import IAMService
 from crosserp.platform.permissions import DefaultPermissionService
 
@@ -47,143 +49,6 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         return response
 
 
-class IdempotencyMiddleware(BaseHTTPMiddleware):
-    """在所有 JSON 写请求前后统一处理 24 小时幂等键。"""
-
-    def __init__(self, app: Any, *, engine: Any, dispatcher_paths: frozenset[str]) -> None:
-        super().__init__(app)
-        self.engine = engine
-        self.dispatcher_paths = dispatcher_paths
-
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.method not in {"POST", "PATCH"} or request.url.path.rstrip("/").endswith(
-            "/dry-run"
-        ):
-            return await call_next(request)
-        if any(_path_matches(pattern, request.url.path) for pattern in self.dispatcher_paths):
-            return await call_next(request)
-        key = request.headers.get("Idempotency-Key")
-        if not key:
-            return await call_next(request)
-        if len(key) > 255:
-            request_id = request.state.request_id
-            return JSONResponse(
-                error_payload(
-                    ErrorCode.VALIDATION_ERROR,
-                    "Idempotency-Key 过长",
-                    request_id,
-                ),
-                status_code=422,
-            )
-        body = await request.body()
-        request_hash = _request_hash(request, body)
-        now = datetime.now(UTC)
-        request_id = request.state.request_id
-        with Session(self.engine) as session:
-            row = session.scalar(
-                select(IdempotencyKey).where(
-                    IdempotencyKey.key == key,
-                    IdempotencyKey.expires_at > now,
-                )
-            )
-            if row is not None:
-                if row.request_hash != request_hash:
-                    return JSONResponse(
-                        error_payload(
-                            ErrorCode.IDEMPOTENCY_CONFLICT,
-                            "同一 Idempotency-Key 对应了不同请求体",
-                            request_id,
-                        ),
-                        status_code=409,
-                    )
-                response = _replay_response(row, request_id)
-                return response
-
-        async def receive() -> dict[str, Any]:
-            return {"type": "http.request", "body": body, "more_body": False}
-
-        original_receive = request._receive
-        request._receive = receive
-        try:
-            response = await call_next(request)
-        finally:
-            request._receive = original_receive
-        chunks: list[bytes] = []
-        async for chunk in cast(Any, response).body_iterator:
-            chunks.append(chunk)
-        response_body = b"".join(chunks)
-        if 200 <= response.status_code < 400:
-            with Session(self.engine) as session, session.begin():
-                existing = session.scalar(select(IdempotencyKey).where(IdempotencyKey.key == key))
-                if existing is None:
-                    session.add(
-                        IdempotencyKey(
-                            key=key,
-                            request_hash=request_hash,
-                            status_code=response.status_code,
-                            response_body=response_body.decode("utf-8", errors="replace"),
-                            response_headers={
-                                k: v
-                                for k, v in response.headers.items()
-                                if k.lower() not in {"content-length", "x-request-id"}
-                            },
-                            created_at=now,
-                            expires_at=now + timedelta(hours=24),
-                        )
-                    )
-        headers = dict(response.headers)
-        headers.pop("content-length", None)
-        return Response(content=response_body, status_code=response.status_code, headers=headers)
-
-
-def _replay_response(row: IdempotencyKey, request_id: str) -> Response:
-    headers = dict(row.response_headers or {})
-    headers["X-Request-ID"] = request_id
-    return Response(
-        content=row.response_body.encode("utf-8"),
-        status_code=row.status_code,
-        media_type="application/json",
-        headers=headers,
-    )
-
-
-def _request_hash(request: Request, body: bytes) -> str:
-    """Multipart 请求按字段和文件摘要规范化, 消除 boundary 随机性。"""
-    content_type = request.headers.get("content-type", "")
-    if not content_type.casefold().startswith("multipart/form-data"):
-        return sha256(body).hexdigest()
-    message = BytesParser(policy=policy.default).parsebytes(
-        f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode() + body
-    )
-    parts: list[dict[str, str]] = []
-    for part in message.iter_parts():
-        disposition = part.get_content_disposition()
-        if disposition != "form-data":
-            continue
-        name = part.get_param("name", header="content-disposition")
-        if name is None:
-            raise ValueError("multipart 字段缺少 name")
-        filename = part.get_filename()
-        payload = part.get_payload(decode=True)
-        data = payload if isinstance(payload, bytes) else b""
-        item = {"name": str(name), "filename": filename or ""}
-        if filename is None:
-            item["value"] = data.decode(part.get_content_charset() or "utf-8")
-        else:
-            item["sha256"] = sha256(data).hexdigest()
-            item["contentType"] = part.get_content_type()
-        parts.append(item)
-    parts.sort(
-        key=lambda item: (
-            item["name"],
-            item["filename"],
-            item.get("value", ""),
-            item.get("sha256", ""),
-        )
-    )
-    return sha256(json.dumps(parts, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
-
-
 def _router_modules() -> Iterable[ModuleType]:
     from crosserp.api import routers
 
@@ -193,30 +58,57 @@ def _router_modules() -> Iterable[ModuleType]:
             yield module
 
 
-def register_routers(app: FastAPI) -> frozenset[str]:
+def _ownership() -> tuple[set[Any], set[Any]]:
+    from crosserp.api.routers import approvals, audit_approval, auth, ontology
+
+    http_owned = {
+        auth.login,
+        auth.forgot_password,
+        auth.reset_password,
+        approvals.decide_approval,
+        approvals.withdraw_approval,
+        approvals.initiator_confirm,
+        approvals.update_workflow_rule,
+        audit_approval.create_audit_export,
+    }
+    return http_owned, {ontology.dry_run}
+
+
+def register_routers(app: FastAPI) -> None:
     """自动发现 routers 子包中的 router; 新增模块无需修改公共注册表。"""
-    dispatcher_paths: set[str] = set()
+    http_owned, skipped = _ownership()
     for module in _router_modules():
         for route in module.router.routes:
-            endpoint = getattr(route, "endpoint", None)
-            metadata = getattr(endpoint, API_METADATA_KEY, None)
+            if not isinstance(route, APIRoute):
+                continue
+            metadata = ENDPOINT_METADATA.get(route.endpoint)
+            methods = set(route.methods or ())
             if metadata is not None:
-                cast(Any, route).openapi_extra = {"x-crosserp": metadata.as_openapi()}
-                # 只跳过自己读取幂等键并交给 dispatcher 的写动作。
-                # 店铺创建等平台写接口仍靠中间件回放, 跳过会生成新记录。
-                if _endpoint_owns_idempotency(endpoint):
-                    dispatcher_paths.add(f"/api/v1{route.path}")
+                route.openapi_extra = {"x-crosserp": metadata.as_openapi()}
+            if methods & WRITE_METHODS and metadata is None:
+                raise RuntimeError(f"写接口缺少 api_endpoint 元数据: {route.path}")
+            classify_route(
+                route.endpoint,
+                methods=methods,
+                template="/api/v1" + route.path,
+                http_owned=http_owned,
+                skipped=skipped,
+            )
+            registered = ROUTE_INDEX.get(route.endpoint)
+            if registered is None or registered.owner == "none":
+                continue
+            if registered.owner == "dispatcher":
+                route.dependencies.append(Depends(bind_dispatcher_scope))
+            elif registered.permission == "public":
+                route.dependencies.append(Depends(replay_public_write))
+            else:
+                route.dependencies.append(Depends(replay_authorized_write))
         app.include_router(module.router, prefix="/api/v1")
     for route in app.routes:
-        endpoint = getattr(route, "endpoint", None)
-        metadata = getattr(endpoint, API_METADATA_KEY, None)
-        if metadata is not None:
-            cast(Any, route).openapi_extra = {"x-crosserp": metadata.as_openapi()}
         # FastAPI 0.162 stores included routers lazily.  Give the placeholder a
         # path so existing route introspection code can safely inspect app.routes.
         if not hasattr(route, "path") and hasattr(route, "original_router"):
             cast(Any, route).path = "/api/v1"
-    return frozenset(dispatcher_paths)
 
 
 def install_api(app: FastAPI, engine: Any) -> None:
@@ -227,9 +119,12 @@ def install_api(app: FastAPI, engine: Any) -> None:
     app.state.iam_service = iam_service
     app.state.permission_service = DefaultPermissionService(iam_service)
     app.state.audit_exports = {}
-    dispatcher_paths = register_routers(app)
-    app.add_middleware(IdempotencyMiddleware, engine=engine, dispatcher_paths=dispatcher_paths)
     app.add_middleware(RequestIdMiddleware)
+    app.add_middleware(IdempotencyRecorder, engine=engine)
+
+    @app.exception_handler(IdempotencyReplay)
+    async def handle_idempotency_replay(_request: Request, exc: IdempotencyReplay) -> Response:
+        return exc.response
 
     @app.exception_handler(APIError)
     async def handle_api_error(request: Request, exc: APIError) -> JSONResponse:
@@ -275,21 +170,7 @@ def install_api(app: FastAPI, engine: Any) -> None:
             status_code=500,
         )
 
+    register_routers(app)
+
 
 __all__ = ["install_api", "register_routers"]
-
-
-def _endpoint_owns_idempotency(endpoint: Any) -> bool:
-    source = inspect.getsource(endpoint)
-    return "idempotency_key" in source or "Idempotency-Key" in source
-
-
-def _path_matches(pattern: str, path: str) -> bool:
-    pattern_parts = pattern.rstrip("/").split("/")
-    path_parts = path.rstrip("/").split("/")
-    if len(pattern_parts) != len(path_parts):
-        return False
-    return all(
-        (pattern_part.startswith("{") and pattern_part.endswith("}")) or pattern_part == path_part
-        for pattern_part, path_part in zip(pattern_parts, path_parts, strict=True)
-    )

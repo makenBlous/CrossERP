@@ -18,8 +18,14 @@ from crosserp.api.schemas import (
 )
 from crosserp.db.schema import ActionExecution, Listing, Store
 from crosserp.iam.scope import AllStores, StoreScope, apply_store_scope
-from crosserp.platform.dispatcher import ActionDispatcher, RiskTier, _request_hash
+from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
 from crosserp.platform.factory import make_action_dispatcher
+from crosserp.platform.idempotency import (
+    caller_scope,
+    current_http_scope,
+    find_action_replay,
+    scope_hash,
+)
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 
@@ -189,14 +195,18 @@ class ListingService:
         self.permission_service.require(self.principal, "listing:write")
         target_status = payload.status
         batch_payload = payload.model_dump(by_alias=True, mode="json")
+        for listing_id in payload.ids:
+            self._get_scoped(listing_id, write=True)
         if idempotency_key:
-            replay = self.session.scalar(
-                select(ActionExecution).where(ActionExecution.idempotency_key == idempotency_key)
+            replay = find_action_replay(
+                self.session,
+                self.principal,
+                key=idempotency_key,
+                payload=batch_payload,
+                action="Listing.status",
             )
             if replay is not None:
-                if replay.request_hash != _request_hash(batch_payload):
-                    raise APIError(ErrorCode.IDEMPOTENCY_REPLAY_MISMATCH, "幂等键对应了不同请求体")
-                return cast(dict[str, Any], replay.result_json)
+                return cast(dict[str, Any], replay)
         items: list[dict[str, Any]] = []
         for index, listing_id in enumerate(payload.ids):
             listing = self._get_scoped(listing_id, write=True)
@@ -238,8 +248,18 @@ class ListingService:
             items.append(item)
         result = {"updated": len(items), "items": items}
         if idempotency_key:
+            identity = caller_scope(self.principal)
+            http = current_http_scope("Listing.status")
             execution = self.session.scalar(
-                select(ActionExecution).where(ActionExecution.idempotency_key == idempotency_key)
+                select(ActionExecution).where(
+                    ActionExecution.idempotency_scope_hash
+                    == scope_hash(
+                        caller_identity=identity.caller_identity,
+                        method=http.method,
+                        route_template=http.route_template,
+                        key=idempotency_key,
+                    )
+                )
             )
             if execution is not None:
                 execution.result_json = result

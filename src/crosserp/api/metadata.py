@@ -9,6 +9,7 @@ from typing import Any, ParamSpec, TypeVar, cast
 API_METADATA_KEY = "__crosserp_api_metadata__"
 P = ParamSpec("P")
 R = TypeVar("R")
+ENDPOINT_METADATA: dict[Callable[..., Any], EndpointMetadata] = {}
 
 
 @dataclass(frozen=True)
@@ -33,6 +34,7 @@ def api_endpoint(
     metadata = EndpointMetadata(entity, action, permission, risk_tier)
 
     def decorate(function: Callable[P, R]) -> Callable[P, R]:
+        ENDPOINT_METADATA[function] = metadata
         setattr(function, API_METADATA_KEY, metadata)
         existing = getattr(function, "openapi_extra", {})
         existing = dict(existing) if isinstance(existing, dict) else {}
@@ -43,4 +45,4 @@ def api_endpoint(
     return decorate
 
 
-__all__ = ["API_METADATA_KEY", "EndpointMetadata", "api_endpoint"]
+__all__ = ["API_METADATA_KEY", "ENDPOINT_METADATA", "EndpointMetadata", "api_endpoint"]

@@ -927,13 +927,27 @@ class SecurityEvent(Base):
 
 
 class IdempotencyKey(Base):
-    """JSON API 幂等键及首次响应; 过期记录可由维护任务清理。"""
+    """JSON API 幂等键及首次响应; 过期记录可由维护任务清理.
+
+    隔离范围是调用身份 + 方法 + 路由模板 + 键. scope_hash 是这四项的摘要,
+    用来做唯一约束, 避免 MySQL 对多列 utf8mb4 索引超长.
+    """
 
     __tablename__ = "idempotency_key"
-    __table_args__ = (Index("ix_idempotency_key_expires_at", "expires_at"),)
+    __table_args__ = (
+        UniqueConstraint("idempotency_scope_hash", name="uq_idempotency_scope_hash"),
+        Index("ix_idempotency_key_expires_at", "expires_at"),
+    )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    key: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    key: Mapped[str] = mapped_column(String(255))
+    caller_identity: Mapped[str] = mapped_column(String(255))
+    represented_user_id: Mapped[str] = mapped_column(String(64))
+    actor_type: Mapped[str] = mapped_column(String(16))
+    actor_key: Mapped[str] = mapped_column(String(128))
+    http_method: Mapped[str] = mapped_column(String(16))
+    route_template: Mapped[str] = mapped_column(String(255))
+    idempotency_scope_hash: Mapped[str] = mapped_column(String(64))
     request_hash: Mapped[str] = mapped_column(String(64))
     status_code: Mapped[int] = mapped_column(Integer)
     response_body: Mapped[str] = mapped_column(Text())
@@ -1060,12 +1074,18 @@ class ActionExecution(Base):
 
     __tablename__ = "action_execution"
     __table_args__ = (
-        UniqueConstraint("idempotency_key", name="uq_action_execution_idempotency"),
+        UniqueConstraint("idempotency_scope_hash", name="uq_action_execution_scope_hash"),
         Index("ix_action_execution_entity", "entity_type", "entity_id"),
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     idempotency_key: Mapped[str | None] = mapped_column(String(255))
+    caller_identity: Mapped[str | None] = mapped_column(String(255))
+    represented_user_id: Mapped[str | None] = mapped_column(String(64))
+    actor_key: Mapped[str | None] = mapped_column(String(128))
+    http_method: Mapped[str | None] = mapped_column(String(16))
+    route_template: Mapped[str | None] = mapped_column(String(255))
+    idempotency_scope_hash: Mapped[str | None] = mapped_column(String(64))
     request_hash: Mapped[str | None] = mapped_column(String(64))
     entity_type: Mapped[str] = mapped_column(String(64))
     entity_id: Mapped[str | None] = mapped_column(String(64))
