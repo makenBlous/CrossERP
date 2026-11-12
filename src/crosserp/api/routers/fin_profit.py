@@ -16,19 +16,31 @@ from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.metadata import api_endpoint
-from crosserp.api.routers._platform_common import _page, _require
+from crosserp.api.routers._platform_common import _page
 from crosserp.api.schemas import PageParams
+from crosserp.core.money import to_amount_minor
 from crosserp.db.repo.profit import list_snapshots
 from crosserp.db.schema import ProfitSnapshot, Store
+from crosserp.platform.permissions import PermissionService, get_permission_service
 from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter(tags=["平台结算对账与资金"])
 
 _PERIOD = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 _SORT_FIELDS = frozenset({"internalSku", "period", "storeName", "revenue", "profit", "status"})
-_SCALE = Decimal(10000)
 _ENTITY = "ProfitView"
 _PERMISSION = "report:read"
+_AMOUNT_FIELDS = {
+    "revenue": "sku.margin:read",
+    "fees": "sku.margin:read",
+    "refunds": "sku.margin:read",
+    "promotion": "sku.margin:read",
+    "ads": "sku.margin:read",
+    "profit": "sku.margin:read",
+    "profitCny": "sku.margin:read",
+    "cogs": "sku.cost:read",
+    "freight": "sku.cost:read",
+}
 
 
 class ProfitPageParams(PageParams):
@@ -40,7 +52,7 @@ class ProfitPageParams(PageParams):
 def money_payload(amount: Decimal | None, currency: str) -> dict[str, Any] | None:
     if amount is None:
         return None
-    return {"amountMinor": int((amount * _SCALE).to_integral_value()), "currency": currency}
+    return {"amountMinor": to_amount_minor(amount), "currency": currency}
 
 
 def _fx(rate: Decimal | None) -> str | None:
@@ -95,22 +107,25 @@ def _sort(value: str | None) -> str | None:
     return value
 
 
-def _store_ids(request: Request, principal: Principal) -> list[UUID] | None:
-    scope = request.app.state.permission_service.data_scope_filter(principal, _ENTITY)
-    filters = scope.get("filters", scope)
-    if "all" not in scope.get("scopes", ()) and "storeIds" in filters:
-        return [UUID(str(value)) for value in filters["storeIds"]]
-    return None
+def _visible(
+    permission_service: PermissionService, principal: Principal, record: dict[str, Any]
+) -> dict[str, Any]:
+    return permission_service.serialize(principal, record, _AMOUNT_FIELDS)
 
 
 @router.get("/finance/profit")
 @api_endpoint(
-    entity="ProfitView", action="ProfitView.list", permission="report:read", risk_tier="none"
+    entity="ProfitView",
+    action="ProfitView.list",
+    permission="report:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def list_profit(
     request: Request,
     params: ProfitPageParams = Depends(),
     principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(get_permission_service),
     q: str | None = Query(default=None),
     sort: str | None = Query(default=None),
     store_id: UUID | None = Query(default=None, alias="storeId"),
@@ -119,10 +134,10 @@ def list_profit(
 ) -> dict[str, Any]:
     session = Session(request.app.state.database_engine)
     try:
-        _require(request, principal, _PERMISSION, entity=_ENTITY)
+        permission_service.require(principal, _PERMISSION)
         rows, total = list_snapshots(
             session,
-            store_ids=_store_ids(request, principal),
+            scope=permission_service.store_scope(principal, _ENTITY),
             store_id=store_id,
             period=_period(period),
             internal_sku=sku,
@@ -131,7 +146,14 @@ def list_profit(
             offset=(params.page - 1) * params.page_size,
             limit=params.page_size,
         )
-        return _page(params, [_item(row, store, name) for row, store, name in rows], total)
+        return _page(
+            params,
+            [
+                _visible(permission_service, principal, _item(row, store, name))
+                for row, store, name in rows
+            ],
+            total,
+        )
     finally:
         session.close()
 
@@ -142,20 +164,22 @@ def list_profit(
     action="ProfitView.read_sku",
     permission="report:read",
     risk_tier="none",
+    idempotency="none",
 )
 def read_profit_sku(
     request: Request,
     internalSku: str,
     principal: Principal = Depends(get_principal),
+    permission_service: PermissionService = Depends(get_permission_service),
     store_id: UUID | None = Query(default=None, alias="storeId"),
     period: str | None = Query(default=None),
 ) -> dict[str, Any]:
     session = Session(request.app.state.database_engine)
     try:
-        _require(request, principal, _PERMISSION, entity=_ENTITY)
+        permission_service.require(principal, _PERMISSION)
         rows, _total = list_snapshots(
             session,
-            store_ids=_store_ids(request, principal),
+            scope=permission_service.store_scope(principal, _ENTITY),
             store_id=store_id,
             period=_period(period),
             internal_sku=internalSku,
@@ -166,7 +190,10 @@ def read_profit_sku(
         )
         if not rows:
             raise not_found()
-        items = [_item(row, store, name) for row, store, name in rows]
+        items = [
+            _visible(permission_service, principal, _item(row, store, name))
+            for row, store, name in rows
+        ]
         return {
             "internalSku": internalSku,
             "period": items[0]["period"],

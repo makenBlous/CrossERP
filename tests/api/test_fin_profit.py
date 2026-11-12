@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
@@ -12,7 +12,15 @@ from sqlalchemy.orm import Session
 
 from crosserp.auth.roles import Role
 from crosserp.db.repo.users import create_user
-from crosserp.db.schema import Approval, AuditLog, IamDataScopeRule, ProfitSnapshot, Sku, Store
+from crosserp.db.schema import (
+    Approval,
+    AuditLog,
+    IamDataScopeRule,
+    IamPermissionOverride,
+    ProfitSnapshot,
+    Sku,
+    Store,
+)
 from crosserp.platform.principal import ActorType, Principal
 
 
@@ -75,6 +83,21 @@ def _snapshot(
     )
 
 
+def _grant_amounts(session: Session, user_id: UUID) -> None:
+    now = datetime.now(UTC)
+    session.add_all(
+        IamPermissionOverride(
+            user_id=user_id,
+            permission=permission,
+            effect="allow",
+            reason="利润金额字段",
+            data_scopes=[],
+            created_at=now,
+        )
+        for permission in ("sku.cost:read", "sku.margin:read")
+    )
+
+
 def _seed(session: Session) -> dict[str, str]:
     user = create_user(
         session,
@@ -82,6 +105,7 @@ def _seed(session: Session) -> dict[str, str]:
         password="Profit-test-password-1",
         roles=(Role.OPERATOR,),
     )
+    _grant_amounts(session, user.id)
     visible = _store("visible-shop", "USD")
     hidden = _store("hidden-shop", "EUR")
     session.add_all([visible, hidden])
@@ -283,6 +307,7 @@ def test_profit_agent_reads_without_writing(json_client: TestClient, api_engine)
             password="Profit-test-password-1",
             roles=(Role.VIEWER,),
         )
+        _grant_amounts(session, user.id)
         store = _store("agent-shop", "USD")
         session.add(store)
         session.flush()

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -10,6 +9,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from crosserp.db.schema import ProfitSnapshot, Sku, Store
+from crosserp.iam.scope import StoreScope, apply_store_scope
 
 
 def get_snapshot(
@@ -62,7 +62,7 @@ def _ordering(sort: str | None) -> tuple[Any, ...]:
 def list_snapshots(
     session: Session,
     *,
-    store_ids: Sequence[UUID] | None,
+    scope: StoreScope,
     store_id: UUID | None,
     period: str | None,
     internal_sku: str | None,
@@ -71,9 +71,7 @@ def list_snapshots(
     offset: int,
     limit: int | None,
 ) -> tuple[list[tuple[ProfitSnapshot, Store, str | None]], int]:
-    """返回已保存的利润快照。store_ids 为空序列时没有可见店铺。"""
-    if store_ids is not None and not store_ids:
-        return [], 0
+    """返回已保存的利润快照。空店铺范围返回空结果。"""
     name = (
         select(func.min(Sku.title))
         .where(
@@ -82,9 +80,11 @@ def list_snapshots(
         )
         .scalar_subquery()
     )
-    statement = select(ProfitSnapshot, Store, name).join(Store, Store.id == ProfitSnapshot.store_id)
-    if store_ids is not None:
-        statement = statement.where(ProfitSnapshot.store_id.in_(tuple(store_ids)))
+    statement = apply_store_scope(
+        select(ProfitSnapshot, Store, name).join(Store, Store.id == ProfitSnapshot.store_id),
+        ProfitSnapshot.store_id,
+        scope,
+    )
     if store_id is not None:
         statement = statement.where(ProfitSnapshot.store_id == store_id)
     if period is not None:
