@@ -18,7 +18,9 @@ def upgrade() -> None:
         batch.add_column(sa.Column("source", sa.String(32), nullable=False, server_default="file"))
         batch.add_column(sa.Column("kind", sa.String(32), nullable=False, server_default="unknown"))
         batch.add_column(sa.Column("mapping_rule_version", sa.String(64), nullable=True))
-        batch.add_column(sa.Column("counts_json", sa.JSON(), nullable=True))
+        batch.add_column(
+            sa.Column("counts_json", sa.JSON(), nullable=False, server_default=sa.text("('{}')"))
+        )
         for name in (
             "landed_count",
             "valid_count",
