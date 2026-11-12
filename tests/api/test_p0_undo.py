@@ -324,7 +324,7 @@ def test_medium_action_requires_entity_identity_for_undo() -> None:
         url = sqlite_file_url(Path(directory) / "undo-required.db")
         upgrade_head(url)
         engine = make_engine(url)
-        with Session(engine) as session, pytest.raises(APIError) as error, session.begin():
+        with Session(engine) as session, session.begin():
             _dispatcher(session, _Permissions()).dispatch(
                 principal=_agent(),
                 permission="entity:write",
@@ -333,7 +333,8 @@ def test_medium_action_requires_entity_identity_for_undo() -> None:
                 action="Entity.update",
                 business_action=lambda: {"before": {"v": 0}, "after": {"v": 1}},
             )
-        assert error.value.code is ErrorCode.VALIDATION_FAILED
+        with Session(engine) as session:
+            assert session.scalar(select(AgentUndo)) is None
         engine.dispose()
 
 

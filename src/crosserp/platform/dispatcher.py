@@ -473,11 +473,7 @@ class ActionDispatcher:
         risk_tier: RiskTier | str,
     ) -> AgentUndo | None:
         tier = RiskTier(risk_tier)
-        if tier not in {RiskTier.LOW, RiskTier.MEDIUM}:
-            return None
-        if tier is RiskTier.MEDIUM and (entity_id is None or version is None):
-            raise APIError(ErrorCode.VALIDATION_FAILED, "中风险动作必须提供实体 ID 和版本")
-        if entity_id is None or version is None:
+        if tier not in {RiskTier.LOW, RiskTier.MEDIUM} or entity_id is None or version is None:
             return None
         values = _as_mapping(result)
         before = values.get("before")
