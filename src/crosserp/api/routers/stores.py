@@ -99,17 +99,22 @@ def create_store(
     principal, session = _principal_db(request)
     try:
         _write_guard(request, principal, csrf)
-        row = Store(
-            id=uuid4(),
-            platform=payload.platform,
-            marketplace=payload.marketplace,
-            name=payload.name,
-            currency=payload.currency,
-            legal_entity=payload.legal_entity,
-            version=1,
-        )
-        session.add(row)
-        _dispatch_write(
+
+        def work() -> dict[str, object]:
+            row = Store(
+                id=uuid4(),
+                platform=payload.platform,
+                marketplace=payload.marketplace,
+                name=payload.name,
+                currency=payload.currency,
+                legal_entity=payload.legal_entity,
+                version=1,
+            )
+            session.add(row)
+            session.flush()
+            return {"id": str(row.id), "status": "created", "version": row.version}
+
+        result = _dispatch_write(
             request,
             principal,
             session,
@@ -117,10 +122,12 @@ def create_store(
             risk=RiskTier.CRITICAL,
             entity="Store",
             action="Store.create",
-            work=lambda: row,
+            work=work,
+            idempotency_key=request.headers.get("Idempotency-Key"),
+            payload=payload.model_dump(by_alias=True),
         )
         session.commit()
-        return {"id": str(row.id), "status": "created", "version": row.version}
+        return cast(dict[str, object], result)
     finally:
         session.close()
 

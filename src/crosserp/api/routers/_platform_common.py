@@ -89,6 +89,8 @@ def _dispatch_write(
     entity: str,
     action: str,
     work: Any,
+    idempotency_key: str | None = None,
+    payload: Any = None,
 ) -> Any:
     _require(request, principal, permission, entity=entity)
     result = make_action_dispatcher(session, request.app.state.permission_service).dispatch(
@@ -98,6 +100,8 @@ def _dispatch_write(
         action=action,
         business_action=work,
         request_id=request.state.request_id,
+        idempotency_key=idempotency_key,
+        payload=payload,
     )
     DefaultAuditRecorder(session).record(
         principal=principal,

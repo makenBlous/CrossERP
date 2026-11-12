@@ -21,6 +21,7 @@ from crosserp.api.errors import APIError, ErrorCode
 from crosserp.db.schema import ActionExecution, EntityEvent, EntityVersion
 from crosserp.platform.approval import ApprovalGateway
 from crosserp.platform.audit import AuditRecorder
+from crosserp.platform.idempotency import execution_scope, find_action_replay
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 
@@ -141,7 +142,13 @@ class ActionDispatcher:
 
             self._hook(all_hooks, "separation_of_duties", context)
             self._hook(all_hooks, "idempotency_and_version", context)
-            replay = self._find_replay(idempotency_key, payload)
+            replay = find_action_replay(
+                self.session,
+                principal,
+                key=idempotency_key,
+                payload=payload,
+                action=action,
+            )
             if replay is not None:
                 return replay
             current_version = self._current_version(context["entity"], context["entity_id"])
@@ -192,22 +199,23 @@ class ActionDispatcher:
                 payload=payload,
             )
             self._emit_events(context, action, result, risk_tier)
+            returned = (
+                result
+                if context.get("version") is None
+                else _with_version(result, context["version"])
+            )
             self._save_execution(
                 principal=principal,
                 action=action,
                 entity=context["entity"],
                 entity_id=context["entity_id"],
                 status="succeeded",
-                result={**_as_mapping(result), "version": context.get("version")},
+                result=returned,
                 idempotency_key=idempotency_key,
                 request_payload=payload,
             )
             self._hook(all_hooks, "entity_version_and_audit", context)
-            return (
-                result
-                if context.get("version") is None
-                else _with_version(result, context["version"])
-            )
+            return returned
 
     def _transaction(self) -> AbstractContextManager[Any]:
         if self.session.in_transaction():
@@ -267,18 +275,6 @@ class ActionDispatcher:
             )
         )
         return 0 if value is None else int(value)
-
-    def _find_replay(self, key: str | None, payload: Any) -> Any:
-        if not key:
-            return None
-        row = self.session.scalar(
-            select(ActionExecution).where(ActionExecution.idempotency_key == key)
-        )
-        if row is None:
-            return None
-        if row.request_hash != _request_hash(payload):
-            raise APIError(ErrorCode.IDEMPOTENCY_REPLAY_MISMATCH, "幂等键对应了不同请求体")
-        return row.result_json
 
     def _write_version_and_audit(
         self,
@@ -389,10 +385,17 @@ class ActionDispatcher:
         idempotency_key: str | None,
         request_payload: Any,
     ) -> None:
+        identity, http, digest = execution_scope(principal, key=idempotency_key, action=action)
         self.session.add(
             ActionExecution(
                 id=uuid4(),
                 idempotency_key=idempotency_key,
+                caller_identity=None if identity is None else identity.caller_identity,
+                represented_user_id=None if identity is None else identity.represented_user_id,
+                actor_key=None if identity is None else identity.actor_key,
+                http_method=http.method,
+                route_template=http.route_template,
+                idempotency_scope_hash=digest,
                 request_hash=_request_hash(request_payload),
                 entity_type=entity,
                 entity_id=entity_id,

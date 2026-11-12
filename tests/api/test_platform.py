@@ -4,12 +4,13 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, Depends, FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from crosserp.api import install_api
 from crosserp.api.errors import APIError, ErrorCode
+from crosserp.api.idempotency import replay_ad_hoc_write
 from crosserp.api.schemas import Money, PageParams
 from crosserp.db.migrate import downgrade_base, upgrade_head
 from crosserp.db.session import make_engine, sqlite_file_url
@@ -22,7 +23,7 @@ from crosserp.platform.dispatcher import (
     can_ai_execute,
 )
 from crosserp.platform.permissions import DefaultPermissionService, PermissionDenied
-from crosserp.platform.principal import ActorType, Principal
+from crosserp.platform.principal import ActorType, Principal, get_principal
 from tests.api.conftest import TestApprovalGateway
 
 
@@ -106,12 +107,14 @@ def test_idempotency_replays_and_rejects_different_body() -> None:
         app = FastAPI()
         install_api(app, engine)
         router = APIRouter()
+        caller = Principal(user_id=uuid4(), permissions=frozenset({"authenticated"}))
 
         @router.post("/echo")
         def echo(payload: dict[str, Any]) -> dict[str, Any]:
             return payload
 
-        app.include_router(router, prefix="/api/v1")
+        app.dependency_overrides[get_principal] = lambda: caller
+        app.include_router(router, prefix="/api/v1", dependencies=[Depends(replay_ad_hoc_write)])
         with TestClient(app) as client:
             headers = {"Idempotency-Key": "api-test-key"}
             first = client.post("/api/v1/echo", json={"value": 1}, headers=headers)
