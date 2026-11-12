@@ -40,8 +40,8 @@
 
 ## 开发任务
 
-- [后端开发任务路线](tasks/backend-phases.md)：P0–P5 任务卡；以任务文件状态为准。
-- [历史任务表](tasks/README.md)：T01–T56 的历史实施记录和验收状态。
+- [后端开发任务路线](tasks/README.md)：P0–P5 任务卡；以任务文件状态为准。
+- [历史任务表](tasks/_archive/README.md)：T01–T56 的历史实施记录和验收状态。
 
 ## 开发规则
 

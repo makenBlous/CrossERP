@@ -50,4 +50,4 @@ JSON 路由放在 `src/crosserp/api/routers/<module>.py` 并暴露名为 `router
 
 ## 9. 分期验收
 
-P0–P5、累计页面和每期验收以 [08 第 8 节](../design/08-后端模块与API设计.md) 为准；任务卡见 [`docs/tasks/backend-phases.md`](../tasks/backend-phases.md)（由其他组维护，若尚不存在视为预定文件）。每期都要证明人工路径可用、权限与审计可追溯、金额逐分一致。
+P0–P5、累计页面和每期验收以 [08 第 8 节](../design/08-后端模块与API设计.md) 为准；任务卡见 [`docs/tasks/README.md`](../tasks/README.md)（由其他组维护，若尚不存在视为预定文件）。每期都要证明人工路径可用、权限与审计可追溯、金额逐分一致。
