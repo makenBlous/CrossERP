@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from crosserp import __version__
 from crosserp.audit.chain import GENESIS_PREV_HASH
 from crosserp.audit.log import append, payload_from_log
-from crosserp.db.schema import AuditExport, AuditLog, SecurityEvent
+from crosserp.db.schema import AppUser, AuditExport, AuditLog, FileObject, SecurityEvent
 
 
 def export_audit(
@@ -90,6 +90,36 @@ def export_audit(
         archive.writestr("manifest.json", manifest_bytes)
         archive.writestr("VERIFY.md", verify_md)
     digest = hashlib.sha256(output.read_bytes()).hexdigest()
+    file_object = session.scalar(select(FileObject).where(FileObject.sha256 == digest))
+    if file_object is None:
+        owner = session.scalar(select(AppUser).where(AppUser.username == "system"))
+        if owner is None:
+            owner = AppUser(
+                id=uuid4(),
+                username="system",
+                display_name="系统",
+                password_hash="",
+                is_active=False,
+                failed_logins=0,
+                password_changed_at=to_ts,
+                must_change_password=False,
+                created_at=to_ts,
+                permission_version=0,
+            )
+            session.add(owner)
+            session.flush()
+        file_object = FileObject(
+            id=uuid4(),
+            sha256=digest,
+            filename=output.name,
+            content_type="application/zip",
+            size=output.stat().st_size,
+            storage_path=str(output),
+            uploaded_by=owner.id,
+            created_at=to_ts,
+        )
+        session.add(file_object)
+        session.flush()
     export_row = AuditExport(
         id=uuid4(),
         requested_by=requested_by,
@@ -100,6 +130,7 @@ def export_audit(
         first_hash=rows[0].hash if rows else None,
         last_hash=rows[-1].hash if rows else None,
         file_sha256=digest,
+        file_id=file_object.id,
         created_at=to_ts,
     )
     session.add(export_row)

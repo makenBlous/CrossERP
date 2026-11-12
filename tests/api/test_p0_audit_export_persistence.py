@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -81,6 +82,7 @@ def test_export_persists_file_and_metadata(
         assert export.file_id is not None
         file_object = session.get(FileObject, export.file_id)
         assert file_object is not None
+        assert Path(file_object.storage_path).parent == tmp_path.resolve()
         content = Path(file_object.storage_path).read_bytes()
         assert hashlib.sha256(content).hexdigest() == export.file_sha256
         assert payload["fileSha256"] == export.file_sha256
@@ -128,6 +130,7 @@ def test_tampered_export_is_rejected_and_records_security_event(
     response = json_client.get(f"/api/v1/audit/exports/{created.json()['id']}/download")
     assert response.status_code == 409
     assert response.json()["code"] == "AUDIT_EXPORT_INTEGRITY_ERROR"
+    assert response.json()["details"]["reason"] == "hash_mismatch"
     with Session(api_engine) as session:
         security = session.scalar(
             select(SecurityEvent)
@@ -145,6 +148,53 @@ def test_tampered_export_is_rejected_and_records_security_event(
             )
         )
         assert len(reads) == 1
+
+
+def test_missing_export_file_is_rejected_with_missing_reason(
+    json_client: TestClient, api_engine, monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("CROSSERP_FILES_DIR", str(tmp_path))
+    principal = _principal()
+    _bind_principal(json_client, principal)
+    created = json_client.post("/api/v1/audit/exports", json={"format": "jsonl"})
+    assert created.status_code == 200
+
+    with Session(api_engine) as session:
+        export = session.get(AuditExport, UUID(created.json()["id"]))
+        assert export is not None and export.file_id is not None
+        file_object = session.get(FileObject, export.file_id)
+        assert file_object is not None
+        Path(file_object.storage_path).unlink()
+
+    response = json_client.get(f"/api/v1/audit/exports/{created.json()['id']}/download")
+    assert response.status_code == 409
+    assert response.json()["code"] == "AUDIT_EXPORT_INTEGRITY_ERROR"
+    assert response.json()["details"]["reason"] == "missing"
+    with Session(api_engine) as session:
+        security = session.scalar(
+            select(SecurityEvent)
+            .where(SecurityEvent.event == "audit_export_tampered")
+            .order_by(SecurityEvent.seq.desc())
+        )
+        assert security is not None
+        assert security.detail_json["reason"] == "missing"
+
+
+def test_export_filters_reject_unknown_fields(json_client: TestClient) -> None:
+    _bind_principal(json_client, _principal(role="auditor"))
+    response = json_client.post(
+        "/api/v1/audit/exports",
+        json={"filters": {"unexpected": "value"}},
+    )
+    assert response.status_code == 422
+
+
+def test_file_storage_must_be_explicit_at_app_startup(api_database: str, monkeypatch) -> None:
+    from crosserp.web.app import create_app
+
+    monkeypatch.delenv("CROSSERP_FILES_DIR", raising=False)
+    with pytest.raises(ValueError, match="文件存储目录"):
+        create_app(api_database)
 
 
 def test_export_download_uses_persisted_acl_and_records_read(

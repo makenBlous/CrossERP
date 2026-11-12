@@ -19,7 +19,8 @@ from crosserp.web.app import create_app
 
 
 @pytest.fixture
-def api_database(tmp_path: Path) -> str:
+def api_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    monkeypatch.setenv("CROSSERP_FILES_DIR", str(tmp_path))
     return os.environ.get("CROSSERP_TEST_DATABASE_URL") or sqlite_file_url(tmp_path / "api.db")
 
 

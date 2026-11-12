@@ -707,7 +707,7 @@ class AuditExport(Base):
     first_hash: Mapped[str | None] = mapped_column(String(64))
     last_hash: Mapped[str | None] = mapped_column(String(64))
     file_sha256: Mapped[str] = mapped_column(String(64))
-    file_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("file_object.id"))
+    file_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("file_object.id"), nullable=False)
     status: Mapped[str] = mapped_column(String(16), default="ready", server_default="ready")
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 

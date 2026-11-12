@@ -32,9 +32,10 @@ class Settings(BaseModel):
     audit_retention: AuditRetentionSettings = Field(default_factory=AuditRetentionSettings)
     cookie_secure: bool = False
     ai: AiSettings = Field(default_factory=AiSettings)
+    file_storage_dir: Path
 
 
-def load_settings() -> Settings:
+def load_settings(*, file_storage_dir: str | Path | None = None) -> Settings:
     raw: dict[str, object] = {}
     path = Path.home() / ".crosserp" / "config.toml"
     if path.is_file():
@@ -47,11 +48,6 @@ def load_settings() -> Settings:
     retention = (
         {str(k): v for k, v in retention_raw.items()} if isinstance(retention_raw, dict) else {}
     )
-    values = Settings(
-        auth=AuthSettings(**auth),
-        audit_retention=AuditRetentionSettings(**retention),
-        cookie_secure=bool(raw.get("cookie_secure", False)),
-    )
     env = os.environ
     updates = {
         "max_failed_logins": env.get("CROSSERP_AUTH_MAX_FAILED_LOGINS"),
@@ -59,9 +55,9 @@ def load_settings() -> Settings:
         "session_hours": env.get("CROSSERP_AUTH_SESSION_HOURS"),
         "idle_hours": env.get("CROSSERP_AUTH_IDLE_HOURS"),
     }
-    auth_data = values.auth.model_dump()
+    auth_data = AuthSettings(**auth).model_dump()
     auth_data.update({k: int(v) for k, v in updates.items() if v is not None})
-    retention_data = values.audit_retention.model_dump()
+    retention_data = AuditRetentionSettings(**retention).model_dump()
     if env.get("CROSSERP_AUDIT_RETENTION_BUSINESS") is not None:
         retention_data["business"] = env["CROSSERP_AUDIT_RETENTION_BUSINESS"]
     if env.get("CROSSERP_AUDIT_RETENTION_SECURITY_DAYS") is not None:
@@ -71,9 +67,22 @@ def load_settings() -> Settings:
     ai_data = {str(k): v for k, v in ai_raw.items()} if isinstance(ai_raw, dict) else {}
     if env.get("CROSSERP_AI_RETENTION_TEXT_DAYS") is not None:
         ai_data["text_days"] = int(env["CROSSERP_AI_RETENTION_TEXT_DAYS"])
+    files_raw = raw.get("files")
+    configured_file_storage = (
+        file_storage_dir
+        or env.get("CROSSERP_FILES_DIR")
+        or (
+            files_raw.get("directory")
+            if isinstance(files_raw, dict) and files_raw.get("directory") is not None
+            else None
+        )
+    )
+    if configured_file_storage is None:
+        raise ValueError("文件存储目录必须在应用配置中设置")
     return Settings(
         auth=AuthSettings(**auth_data),
         audit_retention=AuditRetentionSettings(**retention_data),
-        cookie_secure=values.cookie_secure if secure is None else secure == "1",
+        cookie_secure=bool(raw.get("cookie_secure", False)) if secure is None else secure == "1",
         ai=AiSettings(**ai_data),
+        file_storage_dir=Path(configured_file_storage).expanduser(),
     )

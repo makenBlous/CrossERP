@@ -13,6 +13,7 @@ def test_environment_overrides_toml_and_defaults(tmp_path: Path, monkeypatch) ->
         encoding="utf-8",
     )
     monkeypatch.setenv("CROSSERP_AUTH_MAX_FAILED_LOGINS", "3")
+    monkeypatch.setenv("CROSSERP_FILES_DIR", str(tmp_path / "files"))
     settings = load_settings()
     assert settings.auth.max_failed_logins == 3
     assert settings.auth.session_hours == 24

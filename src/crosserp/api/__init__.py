@@ -25,6 +25,7 @@ from crosserp.api.errors import APIError, ErrorCode, error_payload
 from crosserp.api.idempotency import IdempotencyKey
 from crosserp.api.metadata import API_METADATA_KEY
 from crosserp.iam.service import IAMService
+from crosserp.platform.file_storage import FileStorage
 from crosserp.platform.permissions import DefaultPermissionService
 
 
@@ -207,9 +208,11 @@ def register_routers(app: FastAPI) -> None:
             cast(Any, route).path = "/api/v1"
 
 
-def install_api(app: FastAPI, engine: Any) -> None:
+def install_api(app: FastAPI, engine: Any, *, file_storage: FileStorage | None = None) -> None:
     """把 API 中间件、异常处理器和自动路由安装到现有 FastAPI 应用。"""
     app.state.database_engine = engine
+    if file_storage is not None:
+        app.state.file_storage = file_storage
     iam_service = IAMService(engine)
     from crosserp.platform.dispatcher import ActionDispatcher
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -40,11 +39,17 @@ from crosserp.platform.principal import Principal, get_principal
 router = APIRouter()
 
 
+class AuditExportFilters(CamelModel):
+    action: str | None = None
+    actor_type: str | None = None
+    target_type: str | None = None
+
+
 class AuditExportBody(CamelModel):
     format: Literal["jsonl"] = "jsonl"
     from_ts: datetime | None = Field(default=None, alias="from")
     to_ts: datetime | None = Field(default=None, alias="to")
-    filters: dict[str, Any] = Field(default_factory=dict)
+    filters: AuditExportFilters = Field(default_factory=AuditExportFilters)
 
 
 class RetentionUpdateBody(CamelModel):
@@ -235,12 +240,12 @@ def create_audit_export(
             statement = statement.where(AuditLog.ts >= body.from_ts)
         if body.to_ts is not None:
             statement = statement.where(AuditLog.ts <= body.to_ts)
-        if action := body.filters.get("action"):
-            statement = statement.where(AuditLog.action == str(action))
-        if actor_type := body.filters.get("actorType"):
-            statement = statement.where(AuditLog.actor_type == str(actor_type))
-        if target_type := body.filters.get("targetType"):
-            statement = statement.where(AuditLog.target_type == str(target_type))
+        if body.filters.action:
+            statement = statement.where(AuditLog.action == body.filters.action)
+        if body.filters.actor_type:
+            statement = statement.where(AuditLog.actor_type == body.filters.actor_type)
+        if body.filters.target_type:
+            statement = statement.where(AuditLog.target_type == body.filters.target_type)
         rows = list(session.scalars(statement))
         content = (
             "\n".join(json.dumps(_log(row), ensure_ascii=False, sort_keys=True) for row in rows)
@@ -250,10 +255,8 @@ def create_audit_export(
         from_ts = body.from_ts or (rows[0].ts if rows else now)
         to_ts = body.to_ts or (rows[-1].ts if rows else now)
         digest = hashlib.sha256(content).hexdigest()
-        root = Path(os.environ.get("CROSSERP_FILES_DIR", "var/files"))
-        root.mkdir(parents=True, exist_ok=True)
-        storage_path = root / digest
-        storage_path.write_bytes(content)
+        storage = request.app.state.file_storage
+        storage_path = storage.write(digest, content)
         file_object = session.scalar(select(FileObject).where(FileObject.sha256 == digest))
         if file_object is None:
             file_object = FileObject(
@@ -331,13 +334,38 @@ def download_audit_export(
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在") from None
         if export is None:
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
-        if export.file_id is None:
-            raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
         file_object = session.get(FileObject, export.file_id)
         if file_object is None:
             raise APIError(ErrorCode.NOT_FOUND, "资源不存在")
         path = Path(file_object.storage_path)
-        content = path.read_bytes() if path.is_file() else b""
+        if not path.is_file():
+            record_security(
+                session,
+                SecurityEventName.AUDIT_EXPORT_TAMPERED,
+                user_id=principal.user_id,
+                target_user_id=principal.effective_user_id,
+                request_id=request.state.request_id,
+                detail={
+                    "exportId": str(export.id),
+                    "fileId": str(file_object.id),
+                    "reason": "missing",
+                    "expectedSha256": export.file_sha256,
+                },
+            )
+            DefaultAuditRecorder(session).record(
+                principal=principal,
+                entity="AuditExport",
+                action="AuditExport.read_download",
+                diff={"id": str(export.id), "status": "integrity_failed", "reason": "missing"},
+                request_id=request.state.request_id,
+            )
+            session.commit()
+            raise APIError(
+                ErrorCode.AUDIT_EXPORT_INTEGRITY_ERROR,
+                "审计导出文件完整性校验失败",
+                details={"exportId": str(export.id), "reason": "missing"},
+            )
+        content = path.read_bytes()
         digest = hashlib.sha256(content).hexdigest()
         if digest != export.file_sha256 or digest != file_object.sha256:
             record_security(
@@ -351,20 +379,25 @@ def download_audit_export(
                     "fileId": str(file_object.id),
                     "expectedSha256": export.file_sha256,
                     "actualSha256": digest,
+                    "reason": "hash_mismatch",
                 },
             )
             DefaultAuditRecorder(session).record(
                 principal=principal,
                 entity="AuditExport",
                 action="AuditExport.read_download",
-                diff={"id": str(export.id), "status": "integrity_failed"},
+                diff={
+                    "id": str(export.id),
+                    "status": "integrity_failed",
+                    "reason": "hash_mismatch",
+                },
                 request_id=request.state.request_id,
             )
             session.commit()
             raise APIError(
                 ErrorCode.AUDIT_EXPORT_INTEGRITY_ERROR,
                 "审计导出文件完整性校验失败",
-                details={"exportId": str(export.id)},
+                details={"exportId": str(export.id), "reason": "hash_mismatch"},
             )
         DefaultAuditRecorder(session).record(
             principal=principal,
