@@ -26,12 +26,13 @@ _SENSITIVE_TOKENS = ("password", "secret", "token", "api_key", "apikey", "phone"
 
 
 def _batch_payload(row: ImportBatch) -> dict[str, Any]:
-    counts = dict(row.counts_json)
-    counts.setdefault("landed", row.landed_count)
-    counts.setdefault("valid", row.valid_count)
-    counts.setdefault("duplicate", row.duplicate_count)
-    counts.setdefault("quarantined", row.quarantined_count)
-    counts.setdefault("projected", row.projected_count)
+    counts = {
+        "landed": row.landed_count,
+        "valid": row.valid_count,
+        "duplicate": row.duplicate_count,
+        "quarantined": row.quarantined_count,
+        "projected": row.projected_count,
+    }
     return {
         "id": str(row.id),
         "source": row.source,
@@ -87,7 +88,11 @@ def _ingest_session(request: Request) -> Iterator[tuple[Any, Session]]:
 
 @router.get("/ingest/batches")
 @api_endpoint(
-    entity="IngestBatch", action="IngestBatch.list", permission="integration:read", risk_tier="none"
+    entity="IngestBatch",
+    action="IngestBatch.list",
+    permission="integration:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def list_batches(
     request: Request,
@@ -95,8 +100,7 @@ def list_batches(
     q: str | None = Query(None),
     sort: str = Query("-createdAt"),
 ) -> dict[str, Any]:
-    with _ingest_session(request) as (principal, session):
-        _require(request, principal, "integration:read", entity="IngestBatch")
+    with _ingest_session(request) as (_principal, session):
         if sort not in {"createdAt", "-createdAt", "status", "-status"}:
             raise APIError(ErrorCode.VALIDATION_ERROR, "sort 参数无效")
         rows = list(
@@ -128,7 +132,11 @@ def list_batches(
 
 @router.get("/ingest/batches/{id}")
 @api_endpoint(
-    entity="IngestBatch", action="IngestBatch.get", permission="integration:read", risk_tier="none"
+    entity="IngestBatch",
+    action="IngestBatch.get",
+    permission="integration:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def get_batch(request: Request, id: UUID) -> dict[str, Any]:
     with _ingest_session(request) as (_principal, session):
@@ -140,7 +148,11 @@ def get_batch(request: Request, id: UUID) -> dict[str, Any]:
 
 @router.get("/ingest/batches/{id}/raw-records")
 @api_endpoint(
-    entity="RawRecord", action="RawRecord.list", permission="integration:read", risk_tier="none"
+    entity="RawRecord",
+    action="RawRecord.list",
+    permission="integration:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def list_raw_records(
     request: Request,
@@ -197,6 +209,7 @@ def list_raw_records(
     action="CleansingIssue.list",
     permission="integration:read",
     risk_tier="none",
+    idempotency="none",
 )
 def list_issues(
     request: Request,
@@ -246,7 +259,11 @@ def list_issues(
 
 @router.get("/ingest/mapping-rules")
 @api_endpoint(
-    entity="MappingRule", action="MappingRule.list", permission="integration:read", risk_tier="none"
+    entity="MappingRule",
+    action="MappingRule.list",
+    permission="integration:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def list_mapping_rules(
     request: Request,
@@ -255,7 +272,6 @@ def list_mapping_rules(
     sort: str = Query("-createdAt"),
 ) -> dict[str, Any]:
     with _ingest_session(request) as (_principal, session):
-        _require(request, _principal, "integration:read", entity="MappingRule")
         if sort not in {"createdAt", "-createdAt", "ruleVersion", "-ruleVersion"}:
             raise APIError(ErrorCode.VALIDATION_ERROR, "sort 参数无效")
         rows = list(

@@ -225,12 +225,12 @@ def cleanse_batch(session: Session, batch_id: UUID) -> ImportBatch:
             )
             issue = None
             for field in required:
-                if not str(payload.get(field, "")).strip():
+                if field not in payload or not str(payload[field]).strip():
                     issue = ("invalid", field, "必填项为空", {})
                     break
             if issue is None:
                 for field in amount_fields:
-                    value = str(payload.get(field, "")).strip()
+                    value = "" if field not in payload else str(payload[field]).strip()
                     try:
                         amount = Decimal(value)
                     except InvalidOperation:
@@ -241,11 +241,15 @@ def cleanse_batch(session: Session, batch_id: UUID) -> ImportBatch:
                         issue = ("invalid", field, "金额精度超过万分位", {})
                         break
             if issue is None and period_field:
-                value = str(payload.get(period_field, "")).strip()
+                value = "" if period_field not in payload else str(payload[period_field]).strip()
                 if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", value):
                     issue = ("invalid", period_field, "期间必须是 YYYY-MM", {})
             if issue is None and direction_field:
-                value = str(payload.get(direction_field, "")).strip().casefold()
+                value = (
+                    ""
+                    if direction_field not in payload
+                    else str(payload[direction_field]).strip().casefold()
+                )
                 if value not in {"借", "贷", "借方", "贷方", "debit", "credit"}:
                     issue = ("invalid", direction_field, "借贷方向无效", {})
             if issue is None and fingerprint in seen:
