@@ -72,6 +72,7 @@ from crosserp.issues.service import transition as transition_issue
 from crosserp.ledger.write_service import ApprovalRequired
 from crosserp.ledger.write_service import export_many as export_ledger_many
 from crosserp.observability.stats import summarize
+from crosserp.platform.permissions import DefaultPermissionService
 from crosserp.web.csrf import login_form_token, valid_pair
 from crosserp.web.deps import require
 
@@ -94,6 +95,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     ensure_database_directory(resolved)
     upgrade_head(resolved)
     engine = make_engine(resolved)
+    app.state.permission_service = DefaultPermissionService()
     install_api(app, engine)
 
     @app.on_event("shutdown")

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TypeVar
+from typing import Literal, TypeVar
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, field_validator
 
@@ -63,6 +64,44 @@ class BrandStatusRequest(BrandRequest):
     expected_version: StrictInt | None = Field(default=None, ge=0, alias="expectedVersion")
 
 
+ListingStatus = Literal["active", "inactive"]
+
+
+class ListingCreateRequest(CamelModel):
+    store_id: UUID
+    platform_sku: str = Field(min_length=1, max_length=128)
+    asin: str | None = Field(default=None, max_length=64)
+    price: Money
+    status: ListingStatus = "active"
+
+
+class ListingUpdateRequest(CamelModel):
+    status: ListingStatus | None = None
+    asin: str | None = Field(default=None, max_length=64)
+    price: Money | None = None
+    expected_version: StrictInt
+
+    @field_validator("expected_version")
+    @classmethod
+    def validate_expected_version(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("expectedVersion 必须是正整数")
+        return value
+
+
+class ListingStatusRequest(CamelModel):
+    ids: list[UUID] = Field(min_length=1)
+    status: ListingStatus
+    expected_version: StrictInt
+
+    @field_validator("expected_version")
+    @classmethod
+    def validate_expected_versions(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("expectedVersion 必须是正整数")
+        return value
+
+
 T = TypeVar("T")
 
 
@@ -78,6 +117,10 @@ __all__ = [
     "BrandStatusRequest",
     "BrandUpdateRequest",
     "CamelModel",
+    "ListingCreateRequest",
+    "ListingStatus",
+    "ListingStatusRequest",
+    "ListingUpdateRequest",
     "Money",
     "Page",
     "PageParams",

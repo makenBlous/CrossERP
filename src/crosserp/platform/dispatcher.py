@@ -353,10 +353,15 @@ class ActionDispatcher:
     ) -> None:
         if context.get("entity_id") is None:
             return
+        event_type = {
+            "Listing.create": "listing.created",
+            "Listing.update": "listing.updated",
+            "Listing.status": "listing.status.done",
+        }.get(action, f"{context['entity'].lower()}.{action.rsplit('.', 1)[-1]}.done")
         self.session.add(
             EntityEvent(
                 id=uuid4(),
-                event_type=f"{context['entity'].lower()}.{action.rsplit('.', 1)[-1]}.done",
+                event_type=event_type,
                 entity_type=context["entity"],
                 entity_id=context["entity_id"],
                 action_id=action,

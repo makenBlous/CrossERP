@@ -54,7 +54,13 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         self.engine = engine
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.method != "POST" or request.url.path.rstrip("/").endswith("/dry-run"):
+        if request.method not in {"POST", "PATCH"} or request.url.path.rstrip("/").endswith(
+            "/dry-run"
+        ):
+            return await call_next(request)
+        route = request.scope.get("route")
+        endpoint = getattr(route, "endpoint", None)
+        if getattr(endpoint, API_METADATA_KEY, None) is not None:
             return await call_next(request)
         key = request.headers.get("Idempotency-Key")
         if not key:
