@@ -233,7 +233,15 @@ def list_issues(
                 "message": row.message,
                 "suggestion": row.suggestion_json,
                 "status": row.status,
+                "handler": row.handler,
+                "agentAttempts": row.agent_attempts,
+                "assigneeUserId": str(row.assignee_user_id) if row.assignee_user_id else None,
+                "moneyImpact": row.money_impact,
+                "version": row.version,
+                "resolution": row.resolution_json,
+                "escalation": row.escalation_json,
                 "createdAt": row.created_at.isoformat(),
+                "updatedAt": row.updated_at.isoformat() if row.updated_at else None,
             }
             for row in rows
         ]

@@ -45,7 +45,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.approval, public.api_token,
   public.iam_role_inheritance, public.iam_system_setting TO crosserp_app;
   public.user_session, public.voucher, public.voucher_line, public.approval_type,
   public.workflow_rule, public.audit_alert, public.retention_policy, public.audit_archive_run,
-  public.cleansing_issue, public.mapping_rule TO crosserp_app;
+  public.cleansing_issue, public.mapping_rule, public.cleansing_issue_transfer TO crosserp_app;
 REVOKE UPDATE, DELETE ON TABLE public.audit_log FROM crosserp_app;
 GRANT SELECT, INSERT ON TABLE public.audit_log TO crosserp_app;
 REVOKE UPDATE, DELETE ON TABLE public.audit_head FROM crosserp_app;
@@ -78,7 +78,7 @@ GRANT SELECT ON TABLE public.approval, public.api_token, public.app_setting, pub
   public.iam_role_permission, public.iam_role_inheritance, public.iam_system_setting TO crosserp_agent;
 GRANT SELECT ON TABLE public.approval_type, public.workflow_rule, public.audit_alert,
   public.retention_policy, public.audit_archive_run, public.cleansing_issue,
-  public.mapping_rule TO crosserp_agent;
+  public.mapping_rule, public.cleansing_issue_transfer TO crosserp_agent;
 REVOKE SELECT ON TABLE public.app_user, public.user_session, public.api_token FROM crosserp_agent;
 GRANT SELECT ON TABLE public.eval_run, public.voucher, public.voucher_line,
   public.prompt_version, public.llm_call, public.llm_tool_call, public.llm_budget,
