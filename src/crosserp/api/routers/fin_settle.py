@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -15,8 +14,9 @@ from pydantic import Field
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.metadata import api_endpoint
-from crosserp.api.routers._platform_common import _page, _principal_db, _require
+from crosserp.api.routers._platform_common import _page, _principal_db
 from crosserp.api.schemas import PageParams
+from crosserp.core.money import to_amount_minor
 from crosserp.db.repo.settlements import (
     get_settlement_row,
     list_settlement_fees,
@@ -24,6 +24,8 @@ from crosserp.db.repo.settlements import (
     query_settlements,
 )
 from crosserp.db.schema import Fee, Settlement, SettlementLine
+from crosserp.platform.permissions import PermissionService, get_permission_service
+from crosserp.platform.principal import Principal
 
 router = APIRouter(tags=["平台结算对账与资金"])
 
@@ -35,6 +37,12 @@ _SORT_FIELDS = (
     "platform",
     "netPayout",
 )
+# 目录没有 settlement.amount:read。结算金额按已有敏感金额权限点裁剪。
+_AMOUNT_FIELDS = {
+    "netPayout": "sku.cost:read",
+    "amount": "sku.cost:read",
+    "total": "sku.cost:read",
+}
 
 
 class SettlementPageParams(PageParams):
@@ -44,7 +52,13 @@ class SettlementPageParams(PageParams):
 
 
 def _money(amount: Decimal, currency: str) -> dict[str, int | str]:
-    return {"amountMinor": int(amount * 10000), "currency": currency}
+    return {"amountMinor": to_amount_minor(amount), "currency": currency}
+
+
+def _visible(
+    permission_service: PermissionService, principal: Principal, record: dict[str, Any]
+) -> dict[str, Any]:
+    return permission_service.serialize(principal, record, _AMOUNT_FIELDS)
 
 
 def _sort(sort: str | None) -> tuple[str, bool]:
@@ -57,13 +71,6 @@ def _sort(sort: str | None) -> tuple[str, bool]:
             "sort 只支持 periodStart、periodEnd、depositDate、externalId、platform、netPayout",
         )
     return field, descending
-
-
-def _store_ids(scope: Mapping[str, Any]) -> list[UUID] | None:
-    filters = scope["filters"]
-    if "all" in scope["scopes"] or "storeIds" not in filters:
-        return None
-    return [UUID(str(value)) for value in filters["storeIds"]]
 
 
 def _header(row: Settlement, store_name: str) -> dict[str, Any]:
@@ -102,7 +109,10 @@ def _line(line: SettlementLine, currency: str, fee_category: str | None) -> dict
 def _summary(lines: list[SettlementLine], fees: list[Fee], currency: str) -> dict[str, Any]:
     grouped: dict[str, tuple[int, Decimal]] = {}
     for fee in fees:
-        count, amount = grouped.get(fee.fee_category, (0, Decimal(0)))
+        if fee.fee_category in grouped:
+            count, amount = grouped[fee.fee_category]
+        else:
+            count, amount = 0, Decimal(0)
         grouped[fee.fee_category] = (count + 1, amount + fee.amount)
     line_total = sum((line.amount for line in lines), Decimal(0))
     return {
@@ -121,52 +131,87 @@ def _summary(lines: list[SettlementLine], fees: list[Fee], currency: str) -> dic
 
 @router.get("/finance/settlements")
 @api_endpoint(
-    entity="Settlement", action="Settlement.list", permission="report:read", risk_tier="none"
+    entity="Settlement",
+    action="Settlement.list",
+    permission="report:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def get_finance_settlements(
     request: Request,
     params: SettlementPageParams = Depends(),
     q: str | None = Query(default=None),
     sort: str | None = Query(default=None),
+    permission_service: PermissionService = Depends(get_permission_service),
 ) -> dict[str, Any]:
     principal, session = _principal_db(request)
     try:
-        _require(request, principal, "report:read", entity="Settlement")
+        permission_service.require(principal, "report:read")
         field, descending = _sort(sort)
-        scope = request.app.state.permission_service.data_scope_filter(principal, "Settlement")
+        scope = permission_service.store_scope(principal, "Settlement")
         rows, total = query_settlements(
             session,
-            store_ids=_store_ids(scope),
+            scope=scope,
             q=q,
             sort_field=field,
             descending=descending,
             page=params.page,
             page_size=params.page_size,
         )
-        return _page(params, [_header(row, store_name) for row, store_name in rows], total)
+        return _page(
+            params,
+            [
+                _visible(permission_service, principal, _header(row, store_name))
+                for row, store_name in rows
+            ],
+            total,
+        )
     finally:
         session.close()
 
 
 @router.get("/finance/settlements/{id}")
 @api_endpoint(
-    entity="Settlement", action="Settlement.get", permission="report:read", risk_tier="none"
+    entity="Settlement",
+    action="Settlement.get",
+    permission="report:read",
+    risk_tier="none",
+    idempotency="none",
 )
-def get_finance_settlement(request: Request, id: UUID) -> dict[str, Any]:
+def get_finance_settlement(
+    request: Request,
+    id: UUID,
+    permission_service: PermissionService = Depends(get_permission_service),
+) -> dict[str, Any]:
     principal, session = _principal_db(request)
     try:
-        _require(request, principal, "report:read", entity="Settlement")
-        scope = request.app.state.permission_service.data_scope_filter(principal, "Settlement")
-        found = get_settlement_row(session, id, _store_ids(scope))
+        permission_service.require(principal, "report:read")
+        scope = permission_service.store_scope(principal, "Settlement")
+        found = get_settlement_row(session, id, scope)
         if found is None:
             raise not_found()
         row, store_name = found
         lines = list_settlement_lines(session, row.id)
         fees = list_settlement_fees(session, row.id)
         fee_by_line = {fee.settlement_line_id: fee.fee_category for fee in fees}
-        payload = _header(row, store_name)
-        payload["lines"] = [_line(line, row.currency, fee_by_line.get(line.id)) for line in lines]
-        payload["lineSummary"] = _summary(lines, fees, row.currency)
+        payload = _visible(permission_service, principal, _header(row, store_name))
+        payload["lines"] = [
+            _visible(
+                permission_service,
+                principal,
+                _line(
+                    line,
+                    row.currency,
+                    fee_by_line.get(line.id),
+                ),
+            )
+            for line in lines
+        ]
+        summary = _summary(lines, fees, row.currency)
+        summary["byFeeCategory"] = [
+            _visible(permission_service, principal, item) for item in summary["byFeeCategory"]
+        ]
+        payload["lineSummary"] = _visible(permission_service, principal, summary)
         payload["provenance"] = {
             "batchId": str(row.source_batch_id),
             "rawRecordIds": [line.raw_row_id for line in lines if line.raw_row_id is not None],

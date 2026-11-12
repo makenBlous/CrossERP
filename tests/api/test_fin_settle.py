@@ -16,6 +16,7 @@ from crosserp.auth.roles import Role
 from crosserp.connectors.amazon_settlement_v2 import AmazonSettlementV2Connector
 from crosserp.connectors.importer import import_file
 from crosserp.core.enums import ImportStatus
+from crosserp.core.money import to_amount_minor
 from crosserp.db.repo.imports import (
     insert_fee,
     insert_import_batch,
@@ -24,7 +25,14 @@ from crosserp.db.repo.imports import (
     insert_settlement_line,
 )
 from crosserp.db.repo.users import create_user
-from crosserp.db.schema import Fee, IamDataScopeRule, Settlement, SettlementLine, Store
+from crosserp.db.schema import (
+    Fee,
+    IamDataScopeRule,
+    IamPermissionOverride,
+    Settlement,
+    SettlementLine,
+    Store,
+)
 from crosserp.platform.principal import ActorType, Principal
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -112,12 +120,26 @@ def _seed(
 
 
 def _minor(amount: Decimal) -> int:
-    return int(amount * 10000)
+    return to_amount_minor(amount)
+
+
+def _grant_amount(session: Session, user_id: UUID) -> None:
+    session.add(
+        IamPermissionOverride(
+            user_id=user_id,
+            permission="sku.cost:read",
+            effect="allow",
+            reason="结算金额字段",
+            data_scopes=[],
+            created_at=datetime.now(UTC),
+        )
+    )
 
 
 def test_settlement_list_paginates_sorts_and_searches(json_client: TestClient, api_engine) -> None:
     with Session(api_engine) as session, session.begin():
         user = _user(session, "settle-list-user", Role.OPERATOR)
+        _grant_amount(session, user.id)
         store = _store("美国店")
         session.add(store)
         session.flush()
@@ -186,7 +208,8 @@ def test_settlement_get_returns_line_summary_in_amount_minor(
     json_client: TestClient, api_engine
 ) -> None:
     with Session(api_engine) as session, session.begin():
-        _user(session, "settle-detail-user", Role.VIEWER)
+        viewer = _user(session, "settle-detail-user", Role.VIEWER)
+        _grant_amount(session, viewer.id)
         store = _store("明细店")
         session.add(store)
         session.flush()
@@ -305,6 +328,7 @@ def test_settlement_agent_l1_reads_with_represented_permission(
 ) -> None:
     with Session(api_engine) as session, session.begin():
         viewer = _user(session, "settle-agent-viewer", Role.VIEWER)
+        _grant_amount(session, viewer.id)
         blocked = _user(session, "settle-agent-blocked")
         store = _store("智能体店")
         session.add(store)
@@ -343,7 +367,8 @@ def test_settlement_agent_l1_reads_with_represented_permission(
 
 def test_settlement_api_reads_amazon_v2_stored_rows(json_client: TestClient, api_engine) -> None:
     with Session(api_engine) as session, session.begin():
-        _user(session, "settle-amazon-user", Role.OPERATOR)
+        amazon_user = _user(session, "settle-amazon-user", Role.OPERATOR)
+        _grant_amount(session, amazon_user.id)
         result = import_file(session, _AMAZON_SAMPLE, AmazonSettlementV2Connector())
         assert result.status is ImportStatus.DONE
         settlement = session.scalars(select(Settlement)).one()
@@ -389,6 +414,89 @@ def test_settlement_api_reads_amazon_v2_stored_rows(json_client: TestClient, api
         for item in body["lineSummary"]["byFeeCategory"]
     } == expected_fees
     assert len(body["lines"]) == expected_line_count
+
+
+def test_settlement_other_store_is_hidden_and_empty_scope_is_empty(
+    json_client: TestClient, api_engine
+) -> None:
+    with Session(api_engine) as session, session.begin():
+        user = _user(session, "settle-store-a", Role.FINANCE)
+        _grant_amount(session, user.id)
+        visible = _store("店铺A")
+        hidden = _store("店铺B", "DE")
+        session.add_all([visible, hidden])
+        session.flush()
+        visible_id = _seed(
+            session,
+            visible,
+            external_id="SETTLE-A-ONLY",
+            total=Decimal("3.0000"),
+            period_end=datetime(2026, 10, 8, tzinfo=UTC),
+        )
+        hidden_id = _seed(
+            session,
+            hidden,
+            external_id="SETTLE-B-ONLY",
+            total=Decimal("8.0000"),
+            period_end=datetime(2026, 10, 9, tzinfo=UTC),
+        )
+        session.add(
+            IamDataScopeRule(
+                name="settle-store-a",
+                entity="Settlement",
+                scope_type="storeIds",
+                values=[str(visible.id)],
+                updated_by=user.id,
+                updated_at=datetime.now(UTC),
+            )
+        )
+
+    _login(json_client, "settle-store-a")
+    listed = json_client.get("/api/v1/finance/settlements", params={"pageSize": 50})
+    assert listed.status_code == 200
+    assert {item["id"] for item in listed.json()["items"]} == {str(visible_id)}
+    assert json_client.get(f"/api/v1/finance/settlements/{hidden_id}").status_code == 404
+    assert json_client.get(f"/api/v1/finance/settlements/{visible_id}").status_code == 200
+
+    with Session(api_engine) as session, session.begin():
+        rule = session.scalars(select(IamDataScopeRule)).one()
+        rule.values = []
+
+    empty = json_client.get("/api/v1/finance/settlements", params={"pageSize": 50})
+    assert empty.status_code == 200
+    assert empty.json()["items"] == []
+    assert empty.json()["total"] == 0
+    assert json_client.get(f"/api/v1/finance/settlements/{visible_id}").status_code == 404
+
+
+def test_settlement_hides_amounts_without_field_permission(
+    json_client: TestClient, api_engine
+) -> None:
+    with Session(api_engine) as session, session.begin():
+        _user(session, "settle-no-amount", Role.VIEWER)
+        store = _store("无金额店")
+        session.add(store)
+        session.flush()
+        settlement_id = _seed(
+            session,
+            store,
+            external_id="SETTLE-NO-AMOUNT",
+            total=Decimal("4.0000"),
+            period_end=datetime(2026, 10, 10, tzinfo=UTC),
+            lines=((Decimal("4.0000"), "principal"),),
+        )
+
+    _login(json_client, "settle-no-amount")
+    listed = json_client.get("/api/v1/finance/settlements", params={"q": "SETTLE-NO-AMOUNT"})
+    assert listed.status_code == 200
+    assert "netPayout" not in listed.json()["items"][0]
+    detail = json_client.get(f"/api/v1/finance/settlements/{settlement_id}")
+    assert detail.status_code == 200
+    body = detail.json()
+    assert "netPayout" not in body
+    assert "amount" not in body["lines"][0]
+    assert "total" not in body["lineSummary"]
+    assert "amount" not in body["lineSummary"]["byFeeCategory"][0]
 
 
 def test_settlement_openapi_metadata(json_client: TestClient) -> None:

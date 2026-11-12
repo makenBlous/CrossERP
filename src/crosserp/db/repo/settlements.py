@@ -9,6 +9,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
 from crosserp.db.schema import Fee, Settlement, SettlementLine, Store
+from crosserp.iam.scope import StoreScope, apply_store_scope
 
 _SORT_COLUMNS = {
     "periodStart": Settlement.period_start,
@@ -23,7 +24,7 @@ _SORT_COLUMNS = {
 def query_settlements(
     session: Session,
     *,
-    store_ids: list[UUID] | None,
+    scope: StoreScope,
     q: str | None,
     sort_field: str,
     descending: bool,
@@ -31,9 +32,7 @@ def query_settlements(
     page_size: int,
 ) -> tuple[list[tuple[Settlement, str]], int]:
     """按店铺范围、关键字和排序分页读取结算头。"""
-    if store_ids is not None and not store_ids:
-        return [], 0
-    statement = _filtered(store_ids, q)
+    statement = _filtered(scope, q)
     total = cast(int, session.scalar(select(func.count()).select_from(statement.subquery())))
     column: Any = _SORT_COLUMNS[sort_field]
     direction = column.desc() if descending else column.asc()
@@ -50,12 +49,10 @@ def query_settlements(
 def get_settlement_row(
     session: Session,
     settlement_id: UUID,
-    store_ids: list[UUID] | None,
+    scope: StoreScope,
 ) -> tuple[Settlement, str] | None:
     """读取范围内的结算头。范围外与不存在都返回 None。"""
-    if store_ids is not None and not store_ids:
-        return None
-    statement = _filtered(store_ids, None).where(Settlement.id == settlement_id)
+    statement = _filtered(scope, None).where(Settlement.id == settlement_id)
     row = cast(
         tuple[Settlement, str] | None,
         session.execute(statement).one_or_none(),
@@ -86,10 +83,12 @@ def list_settlement_fees(session: Session, settlement_id: UUID) -> list[Fee]:
     )
 
 
-def _filtered(store_ids: list[UUID] | None, q: str | None) -> Select[Settlement, str]:
-    statement = select(Settlement, Store.name).join(Store, Store.id == Settlement.store_id)
-    if store_ids is not None:
-        statement = statement.where(Settlement.store_id.in_(store_ids))
+def _filtered(scope: StoreScope, q: str | None) -> Select[tuple[Settlement, str]]:
+    statement = apply_store_scope(
+        select(Settlement, Store.name).join(Store, Store.id == Settlement.store_id),
+        Settlement.store_id,
+        scope,
+    )
     if q:
         pattern = f"%{q}%"
         statement = statement.where(
