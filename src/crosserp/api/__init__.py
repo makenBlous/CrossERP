@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import json
 import pkgutil
 from collections.abc import Iterable
@@ -49,18 +50,17 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
 class IdempotencyMiddleware(BaseHTTPMiddleware):
     """在所有 JSON 写请求前后统一处理 24 小时幂等键。"""
 
-    def __init__(self, app: Any, *, engine: Any) -> None:
+    def __init__(self, app: Any, *, engine: Any, dispatcher_paths: frozenset[str]) -> None:
         super().__init__(app)
         self.engine = engine
+        self.dispatcher_paths = dispatcher_paths
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if request.method not in {"POST", "PATCH"} or request.url.path.rstrip("/").endswith(
             "/dry-run"
         ):
             return await call_next(request)
-        route = request.scope.get("route")
-        endpoint = getattr(route, "endpoint", None)
-        if getattr(endpoint, API_METADATA_KEY, None) is not None:
+        if any(_path_matches(pattern, request.url.path) for pattern in self.dispatcher_paths):
             return await call_next(request)
         key = request.headers.get("Idempotency-Key")
         if not key:
@@ -193,14 +193,19 @@ def _router_modules() -> Iterable[ModuleType]:
             yield module
 
 
-def register_routers(app: FastAPI) -> None:
+def register_routers(app: FastAPI) -> frozenset[str]:
     """自动发现 routers 子包中的 router; 新增模块无需修改公共注册表。"""
+    dispatcher_paths: set[str] = set()
     for module in _router_modules():
         for route in module.router.routes:
             endpoint = getattr(route, "endpoint", None)
             metadata = getattr(endpoint, API_METADATA_KEY, None)
             if metadata is not None:
                 cast(Any, route).openapi_extra = {"x-crosserp": metadata.as_openapi()}
+                # 只跳过自己读取幂等键并交给 dispatcher 的写动作。
+                # 店铺创建等平台写接口仍靠中间件回放, 跳过会生成新记录。
+                if _endpoint_owns_idempotency(endpoint):
+                    dispatcher_paths.add(f"/api/v1{route.path}")
         app.include_router(module.router, prefix="/api/v1")
     for route in app.routes:
         endpoint = getattr(route, "endpoint", None)
@@ -211,6 +216,7 @@ def register_routers(app: FastAPI) -> None:
         # path so existing route introspection code can safely inspect app.routes.
         if not hasattr(route, "path") and hasattr(route, "original_router"):
             cast(Any, route).path = "/api/v1"
+    return frozenset(dispatcher_paths)
 
 
 def install_api(app: FastAPI, engine: Any) -> None:
@@ -221,6 +227,8 @@ def install_api(app: FastAPI, engine: Any) -> None:
     app.state.iam_service = iam_service
     app.state.permission_service = DefaultPermissionService(iam_service)
     app.state.audit_exports = {}
+    dispatcher_paths = register_routers(app)
+    app.add_middleware(IdempotencyMiddleware, engine=engine, dispatcher_paths=dispatcher_paths)
     app.add_middleware(RequestIdMiddleware)
 
     @app.exception_handler(APIError)
@@ -267,7 +275,21 @@ def install_api(app: FastAPI, engine: Any) -> None:
             status_code=500,
         )
 
-    register_routers(app)
-
 
 __all__ = ["install_api", "register_routers"]
+
+
+def _endpoint_owns_idempotency(endpoint: Any) -> bool:
+    source = inspect.getsource(endpoint)
+    return "idempotency_key" in source or "Idempotency-Key" in source
+
+
+def _path_matches(pattern: str, path: str) -> bool:
+    pattern_parts = pattern.rstrip("/").split("/")
+    path_parts = path.rstrip("/").split("/")
+    if len(pattern_parts) != len(path_parts):
+        return False
+    return all(
+        (pattern_part.startswith("{") and pattern_part.endswith("}")) or pattern_part == path_part
+        for pattern_part, path_part in zip(pattern_parts, path_parts, strict=True)
+    )

@@ -379,7 +379,7 @@ def test_agent_high_risk_submits_approval_without_business_action(api_engine) ->
     class Gateway:
         def submit(self, **kwargs: object) -> object:
             submitted.append(kwargs)
-            return {"approvalId": "a1", "resolution": ApprovalResolution.AWAITING_INITIATOR}
+            return {"approvalId": str(uuid4()), "resolution": ApprovalResolution.AWAITING_INITIATOR}
 
     called: list[bool] = []
     principal = Principal(

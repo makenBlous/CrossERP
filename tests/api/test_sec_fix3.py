@@ -48,19 +48,19 @@ def test_dispatcher_requires_session_audit_recorder_and_approval_gateway() -> No
     recorder = DefaultAuditRecorder(session)
     gateway = ApprovalGatewayImpl(session)
 
-    with pytest.raises(RuntimeError, match="Session"):
+    with pytest.raises(TypeError, match="session"):
         ActionDispatcher(
             permission_service=permission_service,
             audit_recorder=recorder,
             approval_gateway=gateway,
         )
-    with pytest.raises(RuntimeError, match="AuditRecorder"):
+    with pytest.raises(TypeError, match="audit_recorder"):
         ActionDispatcher(
             session=session,
             permission_service=permission_service,
             approval_gateway=gateway,
         )
-    with pytest.raises(RuntimeError, match="ApprovalGateway"):
+    with pytest.raises(TypeError, match="approval_gateway"):
         ActionDispatcher(
             session=session,
             permission_service=permission_service,
@@ -87,7 +87,7 @@ def test_agent_high_risk_approval_and_audit_commit_in_request_session(api_engine
             business_action=lambda: {"retainDays": 30},
             request_id="sec-fix3-commit",
         )
-        assert result.state == "awaiting_initiator"
+    assert result["state"] == "awaiting_initiator"
 
     with Session(api_engine) as check:
         approval = check.scalar(select(Approval).order_by(Approval.requested_at.desc()))

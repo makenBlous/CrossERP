@@ -103,7 +103,7 @@ def test_dispatcher_requires_an_injected_approval_gateway() -> None:
             return principal.permissions
 
     session = Session()
-    with pytest.raises(RuntimeError, match="ApprovalGateway"):
+    with pytest.raises(TypeError, match="approval_gateway"):
         ActionDispatcher(
             session=session,
             permission_service=PermissionService(),

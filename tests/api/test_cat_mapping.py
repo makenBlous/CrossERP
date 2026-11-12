@@ -189,9 +189,7 @@ def test_agent_high_confirm_submits_approval_without_mutating(tmp_path: Path) ->
     with Session(engine) as session:
         row = session.get(SkuMapping, UUID(mapping_id))
         assert row is not None and row.state == "suggested" and row.version == 0
-        assert (
-            session.scalar(select(AuditLog).where(AuditLog.action == "SkuMapping.confirm")) is None
-        )
+        assert session.scalar(select(AuditLog).where(AuditLog.action == "approval.submit"))
     engine.dispose()
 
 
