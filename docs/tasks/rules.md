@@ -81,6 +81,7 @@
 - 不改主仓库 `D:\make\write\work\CrossERP` 工作区（合并任务除外）。
 - 拆工作树：先 `cmd /c rmdir` 删 `frontend\node_modules` 联接，再 `git worktree remove`（不加 `--force`）。
 - 不读 `CrossERP演示密码.txt`、`.env`、任何密钥/令牌文件。
+- 合入 main 后必须更新 [`docs/PROJECT_MEMORY.md`](../PROJECT_MEMORY.md) 的「当前状态」和新增决策（见该文件「更新规则」）。可与功能文件、[README](README.md) 进度表放在同一提交，或紧接着再提交一次。
 
 ## 8. 报告
 
