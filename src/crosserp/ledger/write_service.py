@@ -271,6 +271,12 @@ def _payload_hash(session: Session, target_type: str, target_id: str | None = No
         raise ApprovalRequired("INVALID_TARGET", str(exc)) from exc
 
 
+def export_target_catalog() -> tuple[tuple[str, frozenset[str]], ...]:
+    """列出写出目标 id 及其支持的审批对象类型。"""
+    targets = (_target("xlsx"), _target("kingdee_xlsx"), _target("generic_xlsx"))
+    return tuple((target.id, target.supported_types) for target in targets)
+
+
 def _target(target_id: str) -> LedgerTarget:
     if target_id == "xlsx":
         from crosserp.ledger.targets.xlsx import XlsxLedgerTarget
