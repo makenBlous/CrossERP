@@ -279,6 +279,8 @@ class ListingService:
 def _scope_store_ids(scope: Mapping[str, Any]) -> set[UUID] | None:
     values: Any = scope.get("store_ids")
     if values is None:
+        values = scope.get("filters", {}).get("store_ids")
+    if values is None:
         return None
     return {UUID(value) for value in values}
 

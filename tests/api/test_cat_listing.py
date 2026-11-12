@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -10,7 +12,15 @@ from sqlalchemy.orm import Session
 
 from crosserp.api import install_api
 from crosserp.db.migrate import upgrade_head
-from crosserp.db.schema import AuditLog, EntityEvent, EntityVersion, Store
+from crosserp.db.repo.users import create_user
+from crosserp.db.schema import (
+    AuditLog,
+    EntityEvent,
+    EntityVersion,
+    IamDataScopeRule,
+    IamPermissionOverride,
+    Store,
+)
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.platform.permissions import DefaultPermissionService
 from crosserp.platform.principal import ActorType, Principal
@@ -30,6 +40,46 @@ def _app(tmp_path: Path) -> tuple[FastAPI, object, UUID]:
     return app, engine, store_id
 
 
+def _install(app: FastAPI, principal: Principal, store_ids: list[UUID]) -> Principal:
+    from crosserp.platform.principal import get_principal
+
+    with Session(app.state.database_engine) as session, session.begin():
+        user = create_user(
+            session,
+            username=f"listing-{uuid4().hex}",
+            password="Listing-test-password-123",
+        )
+        for permission in principal.permissions:
+            session.add(
+                IamPermissionOverride(
+                    user_id=user.id,
+                    permission=permission,
+                    effect="allow",
+                    reason="listing test",
+                    data_scopes=[],
+                    created_at=datetime.now(UTC),
+                )
+            )
+        session.add(
+            IamDataScopeRule(
+                id=uuid4(),
+                name="listing test scope",
+                entity="Listing",
+                scope_type="store_ids",
+                values=[str(store_id) for store_id in store_ids],
+                updated_at=datetime.now(UTC),
+            )
+        )
+        user_id = user.id
+    effective = replace(
+        principal,
+        user_id=user_id,
+        on_behalf_of=user_id if principal.is_agent else None,
+    )
+    app.dependency_overrides[get_principal] = lambda: effective
+    return effective
+
+
 def test_listing_crud_scope_pagination_idempotency_version_and_audit(tmp_path: Path) -> None:
     app, engine, store_id = _app(tmp_path)
     principal = Principal(
@@ -40,7 +90,7 @@ def test_listing_crud_scope_pagination_idempotency_version_and_audit(tmp_path: P
     # FastAPI dependency overrides need the actual callable as key.
     from crosserp.platform.principal import get_principal
 
-    app.dependency_overrides[get_principal] = lambda: principal
+    principal = _install(app, principal, [store_id])
     with TestClient(app) as client:
         first = client.post(
             "/api/v1/catalog/listings",
@@ -176,7 +226,7 @@ def test_listing_agent_medium_action_has_undo_and_audit_context(tmp_path: Path) 
     )
     from crosserp.platform.principal import get_principal
 
-    app.dependency_overrides[get_principal] = lambda: agent
+    agent = _install(app, agent, [store_id])
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/catalog/listings",
@@ -218,7 +268,7 @@ def test_listing_scope_denial_is_403_for_write_and_404_for_read(tmp_path: Path) 
     )
     from crosserp.platform.principal import get_principal
 
-    app.dependency_overrides[get_principal] = lambda: principal
+    _install(app, principal, [denied_store])
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/catalog/listings",
@@ -266,7 +316,7 @@ def test_listing_invalid_request_body_returns_validation_error(tmp_path: Path) -
         permissions=frozenset({"listing:create"}),
         data_scope={"store_ids": [str(store_id)]},
     )
-    app.dependency_overrides[get_principal] = lambda: principal
+    _install(app, principal, [store_id])
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/catalog/listings",
