@@ -20,12 +20,14 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.routing import Match, Route
 
 from crosserp.api.errors import APIError, ErrorCode, error_payload
 from crosserp.api.idempotency import IdempotencyKey
 from crosserp.api.metadata import API_METADATA_KEY
 from crosserp.iam.service import IAMService
 from crosserp.platform.permissions import DefaultPermissionService
+from crosserp.platform.principal import get_principal
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
@@ -90,8 +92,8 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                         ),
                         status_code=409,
                     )
-                response = _replay_response(row, request_id)
-                return response
+                if _replay_permitted(request):
+                    return _replay_response(row, request_id)
 
         async def receive() -> dict[str, Any]:
             return {"type": "http.request", "body": body, "more_body": False}
@@ -128,6 +130,48 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         headers = dict(response.headers)
         headers.pop("content-length", None)
         return Response(content=response_body, status_code=response.status_code, headers=headers)
+
+
+def _matched_endpoint(request: Request) -> Any:
+    for route in request.app.router.routes:
+        if isinstance(route, Route):
+            match, _child_scope = route.matches(request.scope)
+            if match == Match.FULL and hasattr(route, "endpoint"):
+                return route.endpoint
+            continue
+        if not hasattr(route, "original_router") or not hasattr(route, "include_context"):
+            continue
+        prefix = route.include_context.prefix
+        path = request.scope["path"]
+        if not path.startswith(prefix):
+            continue
+        child_scope = dict(request.scope)
+        child_scope["path"] = path[len(prefix) :] or "/"
+        for child in route.original_router.routes:
+            if not isinstance(child, Route):
+                continue
+            match, _child_scope = child.matches(child_scope)
+            if match == Match.FULL and hasattr(child, "endpoint"):
+                return child.endpoint
+    return None
+
+
+def _replay_permitted(request: Request) -> bool:
+    """权限和受限数据范围通过后才回放。未声明权限的路由保持原行为。"""
+    endpoint = _matched_endpoint(request)
+    if endpoint is None or not hasattr(endpoint, API_METADATA_KEY):
+        return True
+    metadata = getattr(endpoint, API_METADATA_KEY)
+    if metadata.permission == "public":
+        return True
+    try:
+        principal = get_principal(request)
+        request.app.state.permission_service.require(principal, metadata.permission)
+    except APIError:
+        return False
+    scope = request.app.state.permission_service.data_scope_filter(principal, metadata.entity)
+    filters = scope["filters"]
+    return "all" in scope["scopes"] or "storeIds" not in filters
 
 
 def _replay_response(row: IdempotencyKey, request_id: str) -> Response:

@@ -87,7 +87,8 @@ def test_agent_high_risk_approval_and_audit_commit_in_request_session(api_engine
             business_action=lambda: {"retainDays": 30},
             request_id="sec-fix3-commit",
         )
-        assert result.state == "awaiting_initiator"
+        assert result["state"] == "awaiting_initiator"
+        assert result["status"] == "awaiting_initiator"
 
     with Session(api_engine) as check:
         approval = check.scalar(select(Approval).order_by(Approval.requested_at.desc()))

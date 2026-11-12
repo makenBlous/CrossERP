@@ -9915,11 +9915,11 @@ paths:
       - $ref: '#/components/parameters/CsrfToken'
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ActionInput'
+              $ref: '#/components/schemas/ReconIssueResolveInput'
       responses:
         '200':
           description: 成功
@@ -10024,11 +10024,11 @@ paths:
       - $ref: '#/components/parameters/CsrfToken'
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Record'
+              $ref: '#/components/schemas/ReconIssueDraftVoucherInput'
       responses:
         '200':
           description: 成功
@@ -25521,6 +25521,41 @@ components:
           type: integer
           description: 乐观锁版本
       description: 无业务字段的动作（提交、确认、作废）可带原因与版本
+    ReconIssueResolveInput:
+      type: object
+      additionalProperties: false
+      required:
+      - resolution
+      - reason
+      - expectedVersion
+      properties:
+        resolution:
+          type: string
+          enum:
+          - explained
+          - ignored
+          description: 只改差异状态为已解释或忽略，不改账
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 2000
+          description: 原因可由 AI 预填，人确认后提交
+        expectedVersion:
+          type: integer
+          minimum: 0
+          description: 乐观锁版本，必填
+    ReconIssueDraftVoucherInput:
+      type: object
+      additionalProperties: false
+      required:
+      - expectedVersion
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 0
+        reason:
+          type: string
+          maxLength: 2000
     ActionResult:
       type: object
       properties:

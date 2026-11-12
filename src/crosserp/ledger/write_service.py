@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -15,8 +17,19 @@ from crosserp.approval.service import hash_token, mark_exported
 from crosserp.approval.state import ApprovalState
 from crosserp.audit.log import append
 from crosserp.core.errors import CrossErpError
-from crosserp.db.schema import Approval, ExportArtifact
+from crosserp.db.schema import Approval, ExportArtifact, Voucher
 from crosserp.ledger.targets.base import LedgerTarget
+from crosserp.vouchers.accounts import AccountMapping
+from crosserp.vouchers.model import VoucherDraft, VoucherLineDraft
+from crosserp.vouchers.service import save_draft
+
+# 调整草稿使用示例科目占位编码。占位编码拒绝过账。本函数只写 state=draft。
+_DRAFT_ACCOUNTS = {
+    "fx_diff": AccountMapping("fx_diff", "待会计核实-汇兑差", "汇兑差", "either"),
+    "platform_receivable": AccountMapping(
+        "platform_receivable", "待会计核实-平台应收", "平台应收", "either"
+    ),
+}
 
 
 class ApprovalRequired(CrossErpError):
@@ -25,6 +38,81 @@ class ApprovalRequired(CrossErpError):
     def __init__(self, reason_code: str, message: str) -> None:
         self.reason_code = reason_code
         super().__init__(message)
+
+
+def write_issue_adjustment_draft(
+    session: Session,
+    *,
+    issue_id: UUID,
+    store_id: UUID,
+    period: str,
+    amount: Decimal,
+    currency: str,
+    created_by: str,
+) -> Voucher:
+    """由对账异常写一张借贷平衡的调整凭证草稿。不导出、不过账。"""
+    if not isinstance(amount, Decimal):
+        raise TypeError("调整金额必须是 Decimal")
+    if amount == 0:
+        raise ValueError("调整金额不能为零")
+    magnitude = abs(amount)
+    debit_account = _DRAFT_ACCOUNTS["fx_diff"]
+    credit_account = _DRAFT_ACCOUNTS["platform_receivable"]
+    if amount < 0:
+        debit_account, credit_account = credit_account, debit_account
+    source_ref = str(issue_id)
+    summary = f"异常调整 {source_ref}"
+    draft = VoucherDraft(
+        id=None,
+        store_id=store_id,
+        period=period,
+        source_type="issue",
+        source_id=source_ref,
+        currency=currency,
+        inputs_hash=_digest(
+            {"issueId": source_ref, "amount": str(amount), "currency": currency, "period": period}
+        ),
+        accounts_hash=_digest(
+            {
+                key: {
+                    "code": item.code,
+                    "name": item.name,
+                    "direction": item.direction,
+                }
+                for key, item in _DRAFT_ACCOUNTS.items()
+            }
+        ),
+        created_by=created_by,
+        lines=(
+            VoucherLineDraft(
+                1,
+                debit_account.key,
+                debit_account.code,
+                debit_account.name,
+                magnitude,
+                Decimal(0),
+                summary,
+                source_ref,
+            ),
+            VoucherLineDraft(
+                2,
+                credit_account.key,
+                credit_account.code,
+                credit_account.name,
+                Decimal(0),
+                magnitude,
+                summary,
+                source_ref,
+            ),
+        ),
+    )
+    return save_draft(session, draft)
+
+
+def _digest(value: dict[str, object]) -> str:
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 def export(

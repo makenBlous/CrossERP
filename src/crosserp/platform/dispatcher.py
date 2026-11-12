@@ -172,7 +172,7 @@ class ActionDispatcher:
                     approval_type=context["entity"].lower(),
                     request_id=request_id,
                 )
-                result = _approval_result(approval)
+                result = _approval_payload(approval, context["entity_id"])
                 self._save_execution(
                     principal=principal,
                     action=action,
@@ -418,8 +418,20 @@ def _call_business_action(action: Callable[[], Any]) -> Any:
         raise APIError(ErrorCode.INTERNAL_ERROR, "业务动作必须是无参可调用对象") from exc
 
 
-def _approval_result(value: dict[str, Any]) -> dict[str, Any]:
-    return value
+def _approval_payload(value: Any, entity_id: str | None) -> dict[str, Any]:
+    """把审批网关结果收成可回放的 JSON 对象。"""
+    if isinstance(value, dict):
+        payload = dict(value)
+    else:
+        payload = {
+            "approvalId": str(value.id),
+            "status": value.state,
+            "state": value.state,
+            "resolution": _jsonable(value.resolution),
+        }
+    if entity_id is not None and "id" not in payload:
+        payload["id"] = entity_id
+    return payload
 
 
 def _as_mapping(value: Any) -> dict[str, Any]:
