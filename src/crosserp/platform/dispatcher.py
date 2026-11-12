@@ -180,8 +180,8 @@ class ActionDispatcher:
                     approval_type=context["entity"].lower(),
                     request_id=request_id,
                 )
-                result = _approval_result(approval)
-                approval_id = _approval_uuid(result)
+                result = approval.to_payload()
+                approval_id = approval.approval_id
                 self.audit_recorder.record(
                     principal=principal,
                     entity=context["entity"],
@@ -435,20 +435,6 @@ def _call_business_action(action: Callable[[], Any]) -> Any:
         return action()
     except TypeError as exc:
         raise APIError(ErrorCode.INTERNAL_ERROR, "业务动作必须是无参可调用对象") from exc
-
-
-def _approval_result(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return value
-    return {
-        "approvalId": str(value.id),
-        "state": value.state,
-        "resolution": value.resolution,
-    }
-
-
-def _approval_uuid(value: dict[str, Any]) -> UUID:
-    return UUID(value["approvalId"])
 
 
 def _as_mapping(value: Any) -> dict[str, Any]:

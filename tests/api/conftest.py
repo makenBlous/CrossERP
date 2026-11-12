@@ -14,13 +14,18 @@ from sqlalchemy.orm import Session
 from crosserp.db.migrate import downgrade_base, upgrade_head
 from crosserp.db.repo.users import create_user, grant_role
 from crosserp.db.session import make_engine, sqlite_file_url
+from crosserp.platform.approval import ApprovalSubmission
 from crosserp.platform.principal import ActorType, Principal
 from crosserp.web.app import create_app
 
 
 class TestApprovalGateway:
     def submit(self, **_kwargs):
-        return {"approvalId": "test-approval", "state": "awaiting_approval"}
+        return ApprovalSubmission(
+            approval_id=uuid4(),
+            state="awaiting_initiator",
+            resolution={"mode": "initiator_confirm", "reason": "no_rule"},
+        )
 
 
 @pytest.fixture

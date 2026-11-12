@@ -16,6 +16,16 @@ from crosserp.platform.principal import ActorType, Principal, get_principal
 from crosserp.web.app import create_app
 
 
+def _mapping_not_confirmed(value: object) -> bool:
+    if isinstance(value, dict):
+        if value.get("state") == "confirmed":
+            return False
+        return all(_mapping_not_confirmed(item) for item in value.values())
+    if isinstance(value, list):
+        return all(_mapping_not_confirmed(item) for item in value)
+    return True
+
+
 def _app(tmp_path: Path):
     url = sqlite_file_url(tmp_path / "mapping.db")
     app = create_app(url)
@@ -189,7 +199,19 @@ def test_agent_high_confirm_submits_approval_without_mutating(tmp_path: Path) ->
     with Session(engine) as session:
         row = session.get(SkuMapping, UUID(mapping_id))
         assert row is not None and row.state == "suggested" and row.version == 0
-        assert session.scalar(select(AuditLog).where(AuditLog.action == "approval.submit"))
+        confirm_audits = list(
+            session.scalars(select(AuditLog).where(AuditLog.action == "SkuMapping.confirm"))
+        )
+        assert len(confirm_audits) == 1
+        confirm_audit = confirm_audits[0]
+        assert confirm_audit.approval_id is not None
+        after = confirm_audit.after_json["diff"]["after"]
+        assert after["approvalId"] == str(confirm_audit.approval_id)
+        assert after["state"] == "awaiting_initiator"
+        assert "platformSku" not in after
+        for row in session.scalars(select(AuditLog)):
+            assert _mapping_not_confirmed(row.after_json)
+            assert _mapping_not_confirmed(row.before_json)
     engine.dispose()
 
 

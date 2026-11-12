@@ -19,7 +19,7 @@ from crosserp.db.repo.users import create_user
 from crosserp.db.schema import ActionExecution, AuditLog, EntityEvent, EntityVersion, UserRole
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.ontology.catalog import load_catalog, validate_catalog
-from crosserp.platform.approval import ApprovalResolution
+from crosserp.platform.approval import ApprovalSubmission
 from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
 from crosserp.platform.principal import ActorType, Principal, get_principal
@@ -377,9 +377,13 @@ def test_agent_high_risk_submits_approval_without_business_action(api_engine) ->
     submitted: list[dict[str, object]] = []
 
     class Gateway:
-        def submit(self, **kwargs: object) -> object:
+        def submit(self, **kwargs: object) -> ApprovalSubmission:
             submitted.append(kwargs)
-            return {"approvalId": str(uuid4()), "resolution": ApprovalResolution.AWAITING_INITIATOR}
+            return ApprovalSubmission(
+                approval_id=uuid4(),
+                state="awaiting_initiator",
+                resolution={"mode": "initiator_confirm", "reason": "no_rule"},
+            )
 
     called: list[bool] = []
     principal = Principal(
@@ -404,7 +408,10 @@ def test_agent_high_risk_submits_approval_without_business_action(api_engine) ->
         action="Voucher.post",
         business_action=lambda: called.append(True),
     )
-    assert result["resolution"] == ApprovalResolution.AWAITING_INITIATOR
+    assert result["approvalId"]
+    assert result["state"] == "awaiting_initiator"
+    assert result["status"] == "awaiting_initiator"
+    assert result["resolution"]["mode"] == "initiator_confirm"
     assert called == []
     assert submitted[0]["action"] == "Voucher.post"
 

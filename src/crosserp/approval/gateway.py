@@ -16,6 +16,7 @@ from crosserp.approval.state import ApprovalState, ConcurrentModification
 from crosserp.audit.log import append
 from crosserp.auth.roles import Role
 from crosserp.db.schema import Approval, AppUser, UserRole, WorkflowRule
+from crosserp.platform.approval import ApprovalSubmission
 from crosserp.platform.principal import Principal
 
 
@@ -135,7 +136,7 @@ class ApprovalGatewayImpl:
         risk_tier: str,
         approval_type: str,
         request_id: str | None = None,
-    ) -> Approval:
+    ) -> ApprovalSubmission:
         payload_hash = hashlib.sha256(_canonical(payload).encode()).hexdigest()
         requested_by = principal.effective_user_id
         if requested_by is None:
@@ -228,7 +229,7 @@ class ApprovalGatewayImpl:
                     diff_json={"step": step["index"], "reason": step["reason"]},
                     request_id=request_id,
                 )
-        return row
+        return ApprovalSubmission(row.id, state, row.resolution)
 
     def decide(
         self,
