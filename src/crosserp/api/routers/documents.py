@@ -100,7 +100,8 @@ def links(
         rows = list(
             session.scalars(select(DocumentLink).order_by(ordering, DocumentLink.id.desc()))
         )
-        visible_rows = _visible_rows(rows, principal.data_scope)
+        scope = request.app.state.permission_service.data_scope_filter(principal, "DocumentLink")
+        visible_rows = _visible_rows(rows, scope)
         if q:
             visible_rows = [
                 row
@@ -136,7 +137,8 @@ def chain(request: Request, docType: str, id: str) -> dict[str, Any]:
                 )
             )
         )
-        visible_rows = _visible_rows(rows, principal.data_scope)
+        scope = request.app.state.permission_service.data_scope_filter(principal, "DocumentLink")
+        visible_rows = _visible_rows(rows, scope)
         root = (docType, id)
         if not any(
             root in ((row.from_type, row.from_id), (row.to_type, row.to_id)) for row in visible_rows

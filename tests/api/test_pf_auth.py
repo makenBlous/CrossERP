@@ -35,7 +35,7 @@ def test_auth_routes_live_in_dedicated_router(json_client: TestClient) -> None:
 def test_login_requires_pydantic_fields(json_client: TestClient) -> None:
     response = json_client.post("/api/v1/auth/login", json={"username": "only-user"})
     assert response.status_code == 422
-    assert response.json()["code"] == "VALIDATION_FAILED"
+    assert response.json()["code"] == "VALIDATION_ERROR"
 
 
 def test_five_bad_passwords_lock_account_for_fifteen_minutes(json_client, api_engine) -> None:

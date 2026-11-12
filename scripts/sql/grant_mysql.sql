@@ -13,6 +13,8 @@ GRANT SELECT ON crosserp.alembic_version TO 'crosserp_app'@'%';
 -- MySQL 没有从 database 级授权中单独撤回某张表的 UPDATE。
 -- 因此应用账号对业务表逐表授权，新增迁移后把新业务表补到这里并重跑脚本。
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.approval TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.catalog_category TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.catalog_brand TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.export_artifact TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.fee TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.fee_reference TO 'crosserp_app'@'%';
@@ -40,6 +42,8 @@ GRANT SELECT, INSERT, UPDATE ON crosserp.user_role TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE ON crosserp.user_session TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE ON crosserp.api_token TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE ON crosserp.app_setting TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.category TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.brand TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.voucher TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.voucher_line TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.prompt_version TO 'crosserp_app'@'%';
@@ -80,7 +84,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.cleansing_issue_transfer TO 'cr
 GRANT SELECT ON crosserp.* TO 'crosserp_agent'@'%';
 REVOKE ALL PRIVILEGES ON crosserp.* FROM 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.approval TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.catalog_category TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.catalog_brand TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.app_setting TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.category TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.brand TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.audit_checkpoint TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.audit_export TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.eval_run TO 'crosserp_agent'@'%';

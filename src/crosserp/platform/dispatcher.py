@@ -11,7 +11,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.db.schema import ActionExecution, EntityEvent, EntityVersion
 from crosserp.platform.approval import ApprovalGateway
-from crosserp.platform.audit import AuditRecorder, DefaultAuditRecorder
+from crosserp.platform.audit import AuditRecorder
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 
@@ -51,6 +51,8 @@ def can_ai_execute(risk_tier: RiskTier | str) -> AutonomyDecision:
 class ActionDispatcher:
     """按固定顺序执行动作，并将版本、审计和事件写进同一事务。"""
 
+    _REQUIRED = object()
+
     STAGES = (
         "identity_and_scope",
         "permission",
@@ -65,20 +67,26 @@ class ActionDispatcher:
         self,
         hooks: dict[str, Callable[..., Any]] | None = None,
         *,
-        session: Session | None = None,
-        permission_service: PermissionService | None = None,
-        audit_recorder: AuditRecorder | None = None,
-        approval_gateway: ApprovalGateway | None = None,
+        session: Session | object = _REQUIRED,
+        permission_service: PermissionService | object = _REQUIRED,
+        audit_recorder: AuditRecorder | object = _REQUIRED,
+        approval_gateway: ApprovalGateway | object = _REQUIRED,
         ai_enabled: bool = True,
         ai_mode: str = "normal",
     ) -> None:
         self.hooks = {} if hooks is None else hooks
-        self.session = session
-        if permission_service is None:
+        if session is self._REQUIRED or session is None:
+            raise RuntimeError("ActionDispatcher 必须绑定 Session")
+        if permission_service is self._REQUIRED or permission_service is None:
             raise RuntimeError("ActionDispatcher 必须绑定 PermissionService")
-        self.permission_service = permission_service
-        self.audit_recorder = audit_recorder
-        self.approval_gateway = approval_gateway
+        if audit_recorder is self._REQUIRED or audit_recorder is None:
+            raise RuntimeError("ActionDispatcher 必须绑定 AuditRecorder")
+        if approval_gateway is self._REQUIRED or approval_gateway is None:
+            raise RuntimeError("ActionDispatcher 必须绑定 ApprovalGateway")
+        self.session = cast(Session, session)
+        self.permission_service = cast(PermissionService, permission_service)
+        self.audit_recorder = cast(AuditRecorder, audit_recorder)
+        self.approval_gateway = cast(ApprovalGateway, approval_gateway)
         if ai_mode not in {"normal", "degraded", "off"}:
             raise ValueError("ai_mode 必须是 normal、degraded 或 off")
         self.ai_enabled = ai_enabled and ai_mode == "normal"
@@ -154,9 +162,7 @@ class ActionDispatcher:
                     details={"expectedVersion": expected_version, "actualVersion": current_version},
                 )
 
-            if decision is AutonomyDecision.DRAFT_OR_APPROVAL:
-                if self.approval_gateway is None:
-                    raise APIError(ErrorCode.APPROVAL_REQUIRED, "高风险动作需要审批网关")
+            if principal.is_agent and decision is AutonomyDecision.DRAFT_OR_APPROVAL:
                 approval = self.approval_gateway.submit(
                     principal=principal,
                     entity=context["entity"],
@@ -166,22 +172,18 @@ class ActionDispatcher:
                     approval_type=context["entity"].lower(),
                     request_id=request_id,
                 )
-                approval_result = _approval_result(approval)
-                if principal.is_agent or approval_result.get("status") in {
-                    "pending",
-                    "awaiting_initiator",
-                }:
-                    self._save_execution(
-                        principal=principal,
-                        action=action,
-                        entity=context["entity"],
-                        entity_id=context["entity_id"],
-                        status="awaiting_approval",
-                        result=approval_result,
-                        idempotency_key=idempotency_key,
-                        request_payload=payload,
-                    )
-                    return approval_result
+                result = _approval_result(approval)
+                self._save_execution(
+                    principal=principal,
+                    action=action,
+                    entity=context["entity"],
+                    entity_id=context["entity_id"],
+                    status="awaiting_approval",
+                    result=result,
+                    idempotency_key=idempotency_key,
+                    request_payload=payload,
+                )
+                return result
 
             result = _call_business_action(business_action)
             context["result"] = result
@@ -218,10 +220,8 @@ class ActionDispatcher:
             )
 
     def _transaction(self) -> AbstractContextManager[Any]:
-        if self.session is None:
-            return nullcontext()
         if self.session.in_transaction():
-            return self.session.begin_nested()
+            return nullcontext()
         return self.session.begin()
 
     def _identity_and_scope(
@@ -233,12 +233,12 @@ class ActionDispatcher:
     ) -> None:
         if principal.user_id is None and permission not in {"public", "authenticated"}:
             raise APIError(ErrorCode.AUTH_REQUIRED, "需要登录")
-        current = self.permission_service.current_permissions
+        current_permissions = self.permission_service.current_permissions(principal)
         effective = principal.represented_permissions
         if effective is None and principal.is_agent and principal.on_behalf_of is not None:
-            effective = frozenset(current(principal))
+            effective = current_permissions
         represented = effective if represented_permissions is None else represented_permissions
-        if represented is not None and not principal.permissions.issubset(represented):
+        if represented is not None and not current_permissions.issubset(represented):
             raise APIError(ErrorCode.DELEGATION_SCOPE_EXCEEDED, "智能体不能扩展被代表人权限")
         if (
             parent_permissions is not None
@@ -249,7 +249,7 @@ class ActionDispatcher:
         if (
             principal.is_subagent
             and parent_permissions is not None
-            and not principal.permissions.issubset(parent_permissions)
+            and not current_permissions.issubset(parent_permissions)
         ):
             raise APIError(ErrorCode.DELEGATION_SCOPE_EXCEEDED, "子智能体不能扩展主智能体权限")
         if (
@@ -269,7 +269,7 @@ class ActionDispatcher:
             hook(**context)
 
     def _current_version(self, entity: str, entity_id: str | None) -> int:
-        if self.session is None or entity_id is None:
+        if entity_id is None:
             return 0
         value = self.session.scalar(
             select(func.max(EntityVersion.version)).where(
@@ -279,7 +279,7 @@ class ActionDispatcher:
         return 0 if value is None else int(value)
 
     def _find_replay(self, key: str | None, payload: Any) -> Any:
-        if self.session is None or not key:
+        if not key:
             return None
         row = self.session.scalar(
             select(ActionExecution).where(ActionExecution.idempotency_key == key)
@@ -306,7 +306,7 @@ class ActionDispatcher:
         tool_call_id: str | None,
         payload: Any,
     ) -> int | None:
-        if self.session is None or entity_id is None:
+        if entity_id is None:
             return None
         values = _as_mapping(result)
         before = values.get("before")
@@ -314,8 +314,7 @@ class ActionDispatcher:
             before = payload.get("before")
         after = values.get("after", result)
         diff = values.get("diff", {"before": before, "after": after})
-        recorder = self.audit_recorder or DefaultAuditRecorder(self.session)
-        audit = recorder.record(
+        audit = self.audit_recorder.record(
             principal=principal,
             entity=entity,
             action=action,
@@ -352,7 +351,7 @@ class ActionDispatcher:
     def _emit_events(
         self, context: dict[str, Any], action: str, result: Any, risk_tier: RiskTier | str
     ) -> None:
-        if self.session is None or context.get("entity_id") is None:
+        if context.get("entity_id") is None:
             return
         self.session.add(
             EntityEvent(
@@ -395,8 +394,6 @@ class ActionDispatcher:
         idempotency_key: str | None,
         request_payload: Any,
     ) -> None:
-        if self.session is None:
-            return
         self.session.add(
             ActionExecution(
                 id=uuid4(),
@@ -421,10 +418,8 @@ def _call_business_action(action: Callable[[], Any]) -> Any:
         raise APIError(ErrorCode.INTERNAL_ERROR, "业务动作必须是无参可调用对象") from exc
 
 
-def _approval_result(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return value
-    return {"approvalId": str(value.id), "status": value.state}
+def _approval_result(value: dict[str, Any]) -> dict[str, Any]:
+    return value
 
 
 def _as_mapping(value: Any) -> dict[str, Any]:

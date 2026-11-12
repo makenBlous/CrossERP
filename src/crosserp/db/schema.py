@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -209,20 +209,68 @@ class Store(Base):
     version: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
 
 
+class Category(Base):
+    """商品类目树。版本由实体动作版本链同步维护。"""
+
+    __tablename__ = "category"
+    __table_args__ = (
+        Index("ix_category_parent_id", "parent_id"),
+        UniqueConstraint("parent_id", "name", name="uq_category_parent_name"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    name: Mapped[str] = mapped_column(String(255))
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(), ForeignKey("category.id"), nullable=True
+    )
+    active: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    version: Mapped[int] = mapped_column(Integer(), default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class Brand(Base):
+    """商品品牌主数据。"""
+
+    __tablename__ = "brand"
+    __table_args__ = (Index("ix_brand_name", "name"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    name: Mapped[str] = mapped_column(String(255))
+    active: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    version: Mapped[int] = mapped_column(Integer(), default=1, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime(), default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(
+        UtcDateTime(), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
+    provenance: Mapped[Any] = mapped_column(JSON(), nullable=False, default=dict)
+
+
 class Sku(Base):
     """平台 SKU 与内部 SKU 的映射。"""
 
     __tablename__ = "sku"
     __table_args__ = (
         UniqueConstraint("store_id", "platform_sku", name="uq_sku_store_platform_sku"),
+        Index("ix_sku_brand_id", "brand_id"),
+        Index("ix_sku_category_id", "category_id"),
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    store_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("store.id"))
+    store_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("store.id"))
     platform_sku: Mapped[str] = mapped_column(String(128))
     internal_sku: Mapped[str] = mapped_column(String(128))
     title: Mapped[str | None] = mapped_column(String(512))
-    active: Mapped[bool] = mapped_column(Boolean())
+    title_en: Mapped[str | None] = mapped_column(String(512))
+    brand_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("brand.id"))
+    category_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("category.id"))
+    uom: Mapped[str | None] = mapped_column(String(32))
+    weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
+    hs_code: Mapped[str | None] = mapped_column(String(32))
+    aliases_json: Mapped[list[str]] = mapped_column(JSON(), nullable=False, default=list)
+    active: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    created_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    updated_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
 
 
 class SkuCost(Base):

@@ -23,6 +23,7 @@ from crosserp.db.schema import (
 )
 from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import RiskTier
+from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter()
@@ -89,15 +90,8 @@ def _dispatch_write(
     action: str,
     work: Any,
 ) -> Any:
-    from crosserp.approval.gateway import ApprovalGatewayImpl
-    from crosserp.platform.dispatcher import ActionDispatcher
-
     _require(request, principal, permission, entity=entity)
-    result = ActionDispatcher(
-        session=session,
-        permission_service=request.app.state.permission_service,
-        approval_gateway=ApprovalGatewayImpl(session),
-    ).dispatch(
+    result = make_action_dispatcher(session, request.app.state.permission_service).dispatch(
         principal=principal,
         permission=permission,
         risk_tier=risk,
@@ -130,15 +124,21 @@ def _page(params: PageParams, items: list[Any], total: int) -> dict[str, Any]:
 
 
 def _user_payload(
-    session: Session, user: AppUser, principal: Principal, csrf: str | None = None
+    request: Request,
+    session: Session,
+    user: AppUser,
+    principal: Principal,
+    csrf: str | None = None,
 ) -> dict[str, Any]:
     roles = sorted(principal.roles)
     return {
         "userId": str(user.id),
         "displayName": user.display_name,
         "roles": roles,
-        "permissions": sorted(principal.permissions),
-        "dataScopes": [principal.data_scope or {}],
+        "permissions": sorted(request.app.state.permission_service.current_permissions(principal)),
+        "dataScopes": [
+            request.app.state.permission_service.data_scope_filter(principal, "UserAccount")
+        ],
         "fieldPolicies": [],
         "aiMode": "normal",
         "locale": "zh-CN",

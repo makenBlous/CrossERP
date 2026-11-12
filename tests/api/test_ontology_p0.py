@@ -20,8 +20,10 @@ from crosserp.db.schema import ActionExecution, AuditLog, EntityEvent, EntityVer
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.ontology.catalog import load_catalog, validate_catalog
 from crosserp.platform.approval import ApprovalResolution
+from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
 from crosserp.platform.principal import ActorType, Principal, get_principal
+from tests.api.conftest import TestApprovalGateway
 
 
 class _UnitPermissionService:
@@ -46,8 +48,12 @@ def test_expected_version_conflict_and_idempotent_replay_do_not_write_twice() ->
         engine = make_engine(url)
         entity_id = uuid4()
         principal = Principal(user_id=uuid4(), permissions=frozenset({"store:write"}))
+        session = Session(engine)
         dispatcher = ActionDispatcher(
-            session=Session(engine), permission_service=_UnitPermissionService()
+            session=session,
+            permission_service=_UnitPermissionService(),
+            audit_recorder=DefaultAuditRecorder(session),
+            approval_gateway=TestApprovalGateway(),
         )
         with dispatcher.session.begin():
             first = dispatcher.dispatch(
@@ -91,7 +97,7 @@ def test_expected_version_conflict_and_idempotent_replay_do_not_write_twice() ->
         engine.dispose()
 
 
-def test_subagent_scope_is_nested_and_rechecks_represented_permissions() -> None:
+def test_subagent_scope_is_nested_and_rechecks_represented_permissions(api_engine) -> None:
     class MutablePermissions:
         def __init__(self) -> None:
             self.allowed = {"store:write"}
@@ -107,6 +113,7 @@ def test_subagent_scope_is_nested_and_rechecks_represented_permissions() -> None
             return {}
 
     service = MutablePermissions()
+    session = Session(api_engine)
     represented = uuid4()
     child = Principal(
         user_id=uuid4(),
@@ -115,7 +122,12 @@ def test_subagent_scope_is_nested_and_rechecks_represented_permissions() -> None
         permissions=frozenset({"store:write"}),
         on_behalf_of=represented,
     )
-    dispatcher = ActionDispatcher(permission_service=service)
+    dispatcher = ActionDispatcher(
+        session=session,
+        permission_service=service,
+        audit_recorder=DefaultAuditRecorder(session),
+        approval_gateway=TestApprovalGateway(),
+    )
     dispatcher.dispatch(
         principal=child,
         parent_permissions=frozenset({"store:write", "store:read"}),
@@ -171,6 +183,8 @@ def test_stage_failure_stops_pipeline_without_success_artifacts() -> None:
         dispatcher = ActionDispatcher(
             session=session,
             permission_service=Deny(),
+            audit_recorder=DefaultAuditRecorder(session),
+            approval_gateway=TestApprovalGateway(),
             hooks={
                 stage: (lambda stage=stage, **_: seen.append(stage))
                 for stage in ActionDispatcher.STAGES
@@ -194,12 +208,19 @@ def test_stage_failure_stops_pipeline_without_success_artifacts() -> None:
         engine.dispose()
 
 
-def test_ai_off_and_degraded_modes_are_read_only() -> None:
+def test_ai_off_and_degraded_modes_are_read_only(api_engine) -> None:
     principal = Principal(
         user_id=uuid4(), actor_type=ActorType.AGENT, permissions=frozenset({"store:write"})
     )
     for mode in ("off", "degraded"):
-        dispatcher = ActionDispatcher(ai_mode=mode, permission_service=_UnitPermissionService())
+        session = Session(api_engine)
+        dispatcher = ActionDispatcher(
+            session=session,
+            ai_mode=mode,
+            permission_service=_UnitPermissionService(),
+            audit_recorder=DefaultAuditRecorder(session),
+            approval_gateway=TestApprovalGateway(),
+        )
         with pytest.raises(APIError) as error:
             dispatcher.dispatch(
                 principal=principal,
@@ -226,7 +247,12 @@ def test_medium_action_keeps_reversible_preimage_and_daily_summary_event() -> No
         session = Session(engine)
         entity_id = uuid4()
         with session.begin():
-            ActionDispatcher(session=session, permission_service=_UnitPermissionService()).dispatch(
+            ActionDispatcher(
+                session=session,
+                permission_service=_UnitPermissionService(),
+                audit_recorder=DefaultAuditRecorder(session),
+                approval_gateway=TestApprovalGateway(),
+            ).dispatch(
                 principal=Principal(
                     user_id=uuid4(), actor_type=ActorType.AGENT, permissions=frozenset({"x"})
                 ),
@@ -347,7 +373,7 @@ def test_catalog_loads_all_entities_and_rejects_missing_transition_action() -> N
         validate_catalog(broken)
 
 
-def test_agent_high_risk_submits_approval_without_business_action() -> None:
+def test_agent_high_risk_submits_approval_without_business_action(api_engine) -> None:
     submitted: list[dict[str, object]] = []
 
     class Gateway:
@@ -364,8 +390,12 @@ def test_agent_high_risk_submits_approval_without_business_action() -> None:
         delegation_id="del-1",
         channel="agent",
     )
+    session = Session(api_engine)
     result = ActionDispatcher(
-        approval_gateway=Gateway(), permission_service=_UnitPermissionService()
+        session=session,
+        approval_gateway=Gateway(),
+        permission_service=_UnitPermissionService(),
+        audit_recorder=DefaultAuditRecorder(session),
     ).dispatch(
         principal=principal,
         permission="public",
@@ -386,8 +416,12 @@ def test_dispatch_writes_entity_version_and_rolls_back_with_audit() -> None:
         engine = make_engine(url)
         principal = Principal(user_id=uuid4(), permissions=frozenset({"store:write"}))
         entity_id = uuid4()
+        session = Session(engine)
         dispatcher = ActionDispatcher(
-            session=Session(engine), permission_service=_UnitPermissionService()
+            session=session,
+            permission_service=_UnitPermissionService(),
+            audit_recorder=DefaultAuditRecorder(session),
+            approval_gateway=TestApprovalGateway(),
         )
         with dispatcher.session.begin():
             result = dispatcher.dispatch(
@@ -409,14 +443,20 @@ def test_dispatch_writes_entity_version_and_rolls_back_with_audit() -> None:
         engine.dispose()
 
 
-def test_ai_medium_has_no_count_limit_and_critical_is_rejected() -> None:
+def test_ai_medium_has_no_count_limit_and_critical_is_rejected(api_engine) -> None:
     principal = Principal(
         user_id=uuid4(),
         permissions=frozenset({"store:write"}),
         actor_type=ActorType.AGENT,
     )
     calls: list[int] = []
-    dispatcher = ActionDispatcher(permission_service=_UnitPermissionService())
+    session = Session(api_engine)
+    dispatcher = ActionDispatcher(
+        session=session,
+        permission_service=_UnitPermissionService(),
+        audit_recorder=DefaultAuditRecorder(session),
+        approval_gateway=TestApprovalGateway(),
+    )
     for index in range(8):
         dispatcher.dispatch(
             principal=principal,
@@ -438,8 +478,14 @@ def test_ai_medium_has_no_count_limit_and_critical_is_rejected() -> None:
     assert 99 not in calls
 
 
-def test_business_action_rejects_nonzero_argument_contract() -> None:
-    dispatcher = ActionDispatcher(permission_service=_UnitPermissionService())
+def test_business_action_rejects_nonzero_argument_contract(api_engine) -> None:
+    session = Session(api_engine)
+    dispatcher = ActionDispatcher(
+        session=session,
+        permission_service=_UnitPermissionService(),
+        audit_recorder=DefaultAuditRecorder(session),
+        approval_gateway=TestApprovalGateway(),
+    )
     principal = Principal(user_id=uuid4(), permissions=frozenset({"store:write"}))
     with pytest.raises(APIError) as error:
         dispatcher.dispatch(
@@ -452,8 +498,14 @@ def test_business_action_rejects_nonzero_argument_contract() -> None:
     assert error.value.code is ErrorCode.INTERNAL_ERROR
 
 
-def test_three_channels_have_same_result_and_denial() -> None:
-    dispatcher = ActionDispatcher(permission_service=_UnitPermissionService())
+def test_three_channels_have_same_result_and_denial(api_engine) -> None:
+    session = Session(api_engine)
+    dispatcher = ActionDispatcher(
+        session=session,
+        permission_service=_UnitPermissionService(),
+        audit_recorder=DefaultAuditRecorder(session),
+        approval_gateway=TestApprovalGateway(),
+    )
     results = []
     for channel in ("web", "agent", "import"):
         results.append(

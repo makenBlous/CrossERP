@@ -63,7 +63,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             request_id = request.state.request_id
             return JSONResponse(
                 error_payload(
-                    ErrorCode.VALIDATION_FAILED,
+                    ErrorCode.VALIDATION_ERROR,
                     "Idempotency-Key 过长",
                     request_id,
                 ),
@@ -211,11 +211,9 @@ def install_api(app: FastAPI, engine: Any) -> None:
     """把 API 中间件、异常处理器和自动路由安装到现有 FastAPI 应用。"""
     app.state.database_engine = engine
     iam_service = IAMService(engine)
-    from crosserp.platform.dispatcher import ActionDispatcher
 
     app.state.iam_service = iam_service
     app.state.permission_service = DefaultPermissionService(iam_service)
-    app.state.dispatcher = ActionDispatcher(permission_service=app.state.permission_service)
     app.state.audit_exports = {}
     app.add_middleware(IdempotencyMiddleware, engine=engine)
     app.add_middleware(RequestIdMiddleware)
@@ -231,7 +229,7 @@ def install_api(app: FastAPI, engine: Any) -> None:
     async def handle_validation_error(request: Request, exc: ValidationError) -> JSONResponse:
         return JSONResponse(
             error_payload(
-                ErrorCode.VALIDATION_FAILED,
+                ErrorCode.VALIDATION_ERROR,
                 "请求参数校验失败",
                 request.state.request_id,
                 {"errors": exc.errors()},
@@ -245,7 +243,7 @@ def install_api(app: FastAPI, engine: Any) -> None:
     ) -> JSONResponse:
         return JSONResponse(
             error_payload(
-                ErrorCode.VALIDATION_FAILED,
+                ErrorCode.VALIDATION_ERROR,
                 "请求参数校验失败",
                 request.state.request_id,
                 {"errors": exc.errors()},
