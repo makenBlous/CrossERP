@@ -37,7 +37,9 @@ def _override(client: TestClient, principal: Principal) -> Principal:
         if principal.permissions:
             grant_role(session, user.id, "admin")
         user_id = user.id
-    effective = replace(principal, user_id=user_id, on_behalf_of=user_id if principal.is_agent else None)
+    effective = replace(
+        principal, user_id=user_id, on_behalf_of=user_id if principal.is_agent else None
+    )
     client.app.dependency_overrides[get_principal] = lambda: effective
     return effective
 
