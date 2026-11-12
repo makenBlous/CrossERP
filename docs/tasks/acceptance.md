@@ -108,9 +108,11 @@ uv run python scripts/check_merge_guard.py --list-rules   # 打印全部规则
 - 结论"通过"且第二节每条命中都已判定、豁免段理由充分 → 用豁免段生成 `%TEMP%\cx-pw\backend\<块>-waivers.txt`，复跑 `check_merge_guard --waivers` 退出码 0 → 写 `<块>-ok.txt`，更新功能文件的"进度"和 [README](README.md) 进度表。
 - 结论"不通过" → 按"返工项"写返工任务（在原工作树新提交），返工后重新走 ①②。
 - 监督方仍要抽查验收报告：至少核对"测试断言改动"一节与 diff 一致。
+- 合入 main 后更新 [`docs/PROJECT_MEMORY.md`](../PROJECT_MEMORY.md)（当前状态、新增决策；见该文件「更新规则」）。
 
 ## 5. ④ 合并任务里的接入
 
 合并任务卡（merge-*）在每块 `git merge` 之前加两步：
 1. 确认 `<块>-ok.txt` 和 `<块>-accept.txt` 存在且结论为"通过"。
 2. 在主工作区对该块提交跑 `check_merge_guard --base <合并前 main> --head <块提交> --waivers <块>-waivers.txt`，退出码 0 才合并。合并时解决冲突产生的新改动，合并后再对 `<合并前 main>..HEAD` 跑一次；新命中要么修掉，要么走一次补充验收。
+3. 合入后更新 [`docs/PROJECT_MEMORY.md`](../PROJECT_MEMORY.md)。可与功能文件进度放在同一提交，或紧接着再提交一次。
