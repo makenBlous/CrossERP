@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from datetime import date
 from decimal import Decimal
 from typing import Any, cast
@@ -15,14 +14,19 @@ from sqlalchemy.sql import Select
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.schemas import CamelModel
-from crosserp.core.errors import PrecisionError
+from crosserp.core.money import to_amount_minor
 from crosserp.db.schema import EntityVersion, Issue, Match, ReconRun, Store
+from crosserp.iam.scope import (
+    apply_period_scope,
+    apply_store_scope,
+    period_contains,
+    store_contains,
+)
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 from crosserp.recon.engine import reconcile
 
-_MINOR = Decimal(10000)
 _SORTS = {
     "createdAt": ReconRun.started_at,
     "period": ReconRun.period,
@@ -57,16 +61,9 @@ def scope_denied(
     store_id: UUID,
     period: str,
 ) -> bool:
-    scope = permission_service.data_scope_filter(principal, "ReconRun")
-    scopes = scope["scopes"]
-    if "all" in scopes:
-        return False
-    filters = cast(Mapping[str, Any], scope["filters"])
-    store_ids = {str(value) for value in filters["storeIds"]} if "storeIds" in filters else None
-    periods = {str(value) for value in filters["periods"]} if "periods" in filters else None
-    store_blocked = store_ids is not None and str(store_id) not in store_ids
-    period_blocked = periods is not None and period not in periods
-    return store_blocked or period_blocked
+    stores = permission_service.store_scope(principal, "ReconRun")
+    periods = permission_service.period_scope(principal, "ReconRun")
+    return not store_contains(stores, store_id) or not period_contains(periods, period)
 
 
 def list_recon_runs(
@@ -115,6 +112,9 @@ def list_recon_runs(
                 version=versions.get(str(run.id)),
                 issue_count=issue_counts.get(run.id, 0),
                 detail=False,
+                session=session,
+                permission_service=permission_service,
+                principal=principal,
             )
             for run in runs
         ],
@@ -138,14 +138,17 @@ def get_recon_run(
     store = session.get(Store, run.store_id)
     if store is None:
         raise not_found(message="对账运行不存在")
-    version = _versions(session, [run.id]).get(str(run.id))
+    versions = _versions(session, [run.id])
+    counts = _issue_counts(session, [run.id])
     return _run_dict(
         run,
         store,
-        version=version,
-        issue_count=_issue_counts(session, [run.id]).get(run.id, 0),
+        version=versions.get(str(run.id)),
+        issue_count=counts.get(run.id, 0),
         detail=True,
         session=session,
+        permission_service=permission_service,
+        principal=principal,
     )
 
 
@@ -186,14 +189,19 @@ def create_recon_run(
         store = session.get(Store, run.store_id)
         if store is None:
             raise APIError(ErrorCode.INTERNAL_ERROR, "对账店铺未写入")
-        return _run_dict(
+        counts = _issue_counts(session, [run.id])
+        created = _run_dict(
             run,
             store,
             version=None,
-            issue_count=_issue_counts(session, [run.id]).get(run.id, 0),
+            issue_count=counts.get(run.id, 0),
             detail=True,
             session=session,
+            permission_service=permission_service,
+            principal=principal,
         )
+        created["before"] = {}
+        return created
 
     return cast(
         dict[str, Any],
@@ -218,19 +226,19 @@ def _apply_scope(
     permission_service: PermissionService,
     principal: Principal,
 ) -> Select[Any]:
-    scope = permission_service.data_scope_filter(principal, "ReconRun")
-    if "all" in scope["scopes"]:
-        return statement
-    filters = cast(Mapping[str, Any], scope["filters"])
-    if "storeIds" in filters:
-        statement = statement.where(
-            ReconRun.store_id.in_([UUID(str(value)) for value in filters["storeIds"]])
-        )
-    if "periods" in filters:
-        statement = statement.where(
-            ReconRun.period.in_([str(value) for value in filters["periods"]])
-        )
-    return statement
+    scoped = apply_store_scope(
+        statement,
+        ReconRun.store_id,
+        permission_service.store_scope(principal, "ReconRun"),
+    )
+    return cast(
+        Select[Any],
+        apply_period_scope(
+            scoped,
+            ReconRun.period,
+            permission_service.period_scope(principal, "ReconRun"),
+        ),
+    )
 
 
 def _ordering(sort: str | None) -> tuple[Any, ...]:
@@ -238,12 +246,12 @@ def _ordering(sort: str | None) -> tuple[Any, ...]:
         return (ReconRun.started_at.desc(), ReconRun.id.desc())
     descending = sort.startswith("-")
     field = sort[1:] if descending else sort
-    column = _SORTS.get(field)
-    if column is None:
+    if field not in _SORTS:
         raise APIError(
             ErrorCode.VALIDATION_FAILED,
             "sort 只支持 createdAt、period、matched、status、finishedAt",
         )
+    column = _SORTS[field]
     return (
         column.desc() if descending else column.asc(),
         ReconRun.id.desc() if descending else ReconRun.id.asc(),
@@ -279,11 +287,7 @@ def _issue_counts(session: Session, run_ids: list[UUID]) -> dict[UUID, int]:
 
 
 def _minor_units(amount: Decimal) -> int:
-    scaled = amount * _MINOR
-    integral = scaled.to_integral_value()
-    if scaled != integral:
-        raise PrecisionError("金额小数位超过 4 位。拒绝舍入")
-    return int(integral)
+    return to_amount_minor(amount)
 
 
 def _match_rate(run: ReconRun) -> str | None:
@@ -315,7 +319,9 @@ def _run_dict(
     version: EntityVersion | None,
     issue_count: int,
     detail: bool,
-    session: Session | None = None,
+    session: Session,
+    permission_service: PermissionService,
+    principal: Principal,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "id": str(run.id),
@@ -343,10 +349,12 @@ def _run_dict(
         "provenance": _provenance(run, version),
     }
     if detail:
-        if session is None:
-            raise APIError(ErrorCode.INTERNAL_ERROR, "详情查询缺少会话")
         payload["matches"] = [
-            _match_dict(row, store.currency)
+            permission_service.serialize(
+                principal,
+                _match_dict(row, store.currency),
+                {"diff": "sku.cost:read"},
+            )
             for row in session.scalars(select(Match).where(Match.recon_run_id == run.id))
         ]
         payload["issueItems"] = [

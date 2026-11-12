@@ -8,16 +8,18 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from crosserp.auth.roles import Role
 from crosserp.db.repo.users import create_user, grant_role
 from crosserp.db.schema import (
+    ActionExecution,
     Approval,
     AuditLog,
     EntityVersion,
     IamDataScopeRule,
+    IamPermissionOverride,
     ImportBatch,
     Match,
     OrderLine,
@@ -132,7 +134,7 @@ def test_recon_run_create_list_get_replay_and_commit(json_client: TestClient, ap
         json={"storeId": str(visible_id), "period": "2026-10"},
         headers={"Idempotency-Key": "recon-create-1"},
     )
-    assert created.status_code == 200
+    assert created.status_code == 200, created.text
     body = created.json()
     assert body["storeId"] == str(visible_id)
     assert body["period"] == "2026-10"
@@ -380,8 +382,51 @@ def test_recon_run_agent_low_risk_executes_and_audits(json_client: TestClient, a
     assert stored is not None
 
 
+def test_recon_other_user_cannot_replay_original_response(
+    json_client: TestClient, api_engine
+) -> None:
+    from crosserp.platform.principal import get_principal
+
+    _override(json_client, _principal(), Role.ADMIN.value)
+    with Session(api_engine) as session, session.begin():
+        store = _store(session, "隔离回放店")
+        store_id = store.id
+    payload = {"storeId": str(store_id), "period": "2026-10"}
+    headers = {"Idempotency-Key": "recon-cross-user"}
+    first = json_client.post("/api/v1/finance/recon-runs", json=payload, headers=headers)
+    assert first.status_code == 200
+
+    peer = _principal()
+    with Session(api_engine) as session, session.begin():
+        user = create_user(
+            session,
+            username=f"recon-peer-{uuid4().hex}",
+            password="Recon-test-password-123",
+        )
+        grant_role(session, user.id, Role.ADMIN.value)
+        peer_id = user.id
+    json_client.app.dependency_overrides[get_principal] = lambda: replace(peer, user_id=peer_id)
+    replay = json_client.post("/api/v1/finance/recon-runs", json=payload, headers=headers)
+    assert replay.status_code == 200
+    assert replay.json()["id"] != first.json()["id"]
+    assert replay.json() != first.json()
+    with Session(api_engine) as session, session.begin():
+        session.execute(delete(ActionExecution))
+
+
 def test_recon_detail_amount_uses_minor_units(json_client: TestClient, api_engine) -> None:
-    _override(json_client, _principal(), Role.VIEWER.value)
+    principal = _override(json_client, _principal(), Role.VIEWER.value)
+    with Session(api_engine) as session, session.begin():
+        session.add(
+            IamPermissionOverride(
+                user_id=principal.user_id,
+                permission="sku.cost:read",
+                effect="allow",
+                reason="对账差额字段",
+                data_scopes=[],
+                created_at=datetime.now(UTC),
+            )
+        )
     with Session(api_engine) as session, session.begin():
         store = _store(session, "金额店")
         batch = ImportBatch(
@@ -442,3 +487,60 @@ def test_recon_detail_amount_uses_minor_units(json_client: TestClient, api_engin
     listed = json_client.get("/api/v1/finance/recon-runs", params={"q": "金额店"})
     assert listed.status_code == 200
     assert listed.json()["items"][0]["matchRate"] == "0.25"
+
+
+def test_recon_hides_diff_without_amount_permission(json_client: TestClient, api_engine) -> None:
+    _override(json_client, _principal(), Role.VIEWER.value)
+    with Session(api_engine) as session, session.begin():
+        store = _store(session, "无差额店")
+        now = datetime(2026, 10, 31, tzinfo=UTC)
+        batch = ImportBatch(
+            connector_id="test",
+            connector_version="1",
+            file_name="orders.csv",
+            imported_at=now,
+            row_count=1,
+            status="done",
+            error_count=0,
+        )
+        session.add(batch)
+        session.flush()
+        order = OrderLine(
+            store_id=store.id,
+            platform_order_id="ORDER-2",
+            platform_sku="SKU-2",
+            qty=1,
+            order_date=now,
+            item_price=Decimal("2.0000"),
+            currency="USD",
+            source_batch_id=batch.id,
+        )
+        run = ReconRun(
+            store_id=store.id,
+            period="2026-10",
+            as_of=date(2026, 10, 31),
+            rule_set_version="test",
+            started_at=now,
+            finished_at=now,
+            status="done",
+            groups_total=1,
+            groups_matched=1,
+            non_order_lines=0,
+        )
+        session.add_all([order, run])
+        session.flush()
+        session.add(
+            Match(
+                recon_run_id=run.id,
+                order_line_id=order.id,
+                rule_id="amount",
+                status="matched",
+                diff=Decimal("2.0000"),
+                matched_at=now,
+            )
+        )
+        run_id = run.id
+
+    detail = json_client.get(f"/api/v1/finance/recon-runs/{run_id}")
+    assert detail.status_code == 200
+    assert "diff" not in detail.json()["matches"][0]

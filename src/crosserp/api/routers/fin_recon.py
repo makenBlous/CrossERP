@@ -20,7 +20,7 @@ from crosserp.finance.recon import (
     get_recon_run,
     list_recon_runs,
 )
-from crosserp.platform.permissions import PermissionService
+from crosserp.platform.permissions import PermissionService, get_permission_service
 from crosserp.platform.principal import Principal, get_principal
 
 router = APIRouter(tags=["平台结算对账与资金"])
@@ -30,12 +30,14 @@ def get_database_engine(request: Request) -> Engine:
     return cast(Engine, request.app.state.database_engine)
 
 
-def get_permission_service(request: Request) -> PermissionService:
-    return cast(PermissionService, request.app.state.permission_service)
-
-
 @router.get("/finance/recon-runs")
-@api_endpoint(entity="ReconRun", action="ReconRun.list", permission="report:read", risk_tier="none")
+@api_endpoint(
+    entity="ReconRun",
+    action="ReconRun.list",
+    permission="report:read",
+    risk_tier="none",
+    idempotency="none",
+)
 def get_finance_recon_runs(
     request: Request,
     database_engine: Engine = Depends(get_database_engine),
@@ -64,6 +66,7 @@ def get_finance_recon_runs(
     action="ReconRun.create",
     permission="integration:write",
     risk_tier="low",
+    idempotency="dispatcher",
 )
 def post_finance_recon_runs(
     request: Request,
@@ -87,7 +90,13 @@ def post_finance_recon_runs(
 
 
 @router.get("/finance/recon-runs/{id}")
-@api_endpoint(entity="ReconRun", action="ReconRun.get", permission="report:read", risk_tier="none")
+@api_endpoint(
+    entity="ReconRun",
+    action="ReconRun.get",
+    permission="report:read",
+    risk_tier="none",
+    idempotency="none",
+)
 def get_finance_recon_run(
     request: Request,
     id: UUID,

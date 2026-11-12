@@ -7,21 +7,36 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
-from crosserp.db.schema import Brand, Bundle, Category, Listing, Sku, SkuMapping, Store
+from crosserp.db.schema import (
+    Brand,
+    Bundle,
+    Category,
+    Issue,
+    Listing,
+    Match,
+    ReconRun,
+    Sku,
+    SkuMapping,
+    Store,
+)
 
 UNDO_UNSUPPORTED = "该实体不支持撤销"
 
 
 def supports_undo(entity_type: str) -> bool:
-    return entity_type in _MODEL
+    return entity_type in _MODEL or entity_type in _CUSTOM
 
 
 def restore_entity(
     session: Session, entity_type: str, entity_id: str, before: dict[str, Any]
 ) -> None:
+    if entity_type in _CUSTOM:
+        _CUSTOM[entity_type](session, entity_id, before)
+        return
     if not supports_undo(entity_type):
         raise APIError(ErrorCode.VALIDATION_FAILED, UNDO_UNSUPPORTED)
     model = _MODEL[entity_type]
@@ -82,6 +97,25 @@ def _snake(name: str) -> str:
     }.get(name, name)
 
 
+def _recon_run(session: Session, entity_id: str, before: dict[str, Any]) -> None:
+    """创建对账运行的撤销删除该运行。有前快照时只回写状态。"""
+    row = session.get(ReconRun, UUID(entity_id))
+    if row is None:
+        raise APIError(ErrorCode.NOT_FOUND, "撤销目标不存在")
+    if not before:
+        session.execute(delete(Match).where(Match.recon_run_id == row.id))
+        session.execute(delete(Issue).where(Issue.recon_run_id == row.id))
+        session.delete(row)
+        session.flush()
+        return
+    if "status" in before:
+        row.status = str(before["status"])
+    session.flush()
+
+
+_CUSTOM: dict[str, Callable[[Session, str, dict[str, Any]], None]] = {
+    "ReconRun": _recon_run,
+}
 _MODEL = {
     "Brand": Brand,
     "Category": Category,
