@@ -21,8 +21,8 @@ from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.ontology.catalog import load_catalog, validate_catalog
 from crosserp.platform.approval import ApprovalSubmission
 from crosserp.platform.audit import DefaultAuditRecorder
-from crosserp.platform.file_storage import FileStorage
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
+from crosserp.platform.file_storage import FileStorage
 from crosserp.platform.principal import ActorType, Principal, get_principal
 from tests.api.conftest import TestApprovalGateway
 

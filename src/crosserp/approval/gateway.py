@@ -144,6 +144,13 @@ class ApprovalGatewayImpl:
         resolution = self.resolver.resolve(
             approval_type, principal.effective_user_id, principal.on_behalf_of
         )
+        submitted_resolution = {
+            "mode": "",
+            "reason": resolution["reason"],
+            "ruleVersion": resolution["ruleVersion"],
+            "snapshot": resolution["snapshot"],
+            "note": "",
+        }
         no_approver = not resolution["approvers"]
         high_or_money = risk_tier in {"high", "critical"} or entity.lower() in {
             "voucher",
@@ -158,6 +165,8 @@ class ApprovalGatewayImpl:
             mode, state = "no_approver_auto", "auto_effective"
         else:
             mode, state = "approver", "pending"
+        submitted_resolution["mode"] = mode
+        submitted_resolution["note"] = _note(mode, resolution["reason"])
         row = Approval(
             id=uuid4(),
             target_type=entity,
@@ -172,13 +181,7 @@ class ApprovalGatewayImpl:
             risk_tier=risk_tier,
             actor_type="agent" if principal.is_agent else "human",
             on_behalf_of=principal.on_behalf_of,
-            resolution={
-                "mode": mode,
-                "reason": resolution["reason"],
-                "ruleVersion": resolution["ruleVersion"],
-                "snapshot": resolution["snapshot"],
-                "note": _note(mode, resolution["reason"]),
-            },
+            resolution=submitted_resolution,
             content_hash=payload_hash,
             approver_ids=active_step["approvers"] if active_step else [],
             current_step=active_step["index"] if active_step else 0,
@@ -229,7 +232,7 @@ class ApprovalGatewayImpl:
                     diff_json={"step": step["index"], "reason": step["reason"]},
                     request_id=request_id,
                 )
-        return ApprovalSubmission(row.id, state, row.resolution)
+        return ApprovalSubmission(row.id, state, submitted_resolution)
 
     def decide(
         self,
