@@ -19,6 +19,7 @@ from crosserp.api.schemas import (
 )
 from crosserp.db.schema import ActionExecution, Listing, Store
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier, _request_hash
+from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 
@@ -246,7 +247,7 @@ class ListingService:
         return result
 
     def _dispatcher(self) -> ActionDispatcher:
-        return ActionDispatcher(session=self.session, permission_service=self.permission_service)
+        return make_action_dispatcher(self.session, self.permission_service)
 
     def _scope_statement(self, statement: Any) -> Any:
         ids = _scope_store_ids(self.permission_service.data_scope_filter(self.principal, "Listing"))
