@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import UUID, uuid4
@@ -16,7 +17,19 @@ from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.routers.agent_undo import _permission_service
 from crosserp.approval.gateway import ApprovalGatewayImpl
 from crosserp.db.migrate import upgrade_head
-from crosserp.db.schema import AgentUndo, AuditLog, Brand, EntityEvent, EntityVersion, Store
+from crosserp.db.schema import (
+    AgentUndo,
+    AuditLog,
+    Brand,
+    Bundle,
+    Category,
+    EntityEvent,
+    EntityVersion,
+    Listing,
+    Sku,
+    SkuMapping,
+    Store,
+)
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.iam.scope import AllStores
 from crosserp.platform.audit import DefaultAuditRecorder
@@ -451,6 +464,154 @@ def test_daily_summary_counts_only_current_user_agent_actions() -> None:
         assert response.json()["count"] == 1
         assert response.json()["message"] == "AI 今天替你做了 1 件事"
         engine.dispose()
+
+
+def test_each_catalog_medium_update_undo_restores_the_row() -> None:
+    with TemporaryDirectory() as directory:
+        url = sqlite_file_url(Path(directory) / "undo-catalog.db")
+        upgrade_head(url)
+        engine = make_engine(url)
+        try:
+            _restore_catalog_rows(engine)
+        finally:
+            engine.dispose()
+
+
+def _restore_catalog_rows(engine) -> None:
+    now = datetime.now(UTC)
+    owner = uuid4()
+    store_id = uuid4()
+    category_id = uuid4()
+    sku_id = uuid4()
+    listing_id = uuid4()
+    mapping_id = uuid4()
+    bundle_id = uuid4()
+    permissions = frozenset(
+        {"item_group:write", "item:write", "listing:write", "agent_suggestion:create"}
+    )
+    agent = Principal(
+        user_id=owner,
+        actor_type=ActorType.AGENT,
+        permissions=permissions,
+    )
+    with Session(engine) as session, session.begin():
+        session.add(
+            Store(
+                id=store_id,
+                platform="amazon",
+                marketplace="US",
+                name="scope",
+                currency="USD",
+            )
+        )
+        session.flush()
+        session.add_all(
+            [
+                Category(
+                    id=category_id,
+                    name="new-category",
+                    active=True,
+                    version=1,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                Sku(
+                    id=sku_id,
+                    platform_sku="P-NEW",
+                    internal_sku="I-NEW",
+                    title="new-title",
+                    aliases_json=[],
+                    active=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                Listing(
+                    id=listing_id,
+                    store_id=store_id,
+                    platform_sku="L-NEW",
+                    price=Decimal("1.0000"),
+                    currency="USD",
+                    status="inactive",
+                    version=1,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                SkuMapping(
+                    id=mapping_id,
+                    platform_sku="M-NEW",
+                    store_id=store_id,
+                    internal_sku="I-NEW",
+                    confidence="high",
+                    source="human",
+                    state="confirmed",
+                    version=1,
+                    created_at=now,
+                    updated_at=now,
+                    provenance_json={},
+                ),
+                Bundle(
+                    id=bundle_id,
+                    bundle_sku="BUNDLE-NEW",
+                    components_json=[],
+                    active=True,
+                    version=1,
+                    created_at=now,
+                    updated_at=now,
+                ),
+            ]
+        )
+    with Session(engine) as session:
+        dispatcher = _dispatcher(session, _Permissions())
+        cases = (
+            (
+                "Category",
+                category_id,
+                "Category.update",
+                "item_group:write",
+                {"name": "old-category"},
+            ),
+            ("Sku", sku_id, "Sku.update", "item:write", {"title": "old-title"}),
+            (
+                "Listing",
+                listing_id,
+                "Listing.update",
+                "listing:write",
+                {"status": "active", "storeId": str(store_id)},
+            ),
+            (
+                "SkuMapping",
+                mapping_id,
+                "SkuMapping.create",
+                "item:write",
+                {"state": "suggested", "storeId": str(store_id)},
+            ),
+            ("Bundle", bundle_id, "Bundle.update", "item:write", {"bundleSku": "BUNDLE-OLD"}),
+        )
+        undo_ids = []
+        for entity, entity_id, action, permission, before in cases:
+            result = dispatcher.dispatch(
+                principal=agent,
+                permission=permission,
+                risk_tier=RiskTier.MEDIUM,
+                entity=entity,
+                entity_id=str(entity_id),
+                action=action,
+                business_action=lambda before=before: {"before": before, "after": {}},
+            )
+            undo_ids.append(result["undoId"])
+        with session.begin():
+            for undo_id in undo_ids:
+                restored = dispatcher.undo(
+                    undo_id,
+                    principal=Principal(user_id=owner, permissions=permissions),
+                )
+                assert restored["undone"] is True
+    with Session(engine) as check:
+        assert check.get(Category, category_id).name == "old-category"
+        assert check.get(Sku, sku_id).title == "old-title"
+        assert check.get(Listing, listing_id).status == "active"
+        assert check.get(SkuMapping, mapping_id).state == "suggested"
+        assert check.get(Bundle, bundle_id).bundle_sku == "BUNDLE-OLD"
 
 
 def test_command_without_catalog_emits_raises() -> None:

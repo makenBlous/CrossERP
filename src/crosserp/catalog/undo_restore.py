@@ -30,7 +30,8 @@ def restore_entity(
         raise APIError(ErrorCode.NOT_FOUND, "撤销目标不存在")
     _FIELDS[entity_type](row, before)
     row.updated_at = datetime.now(UTC)
-    row.version = int(row.version) + 1
+    if entity_type != "Sku":
+        row.version = int(row.version) + 1
     session.flush()
 
 
