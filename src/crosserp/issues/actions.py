@@ -16,6 +16,7 @@ from crosserp.api.schemas import CamelModel
 from crosserp.approval.gateway import ApprovalGatewayImpl
 from crosserp.audit.context import AuditContext
 from crosserp.core.enums import IssueStatus
+from crosserp.core.money import to_amount_minor
 from crosserp.db.repo.issues import detail_of
 from crosserp.db.schema import (
     EntityVersion,
@@ -27,6 +28,7 @@ from crosserp.db.schema import (
     Store,
     Voucher,
 )
+from crosserp.iam.scope import AllStores, store_contains
 from crosserp.issues.catalog import render
 from crosserp.issues.service import transition
 from crosserp.ledger.write_service import write_issue_adjustment_draft
@@ -82,7 +84,14 @@ def list_recon_issues(
     page_rows = rows[start : start + page_size]
     versions = _versions(session, [str(row.id) for row in page_rows])
     return {
-        "items": [_issue_dict(session, row, versions.get(str(row.id), 0)) for row in page_rows],
+        "items": [
+            permission_service.serialize(
+                principal,
+                _issue_dict(session, row, versions.get(str(row.id), 0)),
+                {"amount": "sku.cost:read"},
+            )
+            for row in page_rows
+        ],
         "page": page,
         "pageSize": page_size,
         "total": total,
@@ -100,7 +109,12 @@ def get_recon_issue(
     issue = session.get(Issue, issue_id)
     if issue is None or not _in_scope(session, principal, permission_service, issue):
         raise not_found()
-    return _issue_dict(session, issue, _versions(session, [str(issue.id)]).get(str(issue.id), 0))
+    versions = _versions(session, [str(issue.id)])
+    return permission_service.serialize(
+        principal,
+        _issue_dict(session, issue, versions.get(str(issue.id), 0)),
+        {"amount": "sku.cost:read"},
+    )
 
 
 def resolve_issue(
@@ -202,7 +216,7 @@ def draft_voucher_from_issue(
             return {
                 "id": str(issue.id),
                 "status": approval.state,
-                "approvalId": str(approval.id),
+                "approvalId": str(approval.approval_id),
                 "before": before,
                 "after": before,
             }
@@ -212,7 +226,7 @@ def draft_voucher_from_issue(
             "id": str(voucher.id),
             "status": voucher.state,
             "issueId": str(issue.id),
-            "approvalId": str(approval.id),
+            "approvalId": str(approval.approval_id),
             "amount": _money_payload(voucher.total_debit, voucher.currency),
             "before": before,
             "after": after,
@@ -322,21 +336,11 @@ def _in_scope(
     permission_service: PermissionService,
     issue: Issue,
 ) -> bool:
-    allowed = _allowed_store_ids(principal, permission_service)
-    if allowed is None:
-        return True
+    scope = permission_service.store_scope(principal, "ReconIssue")
     store_id = store_id_of(session, issue)
-    return store_id is not None and str(store_id) in allowed
-
-
-def _allowed_store_ids(
-    principal: Principal, permission_service: PermissionService
-) -> set[str] | None:
-    scope = permission_service.data_scope_filter(principal, "ReconIssue")
-    filters = scope["filters"]
-    if "all" in scope["scopes"] or "storeIds" not in filters:
-        return None
-    return {str(value) for value in filters["storeIds"]}
+    if store_id is None:
+        return isinstance(scope, AllStores)
+    return store_contains(scope, store_id)
 
 
 def _sorted(rows: list[Issue], sort: str | None) -> list[Issue]:
@@ -501,10 +505,7 @@ def _decimal_amount(session: Session, issue: Issue) -> Decimal:
 
 
 def _money_payload(amount: Decimal, currency: str) -> dict[str, Any]:
-    minor = amount * 10000
-    if minor != minor.to_integral_value():
-        raise APIError(ErrorCode.VALIDATION_FAILED, "金额小数位超过 4 位")
-    return {"amountMinor": int(minor), "currency": currency}
+    return {"amountMinor": to_amount_minor(amount), "currency": currency}
 
 
 def _iso(value: datetime) -> str:

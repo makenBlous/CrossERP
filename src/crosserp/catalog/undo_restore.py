@@ -113,8 +113,21 @@ def _recon_run(session: Session, entity_id: str, before: dict[str, Any]) -> None
     session.flush()
 
 
+def _recon_issue(session: Session, entity_id: str, before: dict[str, Any]) -> None:
+    row = session.get(Issue, UUID(entity_id))
+    if row is None:
+        raise APIError(ErrorCode.NOT_FOUND, "撤销目标不存在")
+    if "status" in before:
+        row.status = str(before["status"])
+    if "resolutionNote" in before:
+        note = before["resolutionNote"]
+        row.resolution_note = None if note is None else str(note)
+    session.flush()
+
+
 _CUSTOM: dict[str, Callable[[Session, str, dict[str, Any]], None]] = {
     "ReconRun": _recon_run,
+    "ReconIssue": _recon_issue,
 }
 _MODEL = {
     "Brand": Brand,

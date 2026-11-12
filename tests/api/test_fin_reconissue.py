@@ -5,12 +5,13 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from crosserp.auth.roles import Role
 from crosserp.db.repo.users import create_user
 from crosserp.db.schema import (
+    ActionExecution,
     Approval,
     AuditLog,
     EntityVersion,
@@ -315,6 +316,39 @@ def test_resolve_hides_unauthorized_replay_and_missing_key(
     assert anonymous.status_code == 401
 
 
+def test_other_admin_does_not_receive_resolve_replay(
+    json_client: TestClient, api_engine
+) -> None:
+    with Session(api_engine) as session, session.begin():
+        _user(session, "issue-owner", Role.ADMIN)
+        _user(session, "issue-peer", Role.ADMIN)
+        store = _store("跨用户店")
+        session.add(store)
+        session.flush()
+        issue = _issue(store)
+        session.add(issue)
+        session.flush()
+        issue_id = issue.id
+
+    owner_csrf = _login(json_client, "issue-owner", "Issue-test-password-1")
+    first = json_client.post(
+        f"/api/v1/finance/issues/{issue_id}/resolve",
+        json=_resolve_body(),
+        headers=_headers(owner_csrf, "issue-cross-user"),
+    )
+    assert first.status_code == 200
+    peer_csrf = _login(json_client, "issue-peer", "Issue-test-password-1")
+    replay = json_client.post(
+        f"/api/v1/finance/issues/{issue_id}/resolve",
+        json=_resolve_body(),
+        headers=_headers(peer_csrf, "issue-cross-user"),
+    )
+    assert replay.json() != first.json()
+    assert replay.status_code == 409
+    with Session(api_engine) as session, session.begin():
+        session.execute(delete(ActionExecution))
+
+
 def test_agent_resolve_executes_and_records_actor(json_client: TestClient, api_engine) -> None:
     with Session(api_engine) as session, session.begin():
         user = create_user(
@@ -466,7 +500,8 @@ def test_agent_draft_voucher_only_creates_approval(json_client: TestClient, api_
     )
     assert response.status_code == 200
     assert response.json()["status"] == "awaiting_initiator"
-    assert response.json()["id"] == str(issue_id)
+    assert response.json()["approvalId"]
+    assert "id" not in response.json()
     replay = json_client.post(
         f"/api/v1/finance/issues/{issue_id}/draft-voucher",
         json={"expectedVersion": 0},

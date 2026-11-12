@@ -53,7 +53,11 @@ def _require_idempotency_key(idempotency_key: str | None) -> str:
 
 @router.get("/finance/issues")
 @api_endpoint(
-    entity="ReconIssue", action="ReconIssue.list", permission="report:read", risk_tier="none"
+    entity="ReconIssue",
+    action="ReconIssue.list",
+    permission="report:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def get_finance_issues(
     request: Request,
@@ -77,7 +81,11 @@ def get_finance_issues(
 
 @router.get("/finance/issues/{id}")
 @api_endpoint(
-    entity="ReconIssue", action="ReconIssue.get", permission="report:read", risk_tier="none"
+    entity="ReconIssue",
+    action="ReconIssue.get",
+    permission="report:read",
+    risk_tier="none",
+    idempotency="none",
 )
 def get_finance_issue(
     request: Request,
@@ -100,6 +108,7 @@ def get_finance_issue(
     action="ReconIssue.resolve",
     permission="integration:write",
     risk_tier="medium",
+    idempotency="dispatcher",
 )
 def post_finance_issue_resolve(
     request: Request,
@@ -129,6 +138,7 @@ def post_finance_issue_resolve(
     action="ReconIssue.draft_voucher",
     permission="journal_entry:create",
     risk_tier="high",
+    idempotency="dispatcher",
 )
 def post_finance_issue_draft_voucher(
     request: Request,
