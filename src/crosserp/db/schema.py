@@ -150,6 +150,39 @@ class CleansingIssue(Base):
     message: Mapped[str] = mapped_column(String(1000))
     suggestion_json: Mapped[Any | None] = mapped_column(JSON(), default=dict, nullable=True)
     status: Mapped[str] = mapped_column(_KIND, default="open", server_default="open")
+    handler: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    agent_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    assignee_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(), ForeignKey("app_user.id"), nullable=True
+    )
+    money_impact: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    resolution_json: Mapped[Any | None] = mapped_column(JSON(), nullable=True)
+    escalation_json: Mapped[Any | None] = mapped_column(JSON(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    updated_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
+
+
+class CleansingIssueTransfer(Base):
+    """清洗问题转交记录; 通知模块接入前作为站内待办的持久化记录。"""
+
+    __tablename__ = "cleansing_issue_transfer"
+    __table_args__ = (
+        Index("ix_cleansing_issue_transfer_issue_id", "issue_id"),
+        Index("ix_cleansing_issue_transfer_assignee", "assignee_user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    batch_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("import_batch.id"))
+    issue_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("cleansing_issue.id"))
+    assignee_user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"))
+    actor_type: Mapped[str] = mapped_column(String(16))
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
+    on_behalf_of: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
+    attempts_json: Mapped[Any] = mapped_column(JSON(), default=list)
+    evidence_json: Mapped[Any] = mapped_column(JSON(), default=list)
+    suggestion_json: Mapped[Any | None] = mapped_column(JSON(), nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
