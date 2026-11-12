@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.metadata import api_endpoint
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.schema import EntityEvent
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService
@@ -83,7 +84,9 @@ def undo_suggestion(
 ) -> dict[str, Any]:
     permission_service.require(principal, "agent_suggestion:create")
     with Session(request.app.state.database_engine) as session, session.begin():
-        dispatcher = make_action_dispatcher(session, permission_service)
+        dispatcher = make_action_dispatcher(
+            session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        )
         return dispatcher.undo(
             id,
             principal=principal,

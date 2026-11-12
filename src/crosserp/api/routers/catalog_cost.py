@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from crosserp.api.metadata import api_endpoint
 from crosserp.api.schemas import CamelModel, Money
 from crosserp.catalog.cost import create_cost, list_costs, serialize_cost
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService, get_permission_service
@@ -97,7 +98,9 @@ def post_cost(
     entity_id = uuid4()
     payload = body.model_dump(by_alias=True)
     with Session(request.app.state.database_engine) as session, session.begin():
-        dispatcher = make_action_dispatcher(session, permission_service)
+        dispatcher = make_action_dispatcher(
+            session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        )
         result = dispatcher.dispatch(
             principal=principal,
             permission="item:write",

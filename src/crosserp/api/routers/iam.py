@@ -36,6 +36,7 @@ from crosserp.db.schema import (
 from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.iam.catalog import load_catalog
 from crosserp.iam.service import IAMService
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import DefaultPermissionService
 from crosserp.platform.principal import Principal, get_principal
@@ -66,7 +67,9 @@ def _principal_check(request: Request, principal: Principal, permission: str, ri
         permission_service.iam.require(principal, permission, risk_tier=risk)
 
     with _session(request) as session, session.begin():
-        make_action_dispatcher(session, permission_service).dispatch(
+        make_action_dispatcher(
+            session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        ).dispatch(
             principal=principal,
             permission=permission,
             risk_tier=risk,
