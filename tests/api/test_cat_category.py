@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from uuid import uuid4
 
 import pytest
@@ -7,6 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from crosserp.db.repo.users import create_user, grant_role
 from crosserp.db.schema import AuditLog, EntityVersion
 from crosserp.platform.principal import ActorType, Principal
 
@@ -23,10 +25,21 @@ def _principal(*permissions: str, agent: bool = False) -> Principal:
     )
 
 
-def _override(client: TestClient, principal: Principal) -> None:
+def _override(client: TestClient, principal: Principal) -> Principal:
     from crosserp.platform.principal import get_principal
 
-    client.app.dependency_overrides[get_principal] = lambda: principal
+    with Session(client.app.state.database_engine) as session, session.begin():
+        user = create_user(
+            session,
+            username=f"category-{uuid4().hex}",
+            password="Category-test-password-123",
+        )
+        if principal.permissions:
+            grant_role(session, user.id, "admin")
+        user_id = user.id
+    effective = replace(principal, user_id=user_id, on_behalf_of=user_id if principal.is_agent else None)
+    client.app.dependency_overrides[get_principal] = lambda: effective
+    return effective
 
 
 def test_category_crud_tree_pagination_and_idempotency(
@@ -155,7 +168,7 @@ def test_category_agent_medium_executes_and_records_context(
     api_engine,
 ) -> None:
     principal = _principal("item_group:create", agent=True)
-    _override(json_client, principal)
+    principal = _override(json_client, principal)
     response = json_client.post(
         "/api/v1/catalog/categories",
         json={"name": "智能体类目"},
