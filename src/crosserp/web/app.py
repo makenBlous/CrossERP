@@ -497,7 +497,6 @@ def create_app(
                         approved_batch,
                         approved_token,
                         target_ids=["kingdee_xlsx", "generic_xlsx"],
-                        output_dir=Path.cwd() / "exports",
                     )
             except (ApprovalRequired, LookupError, ValueError, FileExistsError) as exc:
                 return plain_text(str(exc), 400)
@@ -600,7 +599,6 @@ def create_app(
                         denial_batch,
                         None,
                         target_ids=[target],
-                        output_dir=Path.cwd() / "exports",
                     )
             except ApprovalRequired as exc:
                 return plain_text(str(exc), 403)

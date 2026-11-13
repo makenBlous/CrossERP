@@ -9915,11 +9915,11 @@ paths:
       - $ref: '#/components/parameters/CsrfToken'
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ActionInput'
+              $ref: '#/components/schemas/ReconIssueResolveInput'
       responses:
         '200':
           description: 成功
@@ -10024,11 +10024,11 @@ paths:
       - $ref: '#/components/parameters/CsrfToken'
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Record'
+              $ref: '#/components/schemas/ReconIssueDraftVoucherInput'
       responses:
         '200':
           description: 成功
@@ -10075,6 +10075,23 @@ paths:
       - $ref: '#/components/parameters/PageSize'
       - $ref: '#/components/parameters/Q'
       - $ref: '#/components/parameters/Sort'
+      - name: storeId
+        in: query
+        schema:
+          type: string
+          format: uuid
+        description: 店铺
+      - name: period
+        in: query
+        schema:
+          type: string
+          example: 2026-10
+        description: 期间 YYYY-MM
+      - name: sku
+        in: query
+        schema:
+          type: string
+        description: 内部 SKU
       responses:
         '200':
           description: 成功
@@ -10119,6 +10136,18 @@ paths:
         required: true
         schema:
           type: string
+      - name: storeId
+        in: query
+        schema:
+          type: string
+          format: uuid
+        description: 店铺；范围外与不存在均为 404
+      - name: period
+        in: query
+        schema:
+          type: string
+          example: 2026-10
+        description: 期间 YYYY-MM
       responses:
         '200':
           description: 成功
@@ -10837,7 +10866,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Page'
+                $ref: '#/components/schemas/Page_ExportPackage'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -25558,6 +25587,41 @@ components:
           type: integer
           description: 乐观锁版本
       description: 无业务字段的动作（提交、确认、作废）可带原因与版本
+    ReconIssueResolveInput:
+      type: object
+      additionalProperties: false
+      required:
+      - resolution
+      - reason
+      - expectedVersion
+      properties:
+        resolution:
+          type: string
+          enum:
+          - explained
+          - ignored
+          description: 只改差异状态为已解释或忽略，不改账
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 2000
+          description: 原因可由 AI 预填，人确认后提交
+        expectedVersion:
+          type: integer
+          minimum: 0
+          description: 乐观锁版本，必填
+    ReconIssueDraftVoucherInput:
+      type: object
+      additionalProperties: false
+      required:
+      - expectedVersion
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 0
+        reason:
+          type: string
+          maxLength: 2000
     ActionResult:
       type: object
       properties:
@@ -27138,6 +27202,42 @@ components:
             type: array
             items:
               $ref: '#/components/schemas/Sku'
+        required:
+        - items
+    ExportPackage:
+      type: object
+      properties:
+        exportId:
+          type: string
+        target:
+          type: string
+          description: ledger 写出目标，如 kingdee_xlsx、generic_xlsx、xlsx
+        fileName:
+          type:
+          - string
+          - 'null'
+        sha256:
+          type: string
+        approvalId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - exportId
+      - target
+      - sha256
+      - approvalId
+      - createdAt
+    Page_ExportPackage:
+      allOf:
+      - $ref: '#/components/schemas/PageMeta'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/ExportPackage'
         required:
         - items
     Page_Voucher:

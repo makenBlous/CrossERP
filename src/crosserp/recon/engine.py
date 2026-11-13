@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -411,6 +411,7 @@ def reconcile(
     store_id: UUID,
     period: str,
     *,
+    run_id: UUID,
     as_of: date | None = None,
     grace_days: int = 14,
     order_window_days: int = 60,
@@ -424,6 +425,7 @@ def reconcile(
         raise ValueError(f"店铺不存在 {store_id}")
     run = create_recon_run(
         session,
+        id=run_id,
         store_id=store_id,
         period=period,
         as_of=as_of,
@@ -662,5 +664,6 @@ def reconcile_all(
     if store_name is not None:
         statement = statement.where(Store.name == store_name)
     return [
-        reconcile(session, store.id, period, as_of=as_of) for store in session.scalars(statement)
+        reconcile(session, store.id, period, as_of=as_of, run_id=uuid4())
+        for store in session.scalars(statement)
     ]

@@ -7,12 +7,24 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.catalog.bundles import bundle_in_store_scope, deactivate_bundle
 from crosserp.catalog.sku import ensure_store_allowed
-from crosserp.db.schema import Brand, Bundle, Category, Listing, Sku, SkuMapping, Store
+from crosserp.db.schema import (
+    Brand,
+    Bundle,
+    Category,
+    Issue,
+    Listing,
+    Match,
+    ReconRun,
+    Sku,
+    SkuMapping,
+    Store,
+)
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
 
@@ -24,9 +36,11 @@ class CatalogUndoRestore:
     """目录实体的字段回退与新建反向动作。"""
 
     def supports(self, entity_type: str) -> bool:
-        return entity_type in _MODEL
+        return entity_type in _MODEL or entity_type in _CUSTOM
 
     def restorable_fields(self, entity_type: str) -> frozenset[str]:
+        if entity_type in _CUSTOM:
+            return frozenset({"status", "resolutionNote"})
         if entity_type not in _RESTORABLE:
             raise APIError(ErrorCode.VALIDATION_FAILED, UNDO_UNSUPPORTED)
         return _RESTORABLE[entity_type]
@@ -36,6 +50,9 @@ class CatalogUndoRestore:
     ) -> None:
         if not self.supports(entity_type):
             raise APIError(ErrorCode.VALIDATION_FAILED, UNDO_UNSUPPORTED)
+        if entity_type in _CUSTOM:
+            _CUSTOM[entity_type](session, entity_id, before)
+            return
         present = [name for name in self.restorable_fields(entity_type) if name in before]
         if not present:
             raise APIError(ErrorCode.VALIDATION_FAILED, EMPTY_BEFORE)
@@ -241,6 +258,38 @@ def _reverse_mapping_delete(
     return {"before": {"state": previous}, "after": {"state": row.state}}
 
 
+def _recon_run(session: Session, entity_id: str, before: dict[str, Any]) -> None:
+    """创建对账运行的撤销删除该运行。有前快照时只回写状态。"""
+    row = session.get(ReconRun, UUID(entity_id))
+    if row is None:
+        raise APIError(ErrorCode.NOT_FOUND, "撤销目标不存在")
+    if not before:
+        session.execute(delete(Match).where(Match.recon_run_id == row.id))
+        session.execute(delete(Issue).where(Issue.recon_run_id == row.id))
+        session.delete(row)
+        session.flush()
+        return
+    if "status" in before:
+        row.status = str(before["status"])
+    session.flush()
+
+
+def _recon_issue(session: Session, entity_id: str, before: dict[str, Any]) -> None:
+    row = session.get(Issue, UUID(entity_id))
+    if row is None:
+        raise APIError(ErrorCode.NOT_FOUND, "撤销目标不存在")
+    if "status" in before:
+        row.status = str(before["status"])
+    if "resolutionNote" in before:
+        note = before["resolutionNote"]
+        row.resolution_note = None if note is None else str(note)
+    session.flush()
+
+
+_CUSTOM: dict[str, Callable[[Session, str, dict[str, Any]], None]] = {
+    "ReconRun": _recon_run,
+    "ReconIssue": _recon_issue,
+}
 _MODEL = {
     "Brand": Brand,
     "Category": Category,

@@ -48,17 +48,36 @@ def default_accounts_path() -> Path:
     return Path.home() / ".crosserp" / "accounts.yaml"
 
 
-def load_accounts(path: Path | None = None) -> AccountsConfig:
-    selected = path or default_accounts_path()
+def is_placeholder_code(code: str) -> bool:
+    """占位编码不能过账. 列表接口只标出, 不在这里拒绝."""
+    return code.startswith(("待填", "待会计核实"))
+
+
+def load_accounts(path: Path) -> AccountsConfig:
+    accounts, digest = _read_account_mappings(path)
+    for key, mapping in accounts.items():
+        if is_placeholder_code(mapping.code):
+            raise ValueError(f"科目 {key} 的编码仍是待会计核实占位, 请填写实际科目表编码")
+    return AccountsConfig(accounts=accounts, content_hash=digest)
+
+
+def read_account_chart(path: Path) -> tuple[dict[str, AccountMapping], str]:
+    """读取科目表, 保留占位编码. 过账仍必须走 load_accounts."""
+    return _read_account_mappings(path)
+
+
+def _read_account_mappings(path: Path) -> tuple[dict[str, AccountMapping], str]:
+    selected = path
     if not selected.is_file():
         raise FileNotFoundError(
             f"找不到科目映射文件 {selected}。请复制 config/accounts.example.yaml 后填写。"
         )
     raw_bytes = selected.read_bytes()
     try:
-        raw = yaml.safe_load(raw_bytes) or {}
+        loaded = yaml.safe_load(raw_bytes)
     except yaml.YAMLError as exc:
         raise ValueError(f"科目映射 YAML 无法解析: {exc}") from exc
+    raw = {} if loaded is None else loaded
     if not isinstance(raw, dict) or not isinstance(raw.get("accounts"), dict):
         raise ValueError("科目映射必须包含 accounts 对象")
     accounts: dict[str, AccountMapping] = {}
@@ -73,15 +92,10 @@ def load_accounts(path: Path | None = None) -> AccountsConfig:
         code = cast(str, code)
         name = cast(str, name)
         direction = cast(str, direction)
-        if code.startswith(("待填", "待会计核实")):
-            raise ValueError(f"科目 {key} 的编码仍是待会计核实占位, 请填写实际科目表编码")
         if direction not in {"debit", "credit", "either"}:
             raise ValueError(f"科目 {key} 的 direction 必须是 debit/credit/either")
         accounts[key] = AccountMapping(key, code, name, direction)
     missing = sorted(_REQUIRED_KEYS - accounts.keys())
     if missing:
         raise ValueError(f"科目映射缺少: {', '.join(missing)}")
-    return AccountsConfig(
-        accounts=accounts,
-        content_hash=hashlib.sha256(raw_bytes).hexdigest(),
-    )
+    return accounts, hashlib.sha256(raw_bytes).hexdigest()

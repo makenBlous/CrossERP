@@ -8,7 +8,7 @@ from typing import Any, Protocol, cast
 from fastapi import Request
 
 from crosserp.api.errors import APIError, ErrorCode
-from crosserp.iam.scope import StoreScope
+from crosserp.iam.scope import LegalEntityScope, PeriodScope, StoreScope
 from crosserp.iam.service import IAMService
 from crosserp.platform.principal import Principal
 
@@ -24,6 +24,10 @@ class PermissionService(Protocol):
     def data_scope_filter(self, principal: Principal, entity: str) -> Mapping[str, Any]: ...
 
     def store_scope(self, principal: Principal, entity: str) -> StoreScope: ...
+
+    def period_scope(self, principal: Principal, entity: str) -> PeriodScope: ...
+
+    def legal_entity_scope(self, principal: Principal, entity: str) -> LegalEntityScope: ...
 
     def serialize(
         self, principal: Principal, record: dict[str, Any], field_permissions: dict[str, str]
@@ -64,6 +68,16 @@ class DefaultPermissionService:
         if self.iam is None:
             raise RuntimeError("PermissionService 必须绑定 IAMService")
         return self.iam.store_scope(principal, entity)
+
+    def period_scope(self, principal: Principal, entity: str) -> PeriodScope:
+        if self.iam is None:
+            raise RuntimeError("PermissionService 必须绑定 IAMService")
+        return self.iam.period_scope(principal, entity)
+
+    def legal_entity_scope(self, principal: Principal, entity: str) -> LegalEntityScope:
+        if self.iam is None:
+            raise RuntimeError("PermissionService 必须绑定 IAMService")
+        return self.iam.legal_entity_scope(principal, entity)
 
     def serialize(
         self, principal: Principal, record: dict[str, Any], field_permissions: dict[str, str]
