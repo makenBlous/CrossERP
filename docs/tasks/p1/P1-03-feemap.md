@@ -1,7 +1,7 @@
 # 费用映射与列映射（P1-03-feemap）
 
 - **旧任务卡：** 无（进度文件中记为 fin-feemap，尚无任务卡）
-- **状态：** 开工（2026-11-13，`p1-fin-feemap`，只做 `MappingRule.confirm`）
+- **状态：** 开发完成，未合回（2026-11-13，`p1-fin-feemap`，只做 `MappingRule.confirm`）
 - **规则：** [rules.md](../rules.md)；验收流程 [acceptance.md](../acceptance.md)
 
 ## 方向与业务价值
@@ -41,7 +41,7 @@ P1-02-rules 合入 main。
 
 ## 进度
 
-2026-11-13 开工。只补 `POST /finance/fee-map/{id}/confirm`。已有列表和列映射保存不重写。还没合回。
+2026-11-13 开工。只补 `POST /finance/fee-map/{id}/confirm`。已有列表和列映射保存不重写。本树已实现该确认接口，还没合回。
 
 ## 待定 / 需拍板
 
