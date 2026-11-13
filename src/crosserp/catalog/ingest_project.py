@@ -427,7 +427,11 @@ def _apply_projection(
                 "title": row.title,
                 "active": row.active,
             },
-            "undo": {"action": "Sku.delete", "entityId": str(row.id)},
+            "undo": {
+                "action": "Sku.update",
+                "entityId": str(row.id),
+                "payload": {"id": str(row.id), "active": False},
+            },
         }
     raise APIError(ErrorCode.VALIDATION_ERROR, f"暂不支持投射动作: {action}")
 

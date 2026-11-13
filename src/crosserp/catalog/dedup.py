@@ -290,7 +290,11 @@ def _sku_merge(
         "mergedIds": ids,
         "aliases": aliases,
         "sourceRefs": sources,
-        "undo": {"preimage": preimage, "expiresAt": expires.isoformat()},
+        "undo": {
+            "action": "DedupCandidate.merge",
+            "preimage": preimage,
+            "expiresAt": expires.isoformat(),
+        },
     }
 
 

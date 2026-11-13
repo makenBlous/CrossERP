@@ -82,7 +82,7 @@ def resolve(
         "decision": decision,
         "version": issue.version,
         "before": previous,
-        "undo": previous,
+        "undo": {"action": "CleansingIssue.resolve", **previous},
     }
 
 
@@ -203,7 +203,7 @@ def escalate(
         "transferId": str(transfer.id),
         "version": issue.version,
         "before": previous,
-        "undo": previous,
+        "undo": {"action": "CleansingIssue.escalate", **previous},
     }
 
 
