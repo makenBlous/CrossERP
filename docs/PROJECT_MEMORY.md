@@ -2,7 +2,7 @@
 
 > 切换 agent 或开工前先读本文和 [后端开发任务总览](tasks/README.md)。完整规则以 [开发共用规则](tasks/rules.md) 和 [08 后端模块与 API 设计 v4](design/08-后端模块与API设计.md) 为准；本文只保留同步所需的已核实事实，不替代设计原文。
 >
-> **最后更新：** 2026-11-13 10:48（Asia/Shanghai） / 后端收尾 / 见本提交（财务已合回）
+> **最后更新：** 2026-11-13 12:26（Asia/Shanghai） / 后端收尾 / 见本提交（导入已合回）
 
 ## 1. 项目定位
 
@@ -90,30 +90,30 @@ CrossERP 是面向中国境内主体、做出口跨境电商的智能体 ERP：�
 
 ## 6. 当前状态
 
-核实时间：2026-11-13 10:48（Asia/Shanghai）。以 `git log --first-parent main` 和 `git worktree list` 为准。
+核实时间：2026-11-13 12:26（Asia/Shanghai）。以 `git log --first-parent main` 和 `git worktree list` 为准。
 
-- **main 头提交：** `050e9f5`（合入财务）。相对 `origin/main` 超前，**尚未推送**。`data.db` 未动。
-- **P1-03 财务已合回。** 功能树头 `6386dcf`（其内已 `--no-ff` 合入 `6805cc1`）。合回提交 `050e9f5`。隔离库 `sqlite:///C:/Users/cimi/AppData/Local/Temp/cx-pw/backend/db/int-p1-fin.db`：`ruff format --check` 0、`ruff check` 0、`mypy` 0（227 个源文件）、`pytest -q` 596 passed / 7 skipped / 0 failed、`scripts/check_doc_links.py` 0。`check_merge_guard.py --base 271b26b --head 1cc7e54` 退出码 1，命中为已审过的 G1（审批响应不再含实体 id）、S2（缺幂等键 422）、D1–D3（计数零值、显式空值校验、查询参数），不挡合入，未改业务代码消命中。未跑：MySQL 3306 未监听，未启动，未跑 `-m db`；未单独跑迁移往返、授权覆盖、API 合同和密钥扫描。
-- 2026-11-12 18:21 的暂停已结束。财务整合树和六棵源树在本记忆提交后拆除。导入和数据范围仍按原顺序继续。
+- **main 头提交：** `498058c`（合入导入）。相对 `origin/main` 超前，**尚未推送**。`data.db` 未动。
+- **P1-02 导入已合回。** 功能树头 `38abc61`（修复 `73683a3`，合入 main `6db08b6`，撤销声明 `38abc61`）。合回提交 `498058c`。隔离库 `sqlite:///C:/Users/cimi/AppData/Local/Temp/cx-pw/backend/db/int-p1-ing.db`：`ruff format --check` 0、`ruff check` 0、`mypy` 0（243 个源文件）、`scripts/check_doc_links.py` 0。第一次 `pytest -q` 10 failed / 639 passed，失败是中风险 undo 缺已登记动作；修源头后重跑 649 passed / 7 skipped / 0 failed。未跑：MySQL 3306 未监听，未启动，未跑 `-m db`；未单独跑迁移往返、授权覆盖、API 合同和密钥扫描。
+- **P1-03 财务已合回 `050e9f5`。** 隔离库 596 passed / 7 skipped / 0 failed。财务树已拆。未跑检查同导入。
+- 导入整合树和五棵源树在本记忆提交后拆除。数据范围仍待审。
 
 ### 各批进度
 
-- **P0：已放行（2026-11-12 15:32，`p0tail-ok`）。** 新建类撤销空操作已于 `a83896e` 合入。`data.db` 仍是 15:25 按 `271b26b` 重建的那份。财务合回不重建。
+- **P0：已放行（2026-11-12 15:32，`p0tail-ok`）。** 新建类撤销空操作已于 `a83896e` 合入。`data.db` 仍是 15:25 按 `271b26b` 重建的那份。财务和导入合回都不重建。
 - **P0-02 数据范围挂角色（sec-scope2）：** 提交 `f043f2f` 待审。合入排在导入之后。合入后第二次重建 `data.db` 的授权仍在，但本次收尾到合回为止，不重建。
 - **P1-01 商品目录：** 均已合入 main。
-- **P1-02 导入：** 仍在 `37b47d4`。core/rules/dedup 已审过。投射缺 storeId 跳过范围、缺 id 自造 UUID；问题处理仍直接构造审批网关，没有店铺范围检查。工作区干净。下一步先修再合。
-- **P1-03 财务：** 已合回 `050e9f5`。见上面的验证结果。
+- **P1-02 导入：** 已合回 `498058c`。见上面的验证结果。
+- **P1-03 财务：** 已合回 `050e9f5`。
 - **P2–P5：** 未开工。
 
-### 已建立的工作树（2026-11-13 10:48）
+### 已建立的工作树（2026-11-13 12:26）
 
 | 工作树 | 基于 | 说明 |
 |---|---|---|
-| 主工作区 main | 050e9f5 | 财务已合回。本记忆提交后拆财务树 |
-| `int-p1-ing` | 37b47d4 | 工作区干净。先修投射和问题处理，再合 main、跑全量 |
-| `sec-scope2` | f043f2f | 待审，合入排在导入之后 |
-| `p1-ing-*`（5） | 各功能提交 | 导入整合合回 main 后再拆 |
-| `int-p1-fin`、`p1-fin-*`（6） | 已合回 | 本记忆提交后拆除 |
+| 主工作区 main | 498058c | 导入已合回。本记忆提交后拆导入树 |
+| `sec-scope2` | f043f2f | 待审。合入后不重建 data.db |
+| `int-p1-ing`、`p1-ing-*`（5） | 已合回 | 本记忆提交后拆除 |
+| `int-p1-fin`、`p1-fin-*`（6） | 已拆 | 财务合回后已拆除 |
 
 合回仍是一次一块：审查或修复通过 → 把最新 main 合进该树并跑全量 → `--no-ff` 合回 main → 更新记忆 → 拆树。
 
