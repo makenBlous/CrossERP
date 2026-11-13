@@ -653,7 +653,11 @@ def demo_command(
         _url_text, engine = _open_ready_engine()
         try:
             with session_scope(engine) as session:
-                _ensure_demo_user(session)
+                demo_user_id = _ensure_demo_user(session)
+                from crosserp.demo.scopes import seed_demo_role_accounts
+
+                for username, password in seed_demo_role_accounts(session, granted_by=demo_user_id):
+                    typer.echo(f"演示账号 {username}，随机密码（仅本次显示）: {password}")  # noqa: RUF001
                 results = reconcile_all(session, "2026-10")
                 reports = [
                     compute_and_save(session, result.store_id, "2026-10") for result in results
@@ -681,10 +685,14 @@ def demo_command(
             os.environ["CROSSERP_DATABASE_URL"] = previous
 
 
-def _ensure_demo_user(session: Session) -> None:
-    """演示库首次运行创建 demo 账号，并只打印一次随机密码。"""  # noqa: RUF002
-    if session.scalar(select(AppUser.id)) is not None:
-        return
+def _ensure_demo_user(session: Session) -> UUID:
+    """演示库首次运行创建 demo 账号，并只打印一次随机密码。返回授权人 id。"""  # noqa: RUF002
+    existing = session.scalar(select(AppUser.id).where(AppUser.username == "demo"))
+    if existing is not None:
+        return UUID(str(existing))
+    granter = session.scalar(select(AppUser.id))
+    if granter is not None:
+        return UUID(str(granter))
     password = secrets.token_urlsafe(18)
     user = create_user(session, username="demo", password=password, roles=tuple(Role))
     session.add(
@@ -706,6 +714,7 @@ def _ensure_demo_user(session: Session) -> None:
         reason="初始化演示管理员",
     )
     typer.echo(f"演示账号 demo，随机密码（仅本次显示）: {password}")  # noqa: RUF001
+    return user.id
 
 
 @app.command("reconcile")

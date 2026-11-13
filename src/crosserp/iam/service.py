@@ -9,10 +9,11 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.orm import Session
 
 from crosserp.db.schema import (
+    AgentStoreScope,
     AppUser,
     IamDataScopeRule,
     IamFieldPolicy,
@@ -21,15 +22,19 @@ from crosserp.db.schema import (
     IamRoleInheritance,
     IamRolePermission,
     IamTemporaryGrant,
+    Store,
     UserRole,
+    UserStoreGrant,
 )
 from crosserp.iam.scope import (
     LegalEntityScope,
     PeriodScope,
     StoreScope,
+    choose_entity_rules,
     resolve_legal_entity_scope,
     resolve_period_scope,
     resolve_store_scope,
+    role_tokens_for_dimension,
 )
 
 if TYPE_CHECKING:
@@ -388,11 +393,8 @@ class IAMService:
         decision = self.effective_permission(effective_user_id, entity, principal=principal)
         scopes = set(decision.data_scopes)
         with Session(self.engine) as session:
-            rules = list(
-                session.scalars(
-                    select(IamDataScopeRule).where(IamDataScopeRule.entity.in_((entity, "*")))
-                )
-            )
+            role_ids = self._role_uuid_ids(session, self._active_role_slugs(effective_user_id))
+            rules = self._applicable_scope_rules(session, entity, role_ids)
             filters = {row.scope_type: row.values for row in rules}
         return {"entity": entity, "scopes": sorted(scopes | set(filters)), "filters": filters}
 
@@ -402,17 +404,124 @@ class IAMService:
         if effective_user_id is None:
             raise _api_error("AUTH_REQUIRED", "需要登录")
         role_tokens = self._role_store_tokens(effective_user_id)
+        checked_at = datetime.now(UTC)
         with Session(self.engine) as session:
-            rules = list(
+            role_ids = self._role_uuid_ids(session, self._active_role_slugs(effective_user_id))
+            rules = self._applicable_scope_rules(session, entity, role_ids)
+            owned_store_ids = frozenset(
                 session.scalars(
-                    select(IamDataScopeRule).where(IamDataScopeRule.entity.in_((entity, "*")))
+                    select(UserStoreGrant.store_id).where(
+                        UserStoreGrant.user_id == effective_user_id
+                    )
                 )
             )
+            allow_tokens, deny_tokens = self._scope_exception_tokens(
+                session, effective_user_id, checked_at
+            )
+            universe_store_ids = frozenset(session.scalars(select(Store.id)))
+            apply_agent_narrowing, agent_store_ids = self._agent_store_ids(session, principal)
+        role_rules, global_rules = self._split_scope_rules(rules, entity)
         return resolve_store_scope(
             role_tokens,
-            entity_rules=[(row.scope_type, row.values) for row in rules if row.entity == entity],
-            wildcard_rules=[(row.scope_type, row.values) for row in rules if row.entity == "*"],
+            role_rules=role_rules,
+            global_rules=global_rules,
+            owned_store_ids=owned_store_ids,
+            allow_tokens=allow_tokens,
+            deny_tokens=deny_tokens,
+            apply_agent_narrowing=apply_agent_narrowing,
+            agent_store_ids=agent_store_ids,
+            universe_store_ids=universe_store_ids,
         )
+
+    def _active_role_slugs(self, user_id: UUID) -> set[str]:
+        self._refresh_roles()
+        with Session(self.engine) as session:
+            role_ids = set(
+                session.scalars(select(UserRole.role).where(UserRole.user_id == user_id))
+            )
+        slugs: set[str] = set()
+        visited: set[str] = set()
+        for role_id in role_ids:
+            for inherited in self._role_chain(role_id, visited):
+                role = self.roles[inherited]
+                if role.active:
+                    slugs.add(inherited)
+        return slugs
+
+    def _role_uuid_ids(self, session: Session, slugs: set[str]) -> set[UUID]:
+        if not slugs:
+            return set()
+        return set(session.scalars(select(IamRole.id).where(IamRole.slug.in_(slugs))))
+
+    def _applicable_scope_rules(
+        self, session: Session, entity: str, role_ids: set[UUID]
+    ) -> list[IamDataScopeRule]:
+        statement = select(IamDataScopeRule).where(IamDataScopeRule.entity.in_((entity, "*")))
+        if role_ids:
+            statement = statement.where(
+                or_(IamDataScopeRule.role_id.is_(None), IamDataScopeRule.role_id.in_(role_ids))
+            )
+        else:
+            statement = statement.where(IamDataScopeRule.role_id.is_(None))
+        return list(session.scalars(statement))
+
+    def _split_scope_rules(
+        self, rules: list[IamDataScopeRule], entity: str
+    ) -> tuple[list[tuple[str, Any]], list[tuple[str, Any]]]:
+        grouped: dict[UUID, list[tuple[str, str, Any]]] = {}
+        global_rows: list[tuple[str, str, Any]] = []
+        for row in rules:
+            item = (row.entity, row.scope_type, row.values)
+            if row.role_id is None:
+                global_rows.append(item)
+                continue
+            grouped.setdefault(row.role_id, []).append(item)
+        role_rules: list[tuple[str, Any]] = []
+        for rows in grouped.values():
+            role_rules.extend(choose_entity_rules(rows, entity))
+        return role_rules, choose_entity_rules(global_rows, entity)
+
+    def _scope_exception_tokens(
+        self, session: Session, user_id: UUID, checked_at: datetime
+    ) -> tuple[set[str], set[str]]:
+        allow: set[str] = set()
+        deny: set[str] = set()
+        rows = session.scalars(
+            select(IamPermissionOverride).where(IamPermissionOverride.user_id == user_id)
+        )
+        for row in rows:
+            if not _override_active(row.starts_at, row.expires_at, checked_at):
+                continue
+            values = row.data_scopes
+            if not isinstance(values, list):
+                raise _api_error("VALIDATION_FAILED", "用户例外 data_scopes 必须是数组")
+            if not values:
+                continue
+            if row.effect not in {"allow", "deny"}:
+                raise _api_error("VALIDATION_FAILED", f"用户例外 effect 无效: {row.effect}")
+            target = allow if row.effect == "allow" else deny
+            for item in values:
+                if not isinstance(item, str):
+                    raise _api_error("VALIDATION_FAILED", "用户例外 data_scopes 必须是字符串")
+                target.add(item)
+        return allow, deny
+
+    def _agent_store_ids(
+        self, session: Session, principal: Principal
+    ) -> tuple[bool, frozenset[UUID]]:
+        if not principal.is_agent:
+            return False, frozenset()
+        agent_id = principal.agent_id
+        if agent_id is None:
+            raise _api_error("VALIDATION_FAILED", "智能体数据范围缺少 agent_id")
+        store_ids = frozenset(
+            session.scalars(
+                select(AgentStoreScope.store_id).where(AgentStoreScope.agent_id == agent_id)
+            )
+        )
+        if not store_ids:
+            return False, frozenset()
+        return True, store_ids
 
     def period_scope(self, principal: Principal, entity: str) -> PeriodScope:
         """返回全部期间或 YYYY-MM 集合。格式不对时拒绝放行。"""
@@ -421,13 +530,10 @@ class IAMService:
             raise _api_error("AUTH_REQUIRED", "需要登录")
         role_tokens = self._role_store_tokens(effective_user_id)
         with Session(self.engine) as session:
-            rules = list(
-                session.scalars(
-                    select(IamDataScopeRule).where(IamDataScopeRule.entity.in_((entity, "*")))
-                )
-            )
+            role_ids = self._role_uuid_ids(session, self._active_role_slugs(effective_user_id))
+            rules = self._applicable_scope_rules(session, entity, role_ids)
         return resolve_period_scope(
-            role_tokens,
+            role_tokens_for_dimension(role_tokens, frozenset({"all"})),
             entity_rules=[(row.scope_type, row.values) for row in rules if row.entity == entity],
             wildcard_rules=[(row.scope_type, row.values) for row in rules if row.entity == "*"],
         )
@@ -439,13 +545,10 @@ class IAMService:
             raise _api_error("AUTH_REQUIRED", "需要登录")
         role_tokens = self._role_store_tokens(effective_user_id)
         with Session(self.engine) as session:
-            rules = list(
-                session.scalars(
-                    select(IamDataScopeRule).where(IamDataScopeRule.entity.in_((entity, "*")))
-                )
-            )
+            role_ids = self._role_uuid_ids(session, self._active_role_slugs(effective_user_id))
+            rules = self._applicable_scope_rules(session, entity, role_ids)
         return resolve_legal_entity_scope(
-            role_tokens,
+            role_tokens_for_dimension(role_tokens, frozenset({"all"})),
             entity_rules=[(row.scope_type, row.values) for row in rules if row.entity == entity],
             wildcard_rules=[(row.scope_type, row.values) for row in rules if row.entity == "*"],
         )
@@ -564,6 +667,14 @@ def _active(grant: GrantRecord, now: datetime) -> bool:
     if grant.starts_at > now:
         return False
     return grant.expires_at is None or grant.expires_at > now
+
+
+def _override_active(
+    starts_at: datetime | None, expires_at: datetime | None, now: datetime
+) -> bool:
+    if starts_at is not None and starts_at > now:
+        return False
+    return expires_at is None or expires_at > now
 
 
 def _api_error(code: str, message: str, details: dict[str, Any] | None = None) -> Exception:

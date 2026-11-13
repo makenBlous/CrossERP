@@ -1395,14 +1395,36 @@ class IamFieldPolicy(Base):
 
 class IamDataScopeRule(Base):
     __tablename__ = "iam_data_scope_rule"
+    __table_args__ = (Index("ix_iam_data_scope_rule_role_id", "role_id"),)
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     name: Mapped[str] = mapped_column(String(128))
     entity: Mapped[str] = mapped_column(String(128))
     scope_type: Mapped[str] = mapped_column(String(32))
     values: Mapped[Any] = mapped_column(JSON(), default=list)
+    role_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), ForeignKey("iam_role.id"))
     updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid())
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class UserStoreGrant(Base):
+    """用户负责或被授权的店铺。来源是设计表 user_store_grant。"""
+
+    __tablename__ = "user_store_grant"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"), primary_key=True)
+    store_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("store.id"), primary_key=True)
+    granted_by: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("app_user.id"))
+    granted_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class AgentStoreScope(Base):
+    """智能体店铺收窄。没有行表示不额外限制。"""
+
+    __tablename__ = "agent_store_scope"
+
+    agent_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    store_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("store.id"), primary_key=True)
 
 
 class IamAccessReview(Base):

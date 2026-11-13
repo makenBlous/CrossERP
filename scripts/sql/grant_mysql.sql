@@ -69,6 +69,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_permission_override TO 'cro
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_temporary_grant TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_field_policy TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_data_scope_rule TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.user_store_grant TO 'crosserp_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.agent_store_scope TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_access_review TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_sod_rule TO 'crosserp_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON crosserp.iam_module_switch TO 'crosserp_app'@'%';
@@ -142,6 +144,8 @@ GRANT SELECT ON crosserp.iam_permission_override TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.iam_temporary_grant TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.iam_field_policy TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.iam_data_scope_rule TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.user_store_grant TO 'crosserp_agent'@'%';
+GRANT SELECT ON crosserp.agent_store_scope TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.iam_access_review TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.iam_sod_rule TO 'crosserp_agent'@'%';
 GRANT SELECT ON crosserp.iam_module_switch TO 'crosserp_agent'@'%';

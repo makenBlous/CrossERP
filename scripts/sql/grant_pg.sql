@@ -41,7 +41,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.approval, public.api_token,
   public.dedup_candidate TO crosserp_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.iam_role,
   public.iam_permission_override, public.iam_temporary_grant, public.iam_field_policy,
-  public.iam_data_scope_rule, public.iam_access_review, public.iam_sod_rule,
+  public.iam_data_scope_rule, public.user_store_grant, public.agent_store_scope,
+  public.iam_access_review, public.iam_sod_rule,
   public.iam_module_switch, public.iam_dictionary, public.iam_role_permission,
   public.iam_role_inheritance, public.iam_system_setting TO crosserp_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.approval_type,
@@ -78,7 +79,8 @@ GRANT SELECT ON TABLE public.entity_version, public.action_execution, public.ent
   public.agent_undo,
   public.dedup_candidate,
   public.iam_role, public.iam_permission_override, public.iam_temporary_grant,
-  public.iam_field_policy, public.iam_data_scope_rule, public.iam_access_review,
+  public.iam_field_policy, public.iam_data_scope_rule, public.user_store_grant,
+  public.agent_store_scope, public.iam_access_review,
   public.iam_sod_rule, public.iam_module_switch, public.iam_dictionary,
   public.iam_role_permission, public.iam_role_inheritance, public.iam_system_setting TO crosserp_agent;
 GRANT SELECT ON TABLE public.approval_type, public.workflow_rule, public.audit_alert,
