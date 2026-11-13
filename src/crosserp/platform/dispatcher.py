@@ -709,6 +709,15 @@ def _catalog_permission(action: str, fallback: str) -> str:
     action_def = _CATALOG.action_by_id.get(action)
     if action_def is None:
         return fallback
+    raw = action_def.raw.get("permission", action_def.permission)
+    if isinstance(raw, list):
+        if fallback not in raw:
+            raise APIError(
+                ErrorCode.VALIDATION_FAILED,
+                "动作权限与目录不一致",
+                details={"action": action, "permission": fallback},
+            )
+        return fallback
     return action_def.permission
 
 

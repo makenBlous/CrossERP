@@ -23,11 +23,13 @@ from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.connectors.importer import import_file
 from crosserp.connectors.registry import detect
 from crosserp.core.errors import DuplicateImportError
-from crosserp.db.schema import ImportBatch, OrderLine, Settlement
+from crosserp.db.schema import ActionExecution, ImportBatch, OrderLine, Settlement
 from crosserp.iam.scope import AllStores, StoreScope
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.factory import make_action_dispatcher
+from crosserp.platform.idempotency import caller_scope, current_http_scope
 from crosserp.platform.permissions import PermissionService, get_permission_service
+from crosserp.platform.principal import Principal
 
 router = APIRouter()
 
@@ -65,6 +67,24 @@ def _filter_batches_in_scope(
     if isinstance(scope, AllStores):
         return batches
     return [b for b in batches if _batch_in_scope(session, b.id, scope)]
+
+
+def _reject_other_identity_key(session: Session, principal: Principal, key: str | None) -> None:
+    """他人已占用的幂等键不可见: 返回 404 且不另建批次."""
+    if not key:
+        return
+    identity = caller_scope(principal)
+    http = current_http_scope("IngestBatch.create")
+    foreign = session.scalar(
+        select(ActionExecution.id).where(
+            ActionExecution.idempotency_key == key,
+            ActionExecution.http_method == http.method,
+            ActionExecution.route_template == http.route_template,
+            ActionExecution.caller_identity != identity.caller_identity,
+        )
+    )
+    if foreign is not None:
+        raise not_found()
 
 
 def _batch_payload(row: ImportBatch) -> dict[str, Any]:
@@ -221,6 +241,7 @@ async def create_import(
             temp_path.write_bytes(content)
 
             with session.begin():
+                _reject_other_identity_key(session, principal, idempotency_key)
                 # 运行导入创建批次 (在 dispatcher 事务内)
                 try:
                     connector = detect(temp_path)

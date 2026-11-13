@@ -7,7 +7,7 @@
 - 未登录 401
 - 店铺范围: 列表过滤, 单条 404, 写 403
 - 写动作经 dispatcher, 中风险可撤销
-- 幂等: 同人同键同体回放, 同键不同体 409, 他人同键不可见
+- 幂等: 同人同键同体回放, 同键不同体 409, 他人同键 404 且不另建
 - 审计记录含 actor_type, request_id
 - 请求结束后用全新 Session 能查到结果
 """
@@ -399,8 +399,6 @@ def test_undo_import_restores_status(json_client: TestClient, api_engine) -> Non
             "integration:import",
             "integration:read",
             "agent_suggestion:create",
-            "['advertisement:import', 'attendance:write', "
-            "'integration:import', 'journal_entry:create']",
         )
         session.add(
             _scope_rule(name="all", entity="*", scope_type="all", values=[], user_id=user.id)
@@ -468,15 +466,10 @@ def test_idempotency_same_key_different_payload_returns_409(
     assert response2.json()["code"] == "IDEMPOTENCY_CONFLICT"
 
 
-def test_idempotency_other_user_same_key_creates_separate(
+def test_idempotency_other_user_same_key_is_not_found(
     json_client: TestClient, api_engine
 ) -> None:
-    """幂等: 他人同键不可见 (无权 404)。
-
-    注意: 幂等记录按身份隔离, 但文件哈希去重是全局的。
-    这里验证的是不同用户上传相同文件, 由于文件哈希去重, 会得到同一批次。
-    幂等隔离体现在: 不同用户用同一 key, 各自独立创建 (如果文件不同)。
-    """
+    """他人使用同一幂等键返回 404 且不能各自独立创建."""
     with Session(api_engine) as session, session.begin():
         user1 = _user(session, "idem-user1", Role.OPERATOR)
         _allow(session, user1.id, "integration:import", "integration:read")
@@ -493,16 +486,19 @@ def test_idempotency_other_user_same_key_creates_separate(
     csrf1 = _login(json_client, "idem-user1")
     sample1 = _REPO / "samples" / "synthetic" / "amazon_us_2026-10-01_2026-10-14.tsv"
     response1 = _upload(json_client, csrf1, sample=sample1, idempotency_key="test-key-3")
-    assert response1.status_code == 201
+    assert response1.status_code == 201, response1.text
+    batch_id = response1.json()["batchId"]
 
     csrf2 = _login(json_client, "idem-user2")
     sample2 = _REPO / "samples" / "synthetic" / "amazon_de_2026-10-01_2026-10-14.tsv"
     response2 = _upload(json_client, csrf2, sample=sample2, idempotency_key="test-key-3")
-    assert response2.status_code == 201
-    body1 = response1.json()
-    body2 = response2.json()
-    # 不同文件, 所以批次不同
-    assert body1["batchId"] != body2["batchId"]
+    assert response2.status_code == 404, response2.text
+    assert response2.json()["code"] == "NOT_FOUND"
+
+    with Session(api_engine) as session:
+        batches = list(session.scalars(select(ImportBatch)))
+        assert len(batches) == 1
+        assert str(batches[0].id) == batch_id
 
 
 # ============ 审计 ============
