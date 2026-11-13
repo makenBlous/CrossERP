@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from crosserp.api.errors import APIError
 from crosserp.db.repo.users import create_user
 from crosserp.db.schema import (
     AgentStoreScope,
@@ -22,6 +23,7 @@ from crosserp.db.schema import (
 )
 from crosserp.demo.scopes import seed_demo_role_accounts
 from crosserp.iam.catalog import load_role_template_scopes
+from crosserp.iam.scope import AllLegalEntities, AllPeriods
 from crosserp.iam.service import IAMService
 from crosserp.platform.principal import ActorType, Principal, get_principal
 
@@ -275,6 +277,55 @@ def test_store_operator_without_grants_sees_nothing(json_client: TestClient, api
     assert detail.json()["code"] == "NOT_FOUND"
     assert created.status_code == 403
     assert created.json()["code"] == "DATA_SCOPE_DENIED"
+
+
+def test_store_tokens_do_not_invalidate_period_or_legal_scope(api_engine) -> None:
+    iam = IAMService(api_engine)
+    with Session(api_engine) as session, session.begin():
+        operator = create_user(
+            session, username="period-operator", password="Scope-test-password-123"
+        )
+        owner = create_user(session, username="period-owner", password="Scope-test-password-123")
+        _role(session, operator.id, "store_operator")
+        _role(session, owner.id, "owner_manager")
+        operator_id = operator.id
+        owner_id = owner.id
+        role = session.scalar(select(IamRole).where(IamRole.slug == "store_operator"))
+        assert role is not None
+        session.add(
+            IamDataScopeRule(
+                name="operator-periods",
+                entity="ReconRun",
+                scope_type="periods",
+                values=["2026-10"],
+                role_id=role.id,
+                updated_at=datetime.now(UTC),
+            )
+        )
+    operator_principal = Principal(user_id=operator_id, roles=frozenset({"store_operator"}))
+    owner_principal = Principal(user_id=owner_id, roles=frozenset({"owner_manager"}))
+
+    assert iam.period_scope(operator_principal, "ReconRun") == frozenset({"2026-10"})
+    assert iam.legal_entity_scope(operator_principal, "ExportPackage") == frozenset()
+    assert isinstance(iam.period_scope(owner_principal, "ReconRun"), AllPeriods)
+    assert isinstance(iam.legal_entity_scope(owner_principal, "ExportPackage"), AllLegalEntities)
+    with Session(api_engine) as session, session.begin():
+        session.add(
+            IamDataScopeRule(
+                name="bad-periods",
+                entity="ReconRun",
+                scope_type="periods",
+                values=["not-a-period"],
+                role_id=session.scalar(select(IamRole.id).where(IamRole.slug == "store_operator")),
+                updated_at=datetime.now(UTC),
+            )
+        )
+    try:
+        iam.period_scope(operator_principal, "ReconRun")
+    except APIError as exc:
+        assert exc.code.value == "VALIDATION_FAILED"
+    else:
+        raise AssertionError("畸形期间规则必须失败关闭")
 
 
 def test_owner_manager_sees_all_stores(json_client: TestClient, api_engine) -> None:

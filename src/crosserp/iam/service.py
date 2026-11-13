@@ -34,6 +34,7 @@ from crosserp.iam.scope import (
     resolve_legal_entity_scope,
     resolve_period_scope,
     resolve_store_scope,
+    role_tokens_for_dimension,
 )
 
 if TYPE_CHECKING:
@@ -532,7 +533,7 @@ class IAMService:
             role_ids = self._role_uuid_ids(session, self._active_role_slugs(effective_user_id))
             rules = self._applicable_scope_rules(session, entity, role_ids)
         return resolve_period_scope(
-            role_tokens,
+            role_tokens_for_dimension(role_tokens, frozenset({"all"})),
             entity_rules=[(row.scope_type, row.values) for row in rules if row.entity == entity],
             wildcard_rules=[(row.scope_type, row.values) for row in rules if row.entity == "*"],
         )
@@ -547,7 +548,7 @@ class IAMService:
             role_ids = self._role_uuid_ids(session, self._active_role_slugs(effective_user_id))
             rules = self._applicable_scope_rules(session, entity, role_ids)
         return resolve_legal_entity_scope(
-            role_tokens,
+            role_tokens_for_dimension(role_tokens, frozenset({"all"})),
             entity_rules=[(row.scope_type, row.values) for row in rules if row.entity == entity],
             wildcard_rules=[(row.scope_type, row.values) for row in rules if row.entity == "*"],
         )

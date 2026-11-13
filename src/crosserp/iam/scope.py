@@ -261,6 +261,24 @@ def apply_period_scope(statement: Any, column: Any, scope: PeriodScope) -> Any:
     return statement.where(column.in_(scope))
 
 
+def role_tokens_for_dimension(tokens: set[str], kept: frozenset[str]) -> set[str]:
+    """只把本维度认识的角色令牌交给该维度解析器。
+
+    其他已知维度留在原处。未知令牌原样留下并由解析器失败关闭。
+    """
+    selected: set[str] = set()
+    for token in tokens:
+        if token in kept:
+            selected.add(token)
+            continue
+        if token.startswith("store:"):
+            continue
+        if token in KNOWN_SCOPE_TYPES:
+            continue
+        selected.add(token)
+    return selected
+
+
 def resolve_period_scope(
     role_tokens: set[str],
     *,
@@ -422,5 +440,6 @@ __all__ = [
     "resolve_legal_entity_scope",
     "resolve_period_scope",
     "resolve_store_scope",
+    "role_tokens_for_dimension",
     "store_contains",
 ]
