@@ -2,7 +2,7 @@
 
 > 本目录是后端开发任务的**唯一来源**。每个功能包、每个已拆分的单功能各有一个文件，写明方向、依赖、必须复用的共用函数、验收标准和当前进度。开发 agent、独立验收 agent 和监督方都读这里；新任务卡只从这里生成。
 > 设计依据：[08 后端模块与 API 设计 v4](../design/08-后端模块与API设计.md)（含[实体目录](../design/08/ontology-entities.yaml)、[OpenAPI 草案](../design/08/openapi-draft.yaml)）和 [07 成本记账与补货计划补齐](../design/07-成本记账与补货计划补齐.md)。
-> 进度更新于 2026-11-12 15:10（北京时间），以 `git log --first-parent main` 为准；表中提交号是合入 main 的提交或功能工作树上的提交。
+> 进度更新于 2026-11-12 15:10（北京时间）；P0-02 数据范围一行于 2026-11-13 14:24 改为已合入。其余行仍是 15:10 的记录，以 `git log --first-parent main` 为准。
 
 ## 怎么读
 
@@ -54,7 +54,7 @@ P5-01/02 ← P0、P2、P3；P5-03 ← 全部
 | └ 店铺与数据范围 | [P0-01-stores](p0/P0-01-stores.md) | 已合入 | 75a2971–d07372a |
 | └ 单据关联 | [P0-01-docs](p0/P0-01-docs.md) | 已合入 | a8ff7c2–fefe4a5 |
 | P0-02 权限引擎 | [包](p0/P0-02-iam.md) | 主体已合入 | 438d5bd–9938aff、4592a1a、3803221b、3a7b56d、c4164bb |
-| └ 数据范围挂到角色 | [P0-02-scope-roles](p0/P0-02-scope-roles.md) | 未开工（排在 merge-p1-fin 后） | — |
+| └ 数据范围挂到角色 | [P0-02-scope-roles](p0/P0-02-scope-roles.md) | 已合入 | 86ac2ec |
 | P0-03 审计、审批、执行器 | [包](p0/P0-03-audit-approval-ontology.md) | 主体已合入 | f432fe0、c958d5d、2a2c5df、2c36c46、e96a470 等 |
 | └ 审计导出包落库 | [P0-03-audit-export](p0/P0-03-audit-export.md) | 已合入 | 6f68c2a |
 | └ 中风险撤销与每日摘要 | [P0-03-undo](p0/P0-03-undo.md) | 合入中（打回项已用新提交修复，待最终核对） | 3cc3037 … 71a60d9 |

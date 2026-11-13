@@ -1,7 +1,7 @@
 # 数据范围挂到角色、默认角色模板（P0-02-scope-roles）
 
 - **旧任务卡：** TASK-sec-scope2.draft（仓库外草稿）
-- **状态：** 未开工（排在 merge-p1-fin 之后）
+- **状态：** 已合入（2026-11-13，`86ac2ec`）
 - **规则：** [rules.md](../rules.md)；验收流程 [acceptance.md](../acceptance.md)
 
 ## 方向与业务价值
@@ -34,7 +34,7 @@ P0-02 已合入部分（`iam/scope.py`）、merge-p1-fin 完成。
 
 ## 进度
 
-草稿已写，未开工。合入后由监督方重建 data.db（旧库改名备份）。
+已合回 `86ac2ec`。功能提交 `f043f2f`，期间令牌修复 `01229df`。本次合回到此为止，没有重建 `data.db`。
 
 ## 待定 / 需拍板
 
