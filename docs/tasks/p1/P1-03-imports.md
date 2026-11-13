@@ -1,7 +1,7 @@
 # 财务导入批次接口（P1-03-imports）
 
 - **旧任务卡：** 无（进度文件中记为 fin-imports，尚无任务卡）
-- **状态：** 未开工（P1-02 已合入，接口清单仍待定）
+- **状态：** 开工（2026-11-13）。批次接口在 `p1-fin-imports`，原始行在 `p1-fin-rows`
 - **规则：** [rules.md](../rules.md)；验收流程 [acceptance.md](../acceptance.md)
 
 ## 方向与业务价值
@@ -40,7 +40,7 @@ P1-02 合入 main。
 
 ## 进度
 
-未开工。
+2026-11-13 开工。`GET/POST /finance/imports` 与 `GET /finance/imports/{id}` 在 `p1-fin-imports`。`GET /finance/rows/{table}/{id}` 在 `p1-fin-rows`。两棵树都还没合回。
 
 ## 待定 / 需拍板
 

@@ -2,7 +2,7 @@
 
 > 切换 agent 或开工前先读本文和 [后端开发任务总览](tasks/README.md)。完整规则以 [开发共用规则](tasks/rules.md) 和 [08 后端模块与 API 设计 v4](design/08-后端模块与API设计.md) 为准；本文只保留同步所需的已核实事实，不替代设计原文。
 >
-> **最后更新：** 2026-11-13 15:36（Asia/Shanghai） / 后端收尾 / 见本提交（对齐任务状态与工作树）
+> **最后更新：** 2026-11-13 15:50（Asia/Shanghai） / 后端收尾 / 见本提交（P1 剩余三棵树开工）
 
 ## 1. 项目定位
 
@@ -90,13 +90,13 @@ CrossERP 是面向中国境内主体、做出口跨境电商的智能体 ERP：�
 
 ## 6. 当前状态
 
-核实时间：2026-11-13 15:36（Asia/Shanghai）。以 `git log --first-parent main` 和 `git worktree list` 为准。
+核实时间：2026-11-13 15:50（Asia/Shanghai）。以 `git log --first-parent main` 和 `git worktree list` 为准。
 
 - **本提交之前的 main 头：** `1de1910`（任务状态已改成已合入）。数据范围合回是 `86ac2ec`，记忆是 `02b983f`。相对 `origin/main` 超前，**尚未推送**。`data.db` 未读、未重建、未改名。
 - **P0–P1 已合入项的任务文件已在 `1de1910` 改完。** 进度表不再把导入、财务已开发块和撤销写成待合并。
 - **P0-02 数据范围已合回 `86ac2ec`。** 功能提交 `f043f2f`，合入当时 main 的合并提交 `8ea3142`，期间令牌修复 `01229df`。隔离库 `sqlite:///C:/Users/cimi/AppData/Local/Temp/cx-pw/backend/db/sec-scope2-handoff.db`：`ruff format --check` 0、`ruff check` 0、`mypy` 0（246 个源文件）、`pytest -q` 667 passed / 7 skipped / 0 failed、`check_doc_links.py` 0、`check_grants_cover_all_tables.py` 0（74 张表）。SQLite 迁移往返通过，单一 head 是 `0028_role_template_scopes`。未跑：MySQL 3306 未监听，未启动，未跑 `-m db` 和 MySQL 迁移往返；未单独跑 API 合同脚本和密钥扫描。
 - **P1-02 导入已合回 `498058c`。** 导入树已拆。
-- **P1-03 已开发的 6 个功能已合回 `050e9f5`。** 财务树已拆。财务导入、费用列映射仍未开工。
+- **P1-03 已开发的 6 个功能已合回 `050e9f5`。** 财务导入、原始行和费用确认已开工，还没合回。
 
 ### 各批进度
 
@@ -104,14 +104,17 @@ CrossERP 是面向中国境内主体、做出口跨境电商的智能体 ERP：�
 - **P0-02 数据范围挂角色（sec-scope2）：** 已合回 `86ac2ec`。第二次重建 `data.db` 的旧授权仍在，但本次明确不重建。
 - **P1-01 商品目录：** 均已合入 main。
 - **P1-02 导入：** 已合回 `498058c`。见上面的验证结果。
-- **P1-03 财务：** 已开发的 6 个功能已合回 `050e9f5`。财务导入、费用列映射未开工。
+- **P1-03 财务：** 已开发的 6 个功能已合回 `050e9f5`。剩余接口已开工，还没合回。
 - **P2–P5：** 未开工。
 
 ### 已建立的工作树（2026-11-13 15:36）
 
 | 工作树 | 基于 | 说明 |
 |---|---|---|
-| 主工作区 main | 1de1910 | 只剩这一棵已注册工作树 |
+| 主工作区 main | 见本提交 | 三棵功能树从本提交切出 |
+| `p1-fin-imports` | 本提交 | 财务导入批次。还没合回 |
+| `p1-fin-rows` | 本提交 | 原始行详情。还没合回 |
+| `p1-fin-feemap` | 本提交 | 费用分类确认。还没合回 |
 
 `sec-scope2` 已拆。`CrossERP-wt` 里已注销的残留目录已删除，该目录现在是空的。删的是 `_task`、`batch3`、`frontend`、`pf-jobs`、`ux-*`、`xfix-pay`、`xverify-b0dc7df`。它们没有 `.git`，也没有 main 上不存在的文件。没有碰 `~/.crosserp`。
 
