@@ -85,7 +85,7 @@ P5-01/02 ← P0、P2、P3；P5-03 ← 全部
 | └ 科目与汇率 | [P1-03-ref](p1/P1-03-ref.md) | 已合入 | 67df14a、050e9f5 |
 | └ 导出产物列表 | [P1-03-exports](p1/P1-03-exports.md) | 已合入 | d3a6926、050e9f5 |
 | └ 财务导入 | [P1-03-imports](p1/P1-03-imports.md) | 开工 | p1-fin-imports、p1-fin-rows |
-| └ 费用与列映射 | [P1-03-feemap](p1/P1-03-feemap.md) | 开工 | p1-fin-feemap |
+| └ 费用与列映射 | [P1-03-feemap](p1/P1-03-feemap.md) | 开发完成，未合回 | p1-fin-feemap |
 
 ### P2–P5（10 个功能包，均未开工，功能拆分待定）
 
