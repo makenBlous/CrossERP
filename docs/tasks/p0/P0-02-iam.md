@@ -1,7 +1,7 @@
 # 权限引擎与旧 15 点映射（P0-02-iam 功能包）
 
 - **旧任务卡：** [backend-phases.md P0-02](../_archive/backend-phases.md)（已归档）；仓库外：TASK-be-p0-iam、TASK-be-p0-iam-fix、TASK-be-p0-iam-nodef、TASK-sec-fix2、TASK-sec-scope、TASK-sec-scope2.draft
-- **状态：** 主体已合入 main；店铺范围挂到角色（P0-02-scope-roles）未开工
+- **状态：** 已合入 main（数据范围 `86ac2ec`）
 - **设计依据：** [08 v4](../../design/08-后端模块与API设计.md) 第 8.1 节分期；[实体目录](../../design/08/ontology-entities.yaml)、[OpenAPI 草案](../../design/08/openapi-draft.yaml)
 - **规则：** [rules.md](../rules.md)；验收流程 [acceptance.md](../acceptance.md)
 
@@ -47,7 +47,7 @@ P0-01、前端 `permissionCatalog`、OpenAPI 草案。
 
 ## 进度
 
-IAM 合并 438d5bd–9938aff（11-12 04:27–04:40）；sec-fix2 4592a1a、3803221b；sec-scope 3a7b56d + c4164bb（catalog 改走 IAM 唯一函数）。sec-scope2 草稿已写，计划在 merge-p1-fin 之后开工，开工后需要再重建一次 data.db（已授权，旧库改名备份）。
+IAM 合并 438d5bd–9938aff；sec-fix2 4592a1a、3803221b；sec-scope 3a7b56d、c4164bb。数据范围已合回 `86ac2ec`。第二次重建 `data.db` 的旧授权仍在，2026-11-13 这次收尾没有重建。
 
 ## 待定 / 需拍板
 

@@ -1,7 +1,7 @@
 # 疑似重复实体与合并（P1-02-dedup）
 
 - **旧任务卡：** TASK-p1-ing-dedup、-nodef、-nodef2（仓库外）
-- **状态：** 已开发待合并（f976cf0）
+- **状态：** 已合入 main（`f976cf0`，合回 `498058c`）
 - **规则：** [rules.md](../rules.md)；验收流程 [acceptance.md](../acceptance.md)
 
 ## 方向与业务价值
@@ -42,7 +42,7 @@ P0-03（实体与 EntityVersion），不依赖批次表。
 
 ## 进度
 
-已在独立工作树提交，等 merge-p1-ing（chain6 在 p0tail-ok 后自动启动）。合并时共享组件改动丢弃、改用 main 的统一函数。
+已合回 `498058c`。工作树已拆。
 
 ## 待定 / 需拍板
 

@@ -1,7 +1,7 @@
 # 对账运行（P1-03-recon）
 
 - **旧任务卡：** TASK-p1-fin-recon（仓库外）
-- **状态：** 已开发待合并（67f3bb1）
+- **状态：** 已合入 main（`67f3bb1`，合回 `050e9f5`）
 - **规则：** [rules.md](../rules.md)；验收流程 [acceptance.md](../acceptance.md)
 
 ## 方向与业务价值
@@ -41,7 +41,7 @@ P0。
 
 ## 进度
 
-已在独立工作树提交，等 merge-p1-fin。合并时丢弃：`api/__init__.py` 上的幂等补丁（`_defer_success_replay`、`_caller_may_replay`、`_replay_permitted`）、dispatcher 的 `_approval_result` 兼容壳、gateway 兼容壳、`_allowed_store_ids`/`_store_ids` 失败放行。
+已合回 `050e9f5`。工作树已拆。
 
 ## 待定 / 需拍板
 

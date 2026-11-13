@@ -1,7 +1,7 @@
 # 结算对账快赢接口（P1-03-finance 功能包）
 
 - **旧任务卡：** [backend-phases.md P1-03](../_archive/backend-phases.md)（已归档）；仓库外：P1-FIN-COMMON、TASK-p1-fin-*、TASK-merge-p1-fin.draft
-- **状态：** 6 个功能已开发、待合并（merge-p1-fin 排在 merge-p1-ing 之后）；fin-imports、fin-feemap 未开工
+- **状态：** 已开发的 6 个功能已合入 main（`050e9f5`）；财务导入、费用列映射未开工
 - **设计依据：** [08 v4](../../design/08-后端模块与API设计.md) 第 8.1 节分期；[实体目录](../../design/08/ontology-entities.yaml)、[OpenAPI 草案](../../design/08/openapi-draft.yaml)
 - **规则：** [rules.md](../rules.md)；验收流程 [acceptance.md](../acceptance.md)
 
@@ -52,7 +52,7 @@ P0 全部；fin-imports、fin-feemap 依赖 P1-02。
 
 ## 进度
 
-settle 740ac97、recon 67f3bb1、reconissue 199d1b3、profit faa81e0、ref 67df14a、exports d3a6926（各自工作树，从 eb8f302 切出，未合入）。审查结论：业务部分可用，各自在共享组件上补的幂等、审批兼容壳、范围放行一律丢弃，合并时改用 main 的统一函数。
+settle `740ac97`、recon `67f3bb1`、reconissue `199d1b3`、profit `faa81e0`、ref `67df14a`、exports `d3a6926` 已合回 `050e9f5`。工作树已拆。财务导入和费用列映射仍未开工。
 
 ## 待定 / 需拍板
 

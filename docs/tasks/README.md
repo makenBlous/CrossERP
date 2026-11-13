@@ -2,7 +2,7 @@
 
 > 本目录是后端开发任务的**唯一来源**。每个功能包、每个已拆分的单功能各有一个文件，写明方向、依赖、必须复用的共用函数、验收标准和当前进度。开发 agent、独立验收 agent 和监督方都读这里；新任务卡只从这里生成。
 > 设计依据：[08 后端模块与 API 设计 v4](../design/08-后端模块与API设计.md)（含[实体目录](../design/08/ontology-entities.yaml)、[OpenAPI 草案](../design/08/openapi-draft.yaml)）和 [07 成本记账与补货计划补齐](../design/07-成本记账与补货计划补齐.md)。
-> 进度更新于 2026-11-12 15:10（北京时间）；P0-02 数据范围一行于 2026-11-13 14:24 改为已合入。其余行仍是 15:10 的记录，以 `git log --first-parent main` 为准。
+> 进度更新于 2026-11-13 15:32（北京时间）。P0–P1 状态按 main 核对。P2–P5 仍未开工。
 
 ## 怎么读
 
@@ -53,17 +53,17 @@ P5-01/02 ← P0、P2、P3；P5-03 ← 全部
 | └ 后台任务 | [P0-01-jobs](p0/P0-01-jobs.md) | 已合入 | 285f7af |
 | └ 店铺与数据范围 | [P0-01-stores](p0/P0-01-stores.md) | 已合入 | 75a2971–d07372a |
 | └ 单据关联 | [P0-01-docs](p0/P0-01-docs.md) | 已合入 | a8ff7c2–fefe4a5 |
-| P0-02 权限引擎 | [包](p0/P0-02-iam.md) | 主体已合入 | 438d5bd–9938aff、4592a1a、3803221b、3a7b56d、c4164bb |
+| P0-02 权限引擎 | [包](p0/P0-02-iam.md) | 已合入 | 438d5bd–9938aff、86ac2ec |
 | └ 数据范围挂到角色 | [P0-02-scope-roles](p0/P0-02-scope-roles.md) | 已合入 | 86ac2ec |
-| P0-03 审计、审批、执行器 | [包](p0/P0-03-audit-approval-ontology.md) | 主体已合入 | f432fe0、c958d5d、2a2c5df、2c36c46、e96a470 等 |
+| P0-03 审计、审批、执行器 | [包](p0/P0-03-audit-approval-ontology.md) | 已合入 | f432fe0、6f68c2a、a83896e |
 | └ 审计导出包落库 | [P0-03-audit-export](p0/P0-03-audit-export.md) | 已合入 | 6f68c2a |
-| └ 中风险撤销与每日摘要 | [P0-03-undo](p0/P0-03-undo.md) | 合入中（打回项已用新提交修复，待最终核对） | 3cc3037 … 71a60d9 |
+| └ 中风险撤销与每日摘要 | [P0-03-undo](p0/P0-03-undo.md) | 已合入 | 3cc3037、a83896e |
 
 ### P1 主数据、数据进入与快赢（3 个功能包）
 
 | 功能 | 文件 | 状态 | 提交 |
 |---|---|---|---|
-| P1-01 商品主数据与映射 | [包](p1/P1-01-catalog.md) | 已合入（撤销接入随 P0 收尾） | cbb6b5c、1f62e85 |
+| P1-01 商品主数据与映射 | [包](p1/P1-01-catalog.md) | 已合入 | cbb6b5c、1f62e85、a83896e |
 | └ 类目 | [P1-01-category](p1/P1-01-category.md) | 已合入 | 0e971cf |
 | └ 品牌 | [P1-01-brand](p1/P1-01-brand.md) | 已合入 | e144c3e |
 | └ SKU 与下拉 | [P1-01-sku](p1/P1-01-sku.md) | 已合入 | 599620d |
@@ -71,19 +71,19 @@ P5-01/02 ← P0、P2、P3；P5-03 ← 全部
 | └ SKU 映射 | [P1-01-mapping](p1/P1-01-mapping.md) | 已合入 | 9ef219d |
 | └ 组合装 | [P1-01-bundle](p1/P1-01-bundle.md) | 已合入 | d564a4d |
 | └ 成本期间 | [P1-01-cost](p1/P1-01-cost.md) | 已合入 | 868a5f3 |
-| P1-02 数据进入链路 | [包](p1/P1-02-ingest.md) | 待合并（merge-p1-ing 在 P0 收尾后自动开始） | — |
-| └ 批次核心 | [P1-02-core](p1/P1-02-core.md) | 待合并 | f00580a |
-| └ 去重合并 | [P1-02-dedup](p1/P1-02-dedup.md) | 待合并 | f976cf0 |
-| └ 问题处理与转交 | [P1-02-issue](p1/P1-02-issue.md) | 待合并 | 7ea9dfa |
-| └ 投射与替代 | [P1-02-project](p1/P1-02-project.md) | 待合并 | d1631e0 |
-| └ 映射规则版本 | [P1-02-rules](p1/P1-02-rules.md) | 待合并 | cc616fa |
-| P1-03 结算对账快赢 | [包](p1/P1-03-finance.md) | 待合并（排在 merge-p1-ing 后） | — |
-| └ 结算查询 | [P1-03-settle](p1/P1-03-settle.md) | 待合并 | 740ac97 |
-| └ 对账运行 | [P1-03-recon](p1/P1-03-recon.md) | 待合并 | 67f3bb1 |
-| └ 对账异常 | [P1-03-reconissue](p1/P1-03-reconissue.md) | 待合并 | 199d1b3 |
-| └ 利润 | [P1-03-profit](p1/P1-03-profit.md) | 待合并 | faa81e0 |
-| └ 科目与汇率 | [P1-03-ref](p1/P1-03-ref.md) | 待合并 | 67df14a |
-| └ 导出产物列表 | [P1-03-exports](p1/P1-03-exports.md) | 待合并 | d3a6926 |
+| P1-02 数据进入链路 | [包](p1/P1-02-ingest.md) | 已合入 | 498058c |
+| └ 批次核心 | [P1-02-core](p1/P1-02-core.md) | 已合入 | f00580a、498058c |
+| └ 去重合并 | [P1-02-dedup](p1/P1-02-dedup.md) | 已合入 | f976cf0、498058c |
+| └ 问题处理与转交 | [P1-02-issue](p1/P1-02-issue.md) | 已合入 | 7ea9dfa、498058c |
+| └ 投射与替代 | [P1-02-project](p1/P1-02-project.md) | 已合入 | d1631e0、498058c |
+| └ 映射规则版本 | [P1-02-rules](p1/P1-02-rules.md) | 已合入 | cc616fa、498058c |
+| P1-03 结算对账快赢 | [包](p1/P1-03-finance.md) | 已开发部分已合入 | 050e9f5 |
+| └ 结算查询 | [P1-03-settle](p1/P1-03-settle.md) | 已合入 | 740ac97、050e9f5 |
+| └ 对账运行 | [P1-03-recon](p1/P1-03-recon.md) | 已合入 | 67f3bb1、050e9f5 |
+| └ 对账异常 | [P1-03-reconissue](p1/P1-03-reconissue.md) | 已合入 | 199d1b3、050e9f5 |
+| └ 利润 | [P1-03-profit](p1/P1-03-profit.md) | 已合入 | faa81e0、050e9f5 |
+| └ 科目与汇率 | [P1-03-ref](p1/P1-03-ref.md) | 已合入 | 67df14a、050e9f5 |
+| └ 导出产物列表 | [P1-03-exports](p1/P1-03-exports.md) | 已合入 | d3a6926、050e9f5 |
 | └ 财务导入 | [P1-03-imports](p1/P1-03-imports.md) | 未开工（接口清单待定） | — |
 | └ 费用与列映射 | [P1-03-feemap](p1/P1-03-feemap.md) | 未开工（接口清单待定） | — |
 
@@ -102,7 +102,7 @@ P5-01/02 ← P0、P2、P3；P5-03 ← 全部
 | P5-02 行政、CRM 与广告 | [包](p5/P5-02-office-crm-ads.md) | 5.19、5.15、5.14 | 未开工，拆分待定 |
 | P5-03 IM 审批与全量回归 | [包](p5/P5-03-im-approval-regression.md) | 5.16、5.17、4.11 | 未开工，拆分待定 |
 
-16 个功能包中：P0-01、P1-01 已全部合入；P0-02、P0-03 主体已合入；P1-02、P1-03 已开发待合并；P2–P5 共 10 个包未开工。
+16 个功能包中：P0-01、P0-02、P0-03、P1-01、P1-02 已合入；P1-03 已开发的 6 个功能已合入，财务导入和费用列映射未开工；P2–P5 共 10 个包未开工。
 
 ## 新任务卡怎么生成
 

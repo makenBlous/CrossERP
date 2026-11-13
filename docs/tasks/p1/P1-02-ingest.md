@@ -1,7 +1,7 @@
 # 数据进入、清洗、去重与投射（P1-02-ingest 功能包）
 
 - **旧任务卡：** [backend-phases.md P1-02](../_archive/backend-phases.md)（已归档）；仓库外：P1-ING-COMMON、TASK-p1-ing-*（含 -nodef/-nodef2）、TASK-merge-p1-ing
-- **状态：** 5 个功能已开发、待合并（ing-ok 已写；merge-p1-ing 由 chain6 在 p0tail-ok 后自动启动）
+- **状态：** 已合入 main（`498058c`）
 - **设计依据：** [08 v4](../../design/08-后端模块与API设计.md) 第 8.1 节分期；[实体目录](../../design/08/ontology-entities.yaml)、[OpenAPI 草案](../../design/08/openapi-draft.yaml)
 - **规则：** [rules.md](../rules.md)；验收流程 [acceptance.md](../acceptance.md)
 
@@ -48,7 +48,7 @@ P0-01-files、P0-03。
 
 ## 进度
 
-core f00580a、dedup f976cf0、issue 7ea9dfa、project d1631e0、rules cc616fa（各自工作树，未合入）。合并任务 TASK-merge-p1-ing 已写好，等 p0tail-ok。
+五个功能已合回 `498058c`。功能提交：core `f00580a`、dedup `f976cf0`、issue `7ea9dfa`、project `d1631e0`、rules `cc616fa`。工作树已拆。
 
 ## 待定 / 需拍板
 

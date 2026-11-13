@@ -2,7 +2,7 @@
 
 > 切换 agent 或开工前先读本文和 [后端开发任务总览](tasks/README.md)。完整规则以 [开发共用规则](tasks/rules.md) 和 [08 后端模块与 API 设计 v4](design/08-后端模块与API设计.md) 为准；本文只保留同步所需的已核实事实，不替代设计原文。
 >
-> **最后更新：** 2026-11-13 14:24（Asia/Shanghai） / 后端收尾 / 见本提交（数据范围已合回）
+> **最后更新：** 2026-11-13 15:32（Asia/Shanghai） / 后端收尾 / 见本提交（任务状态与残留工作树）
 
 ## 1. 项目定位
 
@@ -90,9 +90,9 @@ CrossERP 是面向中国境内主体、做出口跨境电商的智能体 ERP：�
 
 ## 6. 当前状态
 
-核实时间：2026-11-13 14:24（Asia/Shanghai）。以 `git log --first-parent main` 和 `git worktree list` 为准。
+核实时间：2026-11-13 15:32（Asia/Shanghai）。以 `git log --first-parent main` 和 `git worktree list` 为准。
 
-- **main 头提交：** `86ac2ec`（合入数据范围）。父提交 `5b410d8` 与 `01229df`。相对 `origin/main` 超前，**尚未推送**。`data.db` 未读、未重建、未改名。
+- **main 头提交：** `02b983f`（记录数据范围已合回）。功能合回是 `86ac2ec`。相对 `origin/main` 超前，**尚未推送**。`data.db` 未读、未重建、未改名。
 - **P0-02 数据范围已合回 `86ac2ec`。** 功能提交 `f043f2f`，合入当时 main 的合并提交 `8ea3142`，期间令牌修复 `01229df`。隔离库 `sqlite:///C:/Users/cimi/AppData/Local/Temp/cx-pw/backend/db/sec-scope2-handoff.db`：`ruff format --check` 0、`ruff check` 0、`mypy` 0（246 个源文件）、`pytest -q` 667 passed / 7 skipped / 0 failed、`check_doc_links.py` 0、`check_grants_cover_all_tables.py` 0（74 张表）。SQLite 迁移往返 `upgrade head → downgrade base → upgrade head` 通过，单一 head 是 `0028_role_template_scopes`。未跑：MySQL 3306 未监听，未启动，未跑 `-m db` 和 MySQL 迁移往返；未单独跑 API 合同脚本和密钥扫描。
 - **P1-02 导入已合回 `498058c`。** 记忆提交 `5b410d8`。导入树已拆。
 - **P1-03 财务已合回 `050e9f5`。** 财务树已拆。
@@ -106,13 +106,13 @@ CrossERP 是面向中国境内主体、做出口跨境电商的智能体 ERP：�
 - **P1-03 财务：** 已合回 `050e9f5`。
 - **P2–P5：** 未开工。
 
-### 已建立的工作树（2026-11-13 14:24）
+### 已建立的工作树（2026-11-13 15:32）
 
 | 工作树 | 基于 | 说明 |
 |---|---|---|
-| 主工作区 main | 86ac2ec | 数据范围已合回。本记忆提交后拆 sec-scope2 |
-| `sec-scope2` | 01229df | 已合回。本记忆提交后拆除 |
-| `int-p1-ing`、`p1-ing-*`、`int-p1-fin`、`p1-fin-*` | 已拆 | 导入和财务合回后已拆除 |
+| 主工作区 main | 02b983f | 只剩这一棵已注册工作树 |
+
+`sec-scope2` 已拆。`CrossERP-wt` 里已注销的残留目录（`_task`、`batch3`、`frontend`、`pf-jobs`、`ux-*`、`xfix-pay`、`xverify-b0dc7df`）没有 `.git`，也没有 main 上不存在的文件；`xverify-b0dc7df` 对应的 `b0dc7df` 已在 main 上。本记忆提交后删除这些残留目录。不碰 `~/.crosserp`。
 
 合回仍是一次一块：审查或修复通过 → 把最新 main 合进该树并跑全量 → `--no-ff` 合回 main → 更新记忆 → 拆树。
 

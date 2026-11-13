@@ -1,7 +1,7 @@
 # 审计、审批中心与实体动作执行器（P0-03-audit-approval-ontology 功能包）
 
 - **旧任务卡：** [backend-phases.md P0-03](../_archive/backend-phases.md)（已归档）；仓库外：TASK-be-p0-audit、-audit-fix、-audit-fix2、-audit-nodef、TASK-be-p0-onto、-onto-fix、-onto-nodef、TASK-sec-fix3、TASK-sec-idem、TASK-merge-inc-b、TASK-merge-p0-tail
-- **状态：** 主体已合入 main；撤销（P0-03-undo）合入中（merge-p0-tail，审查打回在修）
+- **状态：** 已合入 main（撤销 `a83896e`）
 - **设计依据：** [08 v4](../../design/08-后端模块与API设计.md) 第 8.1 节分期；[实体目录](../../design/08/ontology-entities.yaml)、[OpenAPI 草案](../../design/08/openapi-draft.yaml)
 - **规则：** [rules.md](../rules.md)；验收流程 [acceptance.md](../acceptance.md)
 
@@ -32,7 +32,7 @@ P0-01、P0-02、现有哈希链。
 - dispatcher 绑定请求事务 sec-fix3（已合入 2a2c5df）
 - 幂等按调用身份隔离 sec-idem（已合入 2c36c46、64b824b）；ApprovalSubmission 统一（e96a470、f2c65c9、178d23b）
 - [P0-03-audit-export](P0-03-audit-export.md) 审计导出包落库（已合入 6f68c2a）
-- [P0-03-undo](P0-03-undo.md) 中风险动作撤销与每日摘要（合入中）
+- [P0-03-undo](P0-03-undo.md) 中风险动作撤销与每日摘要（已合入）
 
 ## 包级验收标准（全部功能合入后逐条验证）
 
@@ -49,7 +49,7 @@ P0-01、P0-02、现有哈希链。
 
 ## 进度
 
-见功能拆分各项。P0 收尾条件（写 p0tail-ok 前逐条核对）：restore_entity 不静默 return、全局实体（品牌/类目）的店铺判断、`_issue_undo` 的 `.get`；中风险缺实体 ID 必须报错；`_event_type` 兜底删除；每日摘要 payload 的 `.get` 默认值删除；撤销接入 catalog 中风险动作；全量 0 失败、双库往返、单一 head；重建 data.db（改名备份、原备份不动、创建 files 目录、健康检查 200）。
+P0 已于 2026-11-12 15:32 放行（`p0tail-ok`）。审计导出 `6f68c2a`、撤销 `3cc3037`、新建类撤销 `a83896e` 均已合入。`data.db` 仍是当天 15:25 重建的那份。
 
 ## 待定 / 需拍板
 

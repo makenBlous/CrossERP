@@ -1,7 +1,7 @@
 # 商品主数据与映射（P1-01-catalog 功能包）
 
 - **旧任务卡：** [backend-phases.md P1-01](../_archive/backend-phases.md)（已归档）；仓库外：P1-COMMON、TASK-p1-cat-*（含 -nodef）、TASK-merge-p1-cat、TASK-merge-p1-cat-finish
-- **状态：** 已合入 main（撤销接入在 merge-p0-tail 中）
+- **状态：** 已合入 main（撤销接入 `a83896e`）
 - **设计依据：** [08 v4](../../design/08-后端模块与API设计.md) 第 8.1 节分期；[实体目录](../../design/08/ontology-entities.yaml)、[OpenAPI 草案](../../design/08/openapi-draft.yaml)
 - **规则：** [rules.md](../rules.md)；验收流程 [acceptance.md](../acceptance.md)
 
@@ -49,7 +49,7 @@ P0 全部。
 
 ## 进度
 
-7 个功能全部合入（category 0e971cf … cost 868a5f3）；收尾 cbb6b5c；幂等跳过范围收窄 1f62e85；店铺范围改走 IAM c4164bb。撤销接入 catalog 中风险动作由 merge-p0-tail 完成后补齐。
+7 个功能全部合入（category `0e971cf` 至 cost `868a5f3`）；收尾 `cbb6b5c`；幂等跳过范围收窄 `1f62e85`；店铺范围改走 IAM `c4164bb`。撤销接入已随 `a83896e` 合入。
 
 ## 待定 / 需拍板
 
