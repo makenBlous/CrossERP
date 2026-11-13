@@ -104,7 +104,7 @@ from crosserp.profit.report_csv import write_report_csv
 from crosserp.profit.report_xlsx import write_report_xlsx
 from crosserp.profit.service import compute_and_save
 from crosserp.recon.engine import reconcile_all
-from crosserp.vouchers.accounts import load_accounts
+from crosserp.vouchers.accounts import default_accounts_path, load_accounts
 from crosserp.vouchers.builder import build_month_voucher
 from crosserp.vouchers.service import save_draft
 from crosserp.web.app import create_app
@@ -1186,7 +1186,7 @@ def voucher_draft(
             )
             if store_row is None:
                 raise LookupError(f"店铺不存在: {store}")
-            config = load_accounts(accounts)
+            config = load_accounts(default_accounts_path() if accounts is None else accounts)
             draft = build_month_voucher(
                 session,
                 store_id=store_row.id,

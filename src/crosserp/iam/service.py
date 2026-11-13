@@ -26,7 +26,15 @@ from crosserp.db.schema import (
     UserRole,
     UserStoreGrant,
 )
-from crosserp.iam.scope import StoreScope, choose_entity_rules, resolve_store_scope
+from crosserp.iam.scope import (
+    LegalEntityScope,
+    PeriodScope,
+    StoreScope,
+    choose_entity_rules,
+    resolve_legal_entity_scope,
+    resolve_period_scope,
+    resolve_store_scope,
+)
 
 if TYPE_CHECKING:
     from crosserp.platform.principal import Principal
@@ -513,6 +521,36 @@ class IAMService:
         if not store_ids:
             return False, frozenset()
         return True, store_ids
+
+    def period_scope(self, principal: Principal, entity: str) -> PeriodScope:
+        """返回全部期间或 YYYY-MM 集合。格式不对时拒绝放行。"""
+        effective_user_id = principal.effective_user_id
+        if effective_user_id is None:
+            raise _api_error("AUTH_REQUIRED", "需要登录")
+        role_tokens = self._role_store_tokens(effective_user_id)
+        with Session(self.engine) as session:
+            role_ids = self._role_uuid_ids(session, self._active_role_slugs(effective_user_id))
+            rules = self._applicable_scope_rules(session, entity, role_ids)
+        return resolve_period_scope(
+            role_tokens,
+            entity_rules=[(row.scope_type, row.values) for row in rules if row.entity == entity],
+            wildcard_rules=[(row.scope_type, row.values) for row in rules if row.entity == "*"],
+        )
+
+    def legal_entity_scope(self, principal: Principal, entity: str) -> LegalEntityScope:
+        """返回全部法人或法人名称集合。格式不对时拒绝放行。"""
+        effective_user_id = principal.effective_user_id
+        if effective_user_id is None:
+            raise _api_error("AUTH_REQUIRED", "需要登录")
+        role_tokens = self._role_store_tokens(effective_user_id)
+        with Session(self.engine) as session:
+            role_ids = self._role_uuid_ids(session, self._active_role_slugs(effective_user_id))
+            rules = self._applicable_scope_rules(session, entity, role_ids)
+        return resolve_legal_entity_scope(
+            role_tokens,
+            entity_rules=[(row.scope_type, row.values) for row in rules if row.entity == entity],
+            wildcard_rules=[(row.scope_type, row.values) for row in rules if row.entity == "*"],
+        )
 
     def _role_store_tokens(self, user_id: UUID) -> set[str]:
         self._refresh_roles()

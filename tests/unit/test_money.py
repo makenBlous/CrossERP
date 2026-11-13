@@ -12,7 +12,14 @@ from crosserp.core.errors import (
     CurrencyMismatchError,
     PrecisionError,
 )
-from crosserp.core.money import EU_MARKETPLACES, Money, locale_for, money_sum, parse_amount
+from crosserp.core.money import (
+    EU_MARKETPLACES,
+    Money,
+    locale_for,
+    money_sum,
+    parse_amount,
+    to_amount_minor,
+)
 
 
 def test_error_types() -> None:
@@ -92,6 +99,14 @@ def test_sum_and_zero() -> None:
     assert money_sum([], "EUR") == Money.zero("EUR")
     with pytest.raises(CurrencyMismatchError):
         money_sum([Money(Decimal("1"), "USD")], "EUR")
+
+
+def test_to_amount_minor_half_up_to_scale() -> None:
+    assert to_amount_minor(Decimal("1.23456")) == 12346
+    assert to_amount_minor(Decimal("1.23454")) == 12345
+    assert to_amount_minor(Decimal("-1.23456")) == -12346
+    assert to_amount_minor(Decimal("1.2345")) == 12345
+    assert to_amount_minor(Decimal("-0.00005")) == -1
 
 
 def test_quantize_display_half_up() -> None:

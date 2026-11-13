@@ -103,7 +103,7 @@ def test_listing_crud_scope_pagination_idempotency_version_and_audit(tmp_path: P
         listing = first.json()
         assert listing["status"] == "active"
         assert listing["version"] == 1
-        assert listing["undoPayload"]["action"] == "Listing.update"
+        assert listing["undoPayload"]["action"] == "Listing.status"
         replay = client.post(
             "/api/v1/catalog/listings",
             headers={"Idempotency-Key": "listing-create-1"},
@@ -237,7 +237,7 @@ def test_listing_agent_medium_action_has_undo_and_audit_context(tmp_path: Path) 
             },
         )
         assert response.status_code == 201, response.text
-        assert response.json()["undoPayload"]["action"] == "Listing.update"
+        assert response.json()["undoPayload"]["action"] == "Listing.status"
     with Session(engine) as session:
         version = session.scalar(
             select(EntityVersion).where(EntityVersion.entity_type == "Listing")

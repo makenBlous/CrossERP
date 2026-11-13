@@ -16,6 +16,7 @@ from crosserp.api.schemas import (
     ListingStatusRequest,
     ListingUpdateRequest,
 )
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.schema import ActionExecution, Listing, Store
 from crosserp.iam.scope import AllStores, StoreScope, apply_store_scope
 from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
@@ -121,7 +122,14 @@ class ListingService:
             self.session.flush()
             result = _listing_dict(listing)
             result["before"] = {"storeId": str(store_id)}
-            result["undoPayload"] = {"action": "Listing.update", "before": result["before"]}
+            result["undoPayload"] = {
+                "action": "Listing.status",
+                "payload": {
+                    "ids": [str(listing.id)],
+                    "status": "inactive",
+                    "expectedVersion": 1,
+                },
+            }
             return result
 
         dispatcher = self._dispatcher()
@@ -269,7 +277,9 @@ class ListingService:
         return result
 
     def _dispatcher(self) -> ActionDispatcher:
-        return make_action_dispatcher(self.session, self.permission_service)
+        return make_action_dispatcher(
+            self.session, self.permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        )
 
     def _store_scope(self) -> StoreScope:
         return self.permission_service.store_scope(self.principal, "Listing")

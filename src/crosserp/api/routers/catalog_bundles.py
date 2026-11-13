@@ -26,6 +26,7 @@ from crosserp.catalog.bundles import (
     get_bundle,
     update_bundle,
 )
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.schema import Bundle
 from crosserp.iam.scope import AllStores
 from crosserp.platform.dispatcher import RiskTier
@@ -167,7 +168,9 @@ def create_bundle_endpoint(
     session = _db(request)
     try:
         with session.begin():
-            dispatcher = make_action_dispatcher(session, permission_service)
+            dispatcher = make_action_dispatcher(
+                session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+            )
             bundle_id = uuid4()
             values = payload.model_dump(by_alias=True)
 
@@ -229,7 +232,9 @@ def update_bundle_endpoint(
             row = get_bundle(session, id)
             if not bundle_in_store_scope(session, row, principal, permission_service):
                 raise not_found(message="组合装不存在")
-            dispatcher = make_action_dispatcher(session, permission_service)
+            dispatcher = make_action_dispatcher(
+                session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+            )
 
             def work() -> dict[str, Any]:
                 before, after = update_bundle(
@@ -304,7 +309,9 @@ def deactivate_bundles(
                             "actualVersion": row.version,
                         },
                     )
-                dispatcher = make_action_dispatcher(session, permission_service)
+                dispatcher = make_action_dispatcher(
+                    session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+                )
 
                 def work(row: Bundle = row) -> dict[str, Any]:
                     before, after = deactivate_bundle(session, row)

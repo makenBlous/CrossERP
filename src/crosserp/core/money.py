@@ -179,6 +179,28 @@ def locale_for(marketplace: str | None, currency: str) -> Locale:
     return "us"
 
 
+_MINOR_QUANTUM = Decimal("0.0001")
+_MINOR_SCALE = Decimal(10000)
+
+
+def to_amount_minor(amount: Decimal) -> int:
+    """把 Decimal 金额转成万分位整数。
+
+    先按 07 的过账边界用 ROUND_HALF_UP 量化到 4 位再乘 10000。
+    量化之后必须是整数。不用 int 截断剩余小数。
+    """
+    _reject_float(amount, "金额必须用 Decimal。不能传入 float")
+    if not isinstance(amount, Decimal):
+        raise TypeError("金额必须是 Decimal")
+    if not amount.is_finite():
+        raise ValueError("金额必须是有限 Decimal")
+    quantized = amount.quantize(_MINOR_QUANTUM, rounding=ROUND_HALF_UP)
+    scaled = quantized * _MINOR_SCALE
+    if scaled != scaled.to_integral_value():
+        raise ValueError("万分位转换后不是整数")
+    return int(scaled)
+
+
 def _factor(other: object) -> int | Decimal:
     _reject_float(other, "金额运算不能使用 float")
     if isinstance(other, bool) or not isinstance(other, int | Decimal):

@@ -17,7 +17,7 @@ from crosserp.db.session import session_scope, sqlite_file_url
 
 pytestmark = pytest.mark.db
 
-_EXPECTED_COUNT = 69  # 67 张表加上 user_store_grant 与 agent_store_scope
+_EXPECTED_COUNT = 74  # 72 张表现有表加上 user_store_grant 与 agent_store_scope
 
 
 def _url(engine: Engine) -> str:
@@ -85,6 +85,40 @@ def test_raw_row_autoincrement(engine: Engine) -> None:
             session.flush()
             assert isinstance(row.id, int)
             assert row.id >= 1
+    finally:
+        downgrade_base(url)
+
+
+def test_import_batch_counts_json_is_non_null_with_stage_defaults(engine: Engine) -> None:
+    url = _url(engine)
+    try:
+        upgrade_head(url)
+        with session_scope(engine) as session:
+            batch = ImportBatch(
+                connector_id="counts",
+                connector_version="1",
+                file_name="counts.csv",
+                file_sha256="d" * 64,
+                imported_at=datetime(2026, 11, 2, tzinfo=UTC),
+                row_count=0,
+                status="uploaded",
+                error_count=0,
+            )
+            session.add(batch)
+            session.flush()
+            assert batch.counts_json == {
+                "landed": 0,
+                "valid": 0,
+                "duplicate": 0,
+                "quarantined": 0,
+                "projected": 0,
+            }
+            counts_column = next(
+                column
+                for column in inspect(engine).get_columns("import_batch")
+                if column["name"] == "counts_json"
+            )
+            assert counts_column["nullable"] is False
     finally:
         downgrade_base(url)
 

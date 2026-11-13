@@ -70,7 +70,12 @@ def test_four_denials_leave_audit_and_no_artifact(engine: Engine, tmp_path: Path
         with session_scope(engine) as session:
             for token in (None, "bad-token"):
                 with pytest.raises(ApprovalRequired):
-                    export(session, batch, "xlsx", token, output_dir=tmp_path)
+                    export(
+                        session,
+                        batch,
+                        "xlsx",
+                        token,
+                    )
         with session_scope(engine) as session:
             row = create(
                 session,
@@ -82,7 +87,12 @@ def test_four_denials_leave_audit_and_no_artifact(engine: Engine, tmp_path: Path
             reject(session, row, approver="finance", comment="不允许导出")
         with session_scope(engine) as session:
             with pytest.raises(ApprovalRequired):
-                export(session, batch, "xlsx", "bad-token", output_dir=tmp_path)
+                export(
+                    session,
+                    batch,
+                    "xlsx",
+                    "bad-token",
+                )
             row = session.scalar(
                 select(Approval).where(Approval.target_id == "missing-store:2026-10")
             )
@@ -99,7 +109,10 @@ def test_four_denials_leave_audit_and_no_artifact(engine: Engine, tmp_path: Path
         downgrade_base(url)
 
 
-def test_approved_export_can_only_be_used_once(engine: Engine, tmp_path: Path) -> None:
+def test_approved_export_can_only_be_used_once(
+    engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("crosserp.ledger.write_service.ledger_export_dir", lambda: tmp_path)
     url = engine.url.render_as_string(hide_password=False)
     upgrade_head(url)
     try:
@@ -117,12 +130,22 @@ def test_approved_export_can_only_be_used_once(engine: Engine, tmp_path: Path) -
             submit(session, row, actor="operator")
             token = approve(session, row, approver="finance")
         with session_scope(engine) as session:
-            artifact = export(session, batch, "xlsx", token, output_dir=tmp_path)
+            artifact = export(
+                session,
+                batch,
+                "xlsx",
+                token,
+            )
             assert Path(artifact.file_path or "").is_file()
             artifact_id = artifact.id
         with session_scope(engine) as session:
             with pytest.raises(ApprovalRequired, match="已被使用"):
-                export(session, batch, "xlsx", token, output_dir=tmp_path)
+                export(
+                    session,
+                    batch,
+                    "xlsx",
+                    token,
+                )
             assert session.scalar(select(ExportArtifact.id)) == artifact_id
             actions = list(session.scalars(select(AuditLog.action).order_by(AuditLog.seq)))
             assert "ledger.export" in actions

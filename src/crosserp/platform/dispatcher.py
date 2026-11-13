@@ -27,6 +27,7 @@ from crosserp.platform.audit import AuditRecorder
 from crosserp.platform.idempotency import execution_scope, find_action_replay
 from crosserp.platform.permissions import PermissionService
 from crosserp.platform.principal import Principal
+from crosserp.platform.undo import UndoRestoreRegistry
 
 _CATALOG = load_catalog()
 
@@ -55,10 +56,13 @@ class UndoPayload(BaseModel):
     entity_id: str = Field(alias="entityId")
     action: str
     permission: str
-    before: dict[str, Any] = Field(default_factory=dict)
-    actor_id: str | None = Field(default=None, alias="actorId")
-    on_behalf_of: str | None = Field(default=None, alias="onBehalfOf")
+    before: dict[str, Any]
+    actor_id: str | None = Field(alias="actorId")
+    on_behalf_of: str | None = Field(alias="onBehalfOf")
     actor_type: str = Field(alias="actorType")
+    reverse_action: str | None = Field(alias="reverseAction")
+    reverse_payload: dict[str, Any] | None = Field(alias="reversePayload")
+    reverse_permission: str | None = Field(alias="reversePermission")
 
 
 class RiskTier(StrEnum):
@@ -105,6 +109,7 @@ class ActionDispatcher:
         permission_service: PermissionService,
         audit_recorder: AuditRecorder,
         approval_gateway: ApprovalGateway,
+        undo_restore: UndoRestoreRegistry,
         ai_enabled: bool = True,
         ai_mode: str = "normal",
     ) -> None:
@@ -113,6 +118,7 @@ class ActionDispatcher:
         self.permission_service = permission_service
         self.audit_recorder = audit_recorder
         self.approval_gateway = approval_gateway
+        self.undo_restore = undo_restore
         if ai_mode not in {"normal", "degraded", "off"}:
             raise ValueError("ai_mode 必须是 normal、degraded 或 off")
         self.ai_enabled = ai_enabled and ai_mode == "normal"
@@ -135,6 +141,7 @@ class ActionDispatcher:
         source_batch_id: UUID | None = None,
         source_raw_row_id: int | None = None,
         source_file: str | None = None,
+        source_rule_version: str | None = None,
         request_id: str | None = None,
         tool_call_id: str | None = None,
         parent_permissions: frozenset[str] | None = None,
@@ -240,6 +247,7 @@ class ActionDispatcher:
                 source_batch_id=source_batch_id,
                 source_raw_row_id=source_raw_row_id,
                 source_file=source_file,
+                source_rule_version=source_rule_version,
                 request_id=request_id,
                 tool_call_id=tool_call_id,
                 payload=payload,
@@ -294,9 +302,7 @@ class ActionDispatcher:
         if row is None or not self._can_undo(row, principal):
             raise APIError(ErrorCode.NOT_FOUND, "撤销记录不存在")
         payload = UndoPayload.model_validate(row.undo_payload_json)
-        from crosserp.catalog.undo_restore import supports_undo
-
-        if not supports_undo(payload.entity):
+        if not self.undo_restore.supports(payload.entity):
             raise APIError(ErrorCode.VALIDATION_FAILED, "该实体不支持撤销")
         self._require_undo_target_access(row, principal, payload)
         request_payload = {"undoId": str(row.id)}
@@ -330,11 +336,38 @@ class ActionDispatcher:
         if version_row is None:
             raise APIError(ErrorCode.CONFLICT_VERSION, "撤销版本不存在")
 
-        def restore() -> dict[str, Any]:
-            from crosserp.catalog.undo_restore import restore_entity
+        fields = self.undo_restore.restorable_fields(payload.entity)
+        has_restorable = any(name in payload.before for name in fields)
+        use_reverse = payload.reverse_action is not None and not has_restorable
+        if use_reverse:
+            if (
+                payload.reverse_action is None
+                or payload.reverse_payload is None
+                or payload.reverse_permission is None
+            ):
+                raise APIError(ErrorCode.VALIDATION_FAILED, "撤销反向动作未声明权限")
+            self.permission_service.require(principal, payload.reverse_permission, row.entity_id)
+            reverse_action = payload.reverse_action
+            reverse_payload = payload.reverse_payload
 
-            restore_entity(self.session, row.entity_type, row.entity_id, payload.before)
-            return {"before": version_row.after_json, "after": payload.before}
+            def restore() -> dict[str, Any]:
+                return self.undo_restore.apply_reverse(
+                    self.session,
+                    action=reverse_action,
+                    entity_id=row.entity_id,
+                    payload=reverse_payload,
+                    principal=principal,
+                    permission_service=self.permission_service,
+                )
+        else:
+            if not has_restorable:
+                raise APIError(ErrorCode.VALIDATION_FAILED, "撤销前快照没有可回退字段")
+
+            def restore() -> dict[str, Any]:
+                self.undo_restore.restore(
+                    self.session, row.entity_type, row.entity_id, payload.before
+                )
+                return {"before": version_row.after_json, "after": payload.before}
 
         result = self.dispatch(
             principal=principal,
@@ -411,7 +444,9 @@ class ActionDispatcher:
                 EntityVersion.entity_type == entity, EntityVersion.entity_id == entity_id
             )
         )
-        return 0 if value is None else int(value)
+        if value is not None:
+            return int(value)
+        return 0
 
     def _write_version_and_audit(
         self,
@@ -425,6 +460,7 @@ class ActionDispatcher:
         source_batch_id: UUID | None,
         source_raw_row_id: int | None,
         source_file: str | None,
+        source_rule_version: str | None,
         request_id: str | None,
         tool_call_id: str | None,
         payload: Any,
@@ -462,6 +498,7 @@ class ActionDispatcher:
             source_batch_id=source_batch_id,
             source_raw_row_id=source_raw_row_id,
             source_file=source_file,
+            source_rule_version=source_rule_version,
             before_json=before,
             after_json=after,
             diff_json=diff,
@@ -490,9 +527,7 @@ class ActionDispatcher:
             raise APIError(ErrorCode.VALIDATION_FAILED, "中风险动作必须提供实体 ID 和版本")
         if entity_id is None or version is None:
             return None
-        from crosserp.catalog.undo_restore import supports_undo
-
-        if not supports_undo(entity):
+        if not self.undo_restore.supports(entity):
             raise APIError(ErrorCode.VALIDATION_FAILED, "该实体不支持撤销")
         if (
             not isinstance(result, dict)
@@ -501,6 +536,7 @@ class ActionDispatcher:
         ):
             raise APIError(ErrorCode.VALIDATION_FAILED, "可撤销动作必须返回 before 对象")
         before = result["before"]
+        reverse_action, reverse_payload, reverse_permission = _reverse_declaration(result)
         payload = UndoPayload(
             entity=entity,
             entityId=entity_id,
@@ -510,6 +546,9 @@ class ActionDispatcher:
             actorId=str(principal.user_id) if principal.user_id else None,
             onBehalfOf=str(principal.on_behalf_of) if principal.on_behalf_of else None,
             actorType="agent" if principal.is_agent else "human",
+            reverseAction=reverse_action,
+            reversePayload=reverse_payload,
+            reversePermission=reverse_permission,
         )
         row = AgentUndo(
             id=uuid4(),
@@ -641,6 +680,29 @@ def _call_business_action(action: Callable[[], Any]) -> Any:
 
 def _as_mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {"value": value}
+
+
+def _reverse_declaration(
+    result: dict[str, Any],
+) -> tuple[str | None, dict[str, Any] | None, str | None]:
+    if "undo" in result:
+        spec = result["undo"]
+    elif "undoPayload" in result:
+        spec = result["undoPayload"]
+    else:
+        return None, None, None
+    if "action" not in spec:
+        raise APIError(ErrorCode.VALIDATION_FAILED, "撤销声明缺少动作")
+    action = spec["action"]
+    if "payload" in spec:
+        payload = spec["payload"]
+    else:
+        payload = {key: value for key, value in spec.items() if key != "action"}
+    if action in _CATALOG.action_by_id:
+        return action, payload, _CATALOG.action_by_id[action].permission
+    if "permission" not in payload:
+        raise APIError(ErrorCode.VALIDATION_FAILED, "撤销反向动作未声明权限")
+    return action, payload, payload["permission"]
 
 
 def _catalog_permission(action: str, fallback: str) -> str:

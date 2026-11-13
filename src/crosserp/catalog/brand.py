@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.api.errors import not_found
 from crosserp.api.schemas import BrandCreateRequest, BrandStatusRequest, BrandUpdateRequest
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.schema import Brand
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.factory import make_action_dispatcher
@@ -212,9 +213,9 @@ class BrandService:
         )
 
     def _dispatch(self, **kwargs: Any) -> dict[str, Any]:
-        result = make_action_dispatcher(self.session, self.permission_service).dispatch(
-            risk_tier=RiskTier.MEDIUM, **kwargs
-        )
+        result = make_action_dispatcher(
+            self.session, self.permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        ).dispatch(risk_tier=RiskTier.MEDIUM, **kwargs)
         return cast(dict[str, Any], result)
 
 
