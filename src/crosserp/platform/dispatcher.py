@@ -141,6 +141,7 @@ class ActionDispatcher:
         source_batch_id: UUID | None = None,
         source_raw_row_id: int | None = None,
         source_file: str | None = None,
+        source_rule_version: str | None = None,
         request_id: str | None = None,
         tool_call_id: str | None = None,
         parent_permissions: frozenset[str] | None = None,
@@ -246,6 +247,7 @@ class ActionDispatcher:
                 source_batch_id=source_batch_id,
                 source_raw_row_id=source_raw_row_id,
                 source_file=source_file,
+                source_rule_version=source_rule_version,
                 request_id=request_id,
                 tool_call_id=tool_call_id,
                 payload=payload,
@@ -442,7 +444,9 @@ class ActionDispatcher:
                 EntityVersion.entity_type == entity, EntityVersion.entity_id == entity_id
             )
         )
-        return 0 if value is None else int(value)
+        if value is not None:
+            return int(value)
+        return 0
 
     def _write_version_and_audit(
         self,
@@ -456,6 +460,7 @@ class ActionDispatcher:
         source_batch_id: UUID | None,
         source_raw_row_id: int | None,
         source_file: str | None,
+        source_rule_version: str | None,
         request_id: str | None,
         tool_call_id: str | None,
         payload: Any,
@@ -493,6 +498,7 @@ class ActionDispatcher:
             source_batch_id=source_batch_id,
             source_raw_row_id=source_raw_row_id,
             source_file=source_file,
+            source_rule_version=source_rule_version,
             before_json=before,
             after_json=after,
             diff_json=diff,
