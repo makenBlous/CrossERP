@@ -14,17 +14,17 @@ from sqlalchemy.orm import Session
 
 from crosserp.api import install_api
 from crosserp.api.errors import APIError, ErrorCode
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.migrate import upgrade_head
 from crosserp.db.repo.users import create_user
 from crosserp.db.schema import ActionExecution, AuditLog, EntityEvent, EntityVersion, UserRole
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.ontology.catalog import load_catalog, validate_catalog
 from crosserp.platform.approval import ApprovalSubmission
-from crosserp.platform.audit import DefaultAuditRecorder
-from crosserp.platform.dispatcher import ActionDispatcher, RiskTier
+from crosserp.platform.dispatcher import RiskTier
+from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.file_storage import FileStorage
 from crosserp.platform.principal import ActorType, Principal, get_principal
-from tests.api.conftest import TestApprovalGateway
 
 
 class _UnitPermissionService:
@@ -42,6 +42,10 @@ class _UnitPermissionService:
         return principal.permissions
 
 
+def _dispatcher(session, permission_service):
+    return make_action_dispatcher(session, permission_service, undo_restore=CATALOG_UNDO_RESTORE)
+
+
 def test_expected_version_conflict_and_idempotent_replay_do_not_write_twice() -> None:
     with TemporaryDirectory() as directory:
         url = sqlite_file_url(Path(directory) / "db.sqlite")
@@ -50,12 +54,7 @@ def test_expected_version_conflict_and_idempotent_replay_do_not_write_twice() ->
         entity_id = uuid4()
         principal = Principal(user_id=uuid4(), permissions=frozenset({"store:write"}))
         session = Session(engine)
-        dispatcher = ActionDispatcher(
-            session=session,
-            permission_service=_UnitPermissionService(),
-            audit_recorder=DefaultAuditRecorder(session),
-            approval_gateway=TestApprovalGateway(),
-        )
+        dispatcher = _dispatcher(session, _UnitPermissionService())
         with dispatcher.session.begin():
             first = dispatcher.dispatch(
                 principal=principal,
@@ -123,12 +122,7 @@ def test_subagent_scope_is_nested_and_rechecks_represented_permissions(api_engin
         permissions=frozenset({"store:write"}),
         on_behalf_of=represented,
     )
-    dispatcher = ActionDispatcher(
-        session=session,
-        permission_service=service,
-        audit_recorder=DefaultAuditRecorder(session),
-        approval_gateway=TestApprovalGateway(),
-    )
+    dispatcher = _dispatcher(session, service)
     dispatcher.dispatch(
         principal=child,
         parent_permissions=frozenset({"store:write", "store:read"}),
@@ -181,16 +175,10 @@ def test_stage_failure_stops_pipeline_without_success_artifacts() -> None:
             def data_scope_filter(self, *_args: object) -> dict[str, object]:
                 return {}
 
-        dispatcher = ActionDispatcher(
-            session=session,
-            permission_service=Deny(),
-            audit_recorder=DefaultAuditRecorder(session),
-            approval_gateway=TestApprovalGateway(),
-            hooks={
-                stage: (lambda stage=stage, **_: seen.append(stage))
-                for stage in ActionDispatcher.STAGES
-            },
-        )
+        dispatcher = _dispatcher(session, Deny())
+        dispatcher.hooks = {
+            stage: (lambda stage=stage, **_: seen.append(stage)) for stage in dispatcher.STAGES
+        }
         with pytest.raises(APIError), session.begin():
             dispatcher.dispatch(
                 principal=Principal(user_id=uuid4()),
@@ -215,13 +203,9 @@ def test_ai_off_and_degraded_modes_are_read_only(api_engine) -> None:
     )
     for mode in ("off", "degraded"):
         session = Session(api_engine)
-        dispatcher = ActionDispatcher(
-            session=session,
-            ai_mode=mode,
-            permission_service=_UnitPermissionService(),
-            audit_recorder=DefaultAuditRecorder(session),
-            approval_gateway=TestApprovalGateway(),
-        )
+        dispatcher = _dispatcher(session, _UnitPermissionService())
+        dispatcher.ai_mode = mode
+        dispatcher.ai_enabled = False
         with pytest.raises(APIError) as error:
             dispatcher.dispatch(
                 principal=principal,
@@ -248,12 +232,7 @@ def test_medium_action_keeps_reversible_preimage_and_daily_summary_event() -> No
         session = Session(engine)
         entity_id = uuid4()
         with session.begin():
-            ActionDispatcher(
-                session=session,
-                permission_service=_UnitPermissionService(),
-                audit_recorder=DefaultAuditRecorder(session),
-                approval_gateway=TestApprovalGateway(),
-            ).dispatch(
+            _dispatcher(session, _UnitPermissionService()).dispatch(
                 principal=Principal(
                     user_id=uuid4(), actor_type=ActorType.AGENT, permissions=frozenset({"x"})
                 ),
@@ -396,12 +375,9 @@ def test_agent_high_risk_submits_approval_without_business_action(api_engine) ->
         channel="agent",
     )
     session = Session(api_engine)
-    result = ActionDispatcher(
-        session=session,
-        approval_gateway=Gateway(),
-        permission_service=_UnitPermissionService(),
-        audit_recorder=DefaultAuditRecorder(session),
-    ).dispatch(
+    dispatcher = _dispatcher(session, _UnitPermissionService())
+    dispatcher.approval_gateway = Gateway()
+    result = dispatcher.dispatch(
         principal=principal,
         permission="public",
         risk_tier=RiskTier.HIGH,
@@ -425,12 +401,7 @@ def test_dispatch_writes_entity_version_and_rolls_back_with_audit() -> None:
         principal = Principal(user_id=uuid4(), permissions=frozenset({"store:write"}))
         entity_id = uuid4()
         session = Session(engine)
-        dispatcher = ActionDispatcher(
-            session=session,
-            permission_service=_UnitPermissionService(),
-            audit_recorder=DefaultAuditRecorder(session),
-            approval_gateway=TestApprovalGateway(),
-        )
+        dispatcher = _dispatcher(session, _UnitPermissionService())
         with dispatcher.session.begin():
             result = dispatcher.dispatch(
                 principal=principal,
@@ -459,12 +430,7 @@ def test_ai_medium_has_no_count_limit_and_critical_is_rejected(api_engine) -> No
     )
     calls: list[int] = []
     session = Session(api_engine)
-    dispatcher = ActionDispatcher(
-        session=session,
-        permission_service=_UnitPermissionService(),
-        audit_recorder=DefaultAuditRecorder(session),
-        approval_gateway=TestApprovalGateway(),
-    )
+    dispatcher = _dispatcher(session, _UnitPermissionService())
     # Medium actions need an entity id and before so an undo token can be issued.
     # Catalog marks Store.update critical. This call still passes medium to check the count rule.
     entity_id = str(uuid4())
@@ -495,12 +461,7 @@ def test_ai_medium_has_no_count_limit_and_critical_is_rejected(api_engine) -> No
 
 def test_business_action_rejects_nonzero_argument_contract(api_engine) -> None:
     session = Session(api_engine)
-    dispatcher = ActionDispatcher(
-        session=session,
-        permission_service=_UnitPermissionService(),
-        audit_recorder=DefaultAuditRecorder(session),
-        approval_gateway=TestApprovalGateway(),
-    )
+    dispatcher = _dispatcher(session, _UnitPermissionService())
     principal = Principal(user_id=uuid4(), permissions=frozenset({"store:write"}))
     with pytest.raises(APIError) as error:
         dispatcher.dispatch(
@@ -515,12 +476,7 @@ def test_business_action_rejects_nonzero_argument_contract(api_engine) -> None:
 
 def test_three_channels_have_same_result_and_denial(api_engine) -> None:
     session = Session(api_engine)
-    dispatcher = ActionDispatcher(
-        session=session,
-        permission_service=_UnitPermissionService(),
-        audit_recorder=DefaultAuditRecorder(session),
-        approval_gateway=TestApprovalGateway(),
-    )
+    dispatcher = _dispatcher(session, _UnitPermissionService())
     results = []
     for channel in ("web", "agent", "import"):
         results.append(

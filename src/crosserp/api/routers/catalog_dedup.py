@@ -17,6 +17,7 @@ from crosserp.api.metadata import api_endpoint
 from crosserp.api.routers._platform_common import _require, _write_guard
 from crosserp.api.schemas import CamelModel, PageParams
 from crosserp.catalog.dedup import candidate_ids, candidate_visible, merge_candidate
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.schema import DedupCandidate
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.factory import make_action_dispatcher
@@ -159,7 +160,9 @@ def merge_dedup_candidate(
             target = str(UUID(payload.target_id))
         except ValueError as exc:
             raise APIError(ErrorCode.VALIDATION_FAILED, "targetId 必须是 UUID") from exc
-        result = make_action_dispatcher(session, request.app.state.permission_service).dispatch(
+        result = make_action_dispatcher(
+            session, request.app.state.permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        ).dispatch(
             principal=principal,
             permission="integration:write",
             risk_tier=RiskTier.MEDIUM,

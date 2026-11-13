@@ -11,20 +11,19 @@ from sqlalchemy.orm import Session
 from crosserp.api import install_api
 from crosserp.api.errors import APIError, ErrorCode
 from crosserp.api.schemas import Money, PageParams
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.migrate import downgrade_base, upgrade_head
 from crosserp.db.session import make_engine, sqlite_file_url
 from crosserp.iam.service import IAMService
-from crosserp.platform.audit import DefaultAuditRecorder
 from crosserp.platform.dispatcher import (
-    ActionDispatcher,
     AutonomyDecision,
     RiskTier,
     can_ai_execute,
 )
+from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.file_storage import FileStorage
 from crosserp.platform.permissions import DefaultPermissionService, PermissionDenied
 from crosserp.platform.principal import ActorType, Principal, get_principal
-from tests.api.conftest import TestApprovalGateway
 from tests.api.idempotency_support import replay_ad_hoc_write
 
 
@@ -57,13 +56,12 @@ def test_ai_risk_cap_and_dispatch_stage_order(api_engine) -> None:
     assert can_ai_execute(RiskTier.CRITICAL) is AutonomyDecision.REJECT
     calls: list[str] = []
     session = Session(api_engine)
-    dispatcher = ActionDispatcher(
-        {name: (lambda name=name, **_: calls.append(name)) for name in ActionDispatcher.STAGES},
-        session=session,
-        permission_service=_UnitPermissionService(),
-        audit_recorder=DefaultAuditRecorder(session),
-        approval_gateway=TestApprovalGateway(),
+    dispatcher = make_action_dispatcher(
+        session, _UnitPermissionService(), undo_restore=CATALOG_UNDO_RESTORE
     )
+    dispatcher.hooks = {
+        name: (lambda name=name, **_: calls.append(name)) for name in dispatcher.STAGES
+    }
     dispatcher.dispatch(
         principal=Principal(user_id=None),
         permission="public",
@@ -71,7 +69,7 @@ def test_ai_risk_cap_and_dispatch_stage_order(api_engine) -> None:
         action="Health.read",
         business_action=lambda: calls.append("business"),
     )
-    assert calls == [*ActionDispatcher.STAGES[:5], "business", ActionDispatcher.STAGES[6]]
+    assert calls == [*dispatcher.STAGES[:5], "business", dispatcher.STAGES[6]]
 
 
 def test_permission_denial_uses_not_found_status(engine) -> None:

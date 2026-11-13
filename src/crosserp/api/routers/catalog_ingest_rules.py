@@ -17,6 +17,7 @@ from crosserp.api.routers._platform_common import _require, _write_guard
 from crosserp.api.schemas import CamelModel
 from crosserp.catalog.ingest import MappingRuleBody
 from crosserp.catalog.ingest_rules import save_mapping_rule_version
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.schema import MappingRule
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.factory import make_action_dispatcher
@@ -97,7 +98,9 @@ def update_mapping_rule(
                     "actualVersion": current.version,
                 },
             )
-        result = make_action_dispatcher(session, permission_service).dispatch(
+        result = make_action_dispatcher(
+            session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        ).dispatch(
             principal=principal,
             permission="integration:write",
             risk_tier=RiskTier.HIGH,

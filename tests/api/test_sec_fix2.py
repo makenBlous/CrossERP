@@ -13,8 +13,7 @@ from crosserp.db.repo.users import create_user
 from crosserp.db.schema import DocumentLink, IamDataScopeRule, Store, UserRole
 from crosserp.iam.catalog import load_role_templates
 from crosserp.iam.service import IAMService
-from crosserp.platform.audit import DefaultAuditRecorder
-from crosserp.platform.dispatcher import ActionDispatcher
+from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.principal import Principal
 
 
@@ -91,7 +90,7 @@ def test_me_uses_current_iam_permissions_after_revoke(json_client: TestClient, a
     assert "user:read" not in response.json()["permissions"]
 
 
-def test_dispatcher_requires_an_injected_approval_gateway() -> None:
+def test_dispatcher_factory_requires_undo_restore_registry() -> None:
     class PermissionService:
         def require(self, *_args, **_kwargs) -> None:
             return None
@@ -103,12 +102,9 @@ def test_dispatcher_requires_an_injected_approval_gateway() -> None:
             return principal.permissions
 
     session = Session()
-    with pytest.raises(TypeError, match="approval_gateway"):
-        ActionDispatcher(
-            session=session,
-            permission_service=PermissionService(),
-            audit_recorder=DefaultAuditRecorder(session),
-        )
+    with pytest.raises(TypeError, match="undo_restore"):
+        make_action_dispatcher(session, PermissionService())
+    session.close()
 
 
 def test_data_scope_denial_is_forbidden() -> None:

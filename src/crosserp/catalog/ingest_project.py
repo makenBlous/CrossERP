@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.schema import (
     CleansingIssue,
     EntityEvent,
@@ -159,7 +160,9 @@ def project_batch(
         session.scalars(select(RawRow).where(RawRow.batch_id == batch.id).order_by(RawRow.row_no))
     )
     projections: list[IngestProjection] = []
-    dispatcher = make_action_dispatcher(session, permission_service)
+    dispatcher = make_action_dispatcher(
+        session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+    )
     for raw in raw_rows:
         if raw.id in issue_rows:
             continue

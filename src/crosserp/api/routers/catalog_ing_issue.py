@@ -14,6 +14,7 @@ from crosserp.api.routers._platform_common import _principal_db, _require, _writ
 from crosserp.api.schemas import CamelModel
 from crosserp.catalog.ing_issue import escalate as escalate_issue
 from crosserp.catalog.ing_issue import get_issue, require_issue_scope, resolve_command
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.schema import CleansingIssue, ImportBatch
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.factory import make_action_dispatcher
@@ -106,7 +107,9 @@ def resolve(
         batch, issue = get_issue(session, id, issueId)
         permission_service = request.app.state.permission_service
         require_issue_scope(session, principal, permission_service, issue, write=True)
-        dispatcher = make_action_dispatcher(session, permission_service)
+        dispatcher = make_action_dispatcher(
+            session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        )
         values = payload.model_dump(by_alias=True)
         result = _dispatch(
             request,
@@ -161,7 +164,9 @@ def escalate(
         batch, issue = get_issue(session, id, issueId)
         permission_service = request.app.state.permission_service
         require_issue_scope(session, principal, permission_service, issue, write=True)
-        dispatcher = make_action_dispatcher(session, permission_service)
+        dispatcher = make_action_dispatcher(
+            session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        )
         values = payload.model_dump(by_alias=True)
         return cast(
             dict[str, Any],

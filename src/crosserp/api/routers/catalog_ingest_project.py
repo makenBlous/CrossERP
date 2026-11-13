@@ -15,6 +15,7 @@ from crosserp.api.metadata import api_endpoint
 from crosserp.api.routers._platform_common import _principal_db, _write_guard
 from crosserp.api.schemas import CamelModel
 from crosserp.catalog.ingest_project import project_batch, supersede_batch
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.schema import ImportBatch
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.factory import make_action_dispatcher
@@ -79,7 +80,9 @@ def project(
                     idempotency_key=idempotency_key,
                     payload=body,
                 )
-            result = make_action_dispatcher(session, request.app.state.permission_service).dispatch(
+            result = make_action_dispatcher(
+                session, request.app.state.permission_service, undo_restore=CATALOG_UNDO_RESTORE
+            ).dispatch(
                 principal=principal,
                 permission="integration:import",
                 risk_tier=RiskTier.MEDIUM,
@@ -140,7 +143,9 @@ def supersede(
                         "actualVersion": old.version,
                     },
                 )
-            result = make_action_dispatcher(session, request.app.state.permission_service).dispatch(
+            result = make_action_dispatcher(
+                session, request.app.state.permission_service, undo_restore=CATALOG_UNDO_RESTORE
+            ).dispatch(
                 principal=principal,
                 permission="integration:import",
                 risk_tier=RiskTier.CRITICAL,

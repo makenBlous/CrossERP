@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.schemas import CamelModel
+from crosserp.catalog.undo_restore import CATALOG_UNDO_RESTORE
 from crosserp.db.schema import Category
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.permissions import PermissionService
@@ -134,16 +135,22 @@ def create_category(
         result = _as_dict(row)
         result["before"] = {}
         result["undo"] = {
-            "action": "Category.delete",
+            "action": "Category.status",
             "entity": "Category",
             "id": str(category_id),
-            "previous": None,
+            "payload": {
+                "id": str(category_id),
+                "status": "inactive",
+                "expectedVersion": 1,
+            },
         }
         return result
 
     return cast(
         dict[str, Any],
-        make_action_dispatcher(session, permission_service).dispatch(
+        make_action_dispatcher(
+            session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        ).dispatch(
             principal=principal,
             permission="item_group:create",
             risk_tier="medium",
@@ -207,7 +214,9 @@ def update_category(
 
     return cast(
         dict[str, Any],
-        make_action_dispatcher(session, permission_service).dispatch(
+        make_action_dispatcher(
+            session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        ).dispatch(
             principal=principal,
             permission="item_group:write",
             risk_tier="medium",
@@ -263,7 +272,9 @@ def set_category_status(
 
     return cast(
         dict[str, Any],
-        make_action_dispatcher(session, permission_service).dispatch(
+        make_action_dispatcher(
+            session, permission_service, undo_restore=CATALOG_UNDO_RESTORE
+        ).dispatch(
             principal=principal,
             permission="item_group:write",
             risk_tier="medium",
