@@ -62,6 +62,7 @@ def _batch(session: Session, *, user_id, status: str = "cleansed") -> ImportBatc
             batch_id=batch.id,
             row_no=1,
             payload_json={
+                "id": str(uuid4()),
                 "storeId": str(uuid4()),
                 "platformSku": "P-1",
                 "internalSku": "I-1",
@@ -100,6 +101,7 @@ def test_project_sku_writes_entity_version_and_is_idempotent(
         batch = _batch(session, user_id=user.id)
         raw = session.scalar(select(RawRow).where(RawRow.batch_id == batch.id))
         assert raw is not None
+        projected_id = str(raw.payload_json["id"])
         raw.payload_json = {**raw.payload_json, "storeId": str(store.id)}
         batch_id = batch.id
     csrf = _login(json_client, "project-api")
@@ -118,7 +120,9 @@ def test_project_sku_writes_entity_version_and_is_idempotent(
     )
     assert replay.status_code == 200
     with Session(api_engine) as session:
-        assert len(list(session.scalars(select(Sku)))) == 1
+        created = list(session.scalars(select(Sku)))
+        assert len(created) == 1
+        assert str(created[0].id) == projected_id
         assert len(list(session.scalars(select(EntityVersion)))) == 2
 
 
@@ -418,3 +422,86 @@ def test_agent_money_projection_creates_approval_without_business_entity(api_eng
         assert result["items"][0]["status"] == "awaiting_initiator"
         assert result["items"][0]["result"]["approvalId"]
         assert session.scalar(select(Sku)) is None
+
+
+def test_project_rejects_store_dimension_without_store_id(
+    json_client: TestClient, api_engine
+) -> None:
+    now = datetime.now(UTC)
+    with Session(api_engine) as session, session.begin():
+        user = create_user(
+            session, username="project-no-store", password="password-123", roles=(Role.ADMIN,)
+        )
+        session.add(
+            MappingRule(
+                id=uuid4(),
+                rule_key="sku-no-store",
+                rule_version="no-store-v1",
+                kind="sku",
+                body_json={"projection": {"entity": "Sku", "action": "Sku.create"}},
+                status="active",
+                verified=True,
+                created_at=now,
+            )
+        )
+        batch = _batch(session, user_id=user.id)
+        batch.mapping_rule_version = "no-store-v1"
+        raw = session.scalar(select(RawRow).where(RawRow.batch_id == batch.id))
+        assert raw is not None
+        payload = dict(raw.payload_json)
+        del payload["storeId"]
+        raw.payload_json = payload
+        batch_id = batch.id
+    csrf = _login(json_client, "project-no-store")
+    response = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/project",
+        headers={"X-CSRF-Token": csrf, "Idempotency-Key": "project-no-store-1"},
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == ErrorCode.VALIDATION_ERROR
+    with Session(api_engine) as session:
+        assert session.scalar(select(Sku)) is None
+        assert session.get(ImportBatch, batch_id).status == "cleansed"
+
+
+def test_project_rejects_missing_id_instead_of_generating_one(
+    json_client: TestClient, api_engine
+) -> None:
+    now = datetime.now(UTC)
+    with Session(api_engine) as session, session.begin():
+        user = create_user(
+            session, username="project-no-id", password="password-123", roles=(Role.ADMIN,)
+        )
+        store = Store(id=uuid4(), platform="amazon", marketplace="US", name="no-id", currency="USD")
+        session.add(store)
+        session.add(
+            MappingRule(
+                id=uuid4(),
+                rule_key="sku-no-id",
+                rule_version="no-id-v1",
+                kind="sku",
+                body_json={"projection": {"entity": "Sku", "action": "Sku.create"}},
+                status="active",
+                verified=True,
+                created_at=now,
+            )
+        )
+        batch = _batch(session, user_id=user.id)
+        batch.mapping_rule_version = "no-id-v1"
+        raw = session.scalar(select(RawRow).where(RawRow.batch_id == batch.id))
+        assert raw is not None
+        payload = dict(raw.payload_json)
+        del payload["id"]
+        payload["storeId"] = str(store.id)
+        raw.payload_json = payload
+        batch_id = batch.id
+    csrf = _login(json_client, "project-no-id")
+    response = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/project",
+        headers={"X-CSRF-Token": csrf, "Idempotency-Key": "project-no-id-1"},
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == ErrorCode.VALIDATION_ERROR
+    with Session(api_engine) as session:
+        assert session.scalar(select(Sku)) is None
+        assert session.get(ImportBatch, batch_id).status == "cleansed"

@@ -13,7 +13,7 @@ from crosserp.api.metadata import api_endpoint
 from crosserp.api.routers._platform_common import _principal_db, _require, _write_guard
 from crosserp.api.schemas import CamelModel
 from crosserp.catalog.ing_issue import escalate as escalate_issue
-from crosserp.catalog.ing_issue import get_issue, resolve_command
+from crosserp.catalog.ing_issue import get_issue, require_issue_scope, resolve_command
 from crosserp.db.schema import CleansingIssue, ImportBatch
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.factory import make_action_dispatcher
@@ -48,13 +48,14 @@ def _dispatch(
     expected_version: int,
     idempotency_key: str | None,
     work: Any,
+    dispatcher: Any,
 ) -> Any:
     risk = (
         RiskTier.HIGH
         if action == "CleansingIssue.resolve" and issue.money_impact
         else RiskTier.MEDIUM
     )
-    return make_action_dispatcher(session, request.app.state.permission_service).dispatch(
+    return dispatcher.dispatch(
         principal=principal,
         permission="integration:import",
         risk_tier=risk,
@@ -103,6 +104,9 @@ def resolve(
         _write_guard(request, principal, csrf)
         _require(request, principal, "integration:import", entity="CleansingIssue")
         batch, issue = get_issue(session, id, issueId)
+        permission_service = request.app.state.permission_service
+        require_issue_scope(session, principal, permission_service, issue, write=True)
+        dispatcher = make_action_dispatcher(session, permission_service)
         values = payload.model_dump(by_alias=True)
         result = _dispatch(
             request,
@@ -114,6 +118,7 @@ def resolve(
             payload=values,
             expected_version=payload.expected_version,
             idempotency_key=idempotency_key,
+            dispatcher=dispatcher,
             work=lambda: resolve_command(
                 session,
                 issue,
@@ -124,6 +129,7 @@ def resolve(
                 expected_version=payload.expected_version,
                 request_id=request.state.request_id,
                 payload=values,
+                approval_gateway=dispatcher.approval_gateway,
             ),
         )
         if issue.money_impact and principal.is_agent:
@@ -153,6 +159,9 @@ def escalate(
         _write_guard(request, principal, csrf)
         _require(request, principal, "integration:import", entity="CleansingIssue")
         batch, issue = get_issue(session, id, issueId)
+        permission_service = request.app.state.permission_service
+        require_issue_scope(session, principal, permission_service, issue, write=True)
+        dispatcher = make_action_dispatcher(session, permission_service)
         values = payload.model_dump(by_alias=True)
         return cast(
             dict[str, Any],
@@ -166,6 +175,7 @@ def escalate(
                 payload=values,
                 expected_version=payload.expected_version,
                 idempotency_key=idempotency_key,
+                dispatcher=dispatcher,
                 work=lambda: escalate_issue(
                     session,
                     batch,

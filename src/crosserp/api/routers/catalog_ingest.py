@@ -17,6 +17,7 @@ from crosserp.api.errors import APIError, ErrorCode, not_found
 from crosserp.api.metadata import api_endpoint
 from crosserp.api.routers._platform_common import _page, _principal_db, _require
 from crosserp.api.schemas import PageParams
+from crosserp.catalog.ing_issue import issue_in_scope
 from crosserp.db.schema import CleansingIssue, ImportBatch, MappingRule, RawRow
 from crosserp.platform.audit import DefaultAuditRecorder
 
@@ -218,19 +219,21 @@ def list_issues(
     q: str | None = Query(None),
     sort: str = Query("rowNo"),
 ) -> dict[str, Any]:
-    with _ingest_session(request) as (_principal, session):
+    with _ingest_session(request) as (principal, session):
         batch = session.get(ImportBatch, id)
         if batch is None:
             raise not_found()
         if sort not in {"rowNo", "-rowNo"}:
             raise APIError(ErrorCode.VALIDATION_ERROR, "sort 参数无效")
-        rows = list(
-            session.scalars(
+        rows = [
+            row
+            for row in session.scalars(
                 select(CleansingIssue)
                 .where(CleansingIssue.batch_id == id)
                 .order_by(CleansingIssue.row_no.asc())
             )
-        )
+            if issue_in_scope(session, principal, request.app.state.permission_service, row)
+        ]
         if sort == "-rowNo":
             rows.reverse()
         if q:

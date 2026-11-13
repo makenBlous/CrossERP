@@ -11,8 +11,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from crosserp.api.errors import APIError, ErrorCode, not_found
-from crosserp.approval.gateway import ApprovalGatewayImpl
-from crosserp.db.schema import CleansingIssue, CleansingIssueTransfer, ImportBatch
+from crosserp.db.schema import CleansingIssue, CleansingIssueTransfer, ImportBatch, RawRow
+from crosserp.iam.scope import AllStores
+from crosserp.platform.approval import ApprovalGateway
 from crosserp.platform.principal import Principal
 
 
@@ -96,8 +97,9 @@ def resolve_command(
     expected_version: int,
     request_id: str | None,
     payload: dict[str, Any],
+    approval_gateway: ApprovalGateway,
 ) -> dict[str, Any]:
-    """人处理涉钱问题时提交审批。免审批则生效, 其余结论直接执行。"""
+    """人处理涉钱问题时经执行器上的审批网关提交。免审批则生效, 其余结论直接执行。"""
     if issue.money_impact and not principal.is_agent:
         if issue.version != expected_version:
             raise APIError(
@@ -105,7 +107,7 @@ def resolve_command(
                 "清洗问题版本已变化",
                 details={"expectedVersion": expected_version, "actualVersion": issue.version},
             )
-        approval = ApprovalGatewayImpl(session).submit(
+        approval = approval_gateway.submit(
             principal=principal,
             entity="CleansingIssue",
             action="CleansingIssue.resolve",
@@ -217,9 +219,6 @@ def list_transfers(session: Session, issue_id: UUID) -> Sequence[CleansingIssueT
 def get_issue(
     session: Session, batch_id: UUID, issue_id: UUID
 ) -> tuple[ImportBatch, CleansingIssue]:
-    # 08 v4 §9.3 defines IngestBatch/CleansingIssue without storeId; this
-    # chain is therefore company-wide. ActionDispatcher still invokes the
-    # PermissionService data-scope protocol for the entity on every action.
     batch = session.get(ImportBatch, batch_id)
     issue = session.get(CleansingIssue, issue_id)
     if batch is None or issue is None or issue.batch_id != batch_id:
@@ -227,4 +226,53 @@ def get_issue(
     return batch, issue
 
 
-__all__ = ["escalate", "get_issue", "list_transfers", "resolve", "resolve_command"]
+def issue_store_id(session: Session, issue: CleansingIssue) -> UUID | None:
+    """店铺来自原件 payload 的 storeId。缺失或无效时无法证明在范围内。"""
+    raw = session.get(RawRow, issue.raw_record_id)
+    if raw is None or not isinstance(raw.payload_json, dict) or "storeId" not in raw.payload_json:
+        return None
+    value = raw.payload_json["storeId"]
+    if not isinstance(value, str) or value == "":
+        return None
+    try:
+        return UUID(value)
+    except ValueError:
+        return None
+
+
+def issue_in_scope(
+    session: Session, principal: Principal, permission_service: Any, issue: CleansingIssue
+) -> bool:
+    scope = permission_service.store_scope(principal, "CleansingIssue")
+    store_id = issue_store_id(session, issue)
+    if isinstance(scope, AllStores):
+        return True
+    if store_id is None:
+        return False
+    return store_id in scope
+
+
+def require_issue_scope(
+    session: Session,
+    principal: Principal,
+    permission_service: Any,
+    issue: CleansingIssue,
+    *,
+    write: bool,
+) -> None:
+    if issue_in_scope(session, principal, permission_service, issue):
+        return
+    if write:
+        raise APIError(ErrorCode.DATA_SCOPE_DENIED, "超出店铺数据范围")
+    raise not_found()
+
+
+__all__ = [
+    "escalate",
+    "get_issue",
+    "issue_in_scope",
+    "list_transfers",
+    "require_issue_scope",
+    "resolve",
+    "resolve_command",
+]

@@ -22,9 +22,14 @@ from crosserp.db.schema import (
     Sku,
 )
 from crosserp.iam.scope import AllStores
+from crosserp.ontology.catalog import load_catalog
 from crosserp.platform.dispatcher import RiskTier
 from crosserp.platform.factory import make_action_dispatcher
 from crosserp.platform.principal import Principal
+
+_CATALOG = load_catalog()
+# Sku.create 会写入 store_id. 本体属性列表没有 storeId.
+_STORE_DIMENSION_ENTITIES = frozenset({"Sku"})
 
 
 class _StrictModel(BaseModel):
@@ -332,20 +337,34 @@ def _projection_spec(rule_body: MappingRuleBody, payload: Any) -> tuple[str, str
     return rule_body.projection.entity, rule_body.projection.action, mapped
 
 
+def _entity_has_store_dimension(entity: str) -> bool:
+    if entity in _STORE_DIMENSION_ENTITIES:
+        return True
+    if entity not in _CATALOG.entity_by_id:
+        raise APIError(ErrorCode.VALIDATION_ERROR, "映射规则包含未登记的实体")
+    properties = _CATALOG.entity_by_id[entity].properties
+    return any(item.split(":", 1)[0].strip() == "storeId" for item in properties)
+
+
 def _entity_id(data: dict[str, Any]) -> str:
-    if "id" not in data or not data["id"]:
-        return str(uuid4())
-    return str(data["id"])
+    if "id" not in data or not isinstance(data["id"], str) or data["id"] == "":
+        raise APIError(ErrorCode.VALIDATION_ERROR, "投射缺少 id")
+    return data["id"]
 
 
 def _require_projection_scope(
     permission_service: Any, principal: Principal, entity: str, data: dict[str, Any]
 ) -> None:
     scope = permission_service.store_scope(principal, entity)
-    if "storeId" not in data:
+    missing_store = (
+        "storeId" not in data or not isinstance(data["storeId"], str) or data["storeId"] == ""
+    )
+    if _entity_has_store_dimension(entity) and missing_store:
+        raise APIError(ErrorCode.VALIDATION_ERROR, "店铺维度实体缺少 storeId")
+    if missing_store:
         return
     try:
-        store_id = UUID(str(data["storeId"]))
+        store_id = UUID(data["storeId"])
     except ValueError as exc:
         raise APIError(ErrorCode.VALIDATION_ERROR, "storeId 无效") from exc
     if isinstance(scope, AllStores) or store_id in scope:

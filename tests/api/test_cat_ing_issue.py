@@ -3,11 +3,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from crosserp.api.errors import APIError, ErrorCode
 from crosserp.auth.roles import Role
+from crosserp.catalog.ing_issue import require_issue_scope
 from crosserp.db.repo.users import create_user
 from crosserp.db.schema import (
     Approval,
@@ -15,8 +18,10 @@ from crosserp.db.schema import (
     CleansingIssue,
     CleansingIssueTransfer,
     EntityVersion,
+    IamDataScopeRule,
     ImportBatch,
     RawRow,
+    Store,
     WorkflowRule,
 )
 from crosserp.platform.principal import ActorType, Principal, get_principal
@@ -417,3 +422,75 @@ def test_agent_cannot_confirm_initiator_approval(
         issue = session.get(CleansingIssue, issue_id)
         assert row is not None and row.state == "awaiting_initiator"
         assert issue is not None and issue.status == "open"
+
+
+def test_other_store_issue_is_hidden_on_read_and_denied_on_write(
+    json_client: TestClient, api_engine
+) -> None:
+    now = datetime.now(UTC)
+    store_a = uuid4()
+    store_b = uuid4()
+    with Session(api_engine) as session, session.begin():
+        user = create_user(
+            session, username="ing-issue-scope", password="password-123", roles=(Role.ADMIN,)
+        )
+        session.add_all(
+            [
+                Store(
+                    id=store_a, platform="amazon", marketplace="US", name="store-a", currency="USD"
+                ),
+                Store(
+                    id=store_b, platform="amazon", marketplace="DE", name="store-b", currency="EUR"
+                ),
+            ]
+        )
+        session.add(
+            IamDataScopeRule(
+                name="issue-store-a",
+                entity="CleansingIssue",
+                scope_type="storeIds",
+                values=[str(store_a)],
+                updated_by=user.id,
+                updated_at=now,
+            )
+        )
+        user_id = user.id
+    _owner_id, batch_id, issue_id = _issue(api_engine, "ing-issue-scope-owner")
+    with Session(api_engine) as session, session.begin():
+        raw = session.scalar(select(RawRow).where(RawRow.batch_id == batch_id))
+        assert raw is not None
+        raw.payload_json = {**raw.payload_json, "storeId": str(store_b)}
+    csrf = _login(json_client, "ing-issue-scope")
+    listed = json_client.get(f"/api/v1/ingest/batches/{batch_id}/issues")
+    assert listed.status_code == 200
+    assert str(issue_id) not in {item["id"] for item in listed.json()["items"]}
+    with Session(api_engine) as session:
+        issue = session.get(CleansingIssue, issue_id)
+        assert issue is not None
+        with pytest.raises(APIError) as caught:
+            require_issue_scope(
+                session,
+                Principal(user_id=user_id),
+                json_client.app.state.permission_service,
+                issue,
+                write=False,
+            )
+        assert caught.value.status_code == 404
+        assert caught.value.code == ErrorCode.NOT_FOUND
+    denied = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/resolve",
+        json={"decision": "ignore", "reason": "越店处理", "expectedVersion": 0},
+        headers={"X-CSRF-Token": csrf, "Idempotency-Key": "ing-issue-scope-write"},
+    )
+    assert denied.status_code == 403
+    assert denied.json()["code"] == "DATA_SCOPE_DENIED"
+    escalated = json_client.post(
+        f"/api/v1/ingest/batches/{batch_id}/issues/{issue_id}/escalate",
+        json={"expectedVersion": 0, "reason": "越店转交"},
+        headers={"X-CSRF-Token": csrf, "Idempotency-Key": "ing-issue-scope-escalate"},
+    )
+    assert escalated.status_code == 403
+    assert escalated.json()["code"] == "DATA_SCOPE_DENIED"
+    with Session(api_engine) as session:
+        issue = session.get(CleansingIssue, issue_id)
+        assert issue is not None and issue.status == "open" and issue.version == 0
